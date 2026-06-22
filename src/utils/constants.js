@@ -1,3 +1,5 @@
+export const OPENAI_REPORT_MODEL = 'gpt-4o-mini'
+
 export const STAGES = {
   LANDING: 'landing',
   QUESTIONNAIRE: 'questionnaire',

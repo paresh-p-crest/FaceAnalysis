@@ -3,6 +3,7 @@ import { buildAwsReport } from './buildAwsReport'
 import { getOpenAIKey, getActiveLLM } from './settings'
 import { isDemoMode } from './appMode'
 import { formatAnswersSummary } from './onboarding'
+import { OPENAI_REPORT_MODEL } from './constants'
 
 function metricsBlock(metrics) {
   if (!metrics) return ''
@@ -90,7 +91,7 @@ ${metricsBlock(cvMetrics)}`,
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: OPENAI_REPORT_MODEL,
         messages,
         temperature: 0.7,
         max_tokens: 1500,

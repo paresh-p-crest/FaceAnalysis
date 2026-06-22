@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, Settings as SettingsIcon, Key, Cloud, Info, CheckCircle2 } from 'lucide-react'
 import { loadSettings, saveSettings, getModeSummary } from '../utils/settings'
+import { OPENAI_REPORT_MODEL } from '../utils/constants'
 
 const TABS = [
   { id: 'aws', label: 'AWS', icon: Cloud },
@@ -114,9 +115,6 @@ export default function Settings({ open, onClose }) {
         <div className="space-y-4">
           {activeTab === 'aws' ? (
             <>
-              <p className="text-xs text-slate-500">
-                AWS Rekognition for face detection. Keys starting with <code className="text-accent/70">ASIA</code> need a session token (AWS Academy/sandbox).
-              </p>
               <input
                 type="text"
                 placeholder="AWS Access Key ID"
@@ -149,12 +147,14 @@ export default function Settings({ open, onClose }) {
                 disabled={isDemo}
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-accent/40 disabled:opacity-40"
               />
+              <p className="text-[10px] text-slate-500 font-sans leading-relaxed">
+                <span className="text-slate-600">CV:</span> Amazon Rekognition DetectFaces
+                <span className="text-slate-700 mx-1">·</span>
+                <span className="text-slate-600">Report:</span> Template from AWS data (no LLM / Bedrock)
+              </p>
             </>
           ) : (
             <>
-              <p className="text-xs text-slate-500">
-                MediaPipe + OpenCV for CV analysis · OpenAI for AI report text.
-              </p>
               <input
                 type="password"
                 placeholder="OpenAI API Key (sk-...)"
@@ -163,6 +163,11 @@ export default function Settings({ open, onClose }) {
                 disabled={isDemo}
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-accent/40 disabled:opacity-40"
               />
+              <p className="text-[10px] text-slate-500 font-sans leading-relaxed">
+                <span className="text-slate-600">CV:</span> MediaPipe Face Landmarker + OpenCV
+                <span className="text-slate-700 mx-1">·</span>
+                <span className="text-slate-600">Report model:</span> {OPENAI_REPORT_MODEL}
+              </p>
             </>
           )}
         </div>
