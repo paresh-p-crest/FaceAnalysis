@@ -1,16 +1,17 @@
 import { useState } from 'react'
-import { X, Settings as SettingsIcon, Key, Cloud, Info, CheckCircle2 } from 'lucide-react'
+import { X, Settings as SettingsIcon, Key, Cloud, Info, CheckCircle2, Cpu } from 'lucide-react'
 import { loadSettings, saveSettings, getModeSummary } from '../utils/settings'
 import { OPENAI_REPORT_MODEL } from '../utils/constants'
 
 const TABS = [
+  { id: 'local', label: 'Free CV', icon: Cpu },
   { id: 'aws', label: 'AWS', icon: Cloud },
   { id: 'openai', label: 'OpenAI', icon: Key },
 ]
 
 export default function Settings({ open, onClose }) {
   const [form, setForm] = useState(loadSettings)
-  const [activeTab, setActiveTab] = useState(form.activeLLM || 'aws')
+  const [activeTab, setActiveTab] = useState(form.activeLLM || 'local')
   const [saved, setSaved] = useState(false)
 
   if (!open) return null
@@ -18,11 +19,11 @@ export default function Settings({ open, onClose }) {
   const isDemo = form.appMode !== 'real'
 
   const handleSave = () => {
-    const prevMode = loadSettings().appMode
+    const prev = loadSettings()
     saveSettings({ ...form, activeLLM: activeTab })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-    if (prevMode !== form.appMode) {
+    if (prev.appMode !== form.appMode || prev.activeLLM !== activeTab) {
       setTimeout(() => window.location.reload(), 400)
     }
   }
@@ -86,8 +87,10 @@ export default function Settings({ open, onClose }) {
           <Info className="w-4 h-4 text-accent shrink-0 mt-0.5" />
           <div className="text-xs text-slate-400 leading-relaxed font-sans">
             {isDemo
-              ? 'Demo uses mock analysis. Switch to Real and add credentials below for live analysis.'
-              : 'Real mode — active tab = active provider. Keys stored in browser only.'}
+              ? 'Demo uses mock analysis. Switch to Real and pick a provider tab below.'
+              : activeTab === 'local'
+                ? 'Free CV — MediaPipe + OpenCV in your browser. No API keys. Eye report with template text (no LLM).'
+                : 'Real mode — active tab = active provider. Keys stored in browser only.'}
           </div>
         </div>
 
@@ -97,7 +100,7 @@ export default function Settings({ open, onClose }) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                 activeTab === tab.id
                   ? 'bg-accent/15 text-accent border border-accent/30'
                   : 'text-slate-500 hover:text-slate-300'
@@ -113,7 +116,21 @@ export default function Settings({ open, onClose }) {
         </div>
 
         <div className="space-y-4">
-          {activeTab === 'aws' ? (
+          {activeTab === 'local' ? (
+            <div className="rounded-xl border border-accent/20 bg-accent/[0.04] p-4">
+              <p className="text-sm text-slate-300 font-sans mb-2">No credentials required</p>
+              <p className="text-xs text-slate-500 font-sans leading-relaxed">
+                Runs entirely in the browser. Best for cost-free demos — eye analysis report from landmark geometry and pixel sampling.
+              </p>
+              <p className="text-[10px] text-slate-500 font-sans leading-relaxed mt-3">
+                <span className="text-slate-600">CV:</span> MediaPipe Face Landmarker + OpenCV
+                <span className="text-slate-700 mx-1">·</span>
+                <span className="text-slate-600">Report:</span> Rule-based template (no LLM)
+                <span className="text-slate-700 mx-1">·</span>
+                <span className="text-accent/80">$0 API cost</span>
+              </p>
+            </div>
+          ) : activeTab === 'aws' ? (
             <>
               <input
                 type="text"

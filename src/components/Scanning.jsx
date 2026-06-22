@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react'
 import { SCAN_MESSAGES } from '../utils/constants'
 import { runFaceAnalysis } from '../utils/analyzeFace'
-import { isDemoMode, getActiveLLM } from '../utils/appMode'
+import { isDemoMode, getActiveProvider } from '../utils/appMode'
 
 export default function Scanning({ photo, answers, onComplete }) {
   const [msgIndex, setMsgIndex] = useState(0)
 
+  const provider = getActiveProvider()
   const scanLabel = isDemoMode()
     ? 'Demo mode — simulated scan'
-    : getActiveLLM() === 'aws'
-      ? 'AWS Rekognition · analyzing'
-      : 'MediaPipe + OpenCV · analyzing'
+    : provider === 'local'
+      ? 'MediaPipe + OpenCV · eye analysis'
+      : provider === 'aws'
+        ? 'AWS Rekognition · analyzing'
+        : 'MediaPipe + OpenCV · analyzing'
 
   useEffect(() => {
     let cancelled = false

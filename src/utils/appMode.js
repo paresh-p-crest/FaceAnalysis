@@ -1,4 +1,4 @@
-import { getActiveLLM } from './settings'
+import { getActiveProvider } from './settings'
 
 const APP_MODE_KEY = 'aurascan_app_mode'
 
@@ -18,18 +18,24 @@ export function isRealMode() {
   return !isDemoMode()
 }
 
-export { getActiveLLM }
+export { getActiveProvider, getActiveProvider as getActiveLLM }
 
 export function getAppModeLabel() {
   if (isDemoMode()) return 'Demo (mock)'
-  const llm = getActiveLLM()
-  return llm === 'aws' ? 'Real · AWS Rekognition' : 'Real · MediaPipe + OpenAI'
+  const p = getActiveProvider()
+  if (p === 'local') return 'Real · Free CV (MediaPipe)'
+  if (p === 'aws') return 'Real · AWS Rekognition'
+  return 'Real · MediaPipe + OpenAI'
 }
 
 export function shouldUseAwsCV() {
-  return isRealMode() && getActiveLLM() === 'aws'
+  return isRealMode() && getActiveProvider() === 'aws'
 }
 
 export function shouldUseMediaPipeCV() {
-  return isRealMode() && getActiveLLM() === 'openai'
+  return isRealMode() && getActiveProvider() === 'openai'
+}
+
+export function shouldUseLocalCV() {
+  return isRealMode() && getActiveProvider() === 'local'
 }

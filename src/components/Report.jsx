@@ -2,27 +2,19 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import {
   ScanFace, RotateCcw, Sparkles, Eye, Activity,
-  TrendingUp, ClipboardList, Loader2, AlertTriangle, Settings,
+  TrendingUp, ClipboardList, Loader2, AlertTriangle,
 } from 'lucide-react'
 import { computeMetrics, generateLandmarks } from '../utils/constants'
 import { generateReport } from '../utils/openai'
 import { isDemoMode } from '../utils/appMode'
 import { saveHistoryEntry, createHistoryId, loadHistory } from '../utils/historyStorage'
+import { ReportNavSidebar } from './report/ReportNavSidebar'
+import { CvReportView } from './report/CvReportView'
 
-const TABS = [
+const LEGACY_TABS = [
   { id: 'overview', label: 'Overview', icon: Activity },
   { id: 'structure', label: 'Structure', icon: ScanFace },
   { id: 'protocol', label: 'Protocol', icon: ClipboardList },
-]
-
-const METRIC_LABELS = [
-  { key: 'symmetry', label: 'Facial Symmetry', unit: '%' },
-  { key: 'proportionality', label: 'Proportionality', unit: '%' },
-  { key: 'averageness', label: 'Averageness Index', unit: '%' },
-  { key: 'eyebrowTilt', label: 'Eyebrow Tilt', unit: '°' },
-  { key: 'jawlineAngle', label: 'Jawline Angle', unit: '°' },
-  { key: 'canthalTilt', label: 'Canthal Tilt', unit: '°' },
-  { key: 'nasalAngle', label: 'Nasolabial Angle', unit: '°' },
 ]
 
 function ErrorPanel({ title, message }) {
@@ -40,9 +32,19 @@ function ErrorPanel({ title, message }) {
 function getCvLabel(analysis, metrics, isDemo) {
   if (isDemo) return 'Demo (mock)'
   if (analysis?.cvEngine === 'aws') return 'AWS Rekognition'
+  if (analysis?.cvEngine === 'local-cv') return 'MediaPipe + OpenCV (free)'
   if (analysis?.cvEngine === 'mediapipe+opencv') {
     return `MediaPipe (${metrics?.landmarkCount || 478} pts) + OpenCV`
   }
+  return '—'
+}
+
+function getReportLabel(source, isDemo, reportError) {
+  if (source === 'local') return 'Free CV template'
+  if (source === 'openai') return 'OpenAI'
+  if (source === 'aws') return 'AWS Rekognition'
+  if (isDemo) return 'Demo template'
+  if (reportError) return 'Error'
   return '—'
 }
 
@@ -52,6 +54,7 @@ function stripNotesSection(text) {
 }
 
 export default function Report({ photo, photos, answers, analysis, historyId, onRestart }) {
+  const [activeSection, setActiveSection] = useState('symmetry')
   const [activeTab, setActiveTab] = useState('overview')
   const [report, setReport] = useState('')
   const [reportSource, setReportSource] = useState('')
@@ -77,7 +80,10 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   const landmarks = isDemo
     ? (displayAnalysis?.landmarks || generateLandmarks())
     : displayAnalysis?.landmarks
+  const eyeAnalysis = historyEntry?.eyeAnalysis ?? displayAnalysis?.eyeAnalysis ?? null
+  const cvReport = historyEntry?.cvReport ?? displayAnalysis?.cvReport ?? null
   const cvLabel = historyEntry?.cvLabel ?? getCvLabel(displayAnalysis, metrics, isDemo)
+  const showQovesReport = !!cvReport
 
   const persistHistory = useCallback(
     (content, source, error) => {
@@ -88,19 +94,24 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         photos,
         answers: displayAnswers,
         analysis: displayAnalysis,
+        eyeAnalysis,
+        cvReport,
         report: content,
         reportSource: source,
         reportError: error,
         cvLabel,
-        label: `Analysis · ${metrics?.harmonyScore ?? '—'}/100 harmony`,
+        label: showQovesReport
+          ? `Facial report · ${cvReport?.symmetry?.score ?? '—'} symmetry`
+          : `Analysis · ${metrics?.harmonyScore ?? '—'}/100 harmony`,
       })
     },
-    [sessionId, displayPhoto, photos, displayAnswers, displayAnalysis, cvLabel, metrics]
+    [sessionId, displayPhoto, photos, displayAnswers, displayAnalysis, cvLabel, metrics, eyeAnalysis, cvReport, showQovesReport]
   )
 
   useEffect(() => {
-    setActiveTab('overview')
-  }, [historyId])
+    if (showQovesReport) setActiveSection('symmetry')
+    else setActiveTab('overview')
+  }, [historyId, showQovesReport])
 
   useEffect(() => {
     if (historyEntry) {
@@ -120,7 +131,8 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         metrics,
         displayAnalysis?.error,
         displayAnalysis?.faceDetails,
-        displayAnalysis?.protocolWarnings
+        displayAnalysis?.protocolWarnings,
+        eyeAnalysis
       )
       if (!cancelled) {
         setReport(content || '')
@@ -131,9 +143,9 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
       }
     })()
     return () => { cancelled = true }
-  }, [historyEntry, displayAnswers, displayPhoto, metrics, displayAnalysis, persistHistory])
+  }, [historyEntry, displayAnswers, displayPhoto, metrics, displayAnalysis, eyeAnalysis, persistHistory])
 
-  const tabContent = () => {
+  const legacyTabContent = () => {
     if (loading) {
       return (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -142,11 +154,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         </div>
       )
     }
-
-    if (reportError) {
-      return <ErrorPanel title="Report unavailable" message={reportError} />
-    }
-
+    if (reportError) return <ErrorPanel title="Report unavailable" message={reportError} />
     if (activeTab === 'overview') {
       return (
         <div className="markdown-report overflow-y-auto max-h-[520px] pr-2">
@@ -154,7 +162,6 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         </div>
       )
     }
-
     if (activeTab === 'structure') {
       const structural = report.split('## Structural Analysis')[1]?.split('---')[0] || ''
       return (
@@ -167,17 +174,13 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         </div>
       )
     }
-
     const protocolRaw = report.includes('## Personalized 30-Day Protocol')
       ? report.split('## Personalized 30-Day Protocol')[1]
       : report.split('## Top Strengths')[1] || report.slice(-800)
-
-    const protocol = stripNotesSection(protocolRaw)
-
     return (
       <div className="markdown-report markdown-protocol overflow-y-auto max-h-[520px] pr-2">
         <ReactMarkdown>
-          {protocol ? '## Personalized 30-Day Protocol\n' + protocol : report}
+          {stripNotesSection(protocolRaw) ? '## Personalized 30-Day Protocol\n' + stripNotesSection(protocolRaw) : report}
         </ReactMarkdown>
       </div>
     )
@@ -212,8 +215,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
                 Your Analysis Report
               </h1>
               <p className="text-xs text-slate-500 font-sans">
-                CV: {cvLabel} · Report:{' '}
-                {reportSource === 'openai' ? 'OpenAI' : reportSource === 'aws' ? 'AWS Rekognition' : isDemo ? 'Demo template' : reportError ? 'Error' : '—'}
+                CV: {cvLabel} · Report: {getReportLabel(reportSource, isDemo, reportError)}
                 {isFromHistory && <span className="text-accent/70"> · saved</span>}
               </p>
             </div>
@@ -252,45 +254,58 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
           </div>
         )}
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          <div className="glass rounded-3xl p-6">
-            <h3 className="font-display text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-              Landmark Mapping
-            </h3>
-            <div className="relative mx-auto max-w-xs">
-              <div className="relative rounded-2xl overflow-hidden aspect-[4/5] ring-1 ring-white/10">
-                <img src={displayPhoto} alt="Analysis" className="w-full h-full object-cover" />
-                {landmarks?.length > 0 && (
-                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    {(landmarks.length > 120 ? landmarks.filter((_, i) => i % 4 === 0) : landmarks).map((pt) => (
-                      <circle key={pt.id} cx={pt.x * 100} cy={pt.y * 100} r="0.6" fill="rgba(110, 231, 200, 0.7)" />
-                    ))}
-                  </svg>
-                )}
+        {showQovesReport ? (
+          <div className="grid lg:grid-cols-[220px_1fr] gap-6">
+            <ReportNavSidebar activeId={activeSection} onSelect={setActiveSection} />
+            <div className="glass rounded-3xl p-6 min-h-[480px]">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-24 gap-4">
+                  <Loader2 className="w-8 h-8 text-accent animate-spin" />
+                  <p className="text-slate-400 text-sm font-sans">Building your report…</p>
+                </div>
+              ) : (
+                <CvReportView activeId={activeSection} cvReport={cvReport} eyeAnalysis={eyeAnalysis} />
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="glass rounded-3xl p-6">
+              <h3 className="font-display text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
+                Landmark Mapping
+              </h3>
+              <div className="relative mx-auto max-w-xs">
+                <div className="relative rounded-2xl overflow-hidden aspect-[4/5] ring-1 ring-white/10">
+                  <img src={displayPhoto} alt="Analysis" className="w-full h-full object-cover" />
+                  {landmarks?.length > 0 && (
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                      {(landmarks.length > 120 ? landmarks.filter((_, i) => i % 4 === 0) : landmarks).map((pt) => (
+                        <circle key={pt.id} cx={pt.x * 100} cy={pt.y * 100} r="0.6" fill="rgba(79, 209, 197, 0.7)" />
+                      ))}
+                    </svg>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="glass rounded-3xl p-6 flex flex-col">
-            <div className="flex items-center gap-0 border-b border-white/5 mb-6">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 transition-colors border-b-2 -mb-px ${
-                    activeTab === tab.id
-                      ? 'tab-active report-tab'
-                      : 'report-tab-inactive border-transparent hover:text-slate-300'
-                  }`}
-                >
-                  <tab.icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              ))}
+            <div className="glass rounded-3xl p-6 flex flex-col">
+              <div className="flex items-center gap-0 border-b border-white/5 mb-6 overflow-x-auto">
+                {LEGACY_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-3 transition-colors border-b-2 -mb-px shrink-0 ${
+                      activeTab === tab.id ? 'tab-active report-tab' : 'report-tab-inactive border-transparent hover:text-slate-300'
+                    }`}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              {legacyTabContent()}
             </div>
-            {tabContent()}
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

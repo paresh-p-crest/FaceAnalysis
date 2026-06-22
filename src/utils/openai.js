@@ -1,6 +1,7 @@
 import { buildMockReport } from './mockReport'
 import { buildAwsReport } from './buildAwsReport'
-import { getOpenAIKey, getActiveLLM } from './settings'
+import { buildEyeReport } from './buildEyeReport'
+import { getOpenAIKey, getActiveProvider } from './settings'
 import { isDemoMode } from './appMode'
 import { formatAnswersSummary } from './onboarding'
 import { OPENAI_REPORT_MODEL } from './constants'
@@ -19,8 +20,11 @@ ${metrics.quality ? `- Quality: ${metrics.quality}` : ''}
 Use these real measured values in the report.`
 }
 
-export async function generateReport(answers, imagePreview, cvMetrics = null, cvError = null, faceDetails = null, protocolWarnings = []) {
+export async function generateReport(answers, imagePreview, cvMetrics = null, cvError = null, faceDetails = null, protocolWarnings = [], eyeAnalysis = null) {
   if (isDemoMode()) {
+    if (eyeAnalysis) {
+      return { content: buildEyeReport(eyeAnalysis, answers), source: 'local', error: null }
+    }
     return { content: buildMockReport(answers, cvMetrics), source: 'mock', error: null }
   }
 
@@ -32,9 +36,16 @@ export async function generateReport(answers, imagePreview, cvMetrics = null, cv
     return { content: null, source: null, error: 'No analysis data available. Check credentials in Settings.' }
   }
 
-  const activeLLM = getActiveLLM()
+  const provider = getActiveProvider()
 
-  if (activeLLM === 'aws') {
+  if (provider === 'local') {
+    if (!eyeAnalysis) {
+      return { content: null, source: null, error: 'Eye analysis data missing.' }
+    }
+    return { content: buildEyeReport(eyeAnalysis, answers), source: 'local', error: null }
+  }
+
+  if (provider === 'aws') {
     const content = buildAwsReport(faceDetails, cvMetrics, answers, protocolWarnings)
     if (!content) {
       return { content: null, source: null, error: 'AWS data missing — analysis may have failed.' }
