@@ -1,4 +1,4 @@
-import { isDemoMode } from './appMode'
+import { isDemoMode, getAppMode, setAppMode } from './appMode'
 
 const STORAGE_KEYS = {
   activeLLM: 'aurascan_active_llm',
@@ -16,6 +16,7 @@ export function getActiveLLM() {
 
 export function loadSettings() {
   return {
+    appMode: getAppMode(),
     activeLLM: getActiveLLM(),
     openaiKey: localStorage.getItem(STORAGE_KEYS.openai) || '',
     awsAccessKeyId: localStorage.getItem(STORAGE_KEYS.awsAccessKeyId) || '',
@@ -25,7 +26,8 @@ export function loadSettings() {
   }
 }
 
-export function saveSettings({ activeLLM, openaiKey, awsAccessKeyId, awsSecretAccessKey, awsSessionToken, awsRegion }) {
+export function saveSettings({ appMode, activeLLM, openaiKey, awsAccessKeyId, awsSecretAccessKey, awsSessionToken, awsRegion }) {
+  setAppMode(appMode)
   localStorage.setItem(STORAGE_KEYS.activeLLM, activeLLM === 'openai' ? 'openai' : 'aws')
   localStorage.setItem(STORAGE_KEYS.openai, openaiKey || '')
   localStorage.setItem(STORAGE_KEYS.awsAccessKeyId, awsAccessKeyId || '')
@@ -77,7 +79,7 @@ export function getModeSummary() {
   const mode = getAnalysisMode()
   const llm = getActiveLLM()
   const labels = {
-    demo: 'Demo — all mock (set VITE_APP_MODE=real in .env)',
+    demo: 'Demo — all mock data',
     aws: `Real — AWS Rekognition (active provider)`,
     'aws-missing-creds': 'Real — AWS selected but credentials missing',
     'mediapipe+openai': 'Real — MediaPipe/OpenCV + OpenAI (active provider)',

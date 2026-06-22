@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { X, Settings as SettingsIcon, Key, Cloud, Info, CheckCircle2 } from 'lucide-react'
 import { loadSettings, saveSettings, getModeSummary } from '../utils/settings'
-import { isDemoMode } from '../utils/appMode'
 
 const TABS = [
   { id: 'aws', label: 'AWS', icon: Cloud },
@@ -15,10 +14,16 @@ export default function Settings({ open, onClose }) {
 
   if (!open) return null
 
+  const isDemo = form.appMode !== 'real'
+
   const handleSave = () => {
+    const prevMode = loadSettings().appMode
     saveSettings({ ...form, activeLLM: activeTab })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    if (prevMode !== form.appMode) {
+      setTimeout(() => window.location.reload(), 400)
+    }
   }
 
   const { label, appLabel } = getModeSummary()
@@ -38,7 +43,7 @@ export default function Settings({ open, onClose }) {
               <div className="flex items-center gap-2 mt-1">
                 <span
                   className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-medium font-sans ${
-                    isDemoMode()
+                    isDemo
                       ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
                       : 'bg-accent/10 text-accent border border-accent/20'
                   }`}
@@ -54,13 +59,34 @@ export default function Settings({ open, onClose }) {
           </button>
         </div>
 
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <span className="text-[10px] text-slate-500 font-sans uppercase tracking-wider">App mode</span>
+          <div className="flex gap-1 p-0.5 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+            {['demo', 'real'].map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setForm({ ...form, appMode: mode })}
+                className={`px-3 py-1 rounded-md text-[10px] font-medium font-sans capitalize transition-all ${
+                  form.appMode === mode
+                    ? mode === 'demo'
+                      ? 'bg-amber-500/15 text-amber-300'
+                      : 'bg-accent/15 text-accent'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="mb-5 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex gap-3">
           <Info className="w-4 h-4 text-accent shrink-0 mt-0.5" />
           <div className="text-xs text-slate-400 leading-relaxed font-sans">
-            Active tab = active provider. Keys stored in browser only.
-            {isDemoMode() && (
-              <span className="text-amber-400/80 mt-1 block">Set VITE_APP_MODE=real in .env & restart for live analysis.</span>
-            )}
+            {isDemo
+              ? 'Demo uses mock analysis. Switch to Real and add credentials below for live analysis.'
+              : 'Real mode — active tab = active provider. Keys stored in browser only.'}
           </div>
         </div>
 
@@ -96,7 +122,7 @@ export default function Settings({ open, onClose }) {
                 placeholder="AWS Access Key ID"
                 value={form.awsAccessKeyId}
                 onChange={(e) => setForm({ ...form, awsAccessKeyId: e.target.value })}
-                disabled={isDemoMode()}
+                disabled={isDemo}
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-accent/40 disabled:opacity-40"
               />
               <input
@@ -104,7 +130,7 @@ export default function Settings({ open, onClose }) {
                 placeholder="AWS Secret Access Key"
                 value={form.awsSecretAccessKey}
                 onChange={(e) => setForm({ ...form, awsSecretAccessKey: e.target.value })}
-                disabled={isDemoMode()}
+                disabled={isDemo}
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-accent/40 disabled:opacity-40"
               />
               <input
@@ -112,7 +138,7 @@ export default function Settings({ open, onClose }) {
                 placeholder="AWS Session Token (required for ASIA… keys)"
                 value={form.awsSessionToken}
                 onChange={(e) => setForm({ ...form, awsSessionToken: e.target.value })}
-                disabled={isDemoMode()}
+                disabled={isDemo}
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-accent/40 disabled:opacity-40"
               />
               <input
@@ -120,7 +146,7 @@ export default function Settings({ open, onClose }) {
                 placeholder="AWS Region (e.g. us-east-1)"
                 value={form.awsRegion}
                 onChange={(e) => setForm({ ...form, awsRegion: e.target.value })}
-                disabled={isDemoMode()}
+                disabled={isDemo}
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-accent/40 disabled:opacity-40"
               />
             </>
@@ -134,7 +160,7 @@ export default function Settings({ open, onClose }) {
                 placeholder="OpenAI API Key (sk-...)"
                 value={form.openaiKey}
                 onChange={(e) => setForm({ ...form, openaiKey: e.target.value })}
-                disabled={isDemoMode()}
+                disabled={isDemo}
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-accent/40 disabled:opacity-40"
               />
             </>

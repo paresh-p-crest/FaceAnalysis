@@ -1,7 +1,17 @@
 import { getActiveLLM } from './settings'
 
+const APP_MODE_KEY = 'aurascan_app_mode'
+
+export function getAppMode() {
+  return localStorage.getItem(APP_MODE_KEY) === 'real' ? 'real' : 'demo'
+}
+
+export function setAppMode(mode) {
+  localStorage.setItem(APP_MODE_KEY, mode === 'real' ? 'real' : 'demo')
+}
+
 export function isDemoMode() {
-  return (import.meta.env.VITE_APP_MODE || 'demo').toLowerCase() !== 'real'
+  return getAppMode() !== 'real'
 }
 
 export function isRealMode() {
