@@ -9,6 +9,11 @@ export default function PhotoProtocol({ onComplete, onBack }) {
 
   const toggle = (id) => setChecked((prev) => ({ ...prev, [id]: !prev[id] }))
 
+  const toggleAll = () => {
+    const next = !allChecked
+    setChecked(Object.fromEntries(PROTOCOL_ITEMS.map((i) => [i.id, next])))
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12 animate-fade-up">
       <div className="w-full max-w-xl">
@@ -18,9 +23,18 @@ export default function PhotoProtocol({ onComplete, onBack }) {
         </p>
 
         <div className="glass rounded-3xl p-6 sm:p-8">
-          <p className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-4">
-            Photo guidelines checklist
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+              Photo guidelines checklist
+            </p>
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="text-xs font-medium text-accent hover:text-accent-glow transition-colors"
+            >
+              {allChecked ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
 
           <ul className="space-y-3">
             {PROTOCOL_ITEMS.map((item) => {
