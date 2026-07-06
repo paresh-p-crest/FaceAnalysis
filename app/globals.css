@@ -1,0 +1,361 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..700;1,14..32,300..700&family=Sora:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme Variables ── */
+:root {
+  --color-surface: #F7F8FC;
+  --color-surface-warm: #FAFBFD;
+  --color-surface-card: #FFFFFF;
+  --color-surface-raised: #F0F2F7;
+  --color-surface-border: #E5E7EB;
+  --color-brand-50: #F0FDFA;
+  --color-ink: #111827;
+  --color-ink-secondary: #374151;
+  --color-ink-muted: #6B7280;
+  --color-ink-faint: #D1D5DB;
+  --color-scrollbar-thumb: #D1D5DB;
+  --color-scrollbar-hover: #9CA3AF;
+}
+
+.dark {
+  --color-surface: #0F1117;
+  --color-surface-warm: #161922;
+  --color-surface-card: #1A1D27;
+  --color-surface-raised: #22263A;
+  --color-surface-border: #2E3348;
+  --color-brand-50: rgba(15,118,110,0.12);
+  --color-ink: #F3F4F6;
+  --color-ink-secondary: #D1D5DB;
+  --color-ink-muted: #9CA3AF;
+  --color-ink-faint: #4B5563;
+  --color-scrollbar-thumb: #374151;
+  --color-scrollbar-hover: #4B5563;
+}
+
+@layer base {
+  html {
+    @apply scroll-smooth antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  body, #root {
+    @apply min-h-screen bg-surface text-ink font-sans;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Sora', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar-thumb);
+    @apply rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-scrollbar-hover);
+  }
+}
+
+@layer components {
+  /* Premium card — light & dark */
+  .glass {
+    @apply bg-white border border-surface-border shadow-card;
+  }
+  .dark .glass {
+    @apply bg-surface-card border-surface-border;
+  }
+
+  .glass-strong {
+    @apply bg-white border border-surface-border shadow-card;
+  }
+  .dark .glass-strong {
+    @apply bg-surface-card border-surface-border;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl font-semibold text-white
+      bg-brand hover:bg-brand-dark
+      shadow-brand transition-all duration-300 hover:scale-[1.02]
+      active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium
+      text-ink-secondary border border-surface-border bg-white hover:bg-surface-warm hover:border-ink-faint
+      transition-all duration-200 shadow-soft;
+  }
+  .dark .btn-ghost {
+    @apply bg-surface-card hover:bg-surface-raised;
+  }
+
+  .option-card {
+    @apply w-full text-left p-4 rounded-2xl border border-surface-border bg-white
+      hover:border-brand/40 hover:bg-brand-50 transition-all duration-200 cursor-pointer shadow-soft;
+  }
+  .dark .option-card {
+    @apply bg-surface-card;
+  }
+
+  .option-card-selected {
+    @apply border-brand bg-brand-50 ring-1 ring-brand/30 shadow-glow;
+  }
+
+  .chip-option {
+    @apply px-4 py-2.5 rounded-full text-sm border border-surface-border bg-white
+      text-ink-secondary hover:border-brand/40 hover:text-ink hover:bg-brand-50 transition-all duration-200 cursor-pointer;
+  }
+  .dark .chip-option {
+    @apply bg-surface-card hover:bg-brand-50;
+  }
+
+  .chip-option-selected {
+    @apply border-brand bg-brand-50 text-brand-dark shadow-glow;
+  }
+
+  .severity-card {
+    @apply flex-1 p-4 rounded-2xl border border-surface-border bg-white text-center
+      hover:border-brand/30 hover:bg-brand-50 transition-all duration-200 cursor-pointer shadow-soft;
+  }
+  .dark .severity-card {
+    @apply bg-surface-card;
+  }
+
+  .severity-card-selected {
+    @apply border-brand bg-brand-50 shadow-glow;
+  }
+
+  .onboarding-step-active {
+    @apply bg-brand text-white shadow-brand;
+  }
+
+  .onboarding-step-done {
+    @apply bg-brand-100 text-brand-dark border border-brand/20;
+  }
+  .dark .onboarding-step-done {
+    @apply bg-brand-50 text-brand-light border-brand/30;
+  }
+
+  .metric-pill {
+    @apply flex items-center justify-between px-4 py-2.5 rounded-xl bg-surface-warm border border-surface-border text-sm;
+  }
+  .dark .metric-pill {
+    @apply bg-surface-raised;
+  }
+
+  .tab-active {
+    @apply text-brand border-b-2 border-brand;
+  }
+
+  .report-tab {
+    font-family: 'Sora', 'Inter', system-ui, sans-serif !important;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    font-size: 0.8125rem;
+  }
+
+  /* Markdown report content */
+  .markdown-report {
+    @apply text-sm text-ink-secondary leading-relaxed font-sans;
+  }
+  .markdown-report h1, .markdown-report h2, .markdown-report h3 {
+    @apply font-display font-semibold text-ink mt-6 mb-3;
+  }
+  .markdown-report h2 {
+    @apply text-lg;
+  }
+  .markdown-report h3 {
+    @apply text-base;
+  }
+  .markdown-report p {
+    @apply mb-3;
+  }
+  .markdown-report ul, .markdown-report ol {
+    @apply ml-5 mb-3 space-y-1;
+  }
+  .markdown-report li {
+    @apply text-ink-secondary;
+  }
+  .markdown-report strong {
+    @apply text-ink font-semibold;
+  }
+  .markdown-report table {
+    @apply w-full mb-4 text-sm;
+  }
+  .markdown-report th {
+    @apply text-left py-2 px-3 bg-surface-warm border-b border-surface-border font-semibold text-ink;
+  }
+  .markdown-report td {
+    @apply py-2 px-3 border-b border-surface-border;
+  }
+  .markdown-report hr {
+    @apply my-6 border-surface-border;
+  }
+  .markdown-report code {
+    @apply text-xs bg-surface-warm px-1.5 py-0.5 rounded;
+  }
+
+  /* Input fields */
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl bg-surface-warm border border-surface-border text-sm text-ink
+      placeholder:text-ink-muted focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/10
+      transition-all duration-200;
+  }
+  .dark .input-field {
+    @apply bg-surface-raised;
+  }
+
+  .report-tab-inactive {
+    font-family: 'Sora', 'Inter', system-ui, sans-serif !important;
+    letter-spacing: -0.01em;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    @apply text-ink-muted;
+  }
+
+  /* ── Report Score Ring ── */
+  .report-score-ring {
+    position: relative;
+    width: 140px;
+    height: 140px;
+  }
+  .report-score-ring svg {
+    transform: rotate(-90deg);
+  }
+  .report-score-ring .ring-bg {
+    fill: none;
+    stroke: var(--color-surface-border);
+    stroke-width: 8;
+  }
+  .report-score-ring .ring-fill {
+    fill: none;
+    stroke: #0F766E;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1.2s ease-out;
+  }
+  .report-score-ring .ring-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Feature Score Mini ── */
+  .feature-score-mini {
+    @apply flex items-center gap-3 p-4 rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised;
+  }
+  .feature-score-mini .score-bar {
+    @apply h-1.5 rounded-full bg-surface-border flex-1;
+  }
+  .feature-score-mini .score-bar-fill {
+    @apply h-1.5 rounded-full bg-brand transition-all duration-700;
+  }
+
+  /* ── Recommendation Card ── */
+  .recommendation-card {
+    @apply p-4 rounded-2xl border border-surface-border bg-white dark:bg-surface-card;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .recommendation-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.markdown-report {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  letter-spacing: 0.01em;
+}
+.markdown-report *:not(h1):not(h2):not(h3):not(h4) {
+  font-family: inherit;
+}
+.markdown-report h1,
+.markdown-report h2 {
+  font-family: 'Sora', 'Inter', system-ui, sans-serif !important;
+  letter-spacing: -0.025em;
+}
+.markdown-report h2 {
+  @apply text-lg font-semibold text-white mt-6 mb-3 first:mt-0;
+}
+.markdown-report h3 {
+  font-family: 'Sora', 'Inter', system-ui, sans-serif !important;
+  letter-spacing: -0.02em;
+  @apply text-base font-medium text-accent-glow mt-4 mb-2;
+}
+.markdown-report p {
+  @apply text-slate-300 leading-[1.7] mb-3 text-[13px];
+}
+.markdown-report ul {
+  @apply list-disc list-inside space-y-1.5 text-slate-300 text-[13px] mb-4 ml-1;
+}
+.markdown-report strong {
+  @apply text-white font-semibold;
+}
+.markdown-report li::marker {
+  @apply text-accent;
+}
+.markdown-report table {
+  @apply w-full text-[13px] border-collapse my-4;
+}
+.markdown-report th,
+.markdown-report td {
+  @apply border border-white/10 px-3 py-2 text-left text-slate-300;
+}
+.markdown-report th {
+  @apply bg-white/[0.04] text-slate-200 font-medium;
+  font-family: 'Sora', 'Inter', sans-serif !important;
+}
+
+/* Protocol tab content */
+.markdown-protocol h2 {
+  font-family: 'Sora', 'Inter', system-ui, sans-serif !important;
+  @apply text-base font-semibold text-white mt-0 mb-4 tracking-tight;
+}
+.markdown-protocol h3 {
+  font-family: 'Sora', 'Inter', system-ui, sans-serif !important;
+  @apply text-sm font-semibold text-accent mt-5 mb-2 tracking-tight;
+}
+.markdown-protocol p,
+.markdown-protocol li {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  @apply text-[13px] text-slate-300 leading-relaxed;
+}
+.markdown-protocol ol {
+  @apply list-decimal list-inside space-y-2 mb-4 ml-0;
+}
+.markdown-protocol ul {
+  @apply list-disc list-inside space-y-2 mb-4 ml-0;
+}
+.markdown-protocol strong {
+  @apply text-white font-semibold;
+}
+.markdown-protocol em {
+  @apply text-slate-500 not-italic text-xs;
+}

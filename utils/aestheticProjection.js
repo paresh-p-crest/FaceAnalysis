@@ -1,0 +1,615 @@
+/**
+ * Measurement-driven facial projection engine.
+ * Uses landmark warps, localized healing, and composited overlays — not global filters.
+ */
+
+import {
+  lm,
+  FACE_OVAL,
+  RIGHT_EYE,
+  LEFT_EYE,
+  RIGHT_BROW,
+  LEFT_BROW,
+  bboxFullFace,
+  bboxFromIndices,
+  bboxBrowsRegion,
+  bboxEyesRegion,
+  mergeBboxes,
+} from './faceCrop'
+import { projectionStrengths } from './anthropometrics'
+import { warpHorizontal, pathFromIndices, strokePath, healRegion, addNoiseOverlay } from './projectionCanvas'
+
+const NOSE_INDICES = [1, 2, 98, 327, 48, 278, 44, 274, 6, 197, 195, 5, 4]
+const MOUTH = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146]
+const JAW_LINE = [172, 136, 150, 149, 176, 148, 152, 377, 400, 378, 379, 365, 397, 454]
+const CHEEK_L = [116, 117, 118, 119, 120, 121, 127, 234]
+const CHEEK_R = [345, 346, 347, 348, 349, 350, 356, 454]
+
+const FEATURE_BOOST = 2.6
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+function landmarksFromOverlay(landmarks) {
+  if (!landmarks?.length) return null
+  if (landmarks[0]?.x != null && landmarks[0]?.id != null) {
+    const arr = []
+    landmarks.forEach((pt) => {
+      arr[pt.id] = { x: pt.x, y: pt.y, z: pt.z || 0 }
+    })
+    return arr
+  }
+  return landmarks
+}
+
+function pointInPolygon(x, y, polygon) {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x
+    const yi = polygon[i].y
+    const xj = polygon[j].x
+    const yj = polygon[j].y
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+function buildMask(w, h, landmarks, indices) {
+  const poly = pathFromIndices(landmarks, indices, w, h, lm)
+  const mask = new Uint8Array(w * h)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (pointInPolygon(x + 0.5, y + 0.5, poly)) mask[y * w + x] = 1
+    }
+  }
+  return mask
+}
+
+function buildRectMask(w, h, box) {
+  const mask = new Uint8Array(w * h)
+  const x0 = Math.floor(box.x * w)
+  const y0 = Math.floor(box.y * h)
+  const x1 = Math.ceil((box.x + box.w) * w)
+  const y1 = Math.ceil((box.y + box.h) * h)
+  for (let y = Math.max(0, y0); y < Math.min(h, y1); y++) {
+    for (let x = Math.max(0, x0); x < Math.min(w, x1); x++) {
+      mask[y * w + x] = 1
+    }
+  }
+  return mask
+}
+
+function subtractMask(base, ...others) {
+  const out = new Uint8Array(base)
+  others.forEach((m) => {
+    if (!m) return
+    for (let i = 0; i < out.length; i++) if (m[i]) out[i] = 0
+  })
+  return out
+}
+
+function boostStrength(strengths, feature, singleMode) {
+  if (!singleMode) return strengths
+  const out = { ...strengths }
+  Object.keys(out).forEach((k) => {
+    out[k] = k === feature ? Math.min(0.35, out[k] * FEATURE_BOOST) : out[k] * 0.15
+  })
+  return out
+}
+
+function detectHairMask(data, w, h, landmarks) {
+  const browY = ((lm(landmarks, 105).y + lm(landmarks, 334).y) / 2) * h
+  const foreheadY = lm(landmarks, 10).y * h
+  const face = bboxFullFace(landmarks, 0.02)
+  const x0 = Math.floor(face.x * w)
+  const x1 = Math.ceil((face.x + face.w) * w)
+  const mask = new Uint8Array(w * h)
+  for (let y = 0; y < Math.ceil(browY); y++) {
+    for (let x = x0; x < x1 && x < w; x++) {
+      if (x < 0) continue
+      const idx = (y * w + x) * 4
+      const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+      if (lum < 115 || y < foreheadY - h * 0.02) mask[y * w + x] = 1
+    }
+  }
+  return mask
+}
+
+function getFeatureBox(landmarks, featureKey) {
+  switch (featureKey) {
+    case 'hair': {
+      const face = bboxFullFace(landmarks, 0.05)
+      return { x: face.x, y: Math.max(0, face.y - face.h * 0.15), w: face.w, h: face.h * 0.32 }
+    }
+    case 'eyebrows': return bboxBrowsRegion(landmarks)
+    case 'eyes': return bboxEyesRegion(landmarks)
+    case 'nose': return bboxFromIndices(landmarks, NOSE_INDICES, 0.05)
+    case 'lips': return bboxFromIndices(landmarks, MOUTH, 0.05)
+    case 'jaw':
+      return mergeBboxes(bboxFromIndices(landmarks, JAW_LINE, 0.03), bboxFromIndices(landmarks, [152, 148], 0.04), 0.02)
+    case 'cheeks': {
+      const l = bboxFromIndices(landmarks, CHEEK_L, 0.02)
+      const r = bboxFromIndices(landmarks, CHEEK_R, 0.02)
+      return mergeBboxes(l, r, 0.01)
+    }
+    case 'chin': return bboxFromIndices(landmarks, [152, 148, 176, 377, 400], 0.05)
+    case 'neck': {
+      const face = bboxFullFace(landmarks, 0.02)
+      return { x: face.x + face.w * 0.12, y: face.y + face.h * 0.8, w: face.w * 0.76, h: face.h * 0.22 }
+    }
+    case 'ears': {
+      const face = bboxFullFace(landmarks, 0.02)
+      return { x: face.x, y: face.y + face.h * 0.22, w: face.w, h: face.h * 0.48 }
+    }
+    default: return bboxFullFace(landmarks, 0.04)
+  }
+}
+
+function cropDataUrl(canvas, box) {
+  const x = Math.round(box.x * canvas.width)
+  const y = Math.round(box.y * canvas.height)
+  const cw = Math.max(1, Math.round(box.w * canvas.width))
+  const ch = Math.max(1, Math.round(box.h * canvas.height))
+  const c = document.createElement('canvas')
+  c.width = cw
+  c.height = ch
+  c.getContext('2d').drawImage(canvas, x, y, cw, ch, 0, 0, cw, ch)
+  return c.toDataURL('image/jpeg', 0.92)
+}
+
+/* ── Feature projection passes ── */
+
+function projectHair(ctx, w, h, landmarks, s) {
+  const img = ctx.getImageData(0, 0, w, h)
+  const data = img.data
+  const mask = detectHairMask(data, w, h, landmarks)
+
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i]) continue
+    const idx = i * 4
+    const y = Math.floor(i / w)
+    const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+    const crownBoost = (1 - y / h) * 28 * s
+    if (lum < 105) {
+      data[idx] = Math.max(0, data[idx] * (1 - 0.28 * s))
+      data[idx + 1] = Math.max(0, data[idx + 1] * (1 - 0.24 * s))
+      data[idx + 2] = Math.max(0, data[idx + 2] * (1 - 0.2 * s))
+    }
+    data[idx] = Math.min(255, data[idx] + crownBoost)
+    data[idx + 1] = Math.min(255, data[idx + 1] + crownBoost * 0.85)
+    data[idx + 2] = Math.min(255, data[idx + 2] + crownBoost * 0.55)
+  }
+  ctx.putImageData(img, 0, 0)
+
+  const crownX = w / 2
+  const crownY = Math.max(0, lm(landmarks, 10).y * h - h * 0.05)
+  const face = bboxFullFace(landmarks, 0.05)
+  const grad = ctx.createRadialGradient(crownX, crownY, w * 0.02, crownX, crownY, w * 0.38)
+  grad.addColorStop(0, `rgba(255,248,240,${0.35 * s})`)
+  grad.addColorStop(0.6, `rgba(220,200,180,${0.12 * s})`)
+  grad.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.save()
+  ctx.globalCompositeOperation = 'soft-light'
+  ctx.fillStyle = grad
+  ctx.fillRect(face.x * w, 0, face.w * w, lm(landmarks, 105).y * h + h * 0.02)
+  ctx.restore()
+
+  const strokeCanvas = document.createElement('canvas')
+  strokeCanvas.width = w
+  strokeCanvas.height = h
+  const sctx = strokeCanvas.getContext('2d')
+  for (let i = 0; i < 16; i++) {
+    const angle = (i / 16) * Math.PI * 1.2 - Math.PI * 0.6
+    sctx.strokeStyle = `rgba(18,10,6,${0.2 * s})`
+    sctx.lineWidth = 2 + s * 5
+    sctx.beginPath()
+    sctx.moveTo(crownX, crownY)
+    sctx.lineTo(crownX + Math.cos(angle) * w * 0.14, crownY + Math.sin(angle) * h * 0.08)
+    sctx.stroke()
+  }
+  ctx.save()
+  ctx.globalCompositeOperation = 'multiply'
+  ctx.globalAlpha = 0.85
+  ctx.drawImage(strokeCanvas, 0, 0)
+  ctx.restore()
+
+  addNoiseOverlay(ctx, w, h, mask, 24 * s)
+}
+
+function projectEyebrows(ctx, w, h, landmarks, s) {
+  const browColor = `rgba(35,22,14,${0.55 * s})`
+  const overlay = document.createElement('canvas')
+  overlay.width = w
+  overlay.height = h
+  const octx = overlay.getContext('2d')
+  octx.globalCompositeOperation = 'source-over'
+
+  const rPath = pathFromIndices(landmarks, RIGHT_BROW, w, h, lm)
+  const lPath = pathFromIndices(landmarks, LEFT_BROW, w, h, lm)
+  strokePath(octx, rPath, { color: browColor, width: 3 + s * 14, blur: 1.5, alpha: 1 })
+  strokePath(octx, lPath, { color: browColor, width: 3 + s * 14, blur: 1.5, alpha: 1 })
+
+  const lb = lm(landmarks, 105)
+  const rb = lm(landmarks, 334)
+  const asym = (lb.y - rb.y) * h
+  if (Math.abs(asym) > 1) {
+    const fixPath = asym > 0 ? lPath : rPath
+    strokePath(octx, fixPath, { color: `rgba(25,15,8,${0.35 * s})`, width: 2 + s * 8, blur: 2 })
+  }
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'multiply'
+  ctx.drawImage(overlay, 0, 0)
+  ctx.restore()
+  ctx.save()
+  ctx.globalCompositeOperation = 'overlay'
+  ctx.globalAlpha = 0.5 * s
+  ctx.drawImage(overlay, 0, 0)
+  ctx.restore()
+}
+
+function projectEyes(ctx, w, h, landmarks, s) {
+  const underBox = bboxEyesRegion(landmarks)
+  const underMask = buildRectMask(w, h, {
+    x: underBox.x - 0.01,
+    y: underBox.y + underBox.h * 0.48,
+    w: underBox.w + 0.02,
+    h: underBox.h * 0.58,
+  })
+  const cheekMask = buildRectMask(w, h, {
+    x: underBox.x,
+    y: underBox.y + underBox.h * 0.15,
+    w: underBox.w,
+    h: underBox.h * 0.35,
+  })
+  healRegion(ctx, w, h, underMask, cheekMask, 0.55 * s + 0.25)
+
+  const eyeMask = buildMask(w, h, landmarks, [...RIGHT_EYE, ...LEFT_EYE])
+  const img = ctx.getImageData(0, 0, w, h)
+  const data = img.data
+  for (let i = 0; i < eyeMask.length; i++) {
+    if (!eyeMask[i]) continue
+    const idx = i * 4
+    const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+    const sat = Math.max(data[idx], data[idx + 1], data[idx + 2]) - Math.min(data[idx], data[idx + 1], data[idx + 2])
+    if (lum > 120 && sat < 50) {
+      const lift = 22 * s
+      data[idx] = Math.min(255, data[idx] + lift)
+      data[idx + 1] = Math.min(255, data[idx + 1] + lift)
+      data[idx + 2] = Math.min(255, data[idx + 2] + lift * 0.9)
+    }
+    if (lum < 95) {
+      data[idx] = Math.min(255, data[idx] + 12 * s)
+      data[idx + 1] = Math.min(255, data[idx + 1] + 10 * s)
+      data[idx + 2] = Math.min(255, data[idx + 2] + 8 * s)
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+
+  const upperLidMask = buildRectMask(w, h, {
+    x: underBox.x,
+    y: underBox.y,
+    w: underBox.w,
+    h: underBox.h * 0.35,
+  })
+  const openImg = ctx.getImageData(0, 0, w, h)
+  for (let i = 0; i < upperLidMask.length; i++) {
+    if (!upperLidMask[i]) continue
+    const idx = i * 4
+    openImg.data[idx + 2] = Math.max(0, openImg.data[idx + 2] - 8 * s)
+  }
+  ctx.putImageData(openImg, 0, 0)
+}
+
+function projectNose(ctx, w, h, landmarks, s, cvReport) {
+  const ratio = parseFloat(cvReport?.nose?.widthLengthRatio || cvReport?.nose?.noseRatio || '0.7')
+  const refine = ratio > 0.72 ? s * 1.2 : s * 0.65
+  const noseTop = lm(landmarks, 6).y * h
+  const noseBot = lm(landmarks, 2).y * h
+  const centerX = ((lm(landmarks, 48).x + lm(landmarks, 278).x) / 2) * w
+
+  warpHorizontal(
+    ctx,
+    w,
+    h,
+    (x, y) => y > noseTop && y < noseBot + h * 0.02,
+    (x) => {
+      const dist = (x - centerX) / w
+      return dist * refine * w * 0.14
+    }
+  )
+
+  const overlay = document.createElement('canvas')
+  overlay.width = w
+  overlay.height = h
+  const octx = overlay.getContext('2d')
+  const bridge = pathFromIndices(landmarks, [6, 197, 195, 5, 4, 1], w, h, lm)
+  strokePath(octx, bridge, { color: `rgba(255,240,230,${0.4 * s})`, width: 2 + s * 5, blur: 3 })
+  ctx.save()
+  ctx.globalCompositeOperation = 'soft-light'
+  ctx.drawImage(overlay, 0, 0)
+  ctx.restore()
+}
+
+function projectJawChinNeck(ctx, w, h, landmarks, s) {
+  const jawPts = pathFromIndices(landmarks, JAW_LINE, w, h, lm)
+  const overlay = document.createElement('canvas')
+  overlay.width = w
+  overlay.height = h
+  const octx = overlay.getContext('2d')
+
+  strokePath(octx, jawPts, { color: `rgba(15,10,8,${0.45 * s})`, width: 4 + s * 12, blur: 4 })
+  const chin = lm(landmarks, 152)
+  const cx = chin.x * w
+  const cy = chin.y * h
+  const chinGrad = octx.createRadialGradient(cx, cy, 2, cx, cy, w * 0.12)
+  chinGrad.addColorStop(0, `rgba(255,235,220,${0.15 * s})`)
+  chinGrad.addColorStop(1, 'rgba(0,0,0,0)')
+  octx.fillStyle = chinGrad
+  octx.fillRect(cx - w * 0.15, cy - h * 0.08, w * 0.3, h * 0.16)
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'multiply'
+  ctx.drawImage(overlay, 0, 0)
+  ctx.restore()
+
+  const neckBox = getFeatureBox(landmarks, 'neck')
+  const neckOverlay = document.createElement('canvas')
+  neckOverlay.width = w
+  neckOverlay.height = h
+  const nctx = neckOverlay.getContext('2d')
+  const jawL = lm(landmarks, 234)
+  const jawR = lm(landmarks, 454)
+  nctx.strokeStyle = `rgba(20,15,12,${0.35 * s})`
+  nctx.lineWidth = 3 + s * 8
+  nctx.beginPath()
+  nctx.moveTo(jawL.x * w, jawL.y * h)
+  nctx.lineTo(chin.x * w, (chin.y + neckBox.h) * h)
+  nctx.lineTo(jawR.x * w, jawR.y * h)
+  nctx.stroke()
+  ctx.save()
+  ctx.globalCompositeOperation = 'multiply'
+  ctx.drawImage(neckOverlay, 0, 0)
+  ctx.restore()
+}
+
+function projectLips(ctx, w, h, landmarks, s) {
+  const lipMask = buildMask(w, h, landmarks, MOUTH)
+  const img = ctx.getImageData(0, 0, w, h)
+  const data = img.data
+  const ml = lm(landmarks, 61)
+  const mr = lm(landmarks, 291)
+  const midX = ((ml.x + mr.x) / 2) * w
+
+  for (let i = 0; i < lipMask.length; i++) {
+    if (!lipMask[i]) continue
+    const idx = i * 4
+    const x = i % w
+    const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+    const symPull = (x - midX) * 0.02 * s
+    data[idx] = Math.min(255, data[idx] + (data[idx] - lum) * 0.25 * s + symPull)
+    data[idx + 1] = Math.min(255, data[idx + 1] + (data[idx + 1] - lum) * 0.15 * s)
+    data[idx + 2] = Math.min(255, data[idx + 2] + (data[idx + 2] - lum) * 0.1 * s)
+  }
+  ctx.putImageData(img, 0, 0)
+
+  const overlay = document.createElement('canvas')
+  overlay.width = w
+  overlay.height = h
+  const octx = overlay.getContext('2d')
+  const lipPath = pathFromIndices(landmarks, MOUTH.slice(0, 12), w, h, lm)
+  strokePath(octx, lipPath, { color: `rgba(120,40,35,${0.2 * s})`, width: 1 + s * 3, blur: 1 })
+  ctx.save()
+  ctx.globalCompositeOperation = 'overlay'
+  ctx.globalAlpha = 0.6
+  ctx.drawImage(overlay, 0, 0)
+  ctx.restore()
+}
+
+function projectSkin(ctx, w, h, landmarks, s) {
+  const faceMask = buildMask(w, h, landmarks, FACE_OVAL)
+  const eyeMask = buildMask(w, h, landmarks, [...RIGHT_EYE, ...LEFT_EYE])
+  const mouthMask = buildMask(w, h, landmarks, MOUTH)
+  const browMask = buildMask(w, h, landmarks, [...RIGHT_BROW, ...LEFT_BROW])
+  const skinMask = subtractMask(faceMask, eyeMask, mouthMask, browMask)
+
+  const img = ctx.getImageData(0, 0, w, h)
+  const data = img.data
+  const src = new Uint8ClampedArray(data)
+
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 2; y < h - 2; y++) {
+      for (let x = 2; x < w - 2; x++) {
+        const mi = y * w + x
+        if (!skinMask[mi]) continue
+        const idx = mi * 4
+        for (let c = 0; c < 3; c++) {
+          let sum = 0
+          let n = 0
+          for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+              const ni = (y + dy) * w + (x + dx)
+              if (skinMask[ni]) {
+                sum += src[ni * 4 + c]
+                n++
+              }
+            }
+          }
+          if (n > 0) data[idx + c] = Math.round(src[idx + c] * (1 - 0.4 * s) + (sum / n) * (0.4 * s))
+        }
+        const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+        const redExcess = data[idx] - (data[idx + 1] + data[idx + 2]) / 2
+        if (redExcess > 5) {
+          data[idx] -= redExcess * 0.4 * s
+          data[idx + 1] += redExcess * 0.15 * s
+        }
+        const target = lum + 4 * s
+        data[idx] = Math.min(255, data[idx] + (target - lum) * 0.06 * s)
+        data[idx + 1] = Math.min(255, data[idx + 1] + (target - lum) * 0.05 * s)
+        data[idx + 2] = Math.min(255, data[idx + 2] + (target - lum) * 0.04 * s)
+      }
+    }
+    src.set(data)
+  }
+  ctx.putImageData(img, 0, 0)
+}
+
+function projectCheeks(ctx, w, h, landmarks, s) {
+  const cheekL = subtractMask(buildMask(w, h, landmarks, CHEEK_L), buildMask(w, h, landmarks, [...RIGHT_EYE, ...LEFT_EYE]))
+  const cheekR = subtractMask(buildMask(w, h, landmarks, CHEEK_R), buildMask(w, h, landmarks, [...RIGHT_EYE, ...LEFT_EYE]))
+  const combined = new Uint8Array(cheekL.length)
+  for (let i = 0; i < combined.length; i++) combined[i] = cheekL[i] || cheekR[i]
+
+  const overlay = document.createElement('canvas')
+  overlay.width = w
+  overlay.height = h
+  const octx = overlay.getContext('2d')
+  const appleL = lm(landmarks, 116)
+  const appleR = lm(landmarks, 345)
+  ;[
+    { x: appleL.x * w, y: appleL.y * h },
+    { x: appleR.x * w, y: appleR.y * h },
+  ].forEach(({ x, y }) => {
+    const g = octx.createRadialGradient(x, y, 2, x, y, w * 0.08)
+    g.addColorStop(0, `rgba(255,220,200,${0.25 * s})`)
+    g.addColorStop(1, 'rgba(0,0,0,0)')
+    octx.fillStyle = g
+    octx.fillRect(x - w * 0.1, y - h * 0.08, w * 0.2, h * 0.16)
+  })
+  ctx.save()
+  ctx.globalCompositeOperation = 'soft-light'
+  ctx.drawImage(overlay, 0, 0)
+  ctx.restore()
+
+  const img = ctx.getImageData(0, 0, w, h)
+  for (let i = 0; i < combined.length; i++) {
+    if (!combined[i]) continue
+    const idx = i * 4
+    img.data[idx] = Math.min(255, img.data[idx] + 10 * s)
+    img.data[idx + 1] = Math.min(255, img.data[idx + 1] + 7 * s)
+    img.data[idx + 2] = Math.min(255, img.data[idx + 2] + 4 * s)
+  }
+  ctx.putImageData(img, 0, 0)
+}
+
+function runProjection(ctx, w, h, landmarks, strengths, cvReport, activeFeatures) {
+  const all = activeFeatures.includes('full')
+  const run = (key, fn) => {
+    if (all || activeFeatures.includes(key)) fn(strengths[key] ?? 0.12)
+  }
+
+  run('skin', (s) => projectSkin(ctx, w, h, landmarks, s))
+  run('hair', (s) => projectHair(ctx, w, h, landmarks, s))
+  run('eyebrows', (s) => projectEyebrows(ctx, w, h, landmarks, s))
+  run('eyes', (s) => projectEyes(ctx, w, h, landmarks, s))
+  run('nose', (s) => projectNose(ctx, w, h, landmarks, s, cvReport))
+  run('lips', (s) => projectLips(ctx, w, h, landmarks, s))
+  run('cheeks', (s) => projectCheeks(ctx, w, h, landmarks, s))
+  if (all || activeFeatures.includes('jaw') || activeFeatures.includes('chin') || activeFeatures.includes('neck')) {
+    const s = Math.max(strengths.jaw, strengths.chin, strengths.neck)
+    projectJawChinNeck(ctx, w, h, landmarks, s)
+  }
+}
+
+async function renderProjection(imageSrc, landmarks, cvReport, metrics, featureKey, options = {}) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  const base = await normalizeToJpegDataUrl(imageSrc)
+  if (!lmArr?.length) return base
+
+  const singleMode = featureKey && featureKey !== 'full' && featureKey !== 'overview' && featureKey !== 'skin'
+  const activeFeatures = featureKey === 'overview' || featureKey === 'full' ? ['full'] : [featureKey]
+  let strengths = projectionStrengths(metrics?.anthropometrics, cvReport)
+  if (singleMode) strengths = boostStrength(strengths, featureKey, true)
+
+  const img = await loadImage(base)
+  const maxW = options.maxWidth || 1100
+  const scale = img.width > maxW ? maxW / img.width : 1
+  const w = Math.round(img.width * scale)
+  const h = Math.round(img.height * scale)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(img, 0, 0, w, h)
+
+  runProjection(ctx, w, h, lmArr, strengths, cvReport, activeFeatures)
+  return { canvas, w, h, lmArr }
+}
+
+export async function projectFullFaceAfter(imageSrc, landmarks, cvReport, metrics, options = {}) {
+  const { canvas } = await renderProjection(imageSrc, landmarks, cvReport, metrics, 'full', options)
+  return canvas.toDataURL('image/jpeg', 0.92)
+}
+
+export async function projectFeatureAfter(imageSrc, landmarks, featureKey, cvReport, metrics) {
+  const { canvas, lmArr } = await renderProjection(imageSrc, landmarks, cvReport, metrics, featureKey)
+  if (featureKey === 'overview' || featureKey === 'skin') {
+    return canvas.toDataURL('image/jpeg', 0.92)
+  }
+  return cropDataUrl(canvas, getFeatureBox(lmArr, featureKey))
+}
+
+export async function cropFeatureBefore(imageSrc, landmarks, featureKey) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  const base = await normalizeToJpegDataUrl(imageSrc)
+  if (!lmArr?.length || featureKey === 'overview') return base
+
+  const img = await loadImage(base)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+  return cropDataUrl(canvas, getFeatureBox(lmArr, featureKey))
+}
+
+export async function normalizeToJpegDataUrl(src) {
+  if (!src) return null
+  const img = await loadImage(src)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.drawImage(img, 0, 0)
+  return canvas.toDataURL('image/jpeg', 0.92)
+}
+
+export async function createLandmarkPreview(photoSrc, landmarks = []) {
+  const base = await normalizeToJpegDataUrl(photoSrc)
+  const img = await loadImage(base)
+  const maxW = 900
+  const scale = img.width > maxW ? maxW / img.width : 1
+  const w = Math.round(img.width * scale)
+  const h = Math.round(img.height * scale)
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(img, 0, 0, w, h)
+  if (landmarks?.length) {
+    const pts = landmarks.length > 150 ? landmarks.filter((_, i) => i % 4 === 0) : landmarks
+    ctx.fillStyle = 'rgba(15, 118, 110, 0.75)'
+    pts.forEach((pt) => {
+      ctx.beginPath()
+      ctx.arc(pt.x * w, pt.y * h, Math.max(1.5, w * 0.003), 0, Math.PI * 2)
+      ctx.fill()
+    })
+  }
+  return canvas.toDataURL('image/jpeg', 0.9)
+}
+
+export async function createEnhancedPortrait(src, landmarks, cvReport, metrics) {
+  if (landmarks && cvReport) return projectFullFaceAfter(src, landmarks, cvReport, metrics)
+  return normalizeToJpegDataUrl(src)
+}
+
+export { getFeatureBox, projectionStrengths }
