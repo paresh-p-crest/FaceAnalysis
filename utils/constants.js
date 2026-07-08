@@ -45,19 +45,18 @@ export const SCAN_MESSAGES = [
 ]
 
 export const INITIAL_ANSWERS = {
-  goals: ['structure'],
-  skinConcerns: ['none'],
-  ageRange: '25-34',
-  gender: 'male',
-  ethnicity: 'south-asian',
-  concernSeverity: 'mild',
-  skinType: 'combination',
-  skincareRoutine: 'minimal',
-  environment: 'mixed',
-  smoking: 'never',
-  sleepQuality: 'good',
-  waterIntake: 'moderate',
-  sunExposure: 'moderate',
+  occupation: '',
+  smoking: '',
+  drinking: '',
+  masculineFeminine: '',
+  priorTreatments: '',
+  comfortableTreatments: [],
+  medicalConditions: '',
+  allergies: '',
+  aestheticGoal: '',
+  aestheticDistress: '',
+  thinkAppearance: '',
+  additionalInfo: '',
 }
 
 

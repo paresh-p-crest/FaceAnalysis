@@ -1,80 +1,87 @@
-import { useState, useEffect } from 'react'
+'use client'
+
+import { useState } from 'react'
 import { OnboardingLayout } from './OnboardingLayout'
+import { Check } from 'lucide-react'
 import {
-  GOAL_OPTIONS,
-  SKIN_CONCERN_OPTIONS,
-  AGE_OPTIONS,
-  GENDER_OPTIONS,
-  ETHNICITY_OPTIONS,
-  SEVERITY_OPTIONS,
-  SKIN_TYPE_OPTIONS,
-  SMOKING_OPTIONS,
-  SLEEP_OPTIONS,
-  WATER_OPTIONS,
-  SUN_OPTIONS,
-  SKINCARE_OPTIONS,
+  FREQUENCY_OPTIONS,
+  MASCULINE_FEMININE_OPTIONS,
+  YES_NO_OPTIONS,
+  TREATMENT_COMFORT_OPTIONS,
+  AESTHETIC_GOAL_OPTIONS,
+  AESTHETIC_DISTRESS_OPTIONS,
+  THINK_APPEARANCE_OPTIONS,
 } from '../utils/onboarding'
 
-/**
- * Flat page definitions for the onboarding wizard.
- * All navigation handled by OnboardingLayout footer — no internal nav.
- * Step indices map to the 7-step stepper: Welcome(0)|Goals(1)|Concerns(2)|
- * Profile(3)|Lifestyle(4)|SkinCare(5)|Upload(6)
- */
 const PAGES = [
-  /* 0 — Goals */
+  /* Page 0: Lifestyle (Occupation, Smoking, Drinking) */
   {
-    sidebarTitle: 'Define your goals',
-    sidebarDesc: 'Help us tailor your facial analysis report. Select all that apply — your answers guide the depth of your insights.',
-    question: 'What would you like to improve?',
-    hint: 'Select up to 3 goals. This helps us prioritize your report sections.',
-    type: 'goals',
+    sidebarTitle: 'Lifestyle Profile',
+    sidebarDesc: 'Your daily habits and environment directly influence skin health and structural characteristics.',
+    question: 'Tell us about your lifestyle',
+    hint: 'Fill in your details to benchmark lifestyle triggers.',
+    type: 'lifestyle',
     stepIndex: 1,
   },
-  /* 1 — Concerns + Severity */
+  /* Page 1: Prior Experience (Masculine/Feminine, Prior Treatments) */
   {
-    sidebarTitle: 'Skin Concerns',
-    sidebarDesc: 'Select the areas you want us to focus on. Our AI will prioritize these in your skin quality analysis.',
-    question: 'Which skin concerns affect you?',
-    hint: 'Select all that apply, then rate overall severity.',
-    type: 'concerns',
+    sidebarTitle: 'Aesthetic Preferences',
+    sidebarDesc: 'Define your aesthetic preferences to guide our structural recommendations.',
+    question: 'Aesthetic Preferences',
+    hint: 'Helps us tailor structural calculations to your comfort levels.',
+    type: 'prior_experience',
     stepIndex: 2,
   },
-  /* 2 — Demographics */
+  /* Page 2: Treatment Comfort (multi-select comfort level) */
   {
-    sidebarTitle: 'About You',
-    sidebarDesc: 'These help us compare your results against relevant demographic norms for more accurate insights.',
-    question: 'Tell us about yourself',
-    hint: 'Used for benchmarking only — never shared.',
-    type: 'profile',
+    sidebarTitle: 'Aesthetic Preferences',
+    sidebarDesc: 'Select the procedures you would be comfortable undergoing to customize targets.',
+    question: 'Comfortable Treatment Types',
+    hint: 'Select all treatment types you are comfortable undergoing.',
+    type: 'treatment_comfort',
+    stepIndex: 2,
+  },
+  /* Page 3: Medical History (Conditions, Allergies) */
+  {
+    sidebarTitle: 'Medical & Allergies',
+    sidebarDesc: 'Declaring underlying conditions and ingredient sensitivities ensures all recommendations are safe.',
+    question: 'Medical History',
+    hint: 'All responses are strictly confidential.',
+    type: 'medical',
     stepIndex: 3,
   },
-  /* 3 — Lifestyle (all compact) */
+  /* Page 4: Aesthetic Goals (Goal, Distress) */
   {
-    sidebarTitle: 'Lifestyle',
-    sidebarDesc: 'Daily habits directly impact skin health and aging. Quick questions for better recommendations.',
-    question: 'Your daily habits',
-    hint: 'Select one per row.',
-    type: 'lifestyle',
+    sidebarTitle: 'Aesthetic Goals',
+    sidebarDesc: 'Specify what you hope to achieve and how much your appearance impacts your day-to-day thinking.',
+    question: 'What are your goals?',
+    hint: 'Help us prioritize recommendations in your final narrative.',
+    type: 'goals',
     stepIndex: 4,
   },
-  /* 4 — Skin type + Skincare */
+  /* Page 5: Appearance Focus (Frequency of thinking about appearance) */
   {
-    sidebarTitle: 'Skin Care',
-    sidebarDesc: 'Your skin type and routine help us build a realistic, personalized protocol.',
-    question: 'Your skin & routine',
-    hint: 'Know your type? Great. Not sure? Pick the closest match.',
-    type: 'skincare',
+    sidebarTitle: 'Aesthetic Goals',
+    sidebarDesc: 'Understanding how often you think about your appearance helps customize diagnostic reports.',
+    question: 'How often do you think about your appearance?',
+    hint: 'Select the closest frequency.',
+    type: 'appearance_focus',
+    stepIndex: 4,
+  },
+  /* Page 6: Additional Info (Free Text) */
+  {
+    sidebarTitle: 'Additional Context',
+    sidebarDesc: 'Any additional notes or specific areas of concern help our review admin panel understand your case.',
+    question: 'Anything else we should know?',
+    hint: 'Feel free to add any details or specific aesthetic targets.',
+    type: 'additional',
     stepIndex: 5,
   },
 ]
 
-const MAX_GOALS = 3
-
-/* ── Compact single-select row (for lifestyle) ── */
 function CompactRow({ label, options, value, onChange }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 py-2.5 border-b border-surface-border last:border-0">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 py-3 border-b border-surface-border last:border-0">
       <span className="text-sm font-medium text-ink min-w-[160px] shrink-0">{label}</span>
       <div className="flex flex-wrap gap-1.5">
         {options.map((opt) => {
@@ -98,99 +105,55 @@ function CompactRow({ label, options, value, onChange }) {
   )
 }
 
-/* ── Section heading for multi-question pages ── */
 function SectionLabel({ children }) {
   return (
     <h3 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">{children}</h3>
   )
 }
 
-export default function Questionnaire({ answers, setAnswers, onComplete, onBack }) {
-  const [page, setPage] = useState(0)
+export default function Questionnaire({ answers, setAnswers, onComplete, onBack, initialPage = 0 }) {
+  const [page, setPage] = useState(initialPage)
   const current = PAGES[page]
 
-  /* ── Helpers ── */
-  const toggleGoal = (value) => {
-    if (value === 'none') {
-      setAnswers((prev) => ({ ...prev, goals: prev.goals.includes('none') ? [] : ['none'] }))
-      return
-    }
-    setAnswers((prev) => {
-      const arr = prev.goals.filter((v) => v !== 'none')
-      if (arr.includes(value)) return { ...prev, goals: arr.filter((v) => v !== value) }
-      if (arr.length >= MAX_GOALS) return prev
-      return { ...prev, goals: [...arr, value] }
-    })
-  }
-
-  const toggleConcern = (value) => {
-    if (value === 'none') {
-      setAnswers((prev) => ({ ...prev, skinConcerns: prev.skinConcerns.includes('none') ? [] : ['none'] }))
-      return
-    }
-    setAnswers((prev) => {
-      const arr = prev.skinConcerns.filter((v) => v !== 'none')
-      return {
-        ...prev,
-        skinConcerns: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value],
-      }
-    })
-  }
-
   const set = (key, value) => {
+    setAnswers((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const toggleComfortableTreatment = (value) => {
     setAnswers((prev) => {
-      const next = { ...prev, [key]: value }
-      // Auto-fill lifestyle defaults for male users if not already set
-      if (next.gender === 'male') {
-        if (!next.smoking) next.smoking = 'never'
-        if (!next.sleepQuality) next.sleepQuality = 'good'
-        if (!next.waterIntake) next.waterIntake = 'moderate'
-        if (!next.sunExposure) next.sunExposure = 'moderate'
-        if (!next.skinType) next.skinType = 'combination'
-        if (!next.skincareRoutine) next.skincareRoutine = 'minimal'
-        if (!next.environment) next.environment = 'urban'
-        if (!next.concernSeverity) next.concernSeverity = 'mild'
+      const arr = prev.comfortableTreatments || []
+      if (value === 'none') {
+        return { ...prev, comfortableTreatments: arr.includes('none') ? [] : ['none'] }
       }
-      return next
+      const filtered = arr.filter((v) => v !== 'none')
+      if (filtered.includes(value)) {
+        return { ...prev, comfortableTreatments: filtered.filter((v) => v !== value) }
+      }
+      return { ...prev, comfortableTreatments: [...filtered, value] }
     })
   }
 
-  // Auto-fill male defaults when navigating to lifestyle or skincare pages
-  useEffect(() => {
-    if (answers.gender !== 'male') return
-    if (current.type === 'lifestyle' || current.type === 'skincare') {
-      setAnswers((prev) => {
-        const filled = { ...prev }
-        let changed = false
-        if (current.type === 'lifestyle') {
-          if (!filled.smoking) { filled.smoking = 'never'; changed = true }
-          if (!filled.sleepQuality) { filled.sleepQuality = 'good'; changed = true }
-          if (!filled.waterIntake) { filled.waterIntake = 'moderate'; changed = true }
-          if (!filled.sunExposure) { filled.sunExposure = 'moderate'; changed = true }
-          if (!filled.environment) { filled.environment = 'urban'; changed = true }
-        }
-        if (current.type === 'skincare') {
-          if (!filled.skinType) { filled.skinType = 'combination'; changed = true }
-          if (!filled.skincareRoutine) { filled.skincareRoutine = 'minimal'; changed = true }
-        }
-        return changed ? filled : prev
-      })
-    }
-  }, [current.type, answers.gender])
-
-  /* ── Per-page validation ── */
   const isPageComplete = () => {
     switch (current.type) {
-      case 'goals': return answers.goals.length > 0
-      case 'concerns': return answers.skinConcerns.length > 0
-      case 'profile': return !!answers.ageRange && !!answers.gender
-      case 'lifestyle': return !!(answers.smoking && answers.sleepQuality && answers.waterIntake && answers.sunExposure)
-      case 'skincare': return !!(answers.skinType && answers.skincareRoutine)
-      default: return false
+      case 'lifestyle':
+        return !!answers.occupation.trim() && !!answers.smoking && !!answers.drinking
+      case 'prior_experience':
+        return !!answers.masculineFeminine && !!answers.priorTreatments
+      case 'treatment_comfort':
+        return (answers.comfortableTreatments || []).length > 0
+      case 'medical':
+        return !!answers.medicalConditions && !!answers.allergies
+      case 'goals':
+        return !!answers.aestheticGoal && !!answers.aestheticDistress
+      case 'appearance_focus':
+        return !!answers.thinkAppearance
+      case 'additional':
+        return true // free text optional
+      default:
+        return false
     }
   }
 
-  /* ── Navigation ── */
   const isLast = page === PAGES.length - 1
 
   const handleContinue = () => {
@@ -203,22 +166,32 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack 
     else onBack()
   }
 
-  /* ── Selection label ── */
   const selectionLabel = (() => {
     switch (current.type) {
-      case 'goals':
-        return `${answers.goals.length} of ${MAX_GOALS} goals selected`
-      case 'concerns':
-        return `${answers.skinConcerns.length} concern${answers.skinConcerns.length !== 1 ? 's' : ''} selected`
-      case 'profile':
-        return answers.ageRange && answers.gender ? 'Profile complete' : ''
       case 'lifestyle': {
-        const count = [answers.smoking, answers.sleepQuality, answers.waterIntake, answers.sunExposure].filter(Boolean).length
-        return count === 4 ? 'Complete' : count > 0 ? `${count}/4 answered` : ''
+        const count = [answers.occupation.trim(), answers.smoking, answers.drinking].filter(Boolean).length
+        return `${count}/3 completed`
       }
-      case 'skincare':
-        return answers.skinType && answers.skincareRoutine ? 'Complete' : ''
-      default: return ''
+      case 'prior_experience': {
+        const count = [answers.masculineFeminine, answers.priorTreatments].filter(Boolean).length
+        return `${count}/2 completed`
+      }
+      case 'treatment_comfort':
+        return (answers.comfortableTreatments || []).length > 0 ? 'Selection complete' : 'Choose at least one option'
+      case 'medical': {
+        const count = [answers.medicalConditions, answers.allergies].filter(Boolean).length
+        return `${count}/2 completed`
+      }
+      case 'goals': {
+        const count = [answers.aestheticGoal, answers.aestheticDistress].filter(Boolean).length
+        return `${count}/2 completed`
+      }
+      case 'appearance_focus':
+        return answers.thinkAppearance ? 'Complete' : ''
+      case 'additional':
+        return 'Optional'
+      default:
+        return ''
     }
   })()
 
@@ -237,167 +210,54 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack 
         <h2 className="font-display text-xl sm:text-2xl font-semibold text-ink mb-0.5">{current.question}</h2>
         <p className="text-sm text-ink-muted mb-6">{current.hint}</p>
 
-        {/* ── PAGE: Goals ── */}
-        {current.type === 'goals' && (
-          <div className="grid sm:grid-cols-2 gap-2.5">
-            {GOAL_OPTIONS.map((opt) => {
-              const selected = answers.goals.includes(opt.value)
-              const atMax = answers.goals.length >= MAX_GOALS && !selected
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => toggleGoal(opt.value)}
-                  disabled={atMax}
-                  className={`option-card flex items-start gap-3 p-4 ${selected ? 'option-card-selected' : ''} ${atMax ? 'opacity-40 cursor-not-allowed' : ''}`}
-                >
-                  <div className={`mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 transition-colors ${selected ? 'border-brand bg-brand' : 'border-ink-faint'}`} />
-                  <div className="text-left">
-                    <div className="font-medium text-ink text-sm">{opt.label}</div>
-                    <div className="text-xs text-ink-muted mt-0.5">{opt.desc}</div>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* ── PAGE: Concerns + Severity ── */}
-        {current.type === 'concerns' && (
-          <div className="space-y-5">
-            <div>
-              <div className="flex flex-wrap gap-2">
-                {SKIN_CONCERN_OPTIONS.map((opt) => {
-                  const selected = answers.skinConcerns.includes(opt.value)
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => toggleConcern(opt.value)}
-                      className={`chip-option ${selected ? 'chip-option-selected' : ''}`}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-            {answers.skinConcerns.length > 0 && !answers.skinConcerns.includes('none') && (
-              <div>
-                <SectionLabel>Overall severity</SectionLabel>
-                <div className="flex gap-2">
-                  {SEVERITY_OPTIONS.map((opt) => {
-                    const selected = answers.concernSeverity === opt.value
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => set('concernSeverity', opt.value)}
-                        className={`flex-1 option-card p-3 text-center ${selected ? 'option-card-selected' : ''}`}
-                      >
-                        <div className={`font-medium text-sm ${selected ? 'text-brand' : 'text-ink'}`}>{opt.label}</div>
-                        <div className="text-xs text-ink-muted mt-0.5">{opt.desc}</div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── PAGE: Profile (age + gender + ethnicity) ── */}
-        {current.type === 'profile' && (
-          <div className="space-y-5">
-            <div>
-              <SectionLabel>Age range</SectionLabel>
-              <div className="flex flex-wrap gap-2">
-                {AGE_OPTIONS.map((opt) => {
-                  const selected = answers.ageRange === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => set('ageRange', opt.value)}
-                      className={`chip-option min-w-[68px] text-center ${selected ? 'chip-option-selected' : ''}`}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <SectionLabel>Gender</SectionLabel>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {GENDER_OPTIONS.map((opt) => {
-                  const selected = answers.gender === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => set('gender', opt.value)}
-                      className={`option-card p-3 text-center text-sm font-medium ${selected ? 'option-card-selected text-brand' : 'text-ink-secondary'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <SectionLabel>Ethnic heritage</SectionLabel>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {ETHNICITY_OPTIONS.map((opt) => {
-                  const selected = answers.ethnicity === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => set('ethnicity', opt.value)}
-                      className={`option-card p-3 text-center text-sm font-medium ${selected ? 'option-card-selected text-brand' : 'text-ink-secondary'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── PAGE: Lifestyle (compact single-select rows) ── */}
+        {/* ── PAGE 0: Lifestyle ── */}
         {current.type === 'lifestyle' && (
-          <div className="bg-white dark:bg-surface-card rounded-xl border border-surface-border px-5 py-1">
-            <CompactRow label="Smoking" options={SMOKING_OPTIONS} value={answers.smoking} onChange={(v) => set('smoking', v)} />
-            <CompactRow label="Sleep quality" options={SLEEP_OPTIONS} value={answers.sleepQuality} onChange={(v) => set('sleepQuality', v)} />
-            <CompactRow label="Daily water" options={WATER_OPTIONS} value={answers.waterIntake} onChange={(v) => set('waterIntake', v)} />
-            <CompactRow label="Sun exposure" options={SUN_OPTIONS} value={answers.sunExposure} onChange={(v) => set('sunExposure', v)} />
-            <CompactRow
-              label="Environment"
-              options={[
-                { value: 'indoor', label: 'Indoor' },
-                { value: 'mixed', label: 'Mixed' },
-                { value: 'outdoor', label: 'Outdoor' },
-              ]}
-              value={answers.environment}
-              onChange={(v) => set('environment', v)}
-            />
+          <div className="space-y-6">
+            <div>
+              <SectionLabel>What is your occupation?</SectionLabel>
+              <input
+                type="text"
+                value={answers.occupation || ''}
+                onChange={(e) => set('occupation', e.target.value)}
+                placeholder="e.g. Software Engineer, Sales Manager"
+                className="w-full px-4 py-3 rounded-xl border border-surface-border bg-white dark:bg-surface-card text-ink focus:outline-none focus:border-brand transition-colors text-sm"
+              />
+            </div>
+
+            <div className="bg-white dark:bg-surface-card rounded-xl border border-surface-border px-5 py-1">
+              <CompactRow
+                label="Smoking frequency"
+                options={FREQUENCY_OPTIONS}
+                value={answers.smoking}
+                onChange={(v) => set('smoking', v)}
+              />
+              <CompactRow
+                label="Drinking frequency"
+                options={FREQUENCY_OPTIONS}
+                value={answers.drinking}
+                onChange={(v) => set('drinking', v)}
+              />
+            </div>
           </div>
         )}
 
-        {/* ── PAGE: Skincare (skin type + routine) ── */}
-        {current.type === 'skincare' && (
-          <div className="space-y-5">
+        {/* ── PAGE 1: Prior Experience ── */}
+        {current.type === 'prior_experience' && (
+          <div className="space-y-6">
             <div>
-              <SectionLabel>Skin type</SectionLabel>
-              <div className="grid sm:grid-cols-3 gap-2">
-                {SKIN_TYPE_OPTIONS.map((opt) => {
-                  const selected = answers.skinType === opt.value
+              <SectionLabel>Would you rather look more masculine or more feminine?</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {MASCULINE_FEMININE_OPTIONS.map((opt) => {
+                  const selected = answers.masculineFeminine === opt.value
                   return (
                     <button
                       key={opt.value}
-                      onClick={() => set('skinType', opt.value)}
-                      className={`option-card p-3 text-left ${selected ? 'option-card-selected' : ''}`}
+                      onClick={() => set('masculineFeminine', opt.value)}
+                      className={`option-card p-3 sm:p-4 text-center text-xs font-semibold ${
+                        selected ? 'option-card-selected text-brand' : 'text-ink-secondary'
+                      }`}
                     >
-                      <div className={`font-medium text-sm ${selected ? 'text-brand' : 'text-ink'}`}>{opt.label}</div>
-                      <div className="text-xs text-ink-muted mt-0.5">{opt.desc}</div>
+                      {opt.label}
                     </button>
                   )
                 })}
@@ -405,23 +265,186 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack 
             </div>
 
             <div>
-              <SectionLabel>Current skincare routine</SectionLabel>
-              <div className="grid sm:grid-cols-2 gap-2">
-                {SKINCARE_OPTIONS.map((opt) => {
-                  const selected = answers.skincareRoutine === opt.value
+              <SectionLabel>Have you had any non-surgical aesthetic treatments before?</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {YES_NO_OPTIONS.map((opt) => {
+                  const selected = answers.priorTreatments === opt.value
                   return (
                     <button
                       key={opt.value}
-                      onClick={() => set('skincareRoutine', opt.value)}
-                      className={`option-card p-3 text-left ${selected ? 'option-card-selected' : ''}`}
+                      onClick={() => set('priorTreatments', opt.value)}
+                      className={`option-card p-3 sm:p-4 text-center text-xs font-semibold ${
+                        selected ? 'option-card-selected text-brand' : 'text-ink-secondary'
+                      }`}
                     >
-                      <div className={`font-medium text-sm ${selected ? 'text-brand' : 'text-ink'}`}>{opt.label}</div>
-                      <div className="text-xs text-ink-muted mt-0.5">{opt.desc}</div>
+                      {opt.label}
                     </button>
                   )
                 })}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── PAGE 2: Treatment Comfort ── */}
+        {current.type === 'treatment_comfort' && (
+          <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {TREATMENT_COMFORT_OPTIONS.map((opt) => {
+                const selected = (answers.comfortableTreatments || []).includes(opt.value)
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => toggleComfortableTreatment(opt.value)}
+                    className={`option-card flex items-start gap-3 p-4 ${
+                      selected ? 'option-card-selected' : ''
+                    }`}
+                  >
+                    <div
+                      className={`mt-0.5 w-4 h-4 rounded border-2 shrink-0 transition-colors flex items-center justify-center ${
+                        selected ? 'border-brand bg-brand animate-scale-in' : 'border-ink-faint'
+                      }`}
+                    >
+                      {selected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <div className="text-left text-xs font-medium text-ink">
+                      {opt.label}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── PAGE 3: Medical ── */}
+        {current.type === 'medical' && (
+          <div className="space-y-6">
+            <div>
+              <SectionLabel>Do you have any medical conditions?</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {YES_NO_OPTIONS.map((opt) => {
+                  const selected = answers.medicalConditions === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => set('medicalConditions', opt.value)}
+                      className={`option-card p-3 sm:p-4 text-center text-xs font-semibold ${
+                        selected ? 'option-card-selected text-brand' : 'text-ink-secondary'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <SectionLabel>Do you have any allergies?</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {YES_NO_OPTIONS.map((opt) => {
+                  const selected = answers.allergies === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => set('allergies', opt.value)}
+                      className={`option-card p-3 sm:p-4 text-center text-xs font-semibold ${
+                        selected ? 'option-card-selected text-brand' : 'text-ink-secondary'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── PAGE 4: Goals ── */}
+        {current.type === 'goals' && (
+          <div className="space-y-6">
+            <div>
+              <SectionLabel>What is your aesthetic goal?</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {AESTHETIC_GOAL_OPTIONS.map((opt) => {
+                  const selected = answers.aestheticGoal === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => set('aestheticGoal', opt.value)}
+                      className={`option-card p-3.5 text-left ${
+                        selected ? 'option-card-selected' : ''
+                      }`}
+                    >
+                      <div className="text-xs font-medium text-ink leading-normal">
+                        {opt.label}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <SectionLabel>How much distress does your facial aesthetic cause you?</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {AESTHETIC_DISTRESS_OPTIONS.map((opt) => {
+                  const selected = answers.aestheticDistress === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => set('aestheticDistress', opt.value)}
+                      className={`option-card p-3.5 text-left ${
+                        selected ? 'option-card-selected' : ''
+                      }`}
+                    >
+                      <div className="text-xs font-medium text-ink leading-normal">
+                        {opt.label}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── PAGE 5: Appearance Focus ── */}
+        {current.type === 'appearance_focus' && (
+          <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {THINK_APPEARANCE_OPTIONS.map((opt) => {
+                const selected = answers.thinkAppearance === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => set('thinkAppearance', opt.value)}
+                    className={`option-card p-3.5 text-left ${
+                      selected ? 'option-card-selected' : ''
+                    }`}
+                  >
+                    <div className="text-xs font-medium text-ink leading-normal">
+                      {opt.label}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── PAGE 6: Additional Info ── */}
+        {current.type === 'additional' && (
+          <div className="space-y-4">
+            <SectionLabel>Anything else you think we should know?</SectionLabel>
+            <textarea
+              value={answers.additionalInfo || ''}
+              onChange={(e) => set('additionalInfo', e.target.value)}
+              placeholder="e.g. Prior surgeries, specific aesthetic expectations, or other concerns..."
+              className="w-full h-44 px-4 py-3 rounded-xl border border-surface-border bg-white dark:bg-surface-card text-ink focus:outline-none focus:border-brand transition-colors text-sm resize-none"
+            />
           </div>
         )}
       </div>

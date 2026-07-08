@@ -82,6 +82,7 @@ function AppInner() {
   const [adminTab, setAdminTab] = useState(() => readAdminTab())
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [scanId, setScanId] = useState(null)
+  const [questionnaireInitialPage, setQuestionnaireInitialPage] = useState(0)
   const activeScanIdRef = useRef(null)
   const stageRef = useRef(stage)
 
@@ -253,6 +254,8 @@ function AppInner() {
       setHistoryId(null)
       localStorage.removeItem(REPORT_STORAGE_KEY)
       trackEvent('assessment_start')
+      setReturnStage(stageRef.current)
+      setQuestionnaireInitialPage(0)
       setStage(STAGES.QUESTIONNAIRE)
     } catch {
       setBillingMessage('We could not verify payment access. Please check billing before starting analysis.')
@@ -419,14 +422,15 @@ function AppInner() {
           answers={answers}
           setAnswers={setAnswers}
           onComplete={afterQuestionnaire}
-          onBack={() => setStage(STAGES.LANDING)}
+          onBack={() => setStage(returnStage || STAGES.LANDING)}
+          initialPage={questionnaireInitialPage}
         />
       )}
 
       {stage === STAGES.PROTOCOL && user?.role !== 'admin' && (
         <PhotoProtocol
           onComplete={() => setStage(STAGES.UPLOAD)}
-          onBack={() => setStage(STAGES.QUESTIONNAIRE)}
+          onBack={() => { setQuestionnaireInitialPage(6); setStage(STAGES.QUESTIONNAIRE); }}
         />
       )}
 
@@ -439,7 +443,7 @@ function AppInner() {
             setScanId(activeScanIdRef.current)
             setStage(STAGES.SCANNING)
           }}
-          onBack={() => setStage(STAGES.QUESTIONNAIRE)}
+          onBack={() => { setQuestionnaireInitialPage(6); setStage(STAGES.QUESTIONNAIRE); }}
         />
       )}
 
