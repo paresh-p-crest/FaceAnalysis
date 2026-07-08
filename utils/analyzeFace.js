@@ -1,5 +1,6 @@
 import { getActiveProvider, shouldUseAwsCV, shouldUseMediaPipeCV, shouldUseLocalCV } from './appMode'
 import { getAwsCredentials } from './settings'
+import { isBackendApiEnabled, runFaceAnalysisViaBackend } from './apiClient'
 import { analyzeFaceWithAWS } from './awsRekognition'
 import { detectProtocolViolations } from './protocolCheck'
 import { analyzeWithMediaPipe } from './mediapipeAnalysis'
@@ -89,8 +90,17 @@ async function runMediaPipePath(photo, answers) {
   }
 }
 
-export async function runFaceAnalysis(photo, answers, photos = {}) {
+export async function runFaceAnalysis(photo, answers, photos = {}, scanId = null) {
   const provider = getActiveProvider()
+
+  if (isBackendApiEnabled()) {
+    try {
+      return await runFaceAnalysisViaBackend(photo, answers, photos, provider, scanId)
+    } catch (err) {
+      return failResult(err.message || 'Backend analysis failed.', provider, 'backend')
+    }
+  }
+
   const credError = validateCredentials()
   if (credError) {
     return failResult(credError, provider, provider === 'aws' ? 'aws' : 'mediapipe+opencv')

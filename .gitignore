@@ -3,6 +3,7 @@ dist
 .next
 .env
 .env.local
+backend/.env
 .DS_Store
 .vercel
 venv/

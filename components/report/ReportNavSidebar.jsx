@@ -42,24 +42,44 @@ export const REPORT_NAV = [
     id: 'protocol-section',
     label: 'Protocol',
     items: [
-      { id: 'protocol', label: 'Recommendations' },
+      { id: 'protocol', label: 'Aesthetic Protocol' },
+    ],
+  },
+  {
+    id: 'visuals-section',
+    label: 'AI Visuals',
+    items: [
+      { id: 'aiVisuals', label: 'Hair, Outfit, Aging' },
+    ],
+  },
+  {
+    id: 'assistant-section',
+    label: 'Assistant',
+    items: [
+      { id: 'beautyAssistant', label: 'Beauty Assistant' },
     ],
   },
 ]
 
-export function ReportNavSidebar({ activeId, onSelect }) {
+export function ReportNavSidebar({ activeId, onSelect, showAiVisuals = true, showAssistant = true }) {
   const [open, setOpen] = useState({
     overview: true,
     assessments: true,
     features: true,
     'skin-section': true,
     'protocol-section': true,
+    'visuals-section': true,
+    'assistant-section': true,
   })
 
   return (
     <nav className="bg-white dark:bg-surface-card rounded-2xl p-4 h-fit lg:sticky lg:top-24 shadow-card border border-surface-border">
       <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-4 font-sans font-medium">AuraScan Report</p>
-      {REPORT_NAV.map((section) => (
+      {REPORT_NAV.filter((section) => {
+        if (section.id === 'visuals-section') return showAiVisuals
+        if (section.id === 'assistant-section') return showAssistant
+        return true
+      }).map((section) => (
         <div key={section.id} className="mb-3">
           <button
             type="button"

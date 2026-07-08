@@ -1,0 +1,4 @@
+run = "bash scripts/replit-start.sh"
+
+[nix]
+channel = "stable-24_05"

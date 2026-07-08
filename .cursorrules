@@ -1,0 +1,66 @@
+# AuraScan — AI Facial Analysis
+
+## Project identity
+- Product: AuraScan — AI facial analysis for aesthetic insights
+- Stack: Next.js 15 (App Router), Python FastAPI, MongoDB, MediaPipe, OpenCV, OpenAI
+- Client: Jay Michaels (Crest Infosystems proposal, July 2026)
+
+## Non-negotiable: Math engine vs AI
+- MediaPipe (478 landmarks) + OpenCV produce ALL measurements, scores, and ratios.
+- OpenAI MUST NOT replace, override, or invent numerical facial metrics.
+- OpenAI is allowed ONLY for: narrative explanations, recommendations, protocols, chat, and image generation (visual features).
+- Store deterministic `cvReport` and landmarks in MongoDB before any OpenAI enrichment.
+- AI text must reference stored metrics; never hallucinate measurements.
+
+## Architecture rules
+- Next.js: UI, routing, auth session, API calls. No business logic duplication of CV math.
+- Python FastAPI: image processing, MediaPipe, cv_report building, PDF, webhooks, OpenAI server-side calls.
+- MongoDB: primary store for users, assessments, analysis JSON, report status, payments, conversations.
+- Use environment variables for secrets; never commit API keys.
+
+## Next.js conventions
+- App Router only (`app/`). Client components marked `'use client'`.
+- Fetch backend via env `NEXT_PUBLIC_API_URL` (never hardcode localhost in production).
+- Prefer server actions or API routes only as BFF proxies when needed; heavy work stays in Python.
+- Tailwind for styling; match existing AuraScan design tokens (brand teal, Sora/Inter).
+
+## Python conventions
+- FastAPI routers per domain: `auth`, `assessments`, `analysis`, `reports`, `admin`, `payments`, `ai`.
+- Pydantic models for request/response; validate all inputs.
+- Reuse existing modules: `mediapipe_analysis.py`, `cv_report.py`, `opencv_metrics.py`.
+- Async where I/O-bound; keep MediaPipe on thread pool if blocking.
+
+## MongoDB conventions
+- Use Motor (async) or PyMongo with clear repository layer — no raw queries in route handlers.
+- Store full MediaPipe landmark arrays and `cvReport` as BSON documents.
+- Index: `users.email`, `reports.userId + status`, `assessments.createdAt`.
+- Report status enum: `draft` | `pending_review` | `approved` | `published`.
+
+## Report workflow
+- Users cannot download PDF until status is `published` (or `approved` per product rule).
+- Admin can edit AI narrative fields; cannot edit raw landmark/metric fields without re-analysis.
+- Audit log admin actions on report state changes.
+
+## Sprint discipline
+- One sprint at a time. User must say "go" before starting next sprint.
+- Each sprint ends with: working demo, test checklist, no broken existing features.
+- Minimize scope; no bonus features unless requested.
+- Develop and verify features locally first; final deployment/handover should happen near the end unless a sprint explicitly requires environment readiness.
+
+## Code quality
+- Small, reviewable PRs. Match existing naming and file structure.
+- No over-engineering. No new dependencies without justification.
+- Comments only for non-obvious business logic.
+
+## Deployment
+- Client deployment target: Replit, per proposal/client direction.
+- MongoDB Atlas remains the primary database.
+- Sprint 3 should prepare Replit compatibility and runbook only; do not spend the next feature sprints on final deployment unless the user explicitly asks.
+- Final Replit deployment, end-to-end testing, optimization, and handover belong near the final sprint after core features are complete.
+- Local development remains the default working mode during feature sprints.
+
+## Forbidden
+- Replacing MediaPipe measurements with LLM estimates
+- Storing passwords in plain text
+- Committing `.env`, `venv/`, `.next/`
+- Building multiple milestones in one sprint without approval

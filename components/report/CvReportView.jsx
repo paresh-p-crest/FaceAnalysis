@@ -2,7 +2,8 @@ import { EyeReportPanel } from '../EyeReportPanel'
 import { ScoreScalePanel } from './ReportPanels'
 import { FaceImageFrame, SymmetryOverlay, ProportionsOverlay } from './FaceImageFrame'
 import { ExecutiveSummary } from './ExecutiveSummary'
-import { FeatureSection, ProtocolSection } from './FeatureSection'
+import { FeatureSection } from './FeatureSection'
+import QovesProtocolReport from './QovesProtocolReport'
 import { BrowReportPanel } from './BrowReportPanel'
 import { FeatureReportPanel } from './FeatureReportPanel'
 import { CheekReportPanel } from './CheekReportPanel'
@@ -10,12 +11,22 @@ import { SkinReportPanel } from './SkinReportPanel'
 import { DimorphismSection } from './DimorphismSection'
 import { AveragenessSection } from './AveragenessSection'
 import { ProportionsSection } from './ProportionsSection'
+import { AiVisualsSection } from './AiVisualsSection'
+import { BeautyAssistantSection } from './BeautyAssistantSection'
 import { Loader2 } from 'lucide-react'
 
-export function CvReportView({ activeId, cvReport, eyeAnalysis, protocolData, protocolLoading }) {
+export function CvReportView({ activeId, cvReport, eyeAnalysis, protocolData, protocolLoading, aiNarrative, aiNarrativeLoading, aiNarrativeError, aiVisuals, aiVisualsLoading, aiVisualsError, onGenerateVisuals, canGenerateVisuals, assessmentId, canUseAssistant, onLoadAssistant, onSendAssistant, photo, landmarks, metrics, answers }) {
   // ── Executive Summary ──
   if (activeId === 'summary') {
-    return <ExecutiveSummary cvReport={cvReport} eyeAnalysis={eyeAnalysis} />
+    return (
+      <ExecutiveSummary
+        cvReport={cvReport}
+        eyeAnalysis={eyeAnalysis}
+        aiNarrative={aiNarrative}
+        aiNarrativeLoading={aiNarrativeLoading}
+        aiNarrativeError={aiNarrativeError}
+      />
+    )
   }
 
   // ── Dimorphism ──
@@ -392,36 +403,51 @@ export function CvReportView({ activeId, cvReport, eyeAnalysis, protocolData, pr
     return <SkinReportPanel skin={cvReport.skin} />
   }
 
-  // ── Protocol/Recommendations ──
+  // ── Protocol (Qoves-style aesthetic protocol report) ──
   if (activeId === 'protocol') {
     if (protocolLoading) {
       return (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <Loader2 className="w-8 h-8 text-brand animate-spin" />
-          <p className="text-ink-muted text-sm font-sans">Generating personalized protocol…</p>
+          <p className="text-ink-muted text-sm font-sans">Preparing aesthetic protocol…</p>
         </div>
       )
     }
 
-    const recs = protocolData?.recommendations || []
-    const sourceLabel = protocolData?.source === 'openai' ? 'AI-generated' : 'Template-based'
-
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-            protocolData?.source === 'openai'
-              ? 'bg-brand-50 text-brand border-brand/20'
-              : 'bg-surface-warm text-ink-muted border-surface-border'
-          }`}>
-            {sourceLabel}
-          </span>
-        </div>
-        {protocolData?.summary && (
-          <p className="text-sm text-ink-secondary leading-relaxed font-sans">{protocolData.summary}</p>
-        )}
-        <ProtocolSection recommendations={recs} />
-      </div>
+      <QovesProtocolReport
+        photo={photo}
+        landmarks={landmarks}
+        cvReport={cvReport}
+        metrics={metrics}
+        answers={answers}
+        eyeAnalysis={eyeAnalysis}
+        protocolData={protocolData}
+        aiNarrative={aiNarrative}
+      />
+    )
+  }
+
+  if (activeId === 'aiVisuals') {
+    return (
+      <AiVisualsSection
+        aiVisuals={aiVisuals}
+        loading={aiVisualsLoading}
+        error={aiVisualsError}
+        onGenerate={onGenerateVisuals}
+        canGenerate={canGenerateVisuals}
+      />
+    )
+  }
+
+  if (activeId === 'beautyAssistant') {
+    return (
+      <BeautyAssistantSection
+        assessmentId={assessmentId}
+        canUseAssistant={canUseAssistant}
+        onLoad={onLoadAssistant}
+        onSend={onSendAssistant}
+      />
     )
   }
 

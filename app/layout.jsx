@@ -1,4 +1,5 @@
 import './globals.css'
+import { AnalyticsScripts } from '../components/AnalyticsScripts'
 
 export const metadata = {
   title: 'AuraScan — AI Facial Analysis',
@@ -20,6 +21,7 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="min-h-screen bg-surface text-ink font-sans antialiased">
+        <AnalyticsScripts />
         {children}
       </body>
     </html>

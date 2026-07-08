@@ -1,4 +1,4 @@
-import { Sparkles, TrendingUp, Star, AlertCircle } from 'lucide-react'
+import { Sparkles, TrendingUp, Star, AlertCircle, Loader2 } from 'lucide-react'
 import { FaceImageFrame } from './FaceImageFrame'
 
 /* ── Score Ring SVG ── */
@@ -51,7 +51,85 @@ function FeatureScoreBar({ label, score, icon: Icon }) {
 }
 
 /* ── Main Executive Summary ── */
-export function ExecutiveSummary({ cvReport, eyeAnalysis, metrics }) {
+function AiNarrativeCard({ aiNarrative, loading, error }) {
+  const content = aiNarrative?.content || aiNarrative
+  const strengths = Array.isArray(content?.strengths) ? content.strengths : []
+  const focusAreas = Array.isArray(content?.focusAreas) ? content.focusAreas : []
+  const recommendations = Array.isArray(content?.recommendations) ? content.recommendations : []
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-brand/20 bg-brand-50/60 dark:bg-brand-500/10 p-5">
+        <div className="flex items-center gap-2 text-brand">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <p className="text-sm font-display font-semibold">Generating AI narrative</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!content && !error) return null
+
+  return (
+    <div className="rounded-2xl border border-brand/20 bg-brand-50/60 dark:bg-brand-500/10 p-5">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-brand" />
+          <p className="text-xs font-semibold text-brand font-display uppercase tracking-wider">AI Narrative</p>
+        </div>
+        <span className="text-[10px] text-ink-muted font-sans">CV-grounded</span>
+      </div>
+      {error && !content ? (
+        <p className="text-xs text-ink-muted font-sans leading-relaxed">{error}</p>
+      ) : (
+        <div className="space-y-4">
+          {content?.summary && (
+            <p className="text-sm text-ink-secondary leading-relaxed font-sans">{content.summary}</p>
+          )}
+          <div className="grid sm:grid-cols-2 gap-3">
+            {strengths.length > 0 && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-sans">Strengths</p>
+                <ul className="space-y-1.5">
+                  {strengths.map((item, index) => (
+                    <li key={index} className="text-xs text-ink-secondary leading-relaxed font-sans">{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {focusAreas.length > 0 && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-sans">Focus Areas</p>
+                <ul className="space-y-1.5">
+                  {focusAreas.map((item, index) => (
+                    <li key={index} className="text-xs text-ink-secondary leading-relaxed font-sans">{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          {recommendations.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-sans">Recommendations</p>
+              <ul className="grid sm:grid-cols-2 gap-2">
+                {recommendations.map((item, index) => (
+                  <li key={index} className="rounded-xl border border-brand/10 bg-white/70 dark:bg-surface-card/70 p-3 text-xs text-ink-secondary leading-relaxed font-sans">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {content?.disclaimer && (
+            <p className="text-[10px] text-ink-muted leading-relaxed font-sans">{content.disclaimer}</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ExecutiveSummary({ cvReport, eyeAnalysis, metrics, aiNarrative, aiNarrativeLoading, aiNarrativeError }) {
   const overall = cvReport?.overall?.score || metrics?.harmonyScore || 75
   const overallLabel = cvReport?.overall?.scoreLabel || 'Analysis Complete'
 
@@ -91,6 +169,8 @@ export function ExecutiveSummary({ cvReport, eyeAnalysis, metrics }) {
           <FaceImageFrame src={cvReport.symmetry.imageSrc} aspect="4/5" maxW="220px" />
         </div>
       )}
+
+      <AiNarrativeCard aiNarrative={aiNarrative} loading={aiNarrativeLoading} error={aiNarrativeError} />
 
       {/* Feature Breakdown */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">

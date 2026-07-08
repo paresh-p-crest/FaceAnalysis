@@ -8,6 +8,10 @@ export const STAGES = {
   SCANNING: 'scanning',
   REPORT: 'report',
   HISTORY: 'history',
+  BILLING: 'billing',
+  DASHBOARD: 'dashboard',
+  ADMIN: 'admin',
+  PAYMENT_SUCCESS: 'payment_success',
 }
 
 export const PHOTO_POSES = [

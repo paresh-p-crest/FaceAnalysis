@@ -1,13 +1,74 @@
-import { History, Trash2, ChevronLeft, ScanFace } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { History, Trash2, ChevronLeft, ScanFace, ShieldCheck, Loader2, RefreshCw } from 'lucide-react'
 import { loadHistory, deleteAllHistory, formatHistoryDate } from '../utils/historyStorage'
+import {
+  deleteAssessment,
+  fetchMyAssessments,
+  isBackendApiEnabled,
+} from '../utils/apiClient'
 
-export default function HistoryPage({ onBack, onViewItem }) {
+import { isReportApproved, normalizeReportStatus, clientAwaitingReviewMessage } from '../utils/reportWorkflow'
+
+const STATUS_STYLE = {
+  pending_review: 'bg-amber-50 text-amber-700 border-amber-200',
+  approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+}
+
+function StatusBadge({ status }) {
+  const display = normalizeReportStatus(status)
+  const label = display === 'approved' ? 'Approved' : 'Pending review'
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold ${STATUS_STYLE[display] || STATUS_STYLE.pending_review}`}>
+      {label}
+    </span>
+  )
+}
+
+export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpenAdmin, user }) {
   const items = loadHistory()
+  const [cloudItems, setCloudItems] = useState([])
+  const [cloudLoading, setCloudLoading] = useState(false)
+  const [cloudError, setCloudError] = useState('')
+  const [deletingId, setDeletingId] = useState('')
+
+  const isAdmin = user?.role === 'admin'
+  const canLoadCloud = !!user && !isAdmin && isBackendApiEnabled()
+
+  const loadCloudItems = async () => {
+    if (!canLoadCloud) return
+    setCloudLoading(true)
+    setCloudError('')
+    try {
+      setCloudItems(await fetchMyAssessments(20))
+    } catch (err) {
+      setCloudError(err.message || 'Could not load cloud reports')
+    } finally {
+      setCloudLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCloudItems()
+  }, [user?.id])
 
   const handleDeleteAll = () => {
     if (!window.confirm('Delete all analysis history?')) return
     deleteAllHistory()
     onBack()
+  }
+
+  const handleDeleteCloudItem = async (assessmentId) => {
+    if (!window.confirm('Delete this cloud report from MongoDB?')) return
+    setDeletingId(assessmentId)
+    setCloudError('')
+    try {
+      await deleteAssessment(assessmentId)
+      setCloudItems((prev) => prev.filter((item) => item.id !== assessmentId))
+    } catch (err) {
+      setCloudError(err.message || 'Could not delete cloud report')
+    } finally {
+      setDeletingId('')
+    }
   }
 
   return (
@@ -38,6 +99,19 @@ export default function HistoryPage({ onBack, onViewItem }) {
             </button>
           )}
         </div>
+
+        {isAdmin && (
+          <div className="mb-10 bg-white dark:bg-surface-card rounded-2xl p-8 shadow-card border border-surface-border text-center">
+            <ShieldCheck className="w-10 h-10 text-brand mx-auto mb-3" />
+            <p className="font-display text-ink mb-1">Admin tools are in Admin Panel</p>
+            <p className="text-sm text-ink-muted font-sans mb-4">
+              Manage registered users, client reports, review queue, and payments from the dedicated admin workspace.
+            </p>
+            <button onClick={onOpenAdmin} className="btn-primary text-sm">
+              Open Admin Panel
+            </button>
+          </div>
+        )}
 
         {items.length === 0 ? (
           <div className="bg-white dark:bg-surface-card rounded-3xl p-16 text-center shadow-card border border-surface-border">
@@ -71,6 +145,93 @@ export default function HistoryPage({ onBack, onViewItem }) {
                 </div>
               </button>
             ))}
+          </div>
+        )}
+
+        {canLoadCloud && (
+          <div className="mt-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                  <History className="w-5 h-5 text-brand" />
+                </div>
+                <div>
+                  <h2 className="font-display text-lg font-semibold text-ink">Cloud reports</h2>
+                  <p className="text-xs text-ink-muted font-sans">Assessments saved under your account</p>
+                </div>
+              </div>
+              <button
+                onClick={loadCloudItems}
+                disabled={cloudLoading}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border border-surface-border bg-white dark:bg-surface-card text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
+              >
+                {cloudLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                Refresh
+              </button>
+            </div>
+
+            {cloudError && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {cloudError}
+              </div>
+            )}
+
+            {cloudLoading && cloudItems.length === 0 ? (
+              <div className="bg-white dark:bg-surface-card rounded-2xl p-8 text-center shadow-card border border-surface-border">
+                <Loader2 className="w-6 h-6 text-brand animate-spin mx-auto mb-3" />
+                <p className="text-sm text-ink-muted">Loading reports...</p>
+              </div>
+            ) : cloudItems.length === 0 ? (
+              <div className="bg-white dark:bg-surface-card rounded-2xl p-8 text-center shadow-card border border-surface-border">
+                <p className="font-display text-ink mb-1">No cloud reports yet</p>
+                <p className="text-sm text-ink-muted font-sans">Run a backend-connected assessment to populate this queue.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {cloudItems.map((item) => {
+                  const score = item.analysis?.cvReport?.overall?.score ?? item.analysis?.metrics?.harmonyScore ?? '—'
+                  return (
+                    <div key={item.id} className="bg-white dark:bg-surface-card rounded-2xl p-4 shadow-card border border-surface-border">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-display text-sm font-semibold text-ink truncate">
+                              Assessment {item.id.slice(-6)}
+                            </p>
+                            <StatusBadge status={item.status} />
+                          </div>
+                          <p className="text-xs text-ink-muted">
+                            {formatHistoryDate(item.createdAt)} · {item.provider || 'local'} · score {score}
+                          </p>
+                        </div>
+
+                        <p className="text-xs text-ink-muted sm:text-right">
+                          {isReportApproved(item.status)
+                            ? 'Approved — PDF download available'
+                            : clientAwaitingReviewMessage()}
+                        </p>
+                      </div>
+                      <div className="mt-3 flex justify-end gap-2">
+                        <button
+                          onClick={() => onViewCloudItem?.(item)}
+                          className="px-3 py-1.5 rounded-lg border border-surface-border bg-white dark:bg-surface-card text-[11px] font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors"
+                        >
+                          View report
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCloudItem(item.id)}
+                          disabled={deletingId === item.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-[11px] font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                        >
+                          {deletingId === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

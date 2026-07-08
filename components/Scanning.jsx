@@ -4,7 +4,7 @@ import { runFaceAnalysis } from '../utils/analyzeFace'
 import { getActiveProvider } from '../utils/appMode'
 import { ScanFace, Check } from 'lucide-react'
 
-export default function Scanning({ photo, photos, answers, onComplete }) {
+export default function Scanning({ photo, photos, answers, scanId, onComplete }) {
   const [msgIndex, setMsgIndex] = useState(0)
   const [stageIndex, setStageIndex] = useState(0)
   const [completedStages, setCompletedStages] = useState([])
@@ -17,12 +17,11 @@ export default function Scanning({ photo, photos, answers, onComplete }) {
       : 'MediaPipe + OpenCV'
 
   useEffect(() => {
-    let cancelled = false
-    let stageTimer = null
+    let active = true
+    let stageInterval = null
 
     const run = async () => {
-      // Simulate progressive stage completion
-      const stageInterval = setInterval(() => {
+      stageInterval = setInterval(() => {
         setStageIndex((i) => {
           if (i < SCAN_STAGES.length - 1) {
             setCompletedStages((prev) => [...prev, i])
@@ -32,22 +31,27 @@ export default function Scanning({ photo, photos, answers, onComplete }) {
         })
       }, 800)
 
-      const result = await runFaceAnalysis(photo, answers, photos)
+      try {
+        const result = await runFaceAnalysis(photo, answers, photos, scanId)
+        if (!active) return
 
-      clearInterval(stageInterval)
-      if (cancelled) return
+        clearInterval(stageInterval)
+        stageInterval = null
 
-      // Complete all remaining stages
-      setCompletedStages(SCAN_STAGES.map((_, i) => i))
-      setStageIndex(SCAN_STAGES.length - 1)
+        setCompletedStages(SCAN_STAGES.map((_, i) => i))
+        setStageIndex(SCAN_STAGES.length - 1)
 
-      const minDelay = 4000
-      const start = Date.now()
-      const elapsed = Date.now() - start
-      if (elapsed < minDelay) {
-        await new Promise((r) => setTimeout(r, minDelay - elapsed))
+        await new Promise((r) => setTimeout(r, 400))
+        if (active) onComplete(result)
+      } catch (err) {
+        if (!active) return
+        clearInterval(stageInterval)
+        onComplete({
+          success: false,
+          error: err?.message || 'Analysis failed. Please try again.',
+          savedToDb: false,
+        })
       }
-      if (!cancelled) onComplete(result)
     }
 
     run()
@@ -57,20 +61,19 @@ export default function Scanning({ photo, photos, answers, onComplete }) {
     }, 1200)
 
     return () => {
-      cancelled = true
+      active = false
+      if (stageInterval) clearInterval(stageInterval)
       clearInterval(msgTimer)
     }
-  }, [photo, photos, answers, onComplete])
+  }, [photo, photos, answers, scanId, onComplete])
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 animate-fade-up bg-surface">
       <div className="relative w-full max-w-sm">
-        {/* Photo with scan overlay */}
         <div className="rounded-3xl p-3 overflow-hidden bg-white dark:bg-surface-card shadow-elevated border border-surface-border">
           <div className="relative rounded-2xl overflow-hidden aspect-[4/5]">
             <img src={photo} alt="Scanning" className="w-full h-full object-cover" />
 
-            {/* Grid overlay */}
             <div
               className="absolute inset-0 opacity-10"
               style={{
@@ -80,65 +83,45 @@ export default function Scanning({ photo, photos, answers, onComplete }) {
               }}
             />
 
-            {/* Corner brackets */}
-            {['top-3 left-3 border-t-2 border-l-2', 'top-3 right-3 border-t-2 border-r-2', 'bottom-3 left-3 border-b-2 border-l-2', 'bottom-3 right-3 border-b-2 border-r-2'].map((cls, idx) => (
-              <div key={idx} className={'absolute w-8 h-8 border-brand ' + cls + ' rounded-sm'} />
-            ))}
-
-            {/* Scan line */}
-            <div className="absolute left-0 right-0 h-0.5 animate-laser-sweep pointer-events-none">
-              <div className="h-full bg-gradient-to-r from-transparent via-brand to-transparent shadow-[0_0_20px_4px_rgba(15,118,110,0.4)]" />
-            </div>
-
-            {/* Subtle overlay */}
-            <div className="absolute inset-0 bg-gradient-to-b from-brand/5 via-transparent to-brand/5 animate-pulse-glow" />
+            <div className="absolute inset-x-0 h-0.5 bg-brand/60 animate-scan-line shadow-[0_0_12px_rgba(15,118,110,0.5)]" />
           </div>
         </div>
 
-        {/* Outer pulse ring */}
-        <div className="absolute -inset-4 rounded-[2rem] border border-brand/15 animate-pulse-glow pointer-events-none" />
-      </div>
+        <div className="mt-8 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 border border-brand/20 mb-4">
+            <ScanFace className="w-4 h-4 text-brand animate-pulse" />
+            <span className="text-sm font-medium text-brand">{scanLabel}</span>
+          </div>
 
-      {/* Status badge */}
-      <div className="mt-8 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-surface-card border border-surface-border text-brand text-sm font-medium mb-4 shadow-soft">
-          <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
-          {scanLabel}
-        </div>
-        <p className="text-ink-muted text-sm h-5 transition-opacity duration-300">
-          {SCAN_MESSAGES[msgIndex]}
-        </p>
-      </div>
+          <p className="text-ink font-display text-lg font-semibold mb-2 min-h-[28px] transition-all">
+            {SCAN_MESSAGES[msgIndex]}
+          </p>
 
-      {/* Stage progress — compact grid that fits all viewports */}
-      <div className="mt-6 w-full max-w-md">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5">
-          {SCAN_STAGES.map((stage, i) => {
-            const done = completedStages.includes(i)
-            const active = i === stageIndex && !done
-            return (
-              <div key={stage} className="flex items-center gap-2">
-                <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${
-                  done
+          <div className="space-y-2 mt-6">
+            {SCAN_STAGES.map((stage, i) => (
+              <div
+                key={stage}
+                className={`flex items-center gap-3 px-4 py-2 rounded-xl text-sm transition-all ${
+                  completedStages.includes(i)
+                    ? 'text-brand bg-brand-50/50'
+                    : i === stageIndex
+                      ? 'text-ink bg-surface-warm'
+                      : 'text-ink-faint'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                  completedStages.includes(i)
                     ? 'bg-brand text-white'
-                    : active
-                      ? 'bg-brand/20 border border-brand'
-                      : 'bg-surface-warm border border-surface-border'
+                    : i === stageIndex
+                      ? 'bg-brand/20 text-brand animate-pulse'
+                      : 'bg-surface-border text-ink-faint'
                 }`}>
-                  {done ? (
-                    <Check className="w-2.5 h-2.5" />
-                  ) : active ? (
-                    <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-                  ) : null}
+                  {completedStages.includes(i) ? <Check className="w-3 h-3" /> : i + 1}
                 </div>
-                <span className={`text-[11px] leading-tight transition-colors duration-300 truncate ${
-                  done ? 'text-brand font-medium' : active ? 'text-ink' : 'text-ink-faint'
-                }`}>
-                  {stage}
-                </span>
+                {stage}
               </div>
-            )
-          })}
+            ))}
+          </div>
         </div>
       </div>
     </div>
