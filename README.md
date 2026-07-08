@@ -1,72 +1,79 @@
+<!-- Merged and migrated from README.md and TECHNICAL_README.md -->
 # AuraScan — AI Facial Analysis
 
-## Quick Start (Frontend + Python Backend)
+AuraScan is an AI-powered facial analysis platform. Users upload a photograph, complete an onboarding questionnaire, and receive a comprehensive, structured report analyzing facial symmetry, proportions, shapes, and features.
 
-### Frontend (React + Vite)
+---
+
+## Technical Architecture Overview
+
+AuraScan runs a combined hybrid processing system:
+1. **Google MediaPipe Face Mesh:** Maps **478 3D landmarks** on the client's face to calculate geometry metrics (symmetry, jaw angle, eye/lip/nose proportions).
+2. **Canvas Pixel Analysis:** Samples pixel colors from 6 facial zones (forehead, nose, chin, cheeks, under-eyes) to evaluate brightness, redness, uniformity, and tone.
+3. **OpenAI GPT Narrative (Optional):** Generates conversational, structured summaries and personal protocol plans grounded on the calculations.
+4. **Stripe & PayPal Gateways:** Restricts detailed reports behind a checkout session wall.
+
+For developer-specific details, rules, and commands, please refer to [AGENTS.md](file:///c:/Users/JayRabari/Documents/FacialAnalysis/AGENTS.md).
+
+---
+
+## Quick Start Guide
+
+### 1. Backend (Python FastAPI)
+The computer vision, PDF engine, database persistence, and assistant run inside a FastAPI backend.
 
 ```bash
-npm install
-npm run dev
-```
-
-### Backend (Python FastAPI)
-
-```bash
+# Navigate to project and activate virtual environment
 cd backend
 python -m venv venv
-source venv/bin/activate          # macOS/Linux
-venv\Scripts\activate             # Windows
+
+# Activate (Windows PowerShell)
+.\venv\Scripts\activate
+# Activate (macOS/Linux)
+source venv/bin/activate
+
+# Install dependencies and start server
 pip install -r requirements.txt
 python -m main
 ```
+The backend server starts at `http://localhost:8000`. Refer to the health check endpoint at `http://localhost:8000/api/health` to confirm the MongoDB Atlas connection state.
 
-Backend starts at `http://localhost:8000`. Update `vite.config.js` proxy to forward `/api` to the backend.
+### 2. Frontend (Next.js 15)
+The user interface and dashboard run on a Node/Next.js dev server.
 
-## Configuration
+```bash
+# In the repository root directory
+npm install
+npm run dev
+```
+Open `http://localhost:3000` in your web browser.
 
-Open **Settings** (gear icon, top-right) and choose a provider tab:
+---
 
-- **Free CV** — MediaPipe + OpenCV (no API keys, $0 cost)
-- **AWS** — Enter Rekognition credentials for server-side analysis
-- **OpenAI** — Enter API key for AI-generated narrative reports
+## Configuration Settings
+Go to Settings (gear icon in the top-right menu) to choose the active provider engine:
+- **Free CV:** Runs MediaPipe and Canvas math locally in the browser ($0 cost).
+- **AWS Rekognition:** Connects AWS credentials to run server-side face detection for emotion, head pose, image quality verification, and accessories.
+- **OpenAI:** Uses OpenAI models to output AI narrative reports.
 
-The active tab becomes the active provider.
+---
 
-## Python Backend (New)
+## Feature Comparison Matrix
 
-The entire JavaScript backend has been ported to Python FastAPI. All CV processing, AWS integration, and PDF generation run server-side.
+| Feature | Free CV (Local) | Free CV + AWS | Free CV + OpenAI |
+| :--- | :---: | :---: | :---: |
+| Landmark Measurements (Symmetry, third ratios, jaw, lips, brows) | ✅ | ✅ | ✅ |
+| Skin Quality Color Analysis | ✅ | ✅ | ✅ |
+| Structured Sidebar Report | ✅ | ✅ | ❌ |
+| Emotion & Pose Detection | ❌ | ✅ | ❌ |
+| Photo Quality Warnings | ❌ | ✅ | ❌ |
+| AI Narrative & Custom Protocol | ❌ | ❌ | ✅ |
+| Cost Per Scan | **$0** | **~$0.004** | **~$0.005** |
 
-See [backend/README.md](backend/README.md) for full documentation.
+---
 
-### Provider Modes
-
-| Provider | CV Engine | Report |
-|----------|-----------|--------|
-| Free CV (local) | MediaPipe + OpenCV | Rule-based eye analysis + CV metrics |
-| AWS | AWS Rekognition + MediaPipe | Template from AWS facial data |
-| OpenAI | MediaPipe + OpenCV | GPT-4o-mini narrative report |
-
-### Backend API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/health` | Health check |
-| `POST` | `/api/analyze-face` | AWS Rekognition face detection |
-| `POST` | `/api/test-aws` | Test AWS credentials |
-| `POST` | `/api/run-analysis` | Full analysis pipeline |
-| `POST` | `/api/generate-report` | Generate personalized report |
-| `POST` | `/api/generate-pdf` | Generate PDF report |
-
-## Deploy (Vercel — free)
-
-1. Push this repo to GitHub.
-2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import your GitHub repo.
-3. Vercel auto-detects Vite. Click **Deploy**.
-
-No environment variables required — API keys are set in the Settings UI.
-
-**Notes:**
-- **Free CV** works out of the box — fully local processing.
-- **AWS** uses the `/api/analyze-face` endpoint.
-- **OpenAI** calls OpenAI for AI-generated reports.
-- Keys are passed in request body — not stored server-side.
+## Deployment (Vercel)
+1. Push this repository to a remote GitHub account.
+2. Go to [vercel.com](https://vercel.com) and click **Add New Project**.
+3. Import the repository. Vercel will auto-detect Next.js 15 configuration.
+4. Deploy the project. Setup your environment values (`NEXT_PUBLIC_API_URL` and `PUBLIC_APP_URL`) in the project settings.
