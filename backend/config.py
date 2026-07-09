@@ -3,10 +3,27 @@
 OPENAI_REPORT_MODEL = "gpt-4o-mini"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
+# Beauty Assistant — cost controls
+ASSISTANT_HOURLY_MESSAGE_LIMIT = 20
+ASSISTANT_SUMMARY_REFRESH_EVERY = 6
+ASSISTANT_RECENT_TURNS = 4
+
+PROTOCOL_FEATURE_IDS = (
+    "hair",
+    "eyes",
+    "nose",
+    "cheeks",
+    "jaw",
+    "lips",
+    "chin",
+    "skin",
+    "neck",
+    "ears",
+)
+
 STAGES = {
     "LANDING": "landing",
     "QUESTIONNAIRE": "questionnaire",
-    "PROTOCOL": "protocol",
     "UPLOAD": "upload",
     "SCANNING": "scanning",
     "REPORT": "report",
@@ -44,19 +61,48 @@ SCAN_MESSAGES = [
 ]
 
 INITIAL_ANSWERS = {
-    "goals": ["structure"],
-    "skinConcerns": ["none"],
-    "ageRange": "25-34",
-    "gender": "male",
-    "ethnicity": "south-asian",
-    "concernSeverity": "mild",
-    "skinType": "combination",
-    "skincareRoutine": "minimal",
-    "environment": "mixed",
-    "smoking": "never",
-    "sleepQuality": "good",
-    "waterIntake": "moderate",
-    "sunExposure": "moderate",
+    # Existing fields
+    "goals": [],
+    "skinConcerns": [],
+    "ageRange": "",
+    "gender": "",
+    "ethnicity": "",
+    "concernSeverity": "",
+    "skinType": "",
+    "skincareRoutine": "",
+    "environment": "",
+    "smoking": "",
+    "sleepQuality": "",
+    "waterIntake": "",
+    "sunExposure": "",
+
+    # New fields
+    "occupation": "",
+    "drinking": "",
+    "genderPreference": "",
+    "hadNonSurgical": "",
+    "hadSurgery": "",
+    "comfortableTreatments": [],
+    "medicalConditions": "",
+    "medicalConditionsDetails": "",
+    "medications": "",
+    "medicationsDetails": "",
+    "usedRetinoids": "",
+    "allergies": "",
+    "allergiesDetails": "",
+    "activeInfections": "",
+    "activeInfectionsDetails": "",
+    "proneToHyperpigmentation": "",
+    "featureLike": "",
+    "featureDislike": "",
+    "celebrityMatch": "",
+    "comfortableWeightLoss": "",
+    "goalAesthetic": "",
+    "growBeard": "",
+    "aestheticDistress": "",
+    "appearanceFrequency": "",
+    "motivation": "",
+    "additionalNotes": "",
 }
 
 # Protocol items

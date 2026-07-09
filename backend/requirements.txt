@@ -1,4 +1,4 @@
-# Python dependencies for AuraScan backend
+# Python dependencies for MyFace backend
 # Install: pip install -r requirements.txt
 
 fastapi>=0.115.0
@@ -11,9 +11,6 @@ mediapipe==0.10.14
 opencv-python-headless>=4.10.0
 numpy>=1.26.0
 Pillow>=10.0.0
-
-# AWS
-boto3>=1.35.0
 
 # OpenAI
 openai>=1.50.0

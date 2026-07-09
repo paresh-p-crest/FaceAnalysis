@@ -1,4 +1,4 @@
-"""MongoDB persistence for AuraScan users."""
+"""MongoDB persistence for MyFace users."""
 
 from __future__ import annotations
 

@@ -81,7 +81,7 @@ export default function BillingPage({ user, onBack, onAuth, message = '' }) {
   const startStripe = async () => {
     setBusy('stripe')
     setError('')
-    trackEvent('checkout_start', { provider: 'stripe', planId: product?.id || 'aurascan_report' })
+    trackEvent('checkout_start', { provider: 'stripe', planId: product?.id || 'myface_report' })
     try {
       const result = await createStripeCheckout()
       if (result.checkoutUrl) window.location.href = result.checkoutUrl
@@ -94,7 +94,7 @@ export default function BillingPage({ user, onBack, onAuth, message = '' }) {
   const startPayPal = async () => {
     setBusy('paypal')
     setError('')
-    trackEvent('checkout_start', { provider: 'paypal', planId: product?.id || 'aurascan_report' })
+    trackEvent('checkout_start', { provider: 'paypal', planId: product?.id || 'myface_report' })
     try {
       const result = await createPayPalOrder()
       if (result.approveUrl) window.location.href = result.approveUrl
@@ -156,7 +156,7 @@ export default function BillingPage({ user, onBack, onAuth, message = '' }) {
           <div className="bg-white dark:bg-surface-card rounded-2xl p-8 text-center shadow-card border border-surface-border">
             <ShieldCheck className="w-10 h-10 text-brand mx-auto mb-3" />
             <p className="font-display text-ink mb-1">Sign in to continue</p>
-            <p className="text-sm text-ink-muted font-sans mb-4">Payments are linked to your AuraScan account.</p>
+            <p className="text-sm text-ink-muted font-sans mb-4">Payments are linked to your MyFace account.</p>
             <button onClick={onAuth} className="btn-primary text-sm">Sign in</button>
           </div>
         ) : (
@@ -165,7 +165,7 @@ export default function BillingPage({ user, onBack, onAuth, message = '' }) {
               <p className="text-[10px] uppercase tracking-wider text-ink-muted font-sans font-semibold mb-3">
                 Current Product
               </p>
-              <h2 className="font-display text-xl font-semibold text-ink mb-2">{product?.name || 'AuraScan Premium Report'}</h2>
+              <h2 className="font-display text-xl font-semibold text-ink mb-2">{product?.name || 'MyFace Premium Report'}</h2>
               <p className="text-sm text-ink-muted leading-relaxed mb-5">{product?.description || 'Full report workflow access.'}</p>
               <div className="text-3xl font-display font-bold text-brand mb-5">
                 {money(product?.amountCents || 0, product?.currency || 'usd')}

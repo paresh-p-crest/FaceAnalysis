@@ -1,4 +1,4 @@
-"""Local smoke checks for AuraScan backend services.
+"""Local smoke checks for MyFace backend services.
 
 Run after FastAPI is up:
     python scripts/smoke_test.py
@@ -46,9 +46,9 @@ def check(name: str, ok: bool, detail: str = "") -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default=os.environ.get("AURASCAN_API_URL", "http://127.0.0.1:8000"))
-    parser.add_argument("--email", default=os.environ.get("AURASCAN_TEST_EMAIL") or os.environ.get("ADMIN_EMAIL"))
-    parser.add_argument("--password", default=os.environ.get("AURASCAN_TEST_PASSWORD") or os.environ.get("ADMIN_PASSWORD"))
+    parser.add_argument("--base-url", default=os.environ.get("MYFACE_API_URL", "http://127.0.0.1:8000"))
+    parser.add_argument("--email", default=os.environ.get("MYFACE_TEST_EMAIL") or os.environ.get("ADMIN_EMAIL"))
+    parser.add_argument("--password", default=os.environ.get("MYFACE_TEST_PASSWORD") or os.environ.get("ADMIN_PASSWORD"))
     args = parser.parse_args()
 
     passed = []
@@ -57,7 +57,7 @@ def main() -> int:
     passed.append(check("health", status == 200 and health.get("status") == "ok", f"mongodb={health.get('mongodb')}"))
 
     if not args.email or not args.password:
-        passed.append(check("auth credentials", False, "set AURASCAN_TEST_EMAIL/PASSWORD or ADMIN_EMAIL/PASSWORD"))
+        passed.append(check("auth credentials", False, "set MYFACE_TEST_EMAIL/PASSWORD or ADMIN_EMAIL/PASSWORD"))
         return 1
 
     status, login = request(

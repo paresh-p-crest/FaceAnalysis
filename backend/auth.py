@@ -23,7 +23,7 @@ _bearer = HTTPBearer(auto_error=False)
 def _auth_secret() -> bytes:
     secret = os.environ.get("AUTH_SECRET")
     if not secret:
-        secret = "aurascan-local-dev-secret-change-me"
+        secret = "myface-local-dev-secret-change-me"
     return secret.encode("utf-8")
 
 

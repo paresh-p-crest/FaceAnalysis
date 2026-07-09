@@ -94,7 +94,7 @@ export default function PaymentSuccessPage({ user, sessionId, onAuth, onStartAna
 
           <h1 className="font-display text-2xl font-semibold text-ink mb-2">Payment successful</h1>
           <p className="text-sm text-ink-muted leading-relaxed mb-6">
-            Your AuraScan premium report access is ready. Start your facial analysis when you are ready.
+            Your MyFace premium report access is ready. Start your facial analysis when you are ready.
           </p>
 
           {!user ? (

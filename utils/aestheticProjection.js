@@ -140,28 +140,81 @@ function getFeatureBox(landmarks, featureKey) {
       return mergeBboxes(l, r, 0.01)
     }
     case 'chin': return bboxFromIndices(landmarks, [152, 148, 176, 377, 400], 0.05)
+    case 'skin': {
+      const l = bboxFromIndices(landmarks, CHEEK_L, 0.04)
+      const r = bboxFromIndices(landmarks, CHEEK_R, 0.04)
+      return mergeBboxes(l, r, 0.02)
+    }
     case 'neck': {
       const face = bboxFullFace(landmarks, 0.02)
       return { x: face.x + face.w * 0.12, y: face.y + face.h * 0.8, w: face.w * 0.76, h: face.h * 0.22 }
     }
     case 'ears': {
-      const face = bboxFullFace(landmarks, 0.02)
-      return { x: face.x, y: face.y + face.h * 0.22, w: face.w, h: face.h * 0.48 }
+      const left = bboxFromIndices(landmarks, [234, 127, 162, 93, 132], 0.04)
+      const right = bboxFromIndices(landmarks, [454, 356, 389, 323, 361], 0.04)
+      return mergeBboxes(left, right, 0.02)
     }
     default: return bboxFullFace(landmarks, 0.04)
   }
 }
 
-function cropDataUrl(canvas, box) {
-  const x = Math.round(box.x * canvas.width)
-  const y = Math.round(box.y * canvas.height)
-  const cw = Math.max(1, Math.round(box.w * canvas.width))
-  const ch = Math.max(1, Math.round(box.h * canvas.height))
+function expandBoxToMinSize(box, minPx, canvasW, canvasH) {
+  let x = box.x * canvasW
+  let y = box.y * canvasH
+  let w = box.w * canvasW
+  let h = box.h * canvasH
+  const short = Math.min(w, h)
+  if (short >= minPx) return box
+  const scale = Math.min(minPx / Math.max(short, 1), 2.2)
+  const cx = x + w / 2
+  const cy = y + h / 2
+  w = Math.min(canvasW, w * scale)
+  h = Math.min(canvasH, h * scale)
+  x = Math.max(0, cx - w / 2)
+  y = Math.max(0, cy - h / 2)
+  if (x + w > canvasW) x = canvasW - w
+  if (y + h > canvasH) y = canvasH - h
+  return { x: x / canvasW, y: y / canvasH, w: w / canvasW, h: h / canvasH }
+}
+
+function cropDataUrl(canvas, box, minPx = 0) {
+  const expanded =
+    minPx > 0 ? expandBoxToMinSize(box, minPx, canvas.width, canvas.height) : box
+  const x = Math.round(expanded.x * canvas.width)
+  const y = Math.round(expanded.y * canvas.height)
+  let cw = Math.max(1, Math.round(expanded.w * canvas.width))
+  let ch = Math.max(1, Math.round(expanded.h * canvas.height))
   const c = document.createElement('canvas')
   c.width = cw
   c.height = ch
-  c.getContext('2d').drawImage(canvas, x, y, cw, ch, 0, 0, cw, ch)
+  const ctx = c.getContext('2d')
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(canvas, x, y, cw, ch, 0, 0, cw, ch)
+  if (minPx > 0 && Math.min(cw, ch) < minPx) {
+    const scale = minPx / Math.min(cw, ch)
+    const up = document.createElement('canvas')
+    up.width = Math.round(cw * scale)
+    up.height = Math.round(ch * scale)
+    const uctx = up.getContext('2d')
+    uctx.imageSmoothingEnabled = true
+    uctx.imageSmoothingQuality = 'high'
+    uctx.drawImage(c, 0, 0, up.width, up.height)
+    return up.toDataURL('image/jpeg', 0.92)
+  }
   return c.toDataURL('image/jpeg', 0.92)
+}
+
+function getProfileBox(landmarks) {
+  const face = bboxFullFace(landmarks, 0.02)
+  const jaw = bboxFromIndices(landmarks, JAW_LINE, 0.04)
+  const merged = mergeBboxes(face, jaw, 0.01)
+  return {
+    x: merged.x + merged.w * 0.55,
+    y: merged.y + merged.h * 0.08,
+    w: merged.w * 0.42,
+    h: merged.h * 0.82,
+  }
 }
 
 /* ── Feature projection passes ── */
@@ -570,6 +623,34 @@ export async function cropFeatureBefore(imageSrc, landmarks, featureKey) {
   return cropDataUrl(canvas, getFeatureBox(lmArr, featureKey))
 }
 
+/** Higher-resolution crop for PDF export (min ~450px short edge). */
+export async function cropFeatureBeforeForPdf(imageSrc, landmarks, featureKey, minPx = 450) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  const base = await normalizeToJpegDataUrl(imageSrc)
+  if (!lmArr?.length || featureKey === 'overview') return base
+
+  const img = await loadImage(base)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+  return cropDataUrl(canvas, getFeatureBox(lmArr, featureKey), minPx)
+}
+
+/** Profile-side crop for nose/jaw feature pages. */
+export async function cropProfileBefore(imageSrc, landmarks, minPx = 450) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  const base = await normalizeToJpegDataUrl(imageSrc)
+  if (!lmArr?.length) return base
+
+  const img = await loadImage(base)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+  return cropDataUrl(canvas, getProfileBox(lmArr), minPx)
+}
+
 export async function normalizeToJpegDataUrl(src) {
   if (!src) return null
   const img = await loadImage(src)
@@ -612,4 +693,4 @@ export async function createEnhancedPortrait(src, landmarks, cvReport, metrics) 
   return normalizeToJpegDataUrl(src)
 }
 
-export { getFeatureBox, projectionStrengths }
+export { getFeatureBox, getProfileBox, projectionStrengths }

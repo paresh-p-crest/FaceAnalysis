@@ -1,4 +1,5 @@
 import { FaceImageFrame } from './FaceImageFrame'
+import { ReportSectionHeading } from './ReportSectionHeading'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -22,22 +23,61 @@ function MetricCard({ label, value, tooltip }) {
  * @param {object} props.data - The feature data object (must have score, scoreLabel, explanation)
  * @param {Array<{title: string, metrics: Array<{label: string, value: string, tooltip?: string}>}>} props.sections - Sections to render
  * @param {string} [props.imageSrc] - Optional cropped image
+ * @param {{ left?: string, right?: string }} [props.profileImages] - Left/right profile photos (e.g. ears)
  * @param {string} [props.imageAlt] - Alt text for image
  * @param {Array<{label: string, value: string}>} [props.extraMetrics] - Metrics shown in the overall score card
  */
-export function FeatureReportPanel({ title, data, sections, imageSrc, imageAlt, extraMetrics }) {
+export function FeatureReportPanel({ title, featureName, data, sections, imageSrc, profileImages, imageAlt, extraMetrics }) {
   if (!data) return null
+
+  const accent = featureName || title.replace(/ Analysis$/i, '').toLowerCase()
+  const summaryCards = (sections?.[0]?.metrics || []).slice(0, 4).map((m) => ({
+    label: m.label,
+    value: m.value,
+  }))
+  const hasProfileImages = Boolean(profileImages?.left || profileImages?.right)
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h3 className="font-display text-lg font-semibold text-ink mb-1">{title}</h3>
-        <p className="text-[10px] text-ink-muted font-sans mb-4">MediaPipe landmarks + pixel analysis · $0 API cost</p>
-        {imageSrc && (
+      <ReportSectionHeading
+        title="Summary of your"
+        accent={accent}
+        subtitle="MediaPipe landmarks + pixel analysis"
+      />
+      {hasProfileImages ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {profileImages.left && (
+            <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
+              <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-3 font-medium">Left profile</p>
+              <div className="flex items-center justify-center">
+                <FaceImageFrame src={profileImages.left} alt="Left profile" aspect="auto" maxW="100%" />
+              </div>
+            </div>
+          )}
+          {profileImages.right && (
+            <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
+              <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-3 font-medium">Right profile</p>
+              <div className="flex items-center justify-center">
+                <FaceImageFrame src={profileImages.right} alt="Right profile" aspect="auto" maxW="100%" />
+              </div>
+            </div>
+          )}
+        </div>
+      ) : imageSrc ? (
+        <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-6 flex items-center justify-center">
           <FaceImageFrame src={imageSrc} alt={imageAlt || title} aspect="auto" maxW="380px" />
-        )}
-      </div>
+        </div>
+      ) : null}
+      {summaryCards.length > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+          {summaryCards.map((card) => (
+            <div key={card.label} className="qoves-report-metric-card">
+              <p className="qoves-report-mono-label mb-1">{card.label}</p>
+              <p className="text-lg font-display font-bold text-ink">{card.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Overall Score */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">

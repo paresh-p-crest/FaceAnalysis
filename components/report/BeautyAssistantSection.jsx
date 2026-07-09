@@ -23,9 +23,6 @@ function MessageBubble({ message }) {
           : 'bg-white dark:bg-surface-card text-ink-secondary border-surface-border'
       }`}>
         <p className="whitespace-pre-wrap">{message.content}</p>
-        {!isUser && message.source && (
-          <p className="mt-2 text-[10px] opacity-70">Source: {message.source}</p>
-        )}
       </div>
       {isUser && (
         <div className="w-8 h-8 rounded-lg bg-surface-warm border border-surface-border flex items-center justify-center shrink-0">
@@ -92,13 +89,13 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
         </div>
         <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md border bg-brand-50 text-brand border-brand/20 font-semibold">
           <ShieldCheck className="w-3 h-3" />
-          CV-grounded
+          Grounded with your data
         </span>
       </div>
 
       {!canUseAssistant && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          Beauty Assistant is available for backend-saved reports after sign in.
+          Beauty Assistant is available after sign in and payment for backend-saved reports.
         </div>
       )}
 

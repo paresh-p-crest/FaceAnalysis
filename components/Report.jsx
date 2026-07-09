@@ -1,20 +1,17 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import ReactMarkdown from 'react-markdown'
+﻿import { useEffect, useState, useMemo, useCallback } from 'react'
 import {
-  ScanFace, RotateCcw, Sparkles, Eye, Activity,
-  TrendingUp, ClipboardList, Loader2, AlertTriangle,
+  ScanFace, RotateCcw, Loader2, AlertTriangle,
   History, Settings, Sun, Moon, Download, Lock,
   ChevronLeft, ShieldCheck,
 } from 'lucide-react'
 import { useTheme } from '../utils/theme'
-import { generateReport } from '../utils/openai'
-import { generateProtocol, getTemplateProtocol } from '../utils/protocolGenerator'
 import { saveHistoryEntry, createHistoryId, loadHistory } from '../utils/historyStorage'
 import {
   downloadAssessmentPdf,
   fetchAssessment,
   fetchAssistantConversation,
   generateAssessmentNarrative,
+  ensureAssessmentProtocol,
   generateAssessmentVisuals,
   isBackendApiEnabled,
   sendAssistantMessage,
@@ -27,17 +24,15 @@ import {
   isReportApproved,
   normalizeReportStatus,
 } from '../utils/reportWorkflow'
-import { ReportNavSidebar } from './report/ReportNavSidebar'
+import { userHasAnalysisAccess } from '../utils/paymentAccess'
+import { ReportDocumentLayout } from './report/ReportDocumentLayout'
+import { ProtocolSideRail } from './report/ProtocolSideRail'
+import { LockedSectionGate } from './report/LockedSectionGate'
+import { isPublicSection } from './report/reportNavConfig'
 import { CvReportView } from './report/CvReportView'
 import { runFaceAnalysis } from '../utils/analyzeFace'
 import AdminReviewPanel from './AdminReviewPanel'
 import ConfirmDialog from './ConfirmDialog'
-
-const LEGACY_TABS = [
-  { id: 'overview', label: 'Overview', icon: Activity },
-  { id: 'structure', label: 'Structure', icon: ScanFace },
-  { id: 'protocol', label: 'Protocol', icon: ClipboardList },
-]
 
 function ErrorPanel({ title, message }) {
   return (
@@ -60,19 +55,6 @@ function getCvLabel(analysis, metrics) {
   return '—'
 }
 
-function getReportLabel(source, reportError) {
-  if (source === 'local') return 'Free CV template'
-  if (source === 'openai') return 'OpenAI'
-  if (source === 'aws') return 'AWS Rekognition'
-  if (reportError) return 'Error'
-  return '—'
-}
-
-function stripNotesSection(text) {
-  if (!text) return text
-  return text.split('## Notes')[0].replace(/\*Provider:.*\*?\s*$/m, '').trim()
-}
-
 const STATUS_META = {
   pending_review: { label: 'Pending review', className: 'bg-amber-50 text-amber-700 border-amber-200' },
   approved: { label: 'Approved', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -88,27 +70,20 @@ function StatusBadge({ status }) {
   )
 }
 
-function formatMetricPercent(value) {
-  const n = Number.parseFloat(value)
-  return Number.isFinite(n) ? `${n.toFixed(2)}%` : '—'
-}
-
 export default function Report({ photo, photos, answers, analysis, historyId, onRestart, onRetryLocal, onHistory, onDashboard, onSettings, user }) {
   const { theme, toggleTheme } = useTheme()
-  const [activeSection, setActiveSection] = useState('summary')
-  const [activeTab, setActiveTab] = useState('overview')
-  const [report, setReport] = useState('')
-  const [reportSource, setReportSource] = useState('')
-  const [reportError, setReportError] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [activeSection, setActiveSection] = useState('intro')
   const [protocolData, setProtocolData] = useState(null)
+  const [protocolNarrative, setProtocolNarrative] = useState(null)
   const [protocolLoading, setProtocolLoading] = useState(false)
+  const [protocolError, setProtocolError] = useState('')
   const [aiNarrative, setAiNarrative] = useState(null)
   const [aiNarrativeLoading, setAiNarrativeLoading] = useState(false)
   const [aiNarrativeError, setAiNarrativeError] = useState('')
   const [aiVisuals, setAiVisuals] = useState(null)
   const [aiVisualsLoading, setAiVisualsLoading] = useState(false)
   const [aiVisualsError, setAiVisualsError] = useState('')
+  const [hasPaidAccess, setHasPaidAccess] = useState(false)
   const [sessionId] = useState(() => createHistoryId())
   const [pdfLoading, setPdfLoading] = useState(false)
   const [statusOverride, setStatusOverride] = useState('')
@@ -140,6 +115,19 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   const isUser = !isAdmin
   const canDownloadPdf = canDownloadReportPdf(reportStatus, requiresApproval)
   const clientReportLocked = isUser && requiresApproval && !canClientViewFullReport(reportStatus, false)
+  const canUsePaidAi = isUser && !!assessmentId && isBackendApiEnabled() && (hasPaidAccess || isAdmin)
+
+  useEffect(() => {
+    if (!user || isAdmin) {
+      setHasPaidAccess(isAdmin)
+      return
+    }
+    let cancelled = false
+    userHasAnalysisAccess(user).then((access) => {
+      if (!cancelled) setHasPaidAccess(access)
+    })
+    return () => { cancelled = true }
+  }, [user, isAdmin])
 
   useEffect(() => {
     if (!isAdmin || !assessmentId || !isBackendApiEnabled()) {
@@ -163,13 +151,15 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     setPdfLoading(true)
     try {
       if (displayPhoto) {
-        const { downloadAuraScanPdf } = await import('../utils/reportPdf')
-        await downloadAuraScanPdf({
+        const { downloadMyFacePdf } = await import('../utils/reportPdf')
+        await downloadMyFacePdf({
           photo: displayPhoto,
+          photos,
           cvReport,
           metrics,
           landmarks,
-          protocolData: protocolData || getTemplateProtocol(cvReport),
+          protocolData: protocolData || null,
+          protocolNarrative,
           answers: displayAnswers,
           eyeAnalysis,
           aiNarrative,
@@ -183,11 +173,11 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     } finally {
       setPdfLoading(false)
     }
-  }, [displayPhoto, cvReport, metrics, landmarks, protocolData, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis])
+  }, [displayPhoto, photos, cvReport, metrics, landmarks, protocolData, protocolNarrative, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis])
 
   const persistHistory = useCallback(
-    (content, source, error) => {
-      saveHistoryEntry({
+    () => {
+      void saveHistoryEntry({
         id: sessionId,
         createdAt: new Date().toISOString(),
         photo: displayPhoto,
@@ -196,69 +186,45 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         analysis: displayAnalysis,
         eyeAnalysis,
         cvReport,
-        report: content,
-        reportSource: source,
-        reportError: error,
         cvLabel,
         assessmentId,
         savedToDb: displayAnalysis?.savedToDb,
         reportStatus,
         aiNarrative,
         aiVisuals,
+        protocolData,
+        protocolNarrative,
         label: showQovesReport
-          ? `AuraScan report · ${cvReport?.overall?.score ?? cvReport?.symmetry?.score ?? '—'} overall`
+          ? `MyFace report · ${cvReport?.overall?.score ?? cvReport?.symmetry?.score ?? '—'} overall`
           : `Analysis · ${metrics?.harmonyScore ?? '—'}/100 harmony`,
+      }).catch((err) => {
+        console.warn('[MyFace] Could not persist analysis history:', err)
       })
     },
-    [sessionId, displayPhoto, photos, displayAnswers, displayAnalysis, cvLabel, metrics, eyeAnalysis, cvReport, showQovesReport, reportStatus, assessmentId, aiNarrative, aiVisuals]
+    [sessionId, displayPhoto, photos, displayAnswers, displayAnalysis, cvLabel, metrics, eyeAnalysis, cvReport, showQovesReport, reportStatus, assessmentId, aiNarrative, aiVisuals, protocolData, protocolNarrative]
   )
 
   useEffect(() => {
-    if (showQovesReport) setActiveSection('summary')
-    else setActiveTab('overview')
-  }, [historyId, showQovesReport])
+    if (!showQovesReport || !cvReport) return
+    persistHistory()
+  }, [showQovesReport, cvReport, persistHistory])
 
   useEffect(() => {
-    if (historyEntry) {
-      setReport(historyEntry.report || '')
-      setReportSource(historyEntry.reportSource || '')
-      setReportError(historyEntry.reportError || null)
-      setLoading(false)
-      return
-    }
-
-    let cancelled = false
-    ;(async () => {
-      setLoading(true)
-      const { content, source, error } = await generateReport(
-        displayAnswers,
-        displayPhoto,
-        metrics,
-        displayAnalysis?.error,
-        displayAnalysis?.faceDetails,
-        displayAnalysis?.protocolWarnings,
-        eyeAnalysis
-      )
-      if (!cancelled) {
-        setReport(content || '')
-        setReportSource(source || '')
-        setReportError(error)
-        setLoading(false)
-        if (!error && content) persistHistory(content, source, error)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [historyEntry, displayAnswers, displayPhoto, metrics, displayAnalysis, eyeAnalysis, persistHistory])
+    if (showQovesReport) setActiveSection((prev) => (prev === 'summary' || prev === 'landmarks' ? 'intro' : prev))
+  }, [historyId, showQovesReport])
 
   useEffect(() => {
     setAiNarrative(historyEntry?.aiNarrative || displayAnalysis?.aiNarrative || null)
     setAiNarrativeError('')
     setAiVisuals(historyEntry?.aiVisuals || displayAnalysis?.aiVisuals || null)
     setAiVisualsError('')
+    setProtocolData(historyEntry?.protocolData || displayAnalysis?.protocolData || null)
+    setProtocolNarrative(historyEntry?.protocolNarrative || displayAnalysis?.protocolNarrative || null)
+    setProtocolError('')
   }, [historyEntry, displayAnalysis])
 
   useEffect(() => {
-    if (!showQovesReport || !assessmentId || aiNarrative || !isBackendApiEnabled()) return
+    if (!showQovesReport || !assessmentId || aiNarrative || !canUsePaidAi) return
 
     let cancelled = false
     ;(async () => {
@@ -267,11 +233,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
       try {
         const updated = await generateAssessmentNarrative(assessmentId)
         const narrative = updated?.aiNarrative || null
-        if (!cancelled) {
-          setAiNarrative(narrative)
-          const existing = loadHistory().find((h) => h.id === sessionId)
-          if (existing && narrative) saveHistoryEntry({ ...existing, aiNarrative: narrative })
-        }
+        if (!cancelled) setAiNarrative(narrative)
       } catch (err) {
         if (!cancelled) setAiNarrativeError(err.message || 'AI narrative unavailable')
       } finally {
@@ -279,34 +241,55 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
       }
     })()
     return () => { cancelled = true }
-  }, [showQovesReport, assessmentId, aiNarrative, sessionId])
+  }, [showQovesReport, assessmentId, aiNarrative, canUsePaidAi])
+
+  useEffect(() => {
+    if (!showQovesReport || !assessmentId || !isBackendApiEnabled()) return
+    if (!canUsePaidAi) return
+    if (protocolData) return
+
+    let cancelled = false
+    ;(async () => {
+      setProtocolLoading(true)
+      setProtocolError('')
+      try {
+        const bundle = await ensureAssessmentProtocol(assessmentId)
+        if (!cancelled) {
+          setProtocolData(bundle?.protocolData || null)
+          setProtocolNarrative(bundle?.protocolNarrative || null)
+        }
+      } catch (err) {
+        if (!cancelled) setProtocolError(err.message || 'Protocol unavailable')
+      } finally {
+        if (!cancelled) setProtocolLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [showQovesReport, assessmentId, canUsePaidAi, protocolData])
 
   const handleGenerateVisuals = useCallback(async () => {
-    if (!assessmentId || !isBackendApiEnabled() || aiVisualsLoading) return
+    if (!assessmentId || !canUsePaidAi || aiVisualsLoading) return
     setAiVisualsLoading(true)
     setAiVisualsError('')
     try {
       const updated = await generateAssessmentVisuals(assessmentId)
-      const visuals = updated?.aiVisuals || null
-      setAiVisuals(visuals)
-      const existing = loadHistory().find((h) => h.id === sessionId)
-      if (existing && visuals) saveHistoryEntry({ ...existing, aiVisuals: visuals })
+      setAiVisuals(updated?.aiVisuals || null)
     } catch (err) {
       setAiVisualsError(err.message || 'AI visuals unavailable')
     } finally {
       setAiVisualsLoading(false)
     }
-  }, [assessmentId, aiVisualsLoading, sessionId])
+  }, [assessmentId, canUsePaidAi, aiVisualsLoading])
 
   const handleLoadAssistant = useCallback(async () => {
-    if (!assessmentId || !isBackendApiEnabled()) return { messages: [] }
+    if (!assessmentId || !canUsePaidAi) return { messages: [] }
     return await fetchAssistantConversation(assessmentId)
-  }, [assessmentId])
+  }, [assessmentId, canUsePaidAi])
 
   const handleSendAssistant = useCallback(async (message) => {
-    if (!assessmentId || !isBackendApiEnabled()) return { messages: [] }
+    if (!assessmentId || !canUsePaidAi) return { messages: [] }
     return await sendAssistantMessage(assessmentId, message)
-  }, [assessmentId])
+  }, [assessmentId, canUsePaidAi])
 
   const confirmAdminApprove = useCallback(async () => {
     if (!assessmentId || statusUpdating) return
@@ -323,87 +306,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     }
   }, [assessmentId, statusUpdating])
 
-  // Generate LLM-powered protocol when cvReport is available
-  useEffect(() => {
-    if (!showQovesReport || !cvReport) return
-
-    // If from history, try to restore saved protocol or use template
-    if (historyEntry) {
-      if (historyEntry.protocolData) {
-        setProtocolData(historyEntry.protocolData)
-      } else {
-        setProtocolData(getTemplateProtocol(cvReport))
-      }
-      return
-    }
-
-    let cancelled = false
-    ;(async () => {
-      setProtocolLoading(true)
-      const result = await generateProtocol(cvReport, metrics, displayAnswers, displayPhoto)
-      if (!cancelled) {
-        if (result?.protocol) {
-          setProtocolData(result.protocol)
-        } else {
-          // Fallback to template-based recommendations
-          setProtocolData(getTemplateProtocol(cvReport))
-        }
-        setProtocolLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [cvReport, showQovesReport, historyEntry, metrics, displayAnswers, displayPhoto])
-
-  // Save protocol data to history once generated
-  useEffect(() => {
-    if (!protocolData || isFromHistory) return
-    // Update the history entry with the protocol data
-    const existing = loadHistory().find((h) => h.id === sessionId)
-    if (existing) {
-      saveHistoryEntry({ ...existing, protocolData })
-    }
-  }, [protocolData, isFromHistory, sessionId])
-
-  const legacyTabContent = () => {
-    if (loading) {
-      return (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Loader2 className="w-8 h-8 text-brand animate-spin" />
-          <p className="text-ink-muted text-sm font-sans">Generating report…</p>
-        </div>
-      )
-    }
-    if (reportError) return <ErrorPanel title="Report unavailable" message={reportError} />
-    if (activeTab === 'overview') {
-      return (
-        <div className="markdown-report overflow-y-auto max-h-[520px] pr-2">
-          <ReactMarkdown>{report.split('---')[0] || report.slice(0, 1200)}</ReactMarkdown>
-        </div>
-      )
-    }
-    if (activeTab === 'structure') {
-      const structural = report.split('## Structural Analysis')[1]?.split('---')[0] || ''
-      return (
-        <div className="markdown-report overflow-y-auto max-h-[520px] pr-2">
-          {structural ? (
-            <ReactMarkdown>{'## Structural Analysis' + structural}</ReactMarkdown>
-          ) : (
-            <ReactMarkdown>{report}</ReactMarkdown>
-          )}
-        </div>
-      )
-    }
-    const protocolRaw = report.includes('## Personalized 30-Day Protocol')
-      ? report.split('## Personalized 30-Day Protocol')[1]
-      : report.split('## Top Strengths')[1] || report.slice(-800)
-    return (
-      <div className="markdown-report markdown-protocol overflow-y-auto max-h-[520px] pr-2">
-        <ReactMarkdown>
-          {stripNotesSection(protocolRaw) ? '## Personalized 30-Day Protocol\n' + stripNotesSection(protocolRaw) : report}
-        </ReactMarkdown>
-      </div>
-    )
-  }
+  const sectionLocked = clientReportLocked && !isPublicSection(activeSection)
 
   if (cvFailed) {
     const isAwsError = displayAnalysis?.error?.includes('expired') ||
@@ -419,12 +322,11 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
               <div className="mt-4">
                 <button
                   onClick={() => onRetryLocal?.(photo, photos, answers)}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-display font-semibold bg-brand text-white hover:bg-brand-600 shadow-brand transition-all"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[50px] text-sm font-display font-semibold bg-brand text-white hover:bg-brand-dark shadow-brand transition-all"
                 >
                   <ScanFace className="w-4 h-4" />
                   Use Free Local Analysis Instead
                 </button>
-                <p className="text-[11px] text-surface-muted text-center mt-1.5">Powered by MediaPipe + OpenCV (free, runs in browser)</p>
               </div>
             )}
             <button onClick={onRestart} className="btn-primary w-full mt-3 text-sm font-display">
@@ -438,81 +340,69 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   }
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 py-8 animate-fade-up font-sans bg-surface">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center">
-              <ScanFace className="w-6 h-6 text-brand" />
-            </div>
-            <div>
-              <h1 className="font-display text-2xl font-bold text-ink tracking-tight">
-                AuraScan Report
-              </h1>
-              <p className="text-xs text-ink-muted font-sans">
-                {cvLabel} · {getReportLabel(reportSource, reportError)}
-                {isFromHistory && <span className="text-brand/70"> · saved</span>}
-              </p>
-              {(requiresApproval || isFromHistory) && (
-                <div className="mt-1">
-                  <StatusBadge status={reportStatus} />
-                </div>
-              )}
-            </div>
+    <div className="min-h-screen px-4 sm:px-6 py-8 animate-fade-up font-sans bg-surface text-slate-900 dark:text-slate-100">
+      <div className="max-w-[1600px] mx-auto">
+
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-5 mb-8">
+          <div className="flex items-center">
+            <span className="font-serif font-bold text-slate-900 dark:text-white text-2xl tracking-tight">MyFace</span>
           </div>
-          <div className="flex items-center gap-1.5">
+
+          <div className="flex items-center gap-2">
             {isAdmin ? (
               <>
                 <button
                   onClick={onDashboard}
-                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium font-display bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-brand hover:border-brand/30 transition-colors shadow-soft flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft flex items-center gap-1.5"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
-                  Back to Admin Dashboard
+                  Back to Admin
                 </button>
                 {assessmentId && !isReportApproved(reportStatus) && (
                   <button
                     onClick={() => setApproveConfirmOpen(true)}
                     disabled={!!statusUpdating}
-                    className="px-3 py-1.5 rounded-lg text-[11px] font-medium font-display bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                    className="px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                   >
                     {statusUpdating === 'approved' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
                     Approve
                   </button>
                 )}
               </>
-            ) : isUser && showQovesReport && !loading && (
-              <button
-                onClick={handleDownloadPdf}
-                disabled={pdfLoading || !canDownloadPdf}
-                className="px-3 py-1.5 rounded-lg text-[11px] font-medium font-display bg-brand text-white hover:bg-brand-600 border border-brand shadow-brand transition-colors flex items-center gap-1.5 disabled:opacity-60"
-                title={!canDownloadPdf ? 'PDF download is available after admin approval' : 'Download report'}
-              >
-                {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : canDownloadPdf ? <Download className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                Download Report
-              </button>
-            )}
-            {isUser && (
+            ) : (
               <>
-                <button onClick={onDashboard} className="px-3 py-1.5 rounded-lg text-[11px] font-medium font-display bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-brand hover:border-brand/30 transition-colors shadow-soft flex items-center gap-1.5">
+                <button onClick={onDashboard} className="px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft flex items-center gap-1.5">
                   <ChevronLeft className="w-3.5 h-3.5" />
-                  Back to My Profile
+                  Dashboard
                 </button>
-                <button onClick={onRestart} className="px-3 py-1.5 rounded-lg text-[11px] font-medium font-display bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-brand hover:border-brand/30 transition-colors shadow-soft flex items-center gap-1.5">
+                <button onClick={onRestart} className="px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft flex items-center gap-1.5">
                   <RotateCcw className="w-3.5 h-3.5" />
-                  New Assessment
+                  New Analysis
                 </button>
-                <button onClick={onHistory} className="p-1.5 rounded-lg bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-brand hover:border-brand/30 transition-colors shadow-soft" title="Analysis History">
+                <button onClick={onHistory} className="p-1.5 rounded-lg bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft" title="Analysis History">
                   <History className="w-4 h-4" />
                 </button>
               </>
             )}
+
+            {showQovesReport && (
+              <button
+                onClick={handleDownloadPdf}
+                disabled={pdfLoading || !canDownloadPdf}
+                className="px-4 py-1.5 rounded-[50px] text-[11px] font-bold bg-[#5e9f8b] text-white hover:bg-[#548f7d] shadow-sm transition-colors flex items-center gap-1"
+                title={!canDownloadPdf ? 'PDF download is available after admin approval' : 'Download PDF'}
+              >
+                {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                PDF
+              </button>
+            )}
+
             {isAdmin && (
               <button onClick={() => onSettings()} className="p-1.5 rounded-lg bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-brand hover:border-brand/30 transition-colors shadow-soft" title="API Settings">
                 <Settings className="w-4 h-4" />
               </button>
             )}
-            <button onClick={toggleTheme} className="p-1.5 rounded-lg bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-brand hover:border-brand/30 transition-colors shadow-soft" title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+            <button onClick={toggleTheme} className="p-1.5 rounded-lg bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft" title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
           </div>
@@ -537,127 +427,83 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
           </div>
         )}
 
-        {metrics && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-            {[
-              { label: 'Harmony Score', value: metrics.harmonyScore, icon: Sparkles, color: 'text-brand', bg: 'bg-brand-50' },
-              { label: 'Symmetry', value: formatMetricPercent(metrics.symmetry), icon: Activity, color: 'text-brand', bg: 'bg-brand-50' },
-              { label: 'Visual Age', value: `${metrics.visualAge}y`, icon: Eye, color: 'text-brand', bg: 'bg-brand-50' },
-              { label: 'Proportionality', value: formatMetricPercent(metrics.proportionality), icon: TrendingUp, color: 'text-brand', bg: 'bg-brand-50' },
-            ].map((card) => (
-              <div key={card.label} className="bg-white dark:bg-surface-card rounded-2xl p-4 shadow-card border border-surface-border">
-                <div className={`w-8 h-8 rounded-lg ${card.bg} flex items-center justify-center mb-2`}>
-                  <card.icon className={`w-4 h-4 ${card.color}`} />
-                </div>
-                <div className="text-2xl font-display font-bold text-ink tracking-tight">{card.value}</div>
-                <div className="text-xs text-ink-muted mt-0.5 font-sans">{card.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {clientReportLocked && (
           <div className="mb-6 p-5 rounded-2xl bg-amber-50 border border-amber-200">
             <div className="flex items-start gap-3">
               <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-display font-semibold text-amber-800 mb-1">
-                  Report under review
-                </p>
-                <p className="text-xs text-amber-700 font-sans leading-relaxed">
-                  {clientAwaitingReviewMessage()}
-                </p>
+                <p className="text-sm font-display font-semibold text-amber-800 mb-1">Report under review</p>
+                <p className="text-xs text-amber-700 font-sans leading-relaxed">{clientAwaitingReviewMessage()}</p>
               </div>
             </div>
           </div>
         )}
 
-        {showQovesReport ? (
-          <div className="grid lg:grid-cols-[220px_1fr] gap-6">
-            <ReportNavSidebar
-              activeId={activeSection}
-              onSelect={setActiveSection}
-              showAiVisuals={isUser}
-              showAssistant={isUser}
-            />
-            <div className="bg-white dark:bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border">
-              {clientReportLocked ? (
-                <div className="flex flex-col items-center justify-center py-20 px-6 text-center gap-3">
-                  <Lock className="w-10 h-10 text-ink-faint" />
-                  <p className="font-display text-lg font-semibold text-ink">Full report locked</p>
-                  <p className="text-sm text-ink-muted max-w-md">
-                    {clientAwaitingReviewMessage()}
-                  </p>
-                </div>
-              ) : loading ? (
-                <div className="flex flex-col items-center justify-center py-24 gap-4">
-                  <Loader2 className="w-8 h-8 text-brand animate-spin" />
-                  <p className="text-ink-muted text-sm font-sans">Building your AuraScan report…</p>
-                </div>
-              ) : (
-                <CvReportView
-                  activeId={activeSection}
-                  cvReport={cvReport}
-                  eyeAnalysis={eyeAnalysis}
-                  protocolData={protocolData}
-                  protocolLoading={protocolLoading}
-                  aiNarrative={aiNarrative}
-                  aiNarrativeLoading={aiNarrativeLoading}
-                  aiNarrativeError={aiNarrativeError}
-                  photo={displayPhoto}
-                  landmarks={landmarks}
-                  metrics={metrics}
-                  answers={displayAnswers}
-                  aiVisuals={aiVisuals}
-                  aiVisualsLoading={aiVisualsLoading}
-                  aiVisualsError={aiVisualsError}
-                  onGenerateVisuals={handleGenerateVisuals}
-                  canGenerateVisuals={isUser && !!assessmentId && isBackendApiEnabled()}
-                  assessmentId={assessmentId}
-                  canUseAssistant={isUser && !!assessmentId && isBackendApiEnabled()}
-                  onLoadAssistant={handleLoadAssistant}
-                  onSendAssistant={handleSendAssistant}
-                />
-              )}
-            </div>
+        {!hasPaidAccess && isUser && assessmentId && isBackendApiEnabled() && (
+          <div className="mb-6 p-4 rounded-2xl bg-slate-50 border border-slate-200 dark:bg-surface-raised dark:border-surface-border">
+            <p className="text-sm text-ink-secondary">
+              Complete payment to unlock AI narrative, protocol, visuals, and Beauty Assistant coaching.
+            </p>
           </div>
+        )}
+
+        {protocolError && (
+          <div className="mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-700">
+            {protocolError}
+          </div>
+        )}
+
+        {showQovesReport ? (
+          <ReportDocumentLayout
+            activeId={activeSection}
+            onSelect={setActiveSection}
+            showAiVisuals={isUser && canUsePaidAi}
+            showAssistant={isUser && canUsePaidAi}
+            clientName={displayAnswers?.name || 'Client'}
+            assessmentId={assessmentId}
+            rightRail={
+              <ProtocolSideRail
+                photo={displayPhoto}
+                answers={displayAnswers}
+                assessmentId={assessmentId}
+                onViewProtocol={() => setActiveSection('protocol')}
+              />
+            }
+          >
+            <LockedSectionGate locked={sectionLocked}>
+              <CvReportView
+                activeId={activeSection}
+                cvReport={cvReport}
+                eyeAnalysis={eyeAnalysis}
+                protocolData={protocolData}
+                protocolNarrative={protocolNarrative}
+                protocolLoading={protocolLoading}
+                aiNarrative={aiNarrative}
+                photo={displayPhoto}
+                photos={photos}
+                landmarks={landmarks}
+                metrics={metrics}
+                answers={displayAnswers}
+                aiVisuals={aiVisuals}
+                aiVisualsLoading={aiVisualsLoading}
+                aiVisualsError={aiVisualsError}
+                onGenerateVisuals={handleGenerateVisuals}
+                canGenerateVisuals={canUsePaidAi}
+                assessmentId={assessmentId}
+                canUseAssistant={canUsePaidAi}
+                onLoadAssistant={handleLoadAssistant}
+                onSendAssistant={handleSendAssistant}
+                onDownloadPdf={handleDownloadPdf}
+                pdfLoading={pdfLoading}
+                canDownloadPdf={canDownloadPdf}
+              />
+            </LockedSectionGate>
+          </ReportDocumentLayout>
         ) : (
-          <div className="grid lg:grid-cols-2 gap-6">
-            <div className="bg-white dark:bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border">
-              <h3 className="font-display text-sm font-semibold text-ink-muted uppercase tracking-wider mb-4">
-                Landmark Mapping
-              </h3>
-              <div className="relative mx-auto max-w-xs">
-                <div className="relative rounded-2xl overflow-hidden aspect-[4/5] ring-1 ring-surface-border">
-                  <img src={displayPhoto} alt="Analysis" className="w-full h-full object-cover" />
-                  {landmarks?.length > 0 && (
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                      {(landmarks.length > 120 ? landmarks.filter((_, i) => i % 4 === 0) : landmarks).map((pt) => (
-                        <circle key={pt.id} cx={pt.x * 100} cy={pt.y * 100} r="0.6" fill="rgba(15,118,110,0.7)" />
-                      ))}
-                    </svg>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border flex flex-col">
-              <div className="flex items-center gap-0 border-b border-surface-border mb-6 overflow-x-auto">
-                {LEGACY_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-3 transition-colors border-b-2 -mb-px shrink-0 text-sm font-medium ${
-                      activeTab === tab.id
-                        ? 'border-brand text-brand'
-                        : 'border-transparent text-ink-muted hover:text-ink-secondary'
-                    }`}
-                  >
-                    <tab.icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              {legacyTabContent()}
+          <div className="max-w-lg mx-auto">
+            <div className="bg-white dark:bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border text-center">
+              <Loader2 className="w-8 h-8 text-brand animate-spin mx-auto mb-4" />
+              <p className="text-sm text-ink-muted">Building structured report from landmarks…</p>
             </div>
           </div>
         )}

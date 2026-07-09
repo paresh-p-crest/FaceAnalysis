@@ -26,9 +26,9 @@ async def post_test_email(req: TestEmailRequest, current_user: dict = Depends(re
         raise HTTPException(status_code=400, detail="Valid recipient email is required.")
     result = send_email(
         to_email=req.toEmail,
-        subject="AuraScan email test",
-        text="AuraScan transactional email is configured correctly.",
-        html="<p>AuraScan transactional email is configured correctly.</p>",
+        subject="MyFace email test",
+        text="MyFace transactional email is configured correctly.",
+        html="<p>MyFace transactional email is configured correctly.</p>",
     )
     if not result.get("sent"):
         raise HTTPException(status_code=503, detail=result.get("error") or "Email send failed.")

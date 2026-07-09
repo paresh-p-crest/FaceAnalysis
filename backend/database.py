@@ -29,7 +29,7 @@ async def connect_db() -> None:
     _client = AsyncIOMotorClient(uri)
     _db = _client.get_default_database()
     if _db is None:
-        raise RuntimeError("MONGODB_URI must include a database name, e.g. .../aurascan")
+        raise RuntimeError("MONGODB_URI must include a database name, e.g. .../myface")
     await _client.admin.command("ping")
     await _ensure_indexes()
 

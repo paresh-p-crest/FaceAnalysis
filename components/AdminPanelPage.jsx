@@ -548,7 +548,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
                 <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
                   <div>
                     <h2 className="font-display text-lg font-semibold text-ink">Registered users</h2>
-                    <p className="text-xs text-ink-muted">{users.length} accounts in MongoDB `aurascan.users`</p>
+                    <p className="text-xs text-ink-muted">{users.length} accounts in MongoDB `myface.users`</p>
                   </div>
                 </div>
                 {users.length === 0 ? (

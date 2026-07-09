@@ -64,3 +64,28 @@ async def append_messages(*, conversation_id: str, messages: list[dict]) -> Opti
         return_document=ReturnDocument.AFTER,
     )
     return _serialize_doc(doc) if doc else None
+
+
+async def update_session_summary(
+    *,
+    conversation_id: str,
+    session_summary: str,
+    summary_at_user_count: int,
+) -> Optional[dict]:
+    db = get_db()
+    try:
+        oid = ObjectId(conversation_id)
+    except Exception:
+        return None
+    doc = await db.conversations.find_one_and_update(
+        {"_id": oid},
+        {
+            "$set": {
+                "sessionSummary": session_summary,
+                "summaryAtUserCount": summary_at_user_count,
+                "updatedAt": _utcnow(),
+            }
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    return _serialize_doc(doc) if doc else None

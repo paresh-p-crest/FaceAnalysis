@@ -27,11 +27,8 @@ export function OnboardingLayout({
     <div className="min-h-screen flex animate-fade-up">
       {/* Sidebar */}
       <aside className="hidden lg:flex w-[340px] shrink-0 flex-col border-r border-surface-border bg-white dark:bg-surface-card px-10 py-10">
-        <div className="flex items-center gap-3 mb-auto">
-          <div className="w-10 h-10 rounded-xl bg-brand flex items-center justify-center">
-            <ScanFace className="w-5 h-5 text-white" />
-          </div>
-          <span className="font-display font-semibold text-ink text-lg tracking-tight">AuraScan</span>
+        <div className="flex items-center gap-2.5 mb-auto">
+          <span className="font-serif font-bold text-ink text-2xl tracking-tight">MyFace</span>
         </div>
 
         <div className="my-auto">

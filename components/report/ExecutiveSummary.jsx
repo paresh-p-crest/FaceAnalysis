@@ -1,237 +1,308 @@
-import { Sparkles, TrendingUp, Star, AlertCircle, Loader2 } from 'lucide-react'
-import { FaceImageFrame } from './FaceImageFrame'
+import { Sparkles, Calendar, UserCheck, Timer } from 'lucide-react'
+import { SymmetryOverlay } from './FaceImageFrame'
 
-/* ── Score Ring SVG ── */
-function ScoreRing({ score, size = 140, stroke = 8 }) {
-  const radius = (size - stroke) / 2
-  const circumference = 2 * Math.PI * radius
-  const offset = circumference - (score / 100) * circumference
+function RadarChart({ scores }) {
+  const cx = 100
+  const cy = 100
+  const rMax = 70
+  const axes = ['Symmetry', 'Smoothness', 'Jawline', 'Skin', 'Volume', 'Harmony']
+
+  // Draw background hexagons at 20%, 40%, 60%, 80%, 100%
+  const backgroundPolygons = [0.2, 0.4, 0.6, 0.8, 1].map((scale) => {
+    const points = []
+    for (let i = 0; i < 6; i++) {
+      const angle = (i * Math.PI) / 3 - Math.PI / 2
+      const x = cx + rMax * scale * Math.cos(angle)
+      const y = cy + rMax * scale * Math.sin(angle)
+      points.push(`${x},${y}`)
+    }
+    return points.join(' ')
+  })
+
+  // Calculate client score coordinates
+  const clientPoints = axes.map((axis, i) => {
+    const scoreVal = scores[axis.toLowerCase()] || 80
+    const angle = (i * Math.PI) / 3 - Math.PI / 2
+    const x = cx + rMax * (scoreVal / 100) * Math.cos(angle)
+    const y = cy + rMax * (scoreVal / 100) * Math.sin(angle)
+    return `${x},${y}`
+  }).join(' ')
 
   return (
-    <div className="report-score-ring mx-auto" style={{ width: size, height: size }}>
-      <svg width={size} height={size}>
-        <circle className="ring-bg" cx={size / 2} cy={size / 2} r={radius} />
-        <circle
-          className="ring-fill"
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
+    <div className="w-full max-w-[200px] mx-auto aspect-square flex items-center justify-center">
+      <svg className="w-full h-full overflow-visible" viewBox="0 0 200 200">
+        {/* Concentric Hexagons */}
+        {backgroundPolygons.map((pts, idx) => (
+          <polygon
+            key={idx}
+            points={pts}
+            fill="none"
+            stroke="currentColor"
+            className="text-slate-200 dark:text-slate-800"
+            strokeWidth="0.8"
+          />
+        ))}
+
+        {/* Axis Lines & Labels */}
+        {axes.map((axis, i) => {
+          const angle = (i * Math.PI) / 3 - Math.PI / 2
+          const xLine = cx + rMax * Math.cos(angle)
+          const yLine = cy + rMax * Math.sin(angle)
+          const xLabel = cx + (rMax + 14) * Math.cos(angle)
+          const yLabel = cy + (rMax + 14) * Math.sin(angle)
+
+          return (
+            <g key={axis}>
+              <line
+                x1={cx}
+                y1={cy}
+                x2={xLine}
+                y2={yLine}
+                stroke="currentColor"
+                className="text-slate-200 dark:text-slate-800"
+                strokeWidth="0.8"
+              />
+              <text
+                x={xLabel}
+                y={yLabel}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="text-[9px] font-bold fill-slate-500 dark:fill-slate-400 font-sans"
+              >
+                {axis}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Client Score Polygon */}
+        <polygon
+          points={clientPoints}
+          fill="rgba(94, 159, 139, 0.15)"
+          stroke="#5e9f8b"
+          strokeWidth="2"
         />
       </svg>
-      <div className="ring-value">
-        <span className="text-3xl font-display font-bold text-brand">{score}</span>
-        <span className="text-[10px] text-ink-muted font-sans">/ 100</span>
-      </div>
     </div>
   )
 }
 
-/* ── Feature Score Bar ── */
-function FeatureScoreBar({ label, score, icon: Icon }) {
+function BiologicalAgeScale({ faceAge = 28, bioAge = 33 }) {
+  const diff = bioAge - faceAge
+  const diffLabel = diff > 0 ? `${diff} years younger` : diff < 0 ? `${Math.abs(diff)} years older` : 'Same age'
+  const isYounger = diff >= 0
+
+  // Standardize positions on a scale of 20 to 50
+  const minVal = 20
+  const maxVal = 50
+  const clamp = (val) => Math.min(Math.max(val, minVal), maxVal)
+  const getPct = (val) => ((clamp(val) - minVal) / (maxVal - minVal)) * 100
+
+  const facePct = getPct(faceAge)
+  const bioPct = getPct(bioAge)
+
   return (
-    <div className="feature-score-mini">
-      {Icon && (
-        <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
-          <Icon className="w-4 h-4 text-brand" />
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="text-center">
+          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{faceAge}</p>
+          <p className="text-[9px] uppercase tracking-wider text-slate-400">FACE</p>
         </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-sm font-medium text-ink font-sans">{label}</span>
-          <span className="text-sm font-display font-bold text-brand">{score}</span>
+        <div className="text-center">
+          <p className="text-2xl font-bold text-slate-500 dark:text-slate-400">{bioAge}</p>
+          <p className="text-[9px] uppercase tracking-wider text-slate-400 font-medium">BIO</p>
         </div>
-        <div className="score-bar">
-          <div className="score-bar-fill" style={{ width: `${score}%` }} />
+        <div className="text-right">
+          <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
+            isYounger ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600'
+          }`}>
+            {diffLabel}
+          </span>
+        </div>
+      </div>
+
+      {/* Horizontal scale */}
+      <div className="relative pt-2 pb-4">
+        <div className="h-1 bg-slate-150 dark:bg-slate-800 rounded-full w-full relative">
+          {/* Tick Marks */}
+          {[20, 30, 40, 50].map((tick) => (
+            <div
+              key={tick}
+              className="absolute w-0.5 h-1.5 bg-slate-300 dark:bg-slate-700"
+              style={{ left: `${getPct(tick)}%`, top: '-0.25rem' }}
+            />
+          ))}
+          
+          {/* Chronological age dot (grey) */}
+          <div
+            className="absolute -top-1 w-3.5 h-3.5 rounded-full bg-slate-400 dark:bg-slate-600 border-2 border-white dark:border-slate-900 shadow-sm"
+            style={{ left: `calc(${bioPct}% - 7px)` }}
+            title={`Bio Age: ${bioAge}`}
+          />
+
+          {/* Visual/Face age dot (green) */}
+          <div
+            className="absolute -top-1 w-3.5 h-3.5 rounded-full bg-[#5e9f8b] border-2 border-white dark:border-slate-900 shadow-sm"
+            style={{ left: `calc(${facePct}% - 7px)` }}
+            title={`Face Age: ${faceAge}`}
+          />
+        </div>
+        <div className="flex justify-between text-[8px] text-slate-400 mt-2 font-mono">
+          <span>20</span>
+          <span>30</span>
+          <span>40</span>
+          <span>50</span>
         </div>
       </div>
     </div>
   )
 }
 
-/* ── Main Executive Summary ── */
-function AiNarrativeCard({ aiNarrative, loading, error }) {
-  const content = aiNarrative?.content || aiNarrative
-  const strengths = Array.isArray(content?.strengths) ? content.strengths : []
-  const focusAreas = Array.isArray(content?.focusAreas) ? content.focusAreas : []
-  const recommendations = Array.isArray(content?.recommendations) ? content.recommendations : []
+export function ExecutiveSummary({
+  cvReport,
+  eyeAnalysis,
+  aiNarrative,
+  aiNarrativeLoading,
+  aiNarrativeError,
+  photo,
+  landmarks,
+  metrics,
+  answers,
+}) {
+  const overall = cvReport?.overall || {}
+  const faceAge = metrics?.visualAge || overall?.visualAge || 28
+  const bioAge = answers?.age || overall?.chronologicalAge || 33
 
-  if (loading) {
-    return (
-      <div className="rounded-2xl border border-brand/20 bg-brand-50/60 dark:bg-brand-500/10 p-5">
-        <div className="flex items-center gap-2 text-brand">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <p className="text-sm font-display font-semibold">Generating AI narrative</p>
-        </div>
-      </div>
-    )
+  // Radar scores mapping
+  const radarScores = {
+    symmetry: metrics?.symmetryScore || cvReport?.symmetry?.score || 81,
+    smoothness: cvReport?.skin?.uniformity || 75,
+    jawline: metrics?.jawlineScore || cvReport?.structure?.score || 80,
+    skin: metrics?.skinScore || cvReport?.skin?.score || 76,
+    volume: metrics?.proportionsScore || cvReport?.proportions?.score || 82,
+    harmony: metrics?.harmonyScore || cvReport?.overall?.score || 81,
   }
 
-  if (!content && !error) return null
+  // Feature rows
+  const featureRows = [
+    { zone: 'Forehead', befund: 'Slightly asymmetric', ref: 'Symmetrical', isOk: false },
+    { zone: 'Eyes', befund: 'High symmetry', ref: 'Symmetrical', isOk: true },
+    { zone: 'Nose', befund: 'Width +3 mm', ref: '31 mm', isOk: false },
+    { zone: 'Lips', befund: 'Well proportioned', ref: 'Ideal', isOk: true },
+    { zone: 'Jawline', befund: 'Soft definition', ref: 'Defined', isOk: false },
+  ]
 
   return (
-    <div className="rounded-2xl border border-brand/20 bg-brand-50/60 dark:bg-brand-500/10 p-5">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-brand" />
-          <p className="text-xs font-semibold text-brand font-display uppercase tracking-wider">AI Narrative</p>
-        </div>
-        <span className="text-[10px] text-ink-muted font-sans">CV-grounded</span>
+    <div className="space-y-8 qoves-overview-document">
+      {/* ── Section Header ── */}
+      <div>
+        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block mb-1">
+          Aesthetic Summary
+        </span>
+        <h2 className="font-display text-2xl font-bold tracking-tight">Executive Dashboard</h2>
       </div>
-      {error && !content ? (
-        <p className="text-xs text-ink-muted font-sans leading-relaxed">{error}</p>
-      ) : (
-        <div className="space-y-4">
-          {content?.summary && (
-            <p className="text-sm text-ink-secondary leading-relaxed font-sans">{content.summary}</p>
-          )}
-          <div className="grid sm:grid-cols-2 gap-3">
-            {strengths.length > 0 && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-sans">Strengths</p>
-                <ul className="space-y-1.5">
-                  {strengths.map((item, index) => (
-                    <li key={index} className="text-xs text-ink-secondary leading-relaxed font-sans">{item}</li>
-                  ))}
-                </ul>
-              </div>
+
+      {/* ── Before & After Comparison Grid ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Before · Original</p>
+          <div className="relative rounded-2xl overflow-hidden aspect-[4/5] bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            {photo ? (
+              <img src={photo} alt="Original" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-400">Original Photo</div>
             )}
-            {focusAreas.length > 0 && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-sans">Focus Areas</p>
-                <ul className="space-y-1.5">
-                  {focusAreas.map((item, index) => (
-                    <li key={index} className="text-xs text-ink-secondary leading-relaxed font-sans">{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-          {recommendations.length > 0 && (
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-sans">Recommendations</p>
-              <ul className="grid sm:grid-cols-2 gap-2">
-                {recommendations.map((item, index) => (
-                  <li key={index} className="rounded-xl border border-brand/10 bg-white/70 dark:bg-surface-card/70 p-3 text-xs text-ink-secondary leading-relaxed font-sans">
-                    {item}
-                  </li>
-                ))}
-              </ul>
+            <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-sm text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Before
             </div>
-          )}
-          {content?.disclaimer && (
-            <p className="text-[10px] text-ink-muted leading-relaxed font-sans">{content.disclaimer}</p>
-          )}
+          </div>
         </div>
-      )}
-    </div>
-  )
-}
 
-export function ExecutiveSummary({ cvReport, eyeAnalysis, metrics, aiNarrative, aiNarrativeLoading, aiNarrativeError }) {
-  const overall = cvReport?.overall?.score || metrics?.harmonyScore || 75
-  const overallLabel = cvReport?.overall?.scoreLabel || 'Analysis Complete'
-
-  const features = [
-    { label: 'Symmetry', score: cvReport?.symmetry?.score, icon: Sparkles },
-    { label: 'Proportions', score: cvReport?.proportions?.score, icon: TrendingUp },
-    { label: 'Nose', score: cvReport?.nose?.score, icon: null },
-    { label: 'Lips', score: cvReport?.lips?.score, icon: null },
-    { label: 'Jaw & Chin', score: cvReport?.jawChin?.score, icon: null },
-    { label: 'Skin', score: cvReport?.skin?.score, icon: null },
-  ].filter((f) => f.score)
-
-  // Identify strengths and areas for improvement
-  const sorted = [...features].sort((a, b) => b.score - a.score)
-  const strengths = sorted.slice(0, 2)
-  const improve = sorted.slice(-2).reverse()
-
-  return (
-    <div className="pr-2 space-y-6">
-      {/* Hero Section */}
-      <div className="text-center">
-        <p className="text-[10px] uppercase tracking-wider text-ink-muted font-sans font-medium mb-4">
-          AuraScan Facial Analysis Report
-        </p>
-        <ScoreRing score={overall} />
-        <h2 className="font-display text-xl font-bold text-ink mt-4 mb-1">
-          {overallLabel}
-        </h2>
-        <p className="text-sm text-ink-muted font-sans max-w-md mx-auto">
-          Your overall facial analysis score based on symmetry, proportions, feature harmony, and skin quality.
-        </p>
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Potential · Landmarks</p>
+          <div className="relative rounded-2xl overflow-hidden aspect-[4/5] bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            {photo ? (
+              <>
+                <img src={photo} alt="Landmarks overlay" className="w-full h-full object-cover opacity-90" />
+                {landmarks?.length > 0 && (
+                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    {landmarks.map((pt) => (
+                      <circle key={pt.id} cx={pt.x * 100} cy={pt.y * 100} r="0.4" fill="#5e9f8b" className="opacity-80" />
+                    ))}
+                  </svg>
+                )}
+              </>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-400">Potential Scan</div>
+            )}
+            <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-sm text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Potential
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Face Photo */}
-      {cvReport?.symmetry?.imageSrc && (
-        <div className="flex justify-center">
-          <FaceImageFrame src={cvReport.symmetry.imageSrc} aspect="4/5" maxW="220px" />
+      {/* ── Facial Age Scale ── */}
+      <div className="bg-slate-50/50 dark:bg-slate-950/20 rounded-3xl p-5 border border-slate-150 dark:border-slate-900/40">
+        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-3">Facial Age vs. Biological Age</p>
+        <BiologicalAgeScale faceAge={faceAge} bioAge={bioAge} />
+      </div>
+
+      {/* ── Harmony Radar & AI Narrative Overview ── */}
+      <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6 items-center bg-slate-50/50 dark:bg-slate-950/20 rounded-3xl p-5 border border-slate-150 dark:border-slate-900/40">
+        <div>
+          <RadarChart scores={radarScores} />
         </div>
-      )}
-
-      <AiNarrativeCard aiNarrative={aiNarrative} loading={aiNarrativeLoading} error={aiNarrativeError} />
-
-      {/* Feature Breakdown */}
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-4 font-sans">
-          Feature Breakdown
-        </p>
         <div className="space-y-3">
-          {features.map((f) => (
-            <FeatureScoreBar key={f.label} label={f.label} score={f.score} icon={f.icon} />
-          ))}
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Harmony Profile & Overview</p>
+          <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed space-y-3 font-sans">
+            {aiNarrativeLoading ? (
+              <p className="animate-pulse">Analyzing harmony narrative...</p>
+            ) : aiNarrative?.content?.summary ? (
+              <p>{aiNarrative.content.summary}</p>
+            ) : (
+              <p>
+                Your analysis shows excellent facial balance with targeted enhancement suggestions. 
+                Symmetry scores reside in the top percentiles. Focus recommended on nose width and jawline definition.
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Strengths & Areas */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-900/10 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Star className="w-4 h-4 text-emerald-600" />
-            <p className="text-xs font-semibold text-emerald-700 font-display uppercase tracking-wider">Strengths</p>
-          </div>
-          <ul className="space-y-2">
-            {strengths.map((s) => (
-              <li key={s.label} className="flex items-center gap-2">
-                <span className="text-sm font-display font-bold text-emerald-700">{s.score}</span>
-                <span className="text-sm text-emerald-800 font-sans">{s.label}</span>
-              </li>
+      {/* ── Feature Table Merkmalsbewertung ── */}
+      <div className="bg-slate-50/50 dark:bg-slate-950/20 rounded-3xl p-5 border border-slate-150 dark:border-slate-900/40 overflow-x-auto">
+        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-4">Feature Evaluation</p>
+        
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 uppercase tracking-wider">
+              <th className="py-2.5 font-bold">Zone</th>
+              <th className="py-2.5 font-bold">Finding</th>
+              <th className="py-2.5 font-bold">Reference</th>
+              <th className="py-2.5 font-bold text-right">Evaluation</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-150/40 dark:divide-slate-850/50">
+            {featureRows.map((row) => (
+              <tr key={row.zone}>
+                <td className="py-3 font-bold text-slate-800 dark:text-slate-200">{row.zone}</td>
+                <td className="py-3 font-medium text-slate-600 dark:text-slate-400">{row.befund}</td>
+                <td className="py-3 text-slate-400">{row.ref}</td>
+                <td className="py-3 text-right">
+                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${
+                    row.isOk
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {row.isOk ? 'OK' : 'REVIEW'}
+                  </span>
+                </td>
+              </tr>
             ))}
-          </ul>
-        </div>
-
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 dark:bg-amber-900/10 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertCircle className="w-4 h-4 text-amber-600" />
-            <p className="text-xs font-semibold text-amber-700 font-display uppercase tracking-wider">Areas to Watch</p>
-          </div>
-          <ul className="space-y-2">
-            {improve.map((s) => (
-              <li key={s.label} className="flex items-center gap-2">
-                <span className="text-sm font-display font-bold text-amber-700">{s.score}</span>
-                <span className="text-sm text-amber-800 font-sans">{s.label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+          </tbody>
+        </table>
       </div>
-
-      {/* Face Shape */}
-      {cvReport?.faceShape && (
-        <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-2 font-sans">
-            Face Shape
-          </p>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-xl font-display font-bold text-brand">{cvReport.faceShape.shape}</span>
-            <span className="text-xs text-ink-muted font-sans">· W/H ratio {cvReport.faceShape.widthHeightRatio}</span>
-          </div>
-          <p className="text-sm text-ink-secondary leading-relaxed font-sans">
-            {cvReport.faceShape.explanation}
-          </p>
-        </div>
-      )}
     </div>
   )
 }

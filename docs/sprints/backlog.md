@@ -1,4 +1,4 @@
-<!-- Migrated from docs/SPRINT_LOG.md and docs/AURASCAN_RESEARCH.md -->
+<!-- Migrated from docs/SPRINT_LOG.md and legacy product research -->
 # Milestone Backlog (Milestones 2 & 3)
 
 This document tracks planned task details for the subsequent milestones in the project contract.

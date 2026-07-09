@@ -1,7 +1,7 @@
-<!-- Migrated from docs/AURASCAN_RESEARCH.md and docs/HANDOVER_CHECKLIST.md -->
+<!-- Migrated from legacy product research and handover docs -->
 # Product Requirements & Milestone Scopes
 
-This document captures the functional and non-functional requirements of the AuraScan AI Facial Analysis MVP, structured by the three agreed project milestones.
+This document captures the functional and non-functional requirements of the MyFace AI Facial Analysis MVP, structured by the three agreed project milestones.
 
 ---
 
@@ -57,7 +57,7 @@ This document captures the functional and non-functional requirements of the Aur
 ### 2. Branded PDF Report
 - **Server-side Compilation:** Use Python `reportlab` to compile a multi-page PDF report.
 - **Contents:** Includes cover page, disclaimer, calculated scores, before/after projection overlays, detailed feature breakdowns, and the personalized 30-day protocol.
-- **Branding:** Branded with AuraScan logo, layout, and colors.
+- **Branding:** Branded with MyFace logo, layout, and colors.
 
 ### 3. Stripe Payment Integration
 - **Stripe Checkout:** Redirect clients to secure checkout portals to purchase report access.

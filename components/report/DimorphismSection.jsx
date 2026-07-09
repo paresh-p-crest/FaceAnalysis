@@ -86,33 +86,38 @@ function FeatureCard({ feature, isExpanded, onToggle }) {
   )
 }
 
-export function DimorphismSection({ dimorphism }) {
+export function DimorphismSection({ dimorphism, photo }) {
   const [expandedIdx, setExpandedIdx] = useState(0)
   if (!dimorphism) return null
 
   return (
     <div className="pr-2 space-y-6">
-      {/* Header */}
       <div>
-        <h3 className="font-display text-lg font-semibold text-ink">
-          An overview of your <span className="text-brand">facial dimorphism</span>
+        <h3 className="font-display text-2xl font-bold text-ink">
+          An overview of your <span className="text-ink-muted">facial dimorphism</span>
         </h3>
-        <p className="text-[13px] text-ink-muted font-sans mt-1">
-          We're exploring how each of your features leans more <strong className="text-ink-secondary">masculine</strong> and <strong className="text-ink-secondary">feminine</strong>.
+        <p className="text-sm text-ink-muted font-sans mt-2">
+          We&apos;re exploring how each of your facial features leans more masculine or feminine.
         </p>
       </div>
 
-      {/* Overall scale */}
-      <DimorphismScale
-        score={{ score: dimorphism.overallScore, label: dimorphism.overallLabel }}
-        scaleLeft={dimorphism.scaleLeft}
-        scaleRight={dimorphism.scaleRight}
-      />
-
-      {/* Explanation */}
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-        <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">Explanation</p>
-        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{dimorphism.explanation}</p>
+      <div className="grid lg:grid-cols-2 gap-6">
+        {photo && (
+          <div className="rounded-2xl overflow-hidden border border-surface-border aspect-[4/5] bg-surface-warm">
+            <img src={photo} alt="Portrait" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="space-y-4">
+          <DimorphismScale
+            score={{ score: dimorphism.overallScore, label: dimorphism.overallLabel }}
+            scaleLeft={dimorphism.scaleLeft}
+            scaleRight={dimorphism.scaleRight}
+          />
+          <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
+            <p className="qoves-report-mono-label mb-2">Explanation</p>
+            <p className="text-sm text-ink-secondary leading-relaxed font-sans">{dimorphism.explanation}</p>
+          </div>
+        </div>
       </div>
 
       {/* Per-feature section */}

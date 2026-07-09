@@ -1,430 +1,495 @@
-import { useState, useEffect } from 'react'
-import { OnboardingLayout } from './OnboardingLayout'
+import { useState, useEffect, useMemo } from 'react'
 import {
-  GOAL_OPTIONS,
-  SKIN_CONCERN_OPTIONS,
-  AGE_OPTIONS,
-  GENDER_OPTIONS,
-  ETHNICITY_OPTIONS,
-  SEVERITY_OPTIONS,
-  SKIN_TYPE_OPTIONS,
+  DRINKING_OPTIONS,
+  GENDER_PREFERENCE_OPTIONS,
+  TREATMENT_COMFORT_OPTIONS,
+  GOAL_AESTHETIC_OPTIONS,
+  AESTHETIC_DISTRESS_OPTIONS,
+  APPEARANCE_FREQUENCY_OPTIONS,
   SMOKING_OPTIONS,
-  SLEEP_OPTIONS,
-  WATER_OPTIONS,
-  SUN_OPTIONS,
-  SKINCARE_OPTIONS,
 } from '../utils/onboarding'
+import './Questionnaire.css'
 
-/**
- * Flat page definitions for the onboarding wizard.
- * All navigation handled by OnboardingLayout footer — no internal nav.
- * Step indices map to the 7-step stepper: Welcome(0)|Goals(1)|Concerns(2)|
- * Profile(3)|Lifestyle(4)|SkinCare(5)|Upload(6)
- */
-const PAGES = [
-  /* 0 — Goals */
-  {
-    sidebarTitle: 'Define your goals',
-    sidebarDesc: 'Help us tailor your facial analysis report. Select all that apply — your answers guide the depth of your insights.',
-    question: 'What would you like to improve?',
-    hint: 'Select up to 3 goals. This helps us prioritize your report sections.',
-    type: 'goals',
-    stepIndex: 1,
-  },
-  /* 1 — Concerns + Severity */
-  {
-    sidebarTitle: 'Skin Concerns',
-    sidebarDesc: 'Select the areas you want us to focus on. Our AI will prioritize these in your skin quality analysis.',
-    question: 'Which skin concerns affect you?',
-    hint: 'Select all that apply, then rate overall severity.',
-    type: 'concerns',
-    stepIndex: 2,
-  },
-  /* 2 — Demographics */
-  {
-    sidebarTitle: 'About You',
-    sidebarDesc: 'These help us compare your results against relevant demographic norms for more accurate insights.',
-    question: 'Tell us about yourself',
-    hint: 'Used for benchmarking only — never shared.',
-    type: 'profile',
-    stepIndex: 3,
-  },
-  /* 3 — Lifestyle (all compact) */
-  {
-    sidebarTitle: 'Lifestyle',
-    sidebarDesc: 'Daily habits directly impact skin health and aging. Quick questions for better recommendations.',
-    question: 'Your daily habits',
-    hint: 'Select one per row.',
-    type: 'lifestyle',
-    stepIndex: 4,
-  },
-  /* 4 — Skin type + Skincare */
-  {
-    sidebarTitle: 'Skin Care',
-    sidebarDesc: 'Your skin type and routine help us build a realistic, personalized protocol.',
-    question: 'Your skin & routine',
-    hint: 'Know your type? Great. Not sure? Pick the closest match.',
-    type: 'skincare',
-    stepIndex: 5,
-  },
-]
+export default function Questionnaire({ answers, setAnswers, onComplete, onBack, startAtEnd = false }) {
+  const [currentIdx, setCurrentIdx] = useState(0)
+  const [transitionKey, setTransitionKey] = useState(0)
 
-const MAX_GOALS = 3
+  // Flat configuration of all questions (exactly QOVES reference flow)
+  const QUESTIONS = useMemo(() => [
+    {
+      key: 'occupation',
+      question: 'What is your occupation?',
+      type: 'text',
+      placeholder: 'Answer here',
+    },
+    {
+      key: 'smoking',
+      question: 'How often do you smoke?',
+      type: 'select',
+      options: SMOKING_OPTIONS,
+    },
+    {
+      key: 'drinking',
+      question: 'How often do you drink?',
+      type: 'select',
+      options: DRINKING_OPTIONS,
+    },
+    {
+      key: 'genderPreference',
+      question: 'Would you rather look more masculine or more feminine?',
+      type: 'select',
+      options: GENDER_PREFERENCE_OPTIONS,
+    },
+    {
+      key: 'hadNonSurgical',
+      question: 'Have you had any non-surgical aesthetic treatments before?',
+      type: 'yes_no',
+    },
+    {
+      key: 'hadSurgery',
+      question: "We're strictly non-surgical, but for accuracy, have you ever undergone facial cosmetic surgery?",
+      type: 'yes_no',
+    },
+    {
+      key: 'comfortableTreatments',
+      question: 'Please select all treatment types you are comfortable undergoing:',
+      type: 'multi_select',
+      options: TREATMENT_COMFORT_OPTIONS,
+    },
+    {
+      key: 'medicalConditions',
+      question: 'Do you have any medical conditions (e.g. autoimmune disorders, diabetes)?',
+      type: 'details',
+    },
+    {
+      key: 'medications',
+      question: 'Are you taking any medications (prescription or over-the-counter)?',
+      type: 'details',
+    },
+    {
+      key: 'usedRetinoids',
+      question: 'Have you used retinoids (e.g. Isotretinoin / Accutane) in the past 6-12 months?',
+      type: 'yes_no',
+    },
+    {
+      key: 'allergies',
+      question: 'Do you have any allergies (especially to skincare ingredients, lidocaine, latex, dyes)?',
+      type: 'details',
+    },
+    {
+      key: 'activeInfections',
+      question: 'Any active infections, cold sores, or skin conditions (e.g. Rosacea, Eczema, Psoriasis)?',
+      type: 'details',
+    },
+    {
+      key: 'proneToHyperpigmentation',
+      question: 'Are you prone to hyperpigmentation?',
+      type: 'yes_no',
+    },
+    {
+      key: 'featureLike',
+      question: 'What feature do you like the most about your face?',
+      type: 'text',
+      placeholder: 'Please list',
+    },
+    {
+      key: 'featureDislike',
+      question: 'What feature do you dislike the most about your face?',
+      type: 'text',
+      placeholder: 'Please list',
+    },
+    {
+      key: 'celebrityMatch',
+      question: "Are there any celebrities' facial aesthetics that you'd like to look like?",
+      type: 'text',
+      placeholder: 'Please list',
+    },
+    {
+      key: 'comfortableWeightLoss',
+      question: 'Are you comfortable with weight loss recommendations?',
+      type: 'yes_no',
+    },
+    {
+      key: 'goalAesthetic',
+      question: 'What is your goal?',
+      type: 'select',
+      options: GOAL_AESTHETIC_OPTIONS,
+    },
+    {
+      key: 'growBeard',
+      question: 'Can you grow a full beard?',
+      type: 'yes_no',
+      condition: (ans) => ans.genderPreference === 'masculine',
+    },
+    {
+      key: 'aestheticDistress',
+      question: 'How much distress does your current facial aesthetic cause you?',
+      type: 'select',
+      options: AESTHETIC_DISTRESS_OPTIONS,
+    },
+    {
+      key: 'appearanceFrequency',
+      question: 'How often do you think about your appearance?',
+      type: 'select',
+      options: APPEARANCE_FREQUENCY_OPTIONS,
+    },
+    {
+      key: 'motivation',
+      question: 'What motivated you to sign up for QOVES?',
+      type: 'textarea',
+      placeholder: 'Answer here',
+    },
+    {
+      key: 'additionalNotes',
+      question: 'Anything else you think we should know?',
+      type: 'textarea',
+      placeholder: 'Answer here',
+    },
+  ], [])
 
-/* ── Compact single-select row (for lifestyle) ── */
-function CompactRow({ label, options, value, onChange }) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 py-2.5 border-b border-surface-border last:border-0">
-      <span className="text-sm font-medium text-ink min-w-[160px] shrink-0">{label}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((opt) => {
-          const selected = value === opt.value
-          return (
-            <button
-              key={opt.value}
-              onClick={() => onChange(opt.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                selected
-                  ? 'bg-brand text-white border-brand shadow-sm'
-                  : 'bg-white dark:bg-surface-card text-ink-secondary border-surface-border hover:border-brand/40 hover:text-ink'
-              }`}
-            >
-              {opt.label}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/* ── Section heading for multi-question pages ── */
-function SectionLabel({ children }) {
-  return (
-    <h3 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">{children}</h3>
-  )
-}
-
-export default function Questionnaire({ answers, setAnswers, onComplete, onBack }) {
-  const [page, setPage] = useState(0)
-  const current = PAGES[page]
-
-  /* ── Helpers ── */
-  const toggleGoal = (value) => {
-    if (value === 'none') {
-      setAnswers((prev) => ({ ...prev, goals: prev.goals.includes('none') ? [] : ['none'] }))
-      return
-    }
-    setAnswers((prev) => {
-      const arr = prev.goals.filter((v) => v !== 'none')
-      if (arr.includes(value)) return { ...prev, goals: arr.filter((v) => v !== value) }
-      if (arr.length >= MAX_GOALS) return prev
-      return { ...prev, goals: [...arr, value] }
+  // Filter list of active questions dynamically based on branching
+  const activeQuestions = useMemo(() => {
+    return QUESTIONS.filter((q) => {
+      if (q.condition) return q.condition(answers)
+      return true
     })
-  }
+  }, [QUESTIONS, answers])
 
-  const toggleConcern = (value) => {
-    if (value === 'none') {
-      setAnswers((prev) => ({ ...prev, skinConcerns: prev.skinConcerns.includes('none') ? [] : ['none'] }))
-      return
+  useEffect(() => {
+    if (startAtEnd && activeQuestions.length > 0) {
+      setCurrentIdx(activeQuestions.length - 1)
     }
-    setAnswers((prev) => {
-      const arr = prev.skinConcerns.filter((v) => v !== 'none')
-      return {
-        ...prev,
-        skinConcerns: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value],
-      }
-    })
-  }
+  }, [startAtEnd, activeQuestions])
 
+  const currentQuestion = activeQuestions[currentIdx]
+
+  // Increment key to trigger css slide transitions
+  useEffect(() => {
+    setTransitionKey((prev) => prev + 1)
+  }, [currentIdx])
+
+  /* ── State Setter Helpers ── */
   const set = (key, value) => {
     setAnswers((prev) => {
       const next = { ...prev, [key]: value }
-      // Auto-fill lifestyle defaults for male users if not already set
-      if (next.gender === 'male') {
-        if (!next.smoking) next.smoking = 'never'
-        if (!next.sleepQuality) next.sleepQuality = 'good'
-        if (!next.waterIntake) next.waterIntake = 'moderate'
-        if (!next.sunExposure) next.sunExposure = 'moderate'
-        if (!next.skinType) next.skinType = 'combination'
-        if (!next.skincareRoutine) next.skincareRoutine = 'minimal'
-        if (!next.environment) next.environment = 'urban'
-        if (!next.concernSeverity) next.concernSeverity = 'mild'
+      if (key === 'genderPreference' && value !== 'masculine') {
+        next.growBeard = 'no'
       }
       return next
     })
   }
 
-  // Auto-fill male defaults when navigating to lifestyle or skincare pages
-  useEffect(() => {
-    if (answers.gender !== 'male') return
-    if (current.type === 'lifestyle' || current.type === 'skincare') {
-      setAnswers((prev) => {
-        const filled = { ...prev }
-        let changed = false
-        if (current.type === 'lifestyle') {
-          if (!filled.smoking) { filled.smoking = 'never'; changed = true }
-          if (!filled.sleepQuality) { filled.sleepQuality = 'good'; changed = true }
-          if (!filled.waterIntake) { filled.waterIntake = 'moderate'; changed = true }
-          if (!filled.sunExposure) { filled.sunExposure = 'moderate'; changed = true }
-          if (!filled.environment) { filled.environment = 'urban'; changed = true }
-        }
-        if (current.type === 'skincare') {
-          if (!filled.skinType) { filled.skinType = 'combination'; changed = true }
-          if (!filled.skincareRoutine) { filled.skincareRoutine = 'minimal'; changed = true }
-        }
-        return changed ? filled : prev
-      })
-    }
-  }, [current.type, answers.gender])
-
-  /* ── Per-page validation ── */
-  const isPageComplete = () => {
-    switch (current.type) {
-      case 'goals': return answers.goals.length > 0
-      case 'concerns': return answers.skinConcerns.length > 0
-      case 'profile': return !!answers.ageRange && !!answers.gender
-      case 'lifestyle': return !!(answers.smoking && answers.sleepQuality && answers.waterIntake && answers.sunExposure)
-      case 'skincare': return !!(answers.skinType && answers.skincareRoutine)
-      default: return false
-    }
+  const setDetailsYesNo = (key, yesOrNo) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [key]: yesOrNo,
+      [`${key}Details`]: yesOrNo === 'no' ? '' : (prev[`${key}Details`] || ''),
+    }))
   }
 
-  /* ── Navigation ── */
-  const isLast = page === PAGES.length - 1
-
-  const handleContinue = () => {
-    if (isLast) onComplete()
-    else setPage((p) => p + 1)
+  const setDetailsText = (key, text) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [`${key}Details`]: text,
+    }))
   }
 
-  const handleBack = () => {
-    if (page > 0) setPage((p) => p - 1)
-    else onBack()
+  const toggleMultiSelect = (key, val) => {
+    setAnswers((prev) => {
+      const arr = prev[key] || []
+      const nextArr = arr.includes(val)
+        ? arr.filter((x) => x !== val)
+        : [...arr, val]
+      return { ...prev, [key]: nextArr }
+    })
   }
 
-  /* ── Selection label ── */
-  const selectionLabel = (() => {
-    switch (current.type) {
-      case 'goals':
-        return `${answers.goals.length} of ${MAX_GOALS} goals selected`
-      case 'concerns':
-        return `${answers.skinConcerns.length} concern${answers.skinConcerns.length !== 1 ? 's' : ''} selected`
-      case 'profile':
-        return answers.ageRange && answers.gender ? 'Profile complete' : ''
-      case 'lifestyle': {
-        const count = [answers.smoking, answers.sleepQuality, answers.waterIntake, answers.sunExposure].filter(Boolean).length
-        return count === 4 ? 'Complete' : count > 0 ? `${count}/4 answered` : ''
+  /* ── Validation for current page ── */
+  const isQuestionComplete = () => {
+    if (!currentQuestion) return false
+    const val = answers[currentQuestion.key]
+    switch (currentQuestion.type) {
+      case 'select':
+      case 'yes_no':
+        return !!val
+      case 'multi_select':
+        return val && val.length > 0
+      case 'text':
+        return val !== undefined && val !== null && val.trim().length > 0
+      case 'textarea':
+        if (currentQuestion.key === 'additionalNotes') return true
+        return val !== undefined && val !== null && val.trim().length > 0
+      case 'details': {
+        const yesNo = answers[currentQuestion.key]
+        if (!yesNo) return false
+        if (yesNo === 'no') return true
+        // yes selected — require at least 3 chars of detail
+        const detailsText = (answers[`${currentQuestion.key}Details`] || '').trim()
+        return detailsText.length >= 3
       }
-      case 'skincare':
-        return answers.skinType && answers.skincareRoutine ? 'Complete' : ''
-      default: return ''
+      default:
+        return false
     }
-  })()
+  }
+
+  /* ── Nav Actions ── */
+  const isLast = currentIdx === activeQuestions.length - 1
+
+  const handleNext = () => {
+    if (isLast) {
+      onComplete()
+    } else {
+      setCurrentIdx((prev) => prev + 1)
+    }
+  }
+
+  const handlePrev = () => {
+    if (currentIdx > 0) {
+      setCurrentIdx((prev) => prev - 1)
+    } else {
+      onBack()
+    }
+  }
+
+  const handleInputFocus = (e) => {
+    if (e.target.value === 'No') {
+      e.target.select()
+    }
+  }
+
+  if (!currentQuestion) return null
 
   return (
-    <OnboardingLayout
-      stepIndex={current.stepIndex}
-      sidebarTitle={current.sidebarTitle}
-      sidebarDesc={current.sidebarDesc}
-      onBack={handleBack}
-      selectionLabel={selectionLabel}
-      onContinue={handleContinue}
-      continueLabel={isLast ? 'Proceed to Upload' : 'Continue'}
-      continueDisabled={!isPageComplete()}
-    >
-      <div className="max-w-3xl pt-2">
-        <h2 className="font-display text-xl sm:text-2xl font-semibold text-ink mb-0.5">{current.question}</h2>
-        <p className="text-sm text-ink-muted mb-6">{current.hint}</p>
-
-        {/* ── PAGE: Goals ── */}
-        {current.type === 'goals' && (
-          <div className="grid sm:grid-cols-2 gap-2.5">
-            {GOAL_OPTIONS.map((opt) => {
-              const selected = answers.goals.includes(opt.value)
-              const atMax = answers.goals.length >= MAX_GOALS && !selected
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => toggleGoal(opt.value)}
-                  disabled={atMax}
-                  className={`option-card flex items-start gap-3 p-4 ${selected ? 'option-card-selected' : ''} ${atMax ? 'opacity-40 cursor-not-allowed' : ''}`}
-                >
-                  <div className={`mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 transition-colors ${selected ? 'border-brand bg-brand' : 'border-ink-faint'}`} />
-                  <div className="text-left">
-                    <div className="font-medium text-ink text-sm">{opt.label}</div>
-                    <div className="text-xs text-ink-muted mt-0.5">{opt.desc}</div>
-                  </div>
-                </button>
-              )
-            })}
+    <div className="min-h-screen flex bg-white dark:bg-slate-900 animate-fade-up">
+      
+      {/* ── Left Column: Questionnaire Wizard ── */}
+      <div className="w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-white dark:bg-slate-950 border-r border-surface-border">
+        
+        {/* Top Header */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={handlePrev}
+            className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors uppercase tracking-wider"
+          >
+            ← Back
+          </button>
+          
+          {/* Boxed Counter */}
+          <div className="flex items-center gap-1.5 text-xs font-bold font-mono">
+            <span className="px-2.5 py-1 rounded bg-[#5e9f8b] text-white">
+              {currentIdx + 1}
+            </span>
+            <span className="text-slate-400">/</span>
+            <span className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-500 bg-slate-50 dark:bg-slate-900">
+              {activeQuestions.length}
+            </span>
           </div>
-        )}
+        </div>
 
-        {/* ── PAGE: Concerns + Severity ── */}
-        {current.type === 'concerns' && (
-          <div className="space-y-5">
-            <div>
-              <div className="flex flex-wrap gap-2">
-                {SKIN_CONCERN_OPTIONS.map((opt) => {
-                  const selected = answers.skinConcerns.includes(opt.value)
+        {/* Question Panel */}
+        <div key={transitionKey} className="my-auto py-12 max-w-lg fade-in-slide space-y-8">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-tight tracking-tight">
+            {currentQuestion.question}
+          </h1>
+
+          {/* Render inputs based on type */}
+          <div className="space-y-3">
+            
+            {/* Type: select */}
+            {currentQuestion.type === 'select' && currentQuestion.options && (
+              <div className="space-y-2">
+                {currentQuestion.options.map((opt) => {
+                  const selected = answers[currentQuestion.key] === opt.value
                   return (
                     <button
                       key={opt.value}
-                      onClick={() => toggleConcern(opt.value)}
-                      className={`chip-option ${selected ? 'chip-option-selected' : ''}`}
+                      onClick={() => set(currentQuestion.key, opt.value)}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                        selected
+                          ? 'border-[#5e9f8b] bg-[#5e9f8b]/10 dark:bg-[#5e9f8b]/10 text-[#5e9f8b] dark:text-[#5e9f8b] font-medium'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-400 text-slate-700 dark:text-slate-300'
+                      }`}
                     >
-                      {opt.label}
+                      <div className="pr-4">
+                        <span className="text-sm">{opt.label}</span>
+                        {opt.desc && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{opt.desc}</p>}
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border shrink-0 transition-all flex items-center justify-center ${
+                        selected ? 'border-[#5e9f8b] dark:border-[#5e9f8b]' : 'border-slate-300 dark:border-slate-700'
+                      }`}>
+                        {selected && <div className="w-2 h-2 rounded-full bg-[#5e9f8b] dark:bg-[#5e9f8b]" />}
+                      </div>
                     </button>
                   )
                 })}
-              </div>
-            </div>
-            {answers.skinConcerns.length > 0 && !answers.skinConcerns.includes('none') && (
-              <div>
-                <SectionLabel>Overall severity</SectionLabel>
-                <div className="flex gap-2">
-                  {SEVERITY_OPTIONS.map((opt) => {
-                    const selected = answers.concernSeverity === opt.value
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => set('concernSeverity', opt.value)}
-                        className={`flex-1 option-card p-3 text-center ${selected ? 'option-card-selected' : ''}`}
-                      >
-                        <div className={`font-medium text-sm ${selected ? 'text-brand' : 'text-ink'}`}>{opt.label}</div>
-                        <div className="text-xs text-ink-muted mt-0.5">{opt.desc}</div>
-                      </button>
-                    )
-                  })}
-                </div>
               </div>
             )}
+
+            {/* Type: yes_no */}
+            {currentQuestion.type === 'yes_no' && (
+              <div className="space-y-2">
+                {[
+                  { value: 'yes', label: 'Yes' },
+                  { value: 'no', label: 'No' },
+                ].map((opt) => {
+                  const selected = answers[currentQuestion.key] === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => set(currentQuestion.key, opt.value)}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                        selected
+                          ? 'border-[#5e9f8b] bg-[#5e9f8b]/10 dark:bg-[#5e9f8b]/10 text-[#5e9f8b] dark:text-[#5e9f8b] font-medium'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-400 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <span className="text-sm">{opt.label}</span>
+                      <div className={`w-4 h-4 rounded-full border shrink-0 transition-all flex items-center justify-center ${
+                        selected ? 'border-[#5e9f8b] dark:border-[#5e9f8b]' : 'border-slate-300 dark:border-slate-700'
+                      }`}>
+                        {selected && <div className="w-2 h-2 rounded-full bg-[#5e9f8b] dark:bg-[#5e9f8b]" />}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Type: multi_select */}
+            {currentQuestion.type === 'multi_select' && currentQuestion.options && (
+              <div className="space-y-2">
+                {currentQuestion.options.map((opt) => {
+                  const selected = (answers[currentQuestion.key] || []).includes(opt.value)
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => toggleMultiSelect(currentQuestion.key, opt.value)}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                        selected
+                          ? 'border-[#5e9f8b] bg-[#5e9f8b]/10 dark:bg-[#5e9f8b]/10 text-[#5e9f8b] dark:text-[#5e9f8b] font-medium'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-400 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <div className="pr-4">
+                        <span className="text-sm">{opt.label}</span>
+                        {opt.desc && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{opt.desc}</p>}
+                      </div>
+                      <div className={`w-4 h-4 rounded border shrink-0 transition-all flex items-center justify-center ${
+                        selected ? 'border-[#5e9f8b] dark:border-[#5e9f8b] bg-[#5e9f8b] dark:bg-[#5e9f8b] text-white' : 'border-slate-300 dark:border-slate-700'
+                      }`}>
+                        {selected && <span className="text-[10px] font-bold">✓</span>}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Type: text */}
+            {currentQuestion.type === 'text' && (
+              <input
+                type="text"
+                value={answers[currentQuestion.key] || ''}
+                onChange={(e) => set(currentQuestion.key, e.target.value)}
+                placeholder={currentQuestion.placeholder}
+                className="w-full bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-xl rounded-none outline-none transition-all"
+              />
+            )}
+
+            {/* Type: details — Yes/No buttons + conditional detail input */}
+            {currentQuestion.type === 'details' && (
+              <div className="space-y-3">
+                {['yes', 'no'].map((opt) => {
+                  const selected = answers[currentQuestion.key] === opt
+                  return (
+                    <button
+                      key={opt}
+                      onClick={() => setDetailsYesNo(currentQuestion.key, opt)}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                        selected
+                          ? 'border-[#5e9f8b] bg-[#5e9f8b]/10 dark:bg-[#5e9f8b]/10 text-[#5e9f8b] dark:text-[#5e9f8b] font-medium'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-400 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <span className="text-sm capitalize">{opt === 'yes' ? 'Yes' : 'No'}</span>
+                      <div className={`w-4 h-4 rounded-full border shrink-0 transition-all flex items-center justify-center ${
+                        selected ? 'border-[#5e9f8b] dark:border-[#5e9f8b]' : 'border-slate-300 dark:border-slate-700'
+                      }`}>
+                        {selected && <div className="w-2 h-2 rounded-full bg-[#5e9f8b] dark:bg-[#5e9f8b]" />}
+                      </div>
+                    </button>
+                  )
+                })}
+                {answers[currentQuestion.key] === 'yes' && (
+                  <textarea
+                    autoFocus
+                    value={answers[`${currentQuestion.key}Details`] || ''}
+                    onChange={(e) => setDetailsText(currentQuestion.key, e.target.value)}
+                    placeholder="Please provide details…"
+                    className="w-full mt-2 bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-base rounded-none outline-none transition-all resize-none min-h-[80px]"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Type: textarea */}
+            {currentQuestion.type === 'textarea' && (
+              <textarea
+                value={answers[currentQuestion.key] || ''}
+                onChange={(e) => set(currentQuestion.key, e.target.value)}
+                placeholder={currentQuestion.placeholder}
+                className="w-full bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-lg rounded-none outline-none transition-all resize-none min-h-[100px]"
+              />
+            )}
+
           </div>
-        )}
+        </div>
 
-        {/* ── PAGE: Profile (age + gender + ethnicity) ── */}
-        {current.type === 'profile' && (
-          <div className="space-y-5">
-            <div>
-              <SectionLabel>Age range</SectionLabel>
-              <div className="flex flex-wrap gap-2">
-                {AGE_OPTIONS.map((opt) => {
-                  const selected = answers.ageRange === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => set('ageRange', opt.value)}
-                      className={`chip-option min-w-[68px] text-center ${selected ? 'chip-option-selected' : ''}`}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+        {/* Navigation buttons */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handlePrev}
+            className="flex-1 flex items-center justify-center border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 py-3 rounded-[50px] text-sm font-medium transition-all"
+          >
+            ← Back
+          </button>
+          
+          <button
+            onClick={handleNext}
+            disabled={!isQuestionComplete()}
+            className="flex-1 flex items-center bg-[#5e9f8b] hover:bg-[#548f7d] text-white px-6 py-3 rounded-[50px] text-sm font-medium tracking-[-0.03px] transition-all shadow-sm disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <span className="flex-1 text-left">Next</span>
+            <span className="text-white/40 mr-4">|</span>
+            <span>→</span>
+          </button>
+        </div>
 
-            <div>
-              <SectionLabel>Gender</SectionLabel>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {GENDER_OPTIONS.map((opt) => {
-                  const selected = answers.gender === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => set('gender', opt.value)}
-                      className={`option-card p-3 text-center text-sm font-medium ${selected ? 'option-card-selected text-brand' : 'text-ink-secondary'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <SectionLabel>Ethnic heritage</SectionLabel>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {ETHNICITY_OPTIONS.map((opt) => {
-                  const selected = answers.ethnicity === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => set('ethnicity', opt.value)}
-                      className={`option-card p-3 text-center text-sm font-medium ${selected ? 'option-card-selected text-brand' : 'text-ink-secondary'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── PAGE: Lifestyle (compact single-select rows) ── */}
-        {current.type === 'lifestyle' && (
-          <div className="bg-white dark:bg-surface-card rounded-xl border border-surface-border px-5 py-1">
-            <CompactRow label="Smoking" options={SMOKING_OPTIONS} value={answers.smoking} onChange={(v) => set('smoking', v)} />
-            <CompactRow label="Sleep quality" options={SLEEP_OPTIONS} value={answers.sleepQuality} onChange={(v) => set('sleepQuality', v)} />
-            <CompactRow label="Daily water" options={WATER_OPTIONS} value={answers.waterIntake} onChange={(v) => set('waterIntake', v)} />
-            <CompactRow label="Sun exposure" options={SUN_OPTIONS} value={answers.sunExposure} onChange={(v) => set('sunExposure', v)} />
-            <CompactRow
-              label="Environment"
-              options={[
-                { value: 'indoor', label: 'Indoor' },
-                { value: 'mixed', label: 'Mixed' },
-                { value: 'outdoor', label: 'Outdoor' },
-              ]}
-              value={answers.environment}
-              onChange={(v) => set('environment', v)}
-            />
-          </div>
-        )}
-
-        {/* ── PAGE: Skincare (skin type + routine) ── */}
-        {current.type === 'skincare' && (
-          <div className="space-y-5">
-            <div>
-              <SectionLabel>Skin type</SectionLabel>
-              <div className="grid sm:grid-cols-3 gap-2">
-                {SKIN_TYPE_OPTIONS.map((opt) => {
-                  const selected = answers.skinType === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => set('skinType', opt.value)}
-                      className={`option-card p-3 text-left ${selected ? 'option-card-selected' : ''}`}
-                    >
-                      <div className={`font-medium text-sm ${selected ? 'text-brand' : 'text-ink'}`}>{opt.label}</div>
-                      <div className="text-xs text-ink-muted mt-0.5">{opt.desc}</div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <SectionLabel>Current skincare routine</SectionLabel>
-              <div className="grid sm:grid-cols-2 gap-2">
-                {SKINCARE_OPTIONS.map((opt) => {
-                  const selected = answers.skincareRoutine === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => set('skincareRoutine', opt.value)}
-                      className={`option-card p-3 text-left ${selected ? 'option-card-selected' : ''}`}
-                    >
-                      <div className={`font-medium text-sm ${selected ? 'text-brand' : 'text-ink'}`}>{opt.label}</div>
-                      <div className="text-xs text-ink-muted mt-0.5">{opt.desc}</div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-    </OnboardingLayout>
+
+      {/* ── Right Column: Fluid Wavy Mesh Gradient ── */}
+      <div className="hidden lg:flex lg:w-[60%] bg-[#0d1e1f] fluid-gradient-mesh flex-col justify-between p-16">
+        
+        {/* Top Brand Logo - MyFace text */}
+        <div className="flex items-center gap-3">
+          <span className="font-serif font-bold text-white text-3xl tracking-tight">MyFace</span>
+        </div>
+
+        {/* Bottom Banner Branding */}
+        <div className="space-y-6 max-w-xl text-left">
+          <div className="inline-block px-3 py-1 rounded-full border border-white/20 text-white/80 font-mono text-[10px] uppercase tracking-wider bg-white/5 backdrop-blur-md">
+            Complete the questionnaire
+          </div>
+          <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight">
+            Onboarding<br />Questions
+          </h1>
+          <p className="text-sm text-slate-300 leading-relaxed max-w-md">
+            Please answer the following questions to help us customize your MyFace journey.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
   )
 }

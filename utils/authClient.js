@@ -1,7 +1,7 @@
 import { getApiBaseUrl } from './apiClient'
 
-const TOKEN_KEY = 'aurascan_auth_token'
-const USER_KEY = 'aurascan_auth_user'
+const TOKEN_KEY = 'myface_auth_token'
+const USER_KEY = 'myface_auth_user'
 
 export function getAuthToken() {
   return localStorage.getItem(TOKEN_KEY) || ''

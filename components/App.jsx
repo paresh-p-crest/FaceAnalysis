@@ -4,9 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { STAGES, INITIAL_ANSWERS } from '../utils/constants'
 import { runFaceAnalysis } from '../utils/analyzeFace'
 import { setActiveProvider } from '../utils/settings'
-import Landing from './Landing'
+import QuestionnaireWelcome from './QuestionnaireWelcome'
 import Questionnaire from './Questionnaire'
-import PhotoProtocol from './PhotoProtocol'
 import PhotoUpload from './PhotoUpload'
 import Scanning from './Scanning'
 import Report from './Report'
@@ -26,11 +25,13 @@ import { clearAdminTab, persistAdminTab, readAdminTab } from '../utils/adminPane
 import { createHistoryId } from '../utils/historyStorage'
 import { userHasAnalysisAccess } from '../utils/paymentAccess'
 import ConfirmDialog from './ConfirmDialog'
+import DevShortcuts, { isDevShortcutsEnabled } from './DevShortcuts'
+import { DEV_SAMPLE_QUESTIONNAIRE_ANSWERS } from '../utils/devSampleAnswers'
 
 const EMPTY_PHOTOS = { front: null, leftProfile: null, rightProfile: null, left45: null, right45: null, smile: null, topHead: null }
-const STAGE_STORAGE_KEY = 'aurascan_current_stage'
-const REPORT_STORAGE_KEY = 'aurascan_current_assessment_id'
-const PAYMENT_SESSION_KEY = 'aurascan_payment_session_id'
+const STAGE_STORAGE_KEY = 'myface_current_stage'
+const REPORT_STORAGE_KEY = 'myface_current_assessment_id'
+const PAYMENT_SESSION_KEY = 'myface_payment_session_id'
 const RESTORABLE_STAGES = new Set([
   STAGES.LANDING,
   STAGES.DASHBOARD,
@@ -44,7 +45,6 @@ const RESTORABLE_STAGES = new Set([
 const CLIENT_FLOW_STAGES = new Set([
   STAGES.LANDING,
   STAGES.QUESTIONNAIRE,
-  STAGES.PROTOCOL,
   STAGES.UPLOAD,
   STAGES.SCANNING,
   STAGES.DASHBOARD,
@@ -82,6 +82,7 @@ function AppInner() {
   const [adminTab, setAdminTab] = useState(() => readAdminTab())
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [scanId, setScanId] = useState(null)
+  const [questionnaireStartAtEnd, setQuestionnaireStartAtEnd] = useState(false)
   const activeScanIdRef = useRef(null)
   const stageRef = useRef(stage)
 
@@ -104,10 +105,26 @@ function AppInner() {
     )
   }
 
+  const hydratePhotosFromAssessment = (assessment) => {
+    const stored = assessment?.photos || {}
+    const hydrated = { ...EMPTY_PHOTOS }
+    Object.entries(stored).forEach(([poseId, meta]) => {
+      if (meta?.publicUrl) hydrated[poseId] = meta.publicUrl
+    })
+    const report = assessment?.analysis?.cvReport
+    const reportPhotos = report?.photos || {}
+    Object.entries(reportPhotos).forEach(([poseId, url]) => {
+      if (url && !hydrated[poseId]) hydrated[poseId] = url
+    })
+    if (!hydrated.front) {
+      hydrated.front = getCloudAssessmentPhoto(assessment)
+    }
+    return hydrated
+  }
+
   function applyCloudAssessment(assessment) {
-    const cloudPhoto = getCloudAssessmentPhoto(assessment)
     setAnswers(assessment.answers || INITIAL_ANSWERS)
-    setPhotos({ ...EMPTY_PHOTOS, front: cloudPhoto })
+    setPhotos(hydratePhotosFromAssessment(assessment))
     setAnalysis({
       ...(assessment.analysis || {}),
       assessmentId: assessment.id,
@@ -115,6 +132,9 @@ function AppInner() {
       reportStatus: assessment.status || 'pending_review',
       aiNarrative: assessment.aiNarrative || assessment.analysis?.aiNarrative || null,
       aiVisuals: assessment.aiVisuals || assessment.analysis?.aiVisuals || null,
+      protocolData: assessment.protocolData || null,
+      protocolNarrative: assessment.protocolNarrative || null,
+      protocolStorage: assessment.protocolStorage || null,
     })
     setHistoryId(null)
     setStage(STAGES.REPORT)
@@ -253,6 +273,7 @@ function AppInner() {
       setHistoryId(null)
       localStorage.removeItem(REPORT_STORAGE_KEY)
       trackEvent('assessment_start')
+      setQuestionnaireStartAtEnd(false)
       setStage(STAGES.QUESTIONNAIRE)
     } catch {
       setBillingMessage('We could not verify payment access. Please check billing before starting analysis.')
@@ -381,6 +402,16 @@ function AppInner() {
     setStage(STAGES.UPLOAD)
   }
 
+  const skipQuestionnaireWithSampleData = useCallback(() => {
+    setAnswers(DEV_SAMPLE_QUESTIONNAIRE_ANSWERS)
+    setPhotos(EMPTY_PHOTOS)
+    setAnalysis(null)
+    setHistoryId(null)
+    setQuestionnaireStartAtEnd(false)
+    localStorage.removeItem(REPORT_STORAGE_KEY)
+    setStage(STAGES.UPLOAD)
+  }, [])
+
   return (
     <div className="relative min-h-screen overflow-x-hidden font-sans">
       {showNav && stage !== STAGES.REPORT && (
@@ -407,11 +438,15 @@ function AppInner() {
       <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onAuthenticated={handleAuthenticated} />
 
+      {isDevShortcutsEnabled && (
+        <DevShortcuts stage={stage} onSkipQuestionnaire={skipQuestionnaireWithSampleData} />
+      )}
+
       <div className="fixed top-1/4 -left-32 w-64 h-64 rounded-full bg-brand-50/50 blur-3xl pointer-events-none dark:opacity-30" />
       <div className="fixed bottom-1/4 -right-32 w-80 h-80 rounded-full bg-brand-50/50 blur-3xl pointer-events-none dark:opacity-30" />
 
       {stage === STAGES.LANDING && user?.role !== 'admin' && (
-        <Landing onBegin={startAnalysisWithAccessCheck} />
+        <QuestionnaireWelcome onBegin={startAnalysisWithAccessCheck} />
       )}
 
       {stage === STAGES.QUESTIONNAIRE && user?.role !== 'admin' && (
@@ -420,13 +455,7 @@ function AppInner() {
           setAnswers={setAnswers}
           onComplete={afterQuestionnaire}
           onBack={() => setStage(STAGES.LANDING)}
-        />
-      )}
-
-      {stage === STAGES.PROTOCOL && user?.role !== 'admin' && (
-        <PhotoProtocol
-          onComplete={() => setStage(STAGES.UPLOAD)}
-          onBack={() => setStage(STAGES.QUESTIONNAIRE)}
+          startAtEnd={questionnaireStartAtEnd}
         />
       )}
 
@@ -439,7 +468,10 @@ function AppInner() {
             setScanId(activeScanIdRef.current)
             setStage(STAGES.SCANNING)
           }}
-          onBack={() => setStage(STAGES.QUESTIONNAIRE)}
+          onBack={() => {
+            setQuestionnaireStartAtEnd(true)
+            setStage(STAGES.QUESTIONNAIRE)
+          }}
         />
       )}
 

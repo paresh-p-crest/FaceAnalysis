@@ -107,3 +107,39 @@ def chat_json_completion(
                 "model": model,
                 "error": detail or "LLM narrative generation failed.",
             }
+
+
+def chat_text_completion(
+    *,
+    messages: list[dict],
+    temperature: float,
+    max_tokens: int,
+    api_key_override: Optional[str] = None,
+) -> dict:
+    """Run a chat completion and return plain text."""
+    llm = get_chat_llm(api_key_override=api_key_override)
+    if llm.get("error"):
+        return {"content": None, "source": None, "model": None, "error": llm["error"]}
+
+    client = llm["client"]
+    model = llm["model"]
+    source = llm["source"]
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        content = (response.choices[0].message.content or "").strip()
+        if not content:
+            return {"content": None, "source": source, "model": model, "error": "Empty LLM response"}
+        return {"content": content, "source": source, "model": model, "error": None}
+    except Exception as exc:
+        return {
+            "content": None,
+            "source": source,
+            "model": model,
+            "error": str(exc) or "LLM text generation failed.",
+        }

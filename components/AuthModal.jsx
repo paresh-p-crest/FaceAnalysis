@@ -50,7 +50,7 @@ export default function AuthModal({ open, onClose, onAuthenticated }) {
                 {isRegister ? 'Create account' : 'Sign in'}
               </h2>
               <p className="text-xs text-ink-muted mt-1">
-                {isRegister ? 'Default role: user' : 'Continue with your AuraScan account'}
+                {isRegister ? 'Default role: user' : 'Continue with your MyFace account'}
               </p>
             </div>
           </div>

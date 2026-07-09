@@ -1,13 +1,13 @@
 <!-- Merged and migrated from README.md and TECHNICAL_README.md -->
-# AuraScan — AI Facial Analysis
+# MyFace — AI Facial Analysis
 
-AuraScan is an AI-powered facial analysis platform. Users upload a photograph, complete an onboarding questionnaire, and receive a comprehensive, structured report analyzing facial symmetry, proportions, shapes, and features.
+MyFace is an AI-powered facial analysis platform. Users upload a photograph, complete an onboarding questionnaire, and receive a comprehensive, structured report analyzing facial symmetry, proportions, shapes, and features.
 
 ---
 
 ## Technical Architecture Overview
 
-AuraScan runs a combined hybrid processing system:
+MyFace runs a combined hybrid processing system:
 1. **Google MediaPipe Face Mesh:** Maps **478 3D landmarks** on the client's face to calculate geometry metrics (symmetry, jaw angle, eye/lip/nose proportions).
 2. **Canvas Pixel Analysis:** Samples pixel colors from 6 facial zones (forehead, nose, chin, cheeks, under-eyes) to evaluate brightness, redness, uniformity, and tone.
 3. **OpenAI GPT Narrative (Optional):** Generates conversational, structured summaries and personal protocol plans grounded on the calculations.

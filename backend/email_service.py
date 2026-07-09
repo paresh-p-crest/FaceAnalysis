@@ -18,7 +18,7 @@ def email_config() -> dict:
         "host": host,
         "port": int(os.environ.get("SMTP_PORT", "587") or 587),
         "fromEmail": from_email,
-        "fromName": os.environ.get("SMTP_FROM_NAME", "AuraScan"),
+        "fromName": os.environ.get("SMTP_FROM_NAME", "MyFace"),
     }
 
 

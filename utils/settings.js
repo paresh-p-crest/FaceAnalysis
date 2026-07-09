@@ -1,10 +1,10 @@
 const STORAGE_KEYS = {
-  activeLLM: 'aurascan_active_llm',
-  openai: 'aurascan_openai_key',
-  awsAccessKeyId: 'aurascan_aws_access_key_id',
-  awsSecretAccessKey: 'aurascan_aws_secret_access_key',
-  awsSessionToken: 'aurascan_aws_session_token',
-  awsRegion: 'aurascan_aws_region',
+  activeLLM: 'myface_active_llm',
+  openai: 'myface_openai_key',
+  awsAccessKeyId: 'myface_aws_access_key_id',
+  awsSecretAccessKey: 'myface_aws_secret_access_key',
+  awsSessionToken: 'myface_aws_session_token',
+  awsRegion: 'myface_aws_region',
 }
 
 export function getActiveProvider() {

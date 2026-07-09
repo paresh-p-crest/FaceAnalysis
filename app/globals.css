@@ -86,14 +86,14 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl font-semibold text-white
+    @apply inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-[50px] font-semibold text-white
       bg-brand hover:bg-brand-dark
       shadow-brand transition-all duration-300 hover:scale-[1.02]
-      active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none;
+      active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none tracking-[-0.03px];
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-[50px] font-medium
       text-ink-secondary border border-surface-border bg-white hover:bg-surface-warm hover:border-ink-faint
       transition-all duration-200 shadow-soft;
   }
@@ -275,6 +275,106 @@
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.06);
   }
+
+  /* ── QOVES Report Document UI ── */
+  .qoves-report-layout {
+    @apply grid gap-0 min-h-[calc(100vh-12rem)] border border-surface-border rounded-3xl overflow-hidden bg-white dark:bg-surface-card;
+    grid-template-columns: 240px 1fr;
+  }
+
+  .qoves-report-layout--with-rail {
+    @apply xl:grid-cols-[240px_1fr_300px];
+  }
+
+  .qoves-report-sidebar {
+    @apply bg-surface-raised border-r border-surface-border p-4 overflow-y-auto;
+    max-height: calc(100vh - 12rem);
+  }
+
+  .qoves-report-canvas {
+    @apply bg-white dark:bg-surface-card p-6 sm:p-8 lg:p-10 overflow-y-auto;
+    max-height: calc(100vh - 12rem);
+  }
+
+  .qoves-report-rail {
+    @apply bg-surface-warm border-l border-surface-border p-5 overflow-y-auto;
+    max-height: calc(100vh - 12rem);
+  }
+
+  .qoves-report-page {
+    @apply max-w-4xl mx-auto;
+  }
+
+  .qoves-report-mono-label {
+    @apply text-[10px] font-mono font-bold uppercase tracking-wider text-ink-muted;
+  }
+
+  .qoves-report-metric-card {
+    @apply rounded-xl border border-surface-border bg-white dark:bg-surface-card p-4;
+  }
+
+  .qoves-report-nav-item {
+    @apply w-full text-left px-3 py-2 rounded-xl text-sm font-medium text-ink-secondary transition-colors hover:text-ink;
+  }
+
+  .qoves-report-nav-item--active {
+    @apply bg-white dark:bg-surface-card text-ink shadow-soft border border-surface-border;
+  }
+
+  .qoves-report-nav-group-label {
+    @apply flex items-center gap-2 text-xs font-semibold text-ink-muted px-2 py-1 w-full text-left;
+  }
+
+  .qoves-protocol-viewer {
+    @apply overflow-y-auto overflow-x-hidden;
+    max-height: calc(100vh - 14rem);
+  }
+
+  .qoves-protocol-scroll {
+    @apply mx-auto w-full max-w-[595px] pb-8;
+  }
+
+  .qoves-protocol-scroll .qoves-protocol-document > section,
+  .qoves-protocol-scroll .qoves-protocol-document > div {
+    @apply mb-6;
+  }
+
+  .qoves-protocol-document {
+    @apply space-y-0;
+  }
+
+  .qoves-protocol-page {
+    @apply bg-white dark:bg-surface-card;
+  }
+
+  .qoves-report-a4-page {
+    @apply bg-white dark:bg-surface-card border border-surface-border rounded-lg shadow-card mx-auto overflow-hidden;
+    width: 100%;
+    max-width: 595px;
+    aspect-ratio: 595 / 842;
+    transform-origin: top center;
+  }
+
+  .qoves-report-a4-inner {
+    @apply p-8 sm:p-10 h-full overflow-y-auto;
+  }
+
+  @media (max-width: 1023px) {
+    .qoves-report-layout,
+    .qoves-report-layout--with-rail {
+      grid-template-columns: 1fr;
+    }
+
+    .qoves-report-sidebar {
+      max-height: none;
+      border-right: 0;
+      border-bottom: 1px solid var(--color-surface-border);
+    }
+
+    .qoves-report-canvas {
+      max-height: none;
+    }
+  }
 }
 
 /* Custom scrollbar */
@@ -359,3 +459,74 @@
 .markdown-protocol em {
   @apply text-slate-500 not-italic text-xs;
 }
+
+/* ── Questionnaire Split-screen Styles ── */
+
+.fluid-gradient-mesh {
+  position: relative;
+  background-color: #0d1e1f !important; /* Force dark background in both light & dark mode */
+  overflow: hidden;
+}
+
+/* Wavy fluid mesh blobs animation */
+.fluid-gradient-mesh::before,
+.fluid-gradient-mesh::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.28;
+  mix-blend-mode: screen;
+  animation: float-mesh-blob 20s infinite alternate ease-in-out;
+  pointer-events: none;
+}
+
+.fluid-gradient-mesh::before {
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(circle, #2d5a57 0%, #153c3a 40%, transparent 70%);
+  top: -40%;
+  left: -30%;
+}
+
+.fluid-gradient-mesh::after {
+  width: 120%;
+  height: 120%;
+  background: radial-gradient(circle, #3b716e 0%, #0d2e2c 50%, transparent 80%);
+  bottom: -30%;
+  right: -20%;
+  animation-duration: 25s;
+  animation-delay: -7s;
+}
+
+@keyframes float-mesh-blob {
+  0% {
+    transform: translate(0px, 0px) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.08) rotate(120deg);
+  }
+  66% {
+    transform: translate(-40px, 20px) scale(0.95) rotate(240deg);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1) rotate(360deg);
+  }
+}
+
+/* Questionnaire specific animations */
+.fade-in-slide {
+  animation: fadeInSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

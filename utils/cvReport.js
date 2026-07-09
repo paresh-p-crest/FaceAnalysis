@@ -1,6 +1,7 @@
 import { cropNormalized, analyzeBrowsCrop, sampleRegionStats } from './eyeAnalysis'
 import { analyzeWithMediaPipe } from './mediapipeAnalysis'
 import { safeFixed, safeNum, safeRound } from './safeFormat'
+import { computePrototypicalityReport } from './prototypicalityEngine'
 import {
   lm,
   bboxFullFace,
@@ -813,56 +814,8 @@ function dimorphismMetrics(landmarks, metrics) {
 }
 
 /* ── Averageness Metrics ── */
-function averagenessMetrics(landmarks, metrics) {
-  // Averageness measures how close facial proportions are to population means
-  // Based on established facial aesthetics research
-  const jawL = lm(landmarks, 234)
-  const jawR = lm(landmarks, 454)
-  const chin = lm(landmarks, 152)
-  const forehead = lm(landmarks, 10)
-  const cheekL = lm(landmarks, 127)
-  const cheekR = lm(landmarks, 356)
-  const noseTip = lm(landmarks, 1)
-  const noseBridge = lm(landmarks, 6)
-  const eyeL = lm(landmarks, 33)
-  const eyeR = lm(landmarks, 263)
-  const ipd = distLandmarks(eyeL, eyeR) || 0.001
-  const faceH = chin.y - forehead.y || 0.3
-  const faceW = Math.abs(jawR.x - jawL.x) || 0.3
-
-  // Compare against ideal averages
-  const faceRatio = faceW / faceH
-  const idealRatio = 0.69 // average male face width/height
-  const ratioDeviation = Math.abs(faceRatio - idealRatio) / idealRatio * 100
-
-  const upperThird = (forehead.y + (eyeL.y + eyeR.y) / 2 - forehead.y) / faceH
-  const middleThird = ((eyeL.y + eyeR.y) / 2 - (noseTip.y)) / faceH
-  const lowerThird = (noseTip.y + chin.y - noseTip.y) / faceH
-  const propDeviation = Math.abs(upperThird - 0.33) * 100 + Math.abs(middleThird - 0.34) * 100 + Math.abs(lowerThird - 0.33) * 100
-
-  const symScore = symmetryScore(landmarks, metrics)
-  const symDeviation = Math.max(0, 100 - symScore)
-
-  const noseW = distLandmarks(lm(landmarks, 48), lm(landmarks, 278))
-  const noseRatio = noseW / faceW
-  const noseDeviation = Math.abs(noseRatio - 0.17) * 100
-
-  // Combined averageness score (lower deviation = more average)
-  const totalDeviation = ratioDeviation * 0.3 + propDeviation * 30 + symDeviation * 0.25 + noseDeviation * 0.15
-  const score = Math.min(95, Math.max(40, Math.round(95 - totalDeviation)))
-
-  return {
-    score,
-    label: score >= 85 ? 'Highly Average' : score >= 70 ? 'Above Average' : score >= 55 ? 'Average' : 'Distinctive',
-    scaleLeft: 'Distinctive',
-    scaleRight: 'Highly Average',
-    explanation: `Your facial features show ${score >= 70 ? 'closeness to population averages' : 'distinctive characteristics'} across key proportions. Averageness in facial features is often associated with ${score >= 70 ? 'conventional attractiveness' : 'unique character'}.`,
-    faceRatio: { value: faceRatio.toFixed(2), ideal: idealRatio.toFixed(2), deviation: ratioDeviation.toFixed(1) },
-    proportions: { upper: upperThird.toFixed(2), middle: middleThird.toFixed(2), lower: lowerThird.toFixed(2), deviation: propDeviation.toFixed(1) },
-    symmetry: { score: symScore, deviation: symDeviation.toFixed(1) },
-    nose: { ratio: noseRatio.toFixed(2), ideal: '0.17', deviation: noseDeviation.toFixed(1) },
-    wireframe: { userLandmarks: landmarks, averageLandmarks: null },
-  }
+function averagenessMetrics(landmarks, metrics, answers = {}) {
+  return computePrototypicalityReport(landmarks, metrics, answers)
 }
 
 function overallScore(cvReport, eyeAnalysis, metrics) {
@@ -1871,7 +1824,7 @@ async function loadImage(src) {
   })
 }
 
-export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}) {
+export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, answers = {}) {
   const faceBox = bboxFullFace(landmarks, 0.08)
   const symScore = symmetryScore(landmarks, metrics)
   const symLabel = symmetryLabel(symScore)
@@ -2079,7 +2032,7 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}) {
       ...skin,
     },
     dimorphism: dimorphismMetrics(landmarks, metrics),
-    averageness: averagenessMetrics(landmarks, metrics),
+    averageness: averagenessMetrics(landmarks, metrics, answers),
   }
 
   // Overall composite score

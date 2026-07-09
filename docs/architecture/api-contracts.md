@@ -114,26 +114,28 @@ Main analysis entrypoint: parses image landmarks and saves the results in MongoD
       "age": 28
     },
     "photos": {},
-    "provider": "local",
-    "awsCredentials": {
-      "accessKeyId": "AKIA...",
-      "secretAccessKey": "...",
-      "region": "us-east-1"
+    "photos": {
+      "front": { "poseId": "front", "publicUrl": "/uploads/assessments/abc/front.jpg", "byteSize": 245000 }
     },
+    "provider": "local",
     "scanId": "unique-uuid-here"
   }
   ```
 - **Response Shape (200 OK):**
   ```json
   {
-    "id": "60c72b2f9b1d8e2568cf2002",
-    "status": "draft",
-    "provider": "local",
-    "analysis": {
-      "cvReport": { "symmetry": 85.2 },
-      "protocolWarnings": []
+    "assessmentId": "60c72b2f9b1d8e2568cf2002",
+    "status": "Pending Review",
+    "createdAt": "2026-07-08T12:00:00Z",
+    "photos": {
+      "front": { "poseId": "front", "publicUrl": "/uploads/assessments/abc/front.jpg" }
     },
-    "createdAt": "2026-07-08T12:00:00Z"
+    "analysis": {
+      "cvReport": {
+        "photos": { "front": "/uploads/assessments/abc/front.jpg" },
+        "meta": { "pipelineVersion": "2.0.0", "posesAnalyzed": ["front"], "posesStored": ["front"] }
+      }
+    }
   }
   ```
 
@@ -186,10 +188,10 @@ Updates assessment status (e.g. submitting for review).
 - **Request Body:**
   ```json
   {
-    "status": "pending_review"
+    "status": "Pending Review"
   }
   ```
-- **Response Shape (200 OK):** Updated assessment summary.
+- **Response Shape (200 OK):** Updated assessment summary. `status` is returned as a display label (`Pending Review`, `Approved`).
 
 ### `PATCH /api/assessments/{assessment_id}/admin-review`
 Saves admin review comments, alters client narrative text, and/or publishes reports.
@@ -197,7 +199,7 @@ Saves admin review comments, alters client narrative text, and/or publishes repo
 - **Request Body:**
   ```json
   {
-    "status": "approved",
+    "status": "Approved",
     "adminNotes": "Admin notes...",
     "aiNarrative": {
       "content": "Updated client narrative here..."
@@ -207,13 +209,35 @@ Saves admin review comments, alters client narrative text, and/or publishes repo
 - **Response Shape (200 OK):** Complete updated assessment document.
 
 ### `POST /api/assessments/{assessment_id}/ai-narrative`
-Generates custom OpenAI narrative for an existing assessment using its stored metrics.
-- **Auth:** Private (User)
-- **Response Shape (200 OK):** Narrative JSON dictionary.
+Generates CV-grounded executive narrative JSON for an existing assessment.
+- **Auth:** Owner User or Admin
+- **Payment:** Required for non-admin users (`402` if unpaid)
+- **Response Shape (200 OK):** Updated assessment with `aiNarrative`.
+
+### `GET /api/assessments/{assessment_id}/protocol`
+Loads persisted protocol from storage (`public/uploads/assessments/{id}/protocol.json` locally) with MongoDB fallback.
+- **Auth:** Owner User or Admin
+- **Response Shape (200 OK):**
+  ```json
+  {
+    "protocolData": { "summary": "...", "recommendations": [] },
+    "protocolNarrative": { "summary": "...", "features": {}, "closing": [] },
+    "protocolStorage": { "publicUrl": "/uploads/assessments/{id}/protocol.json" },
+    "source": "storage"
+  }
+  ```
+- **404:** Protocol not yet generated.
+
+### `POST /api/assessments/{assessment_id}/ai-protocol`
+Generates protocol once via `backend/protocol_service.py`, writes JSON to protocol storage, and syncs `protocolData` / `protocolNarrative` to MongoDB.
+- **Auth:** Owner User or Admin
+- **Payment:** Required for non-admin users (`402` if unpaid)
+- **Response Shape (200 OK):** Updated assessment document (idempotent if already stored).
 
 ### `POST /api/assessments/{assessment_id}/ai-visuals`
 Triggers hairstyle, outfits, and healthy aging visual variants.
 - **Auth:** Private (User)
+- **Payment:** Required for non-admin users (`402` if unpaid)
 - **Request Body:**
   ```json
   {
@@ -252,24 +276,21 @@ Builds PDF binary from input Markdown text and options.
 ### `GET /api/assessments/{assessment_id}/assistant`
 Fetches historical messages exchanged in the assessment assistant session.
 - **Auth:** Owner User or Admin
-- **Response Shape (200 OK):** Conversation object with `messages`.
+- **Payment:** Required for non-admin users (`402` if unpaid)
+- **Response Shape (200 OK):** Conversation object with `messages`, optional `sessionSummary`.
 
 ### `POST /api/assessments/{assessment_id}/assistant`
-Sends user prompt and receives a CV-grounded chat response.
+Sends user prompt and receives a CV-grounded non-surgical coaching response.
 - **Auth:** Owner User or Admin
+- **Payment:** Required for non-admin users (`402` if unpaid)
+- **Rate limit:** 20 messages per user per hour (`429` when exceeded)
 - **Request Body:**
   ```json
   {
-    "message": "What hairstyle would fit my oblong face shape?"
+    "message": "What should I focus on for skin quality?"
   }
   ```
-- **Response Shape (200 OK):**
-  ```json
-  {
-    "response": "Based on your measured oblong face shape...",
-    "messages": [ ... ]
-  }
-  ```
+- **Response Shape (200 OK):** Updated conversation with appended `messages`.
 
 ---
 
@@ -352,7 +373,7 @@ Alters default pricing and currency.
   {
     "amountCents": 100,
     "currency": "usd",
-    "productName": "Advanced AuraScan Assessment Report",
+    "productName": "Advanced MyFace Assessment Report",
     "productDescription": "Complete visual scan breakdown"
   }
   ```

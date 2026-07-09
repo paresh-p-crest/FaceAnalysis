@@ -2,7 +2,7 @@ export const ADMIN_TABS = ['overview', 'users', 'review', 'payments', 'settings'
 
 
 
-export const ADMIN_TAB_STORAGE_KEY = 'aurascan_admin_tab'
+export const ADMIN_TAB_STORAGE_KEY = 'myface_admin_tab'
 
 
 

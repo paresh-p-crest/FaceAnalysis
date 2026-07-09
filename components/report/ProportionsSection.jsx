@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FaceImageFrame, ProportionFeatureOverlay } from './FaceImageFrame'
+import { ReportSectionHeading } from './ReportSectionHeading'
 
 const RATIO_PARTS = {
   nasoAural: { primary: 'Ear', secondary: 'Nose' },
@@ -89,14 +90,11 @@ export function ProportionsSection({ proportions }) {
 
   return (
     <div className="pr-2 space-y-6">
-      <div>
-        <h3 className="font-display text-lg font-semibold text-ink">
-          Your proportions per <span className="text-brand">feature</span>
-        </h3>
-        <p className="text-[13px] text-ink-muted font-sans mt-1">
-          We've compared your facial proportionality with data specific to your demographic.
-        </p>
-      </div>
+      <ReportSectionHeading
+        title="Your proportions per"
+        accent="feature"
+        subtitle="We've compared your facial proportionality with data specific to your demographic."
+      />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {RATIO_TABS.map((tab) => (
@@ -110,7 +108,7 @@ export function ProportionsSection({ proportions }) {
                 : 'border-surface-border bg-white dark:bg-surface-card hover:border-brand/30'
             }`}
           >
-            <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-2 font-medium leading-tight">
+            <p className="qoves-report-mono-label mb-2 font-medium leading-tight">
               {tab.ratioLabel}
             </p>
             <p className={`text-base font-display font-semibold ${

@@ -1,7 +1,7 @@
-# AuraScan — AI Facial Analysis
+# MyFace — AI Facial Analysis
 
 ## Purpose
-AuraScan is a documentation-first, AI-powered facial analysis platform that processes uploaded images via a MediaPipe-grounded CV math engine and enriches it with OpenAI GPT narrative reports. It allows gated access via Stripe/PayPal payments, custom admin review workflows, and a report-grounded Beauty Assistant.
+MyFace is a documentation-first, AI-powered facial analysis platform that processes uploaded images via a MediaPipe-grounded CV math engine and enriches it with OpenAI GPT narrative reports. It allows gated access via Stripe/PayPal payments, custom admin review workflows, and a report-grounded Beauty Assistant.
 
 ## Repository Map
 - [backend/](file:///c:/Users/JayRabari/Documents/FacialAnalysis/backend): Python FastAPI code for computer vision analysis, PDF generation, OpenAI interface, database repositories, and payments.
@@ -26,6 +26,7 @@ For full database schemas and collection definitions, see [Domain Models](file:/
 - Run Smoke Tests: `python scripts/smoke_test.py`
 
 ## Quick Links
+- [Design System & Theme](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/design/theme.md)
 - [Industry Practices & Guidelines](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/industry-practices.md)
 - [Architecture Hard Constraints](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/architecture/rules.md)
 - [Architectural Decision Records (ADR)](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/architecture/decisions.md)

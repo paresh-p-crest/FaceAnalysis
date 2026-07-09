@@ -1,4 +1,5 @@
-import { FaceImageFrame, SymmetryOverlay } from './FaceImageFrame'
+import { SymmetryOverlay } from './FaceImageFrame'
+import { FeatureAnalysisPage } from './FeatureAnalysisPage'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -113,31 +114,37 @@ export function BrowReportPanel({ eyebrows }) {
   if (!eyebrows?.metrics) return null
 
   const m = eyebrows.metrics
-  const color = eyebrows.color || 'Dark'
-  const colorHex = eyebrows.colorHex || '#3a2a1a'
-  const density = eyebrows.density || 'Moderate'
-  const densityPct = eyebrows.densityPct ?? 50
-  const unibrow = eyebrows.unibrow || 'None'
-  const edgeSharpness = eyebrows.edgeSharpness || 'Moderate'
+  const color = eyebrows.color
+  const colorHex = eyebrows.colorHex
+  const density = eyebrows.density
+  const densityPct = eyebrows.densityPct
+  const unibrow = eyebrows.unibrow
+  const edgeSharpness = eyebrows.edgeSharpness
   const symmetryData = m.symmetryData || []
 
   return (
+    <FeatureAnalysisPage
+      featureName="eyebrows"
+      subtitle="MediaPipe landmarks + Canvas pixel analysis"
+      heroImage={eyebrows.crop}
+      summaryCards={[
+        { label: 'Shape', value: m.shape },
+        { label: 'Symmetry', value: `${m.symmetryScore}/100` },
+        { label: 'Thickness', value: m.thickness },
+        ...(density ? [{ label: 'Density', value: density }] : []),
+      ]}
+      details={[{
+        title: 'Brow Shape & Impression',
+        body: m.explanation,
+        metricLabel: 'Peak Height',
+        metricValue: `${m.peakHeight} mm`,
+        markerPct: Math.min(100, Math.max(0, ((parseFloat(m.peakHeight) - parseFloat(m.peakMin)) / (parseFloat(m.peakMax) - parseFloat(m.peakMin))) * 100)),
+        rangeMin: 20,
+        rangeMax: 80,
+      }]}
+    >
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h3 className="font-display text-lg font-semibold text-ink mb-1">An overview of your eyebrows</h3>
-        <p className="text-[10px] text-ink-muted font-sans mb-4">MediaPipe landmarks + Canvas pixel analysis · $0 API cost</p>
-        {eyebrows.crop && (
-          <FaceImageFrame
-            src={eyebrows.crop}
-            alt="Your eyebrows"
-            aspect="auto"
-            maxW="380px"
-          />
-        )}
-      </div>
-
-      {/* ── Section 1: Eyebrow Color ── */}
+      {color && colorHex && (
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
         <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Eyebrow Color</p>
         <div className="flex items-center gap-3 mb-4">
@@ -149,6 +156,7 @@ export function BrowReportPanel({ eyebrows }) {
         </div>
         <ColorScaleBar hex={colorHex} />
       </div>
+      )}
 
       {/* ── Section 2: Eyebrow Symmetry ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
@@ -254,13 +262,15 @@ export function BrowReportPanel({ eyebrows }) {
           />
         </div>
         <p className="text-xs text-ink-secondary leading-relaxed">
-          {unibrow !== 'None'
+          {unibrow && unibrow !== 'None'
             ? `Mild unibrow presence detected in the glabella region. Threading or trimming the area between the brows can enhance brow separation and frame.`
-            : `Clean glabella region with no connecting hair between the brows. The ${edgeSharpness.toLowerCase()} edge quality and ${m.tailLengthLabel.toLowerCase()} tail create a ${m.shape.toLowerCase()} silhouette.`}
+            : edgeSharpness && m.tailLengthLabel
+            ? `Clean glabella region with no connecting hair between the brows. The ${edgeSharpness.toLowerCase()} edge quality and ${m.tailLengthLabel.toLowerCase()} tail create a ${m.shape.toLowerCase()} silhouette.`
+            : m.explanation}
         </p>
       </div>
 
-      {/* ── Section 5: Eyebrow Density ── */}
+      {density != null && densityPct != null && (
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
         <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Eyebrow Density</p>
         <p className="text-base font-medium text-ink mb-1">{density}</p>
@@ -274,12 +284,13 @@ export function BrowReportPanel({ eyebrows }) {
             : 'Your brows have lighter density. Growth-enhancing serums or tinting can add fullness. Microblading is another option for a more defined look.'}
         </p>
       </div>
+      )}
 
-      {/* ── Overall Explanation ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-2">Full Analysis Summary</p>
+        <p className="qoves-report-mono-label mb-2">Full Analysis Summary</p>
         <p className="text-sm text-ink-secondary leading-relaxed font-sans">{m.explanation}</p>
       </div>
     </div>
+    </FeatureAnalysisPage>
   )
 }

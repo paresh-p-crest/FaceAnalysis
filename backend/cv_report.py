@@ -894,59 +894,9 @@ def dimorphism_metrics(landmarks: list, metrics: Optional[dict] = None) -> dict:
 # Averageness Metrics
 # ══════════════════════════════════════════════════════════════════════════════
 
-def averageness_metrics(landmarks: list, metrics: Optional[dict] = None) -> dict:
-    jaw_l = lm(landmarks, 234)
-    jaw_r = lm(landmarks, 454)
-    chin = lm(landmarks, 152)
-    forehead = lm(landmarks, 10)
-    cheek_l = lm(landmarks, 127)
-    cheek_r = lm(landmarks, 356)
-    nose_tip = lm(landmarks, 1)
-    eye_l = lm(landmarks, 33)
-    eye_r = lm(landmarks, 263)
-    ipd = dist_landmarks(eye_l, eye_r) or 0.001
-    face_h = chin["y"] - forehead["y"] or 0.3
-    face_w = abs(jaw_r["x"] - jaw_l["x"]) or 0.3
-
-    face_ratio = face_w / face_h
-    ideal_ratio = 0.69
-    ratio_deviation = abs(face_ratio - ideal_ratio) / ideal_ratio * 100
-
-    brow_y = (eye_l["y"] + eye_r["y"]) / 2
-    upper_third = (forehead["y"] + brow_y - forehead["y"]) / face_h
-    middle_third = (brow_y - nose_tip["y"]) / face_h
-    lower_third = (nose_tip["y"] + chin["y"] - nose_tip["y"]) / face_h
-    prop_deviation = abs(upper_third - 0.33) * 100 + abs(middle_third - 0.34) * 100 + abs(lower_third - 0.33) * 100
-
-    sym_score = symmetry_score(landmarks, metrics)
-    sym_deviation = max(0, 100 - sym_score)
-
-    nose_w = dist_landmarks(lm(landmarks, 48), lm(landmarks, 278))
-    nose_ratio = nose_w / face_w
-    nose_deviation = abs(nose_ratio - 0.17) * 100
-
-    total_deviation = ratio_deviation * 0.3 + prop_deviation * 30 + sym_deviation * 0.25 + nose_deviation * 0.15
-    score = min(95, max(40, round(95 - total_deviation)))
-
-    return {
-        "score": score,
-        "label": (
-            "Highly Average" if score >= 85 else ("Above Average" if score >= 70
-            else ("Average" if score >= 55 else "Distinctive"))
-        ),
-        "scaleLeft": "Distinctive",
-        "scaleRight": "Highly Average",
-        "explanation": (
-            f"Your facial features show {'closeness to population averages' if score >= 70 else 'distinctive characteristics'} "
-            f"across key proportions. Averageness in facial features is often associated with "
-            f"{'conventional attractiveness' if score >= 70 else 'unique character'}."
-        ),
-        "faceRatio": {"value": f"{face_ratio:.2f}", "ideal": f"{ideal_ratio:.2f}", "deviation": f"{ratio_deviation:.1f}"},
-        "proportions": {"upper": f"{upper_third:.2f}", "middle": f"{middle_third:.2f}", "lower": f"{lower_third:.2f}", "deviation": f"{prop_deviation:.1f}"},
-        "symmetry": {"score": sym_score, "deviation": f"{sym_deviation:.1f}"},
-        "nose": {"ratio": f"{nose_ratio:.2f}", "ideal": "0.17", "deviation": f"{nose_deviation:.1f}"},
-        "wireframe": {"userLandmarks": landmarks, "averageLandmarks": None},
-    }
+def averageness_metrics(landmarks: list, metrics: Optional[dict] = None, answers: Optional[dict] = None) -> dict:
+    from .prototypicality import compute_prototypicality_report
+    return compute_prototypicality_report(landmarks, metrics, answers)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1543,7 +1493,7 @@ def smile_pixel_analysis(landmarks: list, smile_src: Optional[bytes] = None) -> 
 # build_cv_report() — Main Orchestrator
 # ══════════════════════════════════════════════════════════════════════════════
 
-def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict] = None, photos: Optional[dict] = None) -> dict:
+def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict] = None, photos: Optional[dict] = None, answers: Optional[dict] = None) -> dict:
     """Build the complete CV report from landmarks + image.
 
     Args:
@@ -1655,7 +1605,7 @@ def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict]
         "hair": {**hair_data, "imageSrc": photos.get("topHead", forehead_crop)},
         "skin": skin,
         "dimorphism": dimorphism_metrics(landmarks, metrics),
-        "averageness": averageness_metrics(landmarks, metrics),
+        "averageness": averageness_metrics(landmarks, metrics, answers),
     }
 
     ov = overall_score(report_data, None, metrics)

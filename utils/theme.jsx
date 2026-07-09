@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 
-const THEME_KEY = 'aurascan_theme'
+const THEME_KEY = 'myface_theme'
 
 const ThemeContext = createContext({
   theme: 'light',

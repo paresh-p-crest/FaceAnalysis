@@ -7,7 +7,7 @@ import {
   isBackendApiEnabled,
 } from '../utils/apiClient'
 
-import { isReportApproved, normalizeReportStatus, clientAwaitingReviewMessage } from '../utils/reportWorkflow'
+import { isReportApproved, normalizeReportStatus, formatReportStatusLabel, clientAwaitingReviewMessage } from '../utils/reportWorkflow'
 
 const STATUS_STYLE = {
   pending_review: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -16,7 +16,7 @@ const STATUS_STYLE = {
 
 function StatusBadge({ status }) {
   const display = normalizeReportStatus(status)
-  const label = display === 'approved' ? 'Approved' : 'Pending review'
+  const label = formatReportStatusLabel(status)
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold ${STATUS_STYLE[display] || STATUS_STYLE.pending_review}`}>
       {label}
@@ -189,7 +189,10 @@ export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpe
             ) : (
               <div className="space-y-3">
                 {cloudItems.map((item) => {
-                  const score = item.analysis?.cvReport?.overall?.score ?? item.analysis?.metrics?.harmonyScore ?? '—'
+                  const approved = isReportApproved(item.status)
+                  const score = approved
+                    ? (item.analysis?.cvReport?.overall?.score ?? item.analysis?.metrics?.harmonyScore ?? '—')
+                    : '—'
                   return (
                     <div key={item.id} className="bg-white dark:bg-surface-card rounded-2xl p-4 shadow-card border border-surface-border">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -201,7 +204,8 @@ export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpe
                             <StatusBadge status={item.status} />
                           </div>
                           <p className="text-xs text-ink-muted">
-                            {formatHistoryDate(item.createdAt)} · {item.provider || 'local'} · score {score}
+                            {formatHistoryDate(item.createdAt)} · {item.provider || 'local'}
+                            {approved ? ` · score ${score}` : ' · awaiting review'}
                           </p>
                         </div>
 

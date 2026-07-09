@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { normalizeToJpegDataUrl } from '../../utils/aestheticProjection'
+import { resolveAllFeatureImages } from '../../utils/protocolFeatureImages'
 import {
-  cropFeatureBefore,
-  normalizeToJpegDataUrl,
-  projectFeatureAfter,
-  projectFullFaceAfter,
-} from '../../utils/aestheticProjection'
-import {
+  buildClosingColumns,
   buildClosingRecommendations,
   buildFeaturePages,
   buildProtocolContents,
@@ -14,8 +11,10 @@ import {
   formatProtocolEditionDate,
   formatProtocolMonth,
   getClientName,
-  getRadarData,
+  getFeatureComparisonData,
   INTRODUCTION_PARAGRAPHS,
+  LIMITATIONS_PARAGRAPH,
+  PRIVACY_PARAGRAPHS,
   QOVES_PROTOCOL_FEATURES,
   UNDERSTANDING_RESULTS,
 } from '../../utils/qovesProtocolModel'
@@ -28,114 +27,147 @@ function PageLabel({ page }) {
   )
 }
 
-function SectionBlock({ title, subtitle, page, children }) {
+function SplitTitle({ primary, secondary }) {
+  return (
+    <h2 className="font-display text-2xl font-semibold mb-1">
+      <span className="text-ink">{primary}</span>
+      {secondary && <span className="text-ink-muted font-normal"> {secondary}</span>}
+    </h2>
+  )
+}
+
+function SectionBlock({ title, subtitle, page, children, splitTitle }) {
   return (
     <section className="qoves-protocol-page rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-6 sm:p-8 shadow-card">
       {page != null && <PageLabel page={page} />}
-      <h2 className="font-display text-2xl font-semibold text-ink mb-1">{title}</h2>
+      {splitTitle ? (
+        <SplitTitle primary={splitTitle.primary} secondary={splitTitle.secondary} />
+      ) : (
+        <h2 className="font-display text-2xl font-semibold text-ink mb-1">{title}</h2>
+      )}
       {subtitle && <p className="text-xs text-ink-muted mb-5 font-sans">{subtitle}</p>}
       {children}
     </section>
   )
 }
 
-function BeforeAfterPair({ beforeSrc, afterSrc, label = 'Projected potential' }) {
+function ImageFrame({ src, tag, emptyLabel = 'Projected image pending' }) {
   return (
-    <div className="grid sm:grid-cols-2 gap-4 my-5">
-      <div>
-        <p className="text-[10px] uppercase tracking-wider text-ink-muted text-center mb-2 font-semibold">Before</p>
-        <div className="rounded-xl overflow-hidden bg-surface-warm border border-surface-border aspect-[3/4] flex items-center justify-center">
-          {beforeSrc ? (
-            <img src={beforeSrc} alt="Before" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-xs text-ink-muted">No image</span>
-          )}
-        </div>
-      </div>
-      <div>
-        <p className="text-[10px] uppercase tracking-wider text-brand text-center mb-2 font-semibold">After</p>
-        <div className="rounded-xl overflow-hidden bg-brand-50/40 border border-brand/20 aspect-[3/4] flex items-center justify-center">
-          {afterSrc ? (
-            <img src={afterSrc} alt="After projected" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-xs text-ink-muted">{label}</span>
-          )}
-        </div>
-      </div>
+    <div className="relative rounded-xl overflow-hidden bg-surface-warm border border-surface-border aspect-[4/3] flex items-center justify-center">
+      {src ? (
+        <img src={src} alt={tag || 'Feature'} className="w-full h-full object-cover" />
+      ) : (
+        <span className="text-xs text-ink-muted font-sans px-4 text-center">{emptyLabel}</span>
+      )}
+      {tag && (
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-ink/70 text-white">
+          {tag}
+        </span>
+      )}
     </div>
   )
 }
 
-function RadarMini({ items }) {
-  const size = 220
-  const cx = size / 2
-  const cy = size / 2
-  const radius = 78
-  const n = items.length
-  const angleStep = (Math.PI * 2) / n
-  const toPoint = (score, i) => {
-    const a = -Math.PI / 2 + i * angleStep
-    const r = (score / 100) * radius
-    return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }
+function BeforeAfterPair({ beforeSrc, stacked = false }) {
+  if (stacked) {
+    return (
+      <div className="flex flex-col gap-3 my-4">
+        <ImageFrame src={beforeSrc} tag="BEFORE" />
+        <ImageFrame src={null} tag="AFTER" />
+      </div>
+    )
   }
-  const poly = (scores) =>
-    scores
-      .map((score, i) => {
-        const p = toPoint(score, i)
-        return `${p.x},${p.y}`
-      })
-      .join(' ')
-
   return (
-    <div className="flex flex-col items-center gap-3">
-      <svg width={size} height={size} className="mx-auto">
-        {[0.25, 0.5, 0.75, 1].map((lvl) => (
-          <circle key={lvl} cx={cx} cy={cy} r={radius * lvl} fill="none" stroke="#e5e7eb" strokeWidth="1" />
-        ))}
-        {items.map((_, i) => {
-          const a = -Math.PI / 2 + i * angleStep
-          const x2 = cx + Math.cos(a) * radius
-          const y2 = cy + Math.sin(a) * radius
-          return <line key={i} x1={cx} y1={cy} x2={x2} y2={y2} stroke="#e5e7eb" strokeWidth="1" />
-        })}
-        <polygon points={poly(items.map((i) => i.projected))} fill="rgba(15,118,110,0.18)" stroke="#0f766e" strokeWidth="1.5" />
-        <polygon points={poly(items.map((i) => i.score))} fill="rgba(51,65,85,0.12)" stroke="#334155" strokeWidth="1.5" />
-      </svg>
-      <p className="text-[10px] text-ink-muted text-center font-sans">
-        Inner: current scores · Outer teal: projected potential
-      </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-ink-muted font-sans">
-        {items.map((item) => (
-          <span key={item.label}>{item.label}</span>
-        ))}
+    <div className="grid grid-cols-2 gap-3 my-4">
+      <ImageFrame src={beforeSrc} tag="BEFORE" />
+      <ImageFrame src={null} tag="AFTER" />
+    </div>
+  )
+}
+
+function DumbbellChart({ items }) {
+  const trackW = 140
+  return (
+    <div className="space-y-1.5">
+      {items.map((item) => {
+        const cx = (item.score / 100) * trackW
+        const px = (item.projected / 100) * trackW
+        return (
+          <div key={item.label} className="flex items-center gap-3 text-[10px] font-sans">
+            <span className="w-14 shrink-0 text-ink-secondary">{item.label}</span>
+            <div className="relative flex-1 h-4 max-w-[160px]">
+              <div className="absolute top-1/2 left-0 right-0 h-px bg-surface-border -translate-y-1/2" />
+              <div
+                className="absolute top-1/2 h-0.5 bg-slate-500 -translate-y-1/2"
+                style={{ left: `${Math.min(cx, px)}px`, width: `${Math.abs(px - cx)}px` }}
+              />
+              <div
+                className="absolute top-1/2 w-2 h-2 rounded-full bg-slate-600 -translate-y-1/2 -translate-x-1/2"
+                style={{ left: `${cx}px` }}
+              />
+              <div
+                className="absolute top-1/2 w-2 h-2 rounded-full bg-brand -translate-y-1/2 -translate-x-1/2"
+                style={{ left: `${px}px` }}
+              />
+            </div>
+          </div>
+        )
+      })}
+      <div className="flex gap-4 pt-2 text-[9px] text-ink-muted">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-slate-600" /> Client Values
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-brand" /> Projected Potential
+        </span>
       </div>
     </div>
   )
 }
+
+function SummaryBar({ title, summary }) {
+  return (
+    <div className="rounded-xl bg-gradient-to-r from-ink-secondary to-ink-muted p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+      <p className="text-[10px] uppercase tracking-wider text-white/80 font-semibold shrink-0">{title}</p>
+      <p className="text-sm text-white leading-relaxed font-sans">{summary}</p>
+    </div>
+  )
+}
+
+/** Paginated protocol viewer page count (cover + disclaimer + intro + understanding + protocol + closing). */
+export const PROTOCOL_PAGINATED_PAGE_COUNT = 6
 
 export default function QovesProtocolReport({
   photo,
+  photos,
   landmarks,
   cvReport,
   metrics,
   answers,
   eyeAnalysis,
   protocolData,
+  protocolNarrative,
   aiNarrative,
+  pageIndex = 0,
+  paginated = false,
 }) {
   const clientName = getClientName(answers)
   const edition = formatProtocolEditionDate()
   const month = formatProtocolMonth()
-  const featurePages = useMemo(() => buildFeaturePages(cvReport, eyeAnalysis), [cvReport, eyeAnalysis])
-  const contents = useMemo(() => buildProtocolContents(clientName), [clientName])
-  const closing = useMemo(
-    () => buildClosingRecommendations(aiNarrative, cvReport, clientName),
-    [aiNarrative, cvReport, clientName]
+  const featurePages = useMemo(
+    () => buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative),
+    [cvReport, eyeAnalysis, protocolNarrative]
   )
-  const radarItems = useMemo(() => getRadarData(cvReport), [cvReport])
+  const contents = useMemo(() => buildProtocolContents(clientName), [clientName])
+  const closingParagraphs = useMemo(
+    () => buildClosingRecommendations(aiNarrative, cvReport, clientName, protocolNarrative),
+    [aiNarrative, cvReport, clientName, protocolNarrative]
+  )
+  const closingCols = useMemo(() => buildClosingColumns(closingParagraphs), [closingParagraphs])
+  const chartItems = useMemo(() => getFeatureComparisonData(cvReport), [cvReport])
 
   const [loading, setLoading] = useState(true)
-  const [images, setImages] = useState({ fullBefore: null, fullAfter: null, features: {} })
+  const [images, setImages] = useState({ fullBefore: null, features: {} })
 
   useEffect(() => {
     let cancelled = false
@@ -147,22 +179,19 @@ export default function QovesProtocolReport({
       setLoading(true)
       try {
         const photoJpeg = await normalizeToJpegDataUrl(photo)
-        const [fullAfter, ...featurePairs] = await Promise.all([
-          projectFullFaceAfter(photoJpeg, landmarks, cvReport, metrics),
-          ...featurePages.map(async (page) => {
-            const [beforeJpeg, afterJpeg] = await Promise.all([
-              cropFeatureBefore(photoJpeg, landmarks, page.projectionId),
-              projectFeatureAfter(photoJpeg, landmarks, page.projectionId, cvReport, metrics),
-            ])
-            return [page.id, { before: beforeJpeg || photoJpeg, after: afterJpeg }]
-          }),
-        ])
+        const features = await resolveAllFeatureImages({
+          featurePages,
+          photoJpeg,
+          landmarks,
+          cvReport,
+          eyeAnalysis,
+          photos,
+        })
         if (cancelled) return
-        const features = Object.fromEntries(featurePairs)
-        setImages({ fullBefore: photoJpeg, fullAfter, features })
+        setImages({ fullBefore: photoJpeg, features })
       } catch (err) {
-        console.warn('Protocol image projection failed:', err)
-        if (!cancelled) setImages({ fullBefore: photo, fullAfter: null, features: {} })
+        console.warn('Protocol image load failed:', err)
+        if (!cancelled) setImages({ fullBefore: photo, features: {} })
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -171,7 +200,7 @@ export default function QovesProtocolReport({
     return () => {
       cancelled = true
     }
-  }, [photo, landmarks, cvReport, metrics, featurePages])
+  }, [photo, photos, landmarks, cvReport, eyeAnalysis, featurePages])
 
   if (!cvReport) {
     return <p className="text-sm text-ink-muted font-sans">Analysis data required for protocol report.</p>
@@ -186,115 +215,199 @@ export default function QovesProtocolReport({
     )
   }
 
-  return (
-    <div className="space-y-6 pb-8 qoves-protocol-document">
-      {/* Cover */}
-      <section className="rounded-2xl border border-ink/10 bg-ink text-white p-8 sm:p-12 min-h-[420px] flex flex-col justify-between">
+  const pages = [
+    (
+      <section
+        key="cover"
+        className="rounded-2xl overflow-hidden border border-ink/10 bg-ink text-white p-6 sm:p-10 min-h-[480px] flex flex-col justify-between"
+      >
         <div>
-          <p className="text-[10px] uppercase tracking-[0.25em] text-white/60 mb-8">AuraScan</p>
-          <p className="text-sm text-white/70 mb-2">{clientName} · {month}</p>
-          <h1 className="font-display text-4xl sm:text-5xl font-semibold leading-tight mb-2">Aesthetic Protocol</h1>
-          <p className="text-xs uppercase tracking-[0.2em] text-white/50">Written {edition} · Protocol Edition</p>
+          <p className="text-[10px] uppercase tracking-[0.25em] text-white/60 mb-10">MyFace</p>
+          <p className="text-sm text-white/80 mb-6">{clientName} · {month}</p>
+          <h1 className="font-display text-4xl sm:text-5xl font-semibold leading-tight">
+            Aesthetic <span className="text-white/50 font-normal">Protocol</span>
+          </h1>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/50 mt-4">
+            Written {edition} · Protocol Edition
+          </p>
         </div>
-        <p className="text-xs text-white/50 mt-8">Measurement-guided · MediaPipe + OpenCV</p>
+        <p className="text-xs text-white/40">Measurement-guided · MediaPipe + OpenCV</p>
       </section>
-
-      {/* Disclaimer */}
-      <SectionBlock title="Disclaimer Policy" page={2}>
-        <div className="space-y-4 text-sm text-ink-secondary leading-relaxed font-sans">
-          {DISCLAIMER_PARAGRAPHS.map((para, i) => (
-            <p key={i}>{para}</p>
-          ))}
+    ),
+    (
+      <SectionBlock key="disclaimer" splitTitle={{ primary: 'Disclaimer', secondary: 'Policy' }} page={2}>
+        <div className="grid sm:grid-cols-2 gap-8 mt-4">
+          <div>
+            <h3 className="text-sm font-semibold text-ink font-display mb-3">Disclaimer Policy</h3>
+            <div className="space-y-3 text-sm text-ink-secondary leading-relaxed font-sans">
+              {DISCLAIMER_PARAGRAPHS.map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-ink font-display mb-3">Privacy Policy</h3>
+            <div className="space-y-3 text-sm text-ink-secondary leading-relaxed font-sans">
+              {PRIVACY_PARAGRAPHS.map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
+            </div>
+          </div>
         </div>
         <p className="text-xs text-ink-muted mt-6 font-sans">
           The following report was commissioned for <strong>{clientName}</strong> on {month}.
         </p>
       </SectionBlock>
-
-      {/* Introduction */}
-      <SectionBlock title="Introduction" page={3}>
-        <div className="space-y-4 text-sm text-ink-secondary leading-relaxed font-sans mb-8">
-          {INTRODUCTION_PARAGRAPHS.map((para, i) => (
-            <p key={i}>{para}</p>
-          ))}
+    ),
+    (
+      <SectionBlock key="intro" title="Introduction" page={3}>
+        <div className="grid sm:grid-cols-2 gap-8 mt-2">
+          <div className="space-y-4 text-sm text-ink-secondary leading-relaxed font-sans">
+            {INTRODUCTION_PARAGRAPHS.map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+            <div>
+              <h3 className="text-sm font-semibold text-ink font-display mb-2">Limitations</h3>
+              <p>{LIMITATIONS_PARAGRAPH}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted mb-3">Contents</p>
+            <ul className="space-y-2 text-sm font-sans">
+              {contents.map((item) => (
+                <li key={item.label} className="flex justify-between gap-4 border-b border-surface-border/60 pb-2">
+                  <span className="text-ink-secondary">{item.label}</span>
+                  <span className="text-ink-muted tabular-nums">{String(item.page).padStart(2, '0')}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted mb-3">Contents</p>
-        <ul className="space-y-2 text-sm font-sans">
-          {contents.map((item) => (
-            <li key={item.label} className="flex justify-between gap-4 border-b border-surface-border/60 pb-2">
-              <span className="text-ink-secondary">{item.label}</span>
-              <span className="text-ink-muted tabular-nums">{String(item.page).padStart(2, '0')}</span>
-            </li>
-          ))}
-        </ul>
       </SectionBlock>
-
-      {/* Understanding */}
-      <SectionBlock title="Understanding Your Results" page={4}>
-        <ol className="space-y-5">
+    ),
+    (
+      <SectionBlock
+        key="understanding"
+        splitTitle={{ primary: 'Understanding', secondary: 'Your Results' }}
+        page={4}
+      >
+        <ol className="space-y-5 mt-4">
           {UNDERSTANDING_RESULTS.map((item, i) => (
             <li key={i} className="flex gap-4 text-sm text-ink-secondary leading-relaxed font-sans">
-              <span className="text-brand font-display font-bold text-lg shrink-0">{String(i + 1).padStart(2, '0')}</span>
+              <span className="text-ink-muted font-display font-bold text-xl shrink-0 w-8">
+                {String(i + 1).padStart(2, '0')}
+              </span>
               <span>{item}</span>
             </li>
           ))}
         </ol>
       </SectionBlock>
+    ),
+    (
+      <SectionBlock
+        key="protocol"
+        splitTitle={{ primary: `${clientName}'s`, secondary: 'Protocol' }}
+        page={5}
+      >
+        <p className="text-sm text-ink-secondary leading-relaxed font-sans mb-4 mt-2">
+          {protocolNarrative?.summary ||
+            protocolData?.summary ||
+            'This evidence-based protocol is grounded in your measured facial analysis, organised around 11 key features for facial aesthetics.'}
+        </p>
+        <BeforeAfterPair beforeSrc={images.fullBefore} />
+        <div className="grid sm:grid-cols-2 gap-6 mt-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted mb-3">
+              Projected potential · 11 key features
+            </p>
+            <div className="grid grid-cols-2 gap-1 text-xs text-ink-secondary font-sans">
+              {QOVES_PROTOCOL_FEATURES.map((f) => (
+                <span key={f.id}>· {f.title}</span>
+              ))}
+            </div>
+          </div>
+          <DumbbellChart items={chartItems} />
+        </div>
+      </SectionBlock>
+    ),
+  ]
 
-      {/* Client protocol overview */}
-      <SectionBlock title={`${clientName}'s Protocol`} page={5}>
-        <p className="text-sm text-ink-secondary leading-relaxed font-sans mb-4">
-          {protocolData?.summary ||
-            'To help you achieve your aesthetic potential, we have developed this science-based protocol grounded in your measured facial analysis. Projected images apply subtle region-specific corrections — not global filters.'}
-        </p>
-        <BeforeAfterPair beforeSrc={images.fullBefore} afterSrc={images.fullAfter} />
-        <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted mb-3">
-          Projected potential · 11 key features
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-ink-secondary font-sans mb-6">
-          {QOVES_PROTOCOL_FEATURES.map((f) => (
-            <span key={f.id}>· {f.title}</span>
+  const closingPage = (
+    <SectionBlock
+      key="closing"
+      splitTitle={{ primary: 'Closing', secondary: 'Recommendations' }}
+      page={16}
+      subtitle="Synthesised protocol guidance · Grounded with your data"
+    >
+      <div className="grid sm:grid-cols-2 gap-8 mt-4 relative">
+        <div className="hidden sm:block absolute left-1/2 top-0 bottom-0 w-px bg-surface-border" />
+        <div className="space-y-4 text-sm text-ink-secondary leading-relaxed font-sans">
+          {closingCols.left.map((para, i) => (
+            <p key={i}>{para}</p>
           ))}
         </div>
-        <RadarMini items={radarItems} />
-      </SectionBlock>
+        <div className="space-y-4 text-sm text-ink-secondary leading-relaxed font-sans">
+          {closingCols.right.map((para, i) => (
+            <p key={i}>{para}</p>
+          ))}
+        </div>
+      </div>
+      {!aiNarrative?.content && !protocolNarrative?.closing?.length && (
+        <p className="text-xs text-amber-700 mt-4 font-sans">
+          Configure OpenAI for richer per-feature narrative, or use admin AI narrative for closing copy.
+        </p>
+      )}
+    </SectionBlock>
+  )
 
-      {/* Per-feature pages */}
+  const paginatedPages = [...pages, closingPage]
+
+  if (paginated) {
+    return <div className="qoves-protocol-document h-full">{paginatedPages[pageIndex] || paginatedPages[0]}</div>
+  }
+
+  return (
+    <div className="space-y-6 pb-8 qoves-protocol-document">
+      {pages}
+
       {featurePages.map((page) => {
         const pair = images.features[page.id] || {}
         const qovesMeta = QOVES_PROTOCOL_FEATURES.find((f) => f.id === page.id)
+        const titleParts = page.title.split(' ')
+        const stacked = page.layoutHints?.stackedImages
         return (
-          <SectionBlock key={page.id} title={page.title} page={qovesMeta?.page}>
-            {page.subsections.map((sub) => (
-              <div key={sub.title} className="mb-5">
-                <h3 className="text-sm font-semibold text-ink font-display mb-2">{sub.title}</h3>
-                <p className="text-sm text-ink-secondary leading-relaxed font-sans">{sub.body}</p>
+          <SectionBlock
+            key={page.id}
+            page={qovesMeta?.page}
+            splitTitle={{ primary: titleParts[0], secondary: titleParts.slice(1).join(' ') }}
+          >
+            <div className="grid sm:grid-cols-2 gap-6 mt-4">
+              <div>
+                {page.subsections.map((sub) => (
+                  <div key={sub.title} className="mb-5">
+                    <h3 className="text-sm font-semibold text-ink font-display mb-2">{sub.title}</h3>
+                    <p className="text-sm text-ink-secondary leading-relaxed font-sans">{sub.body}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-            <BeforeAfterPair beforeSrc={pair.before || images.fullBefore} afterSrc={pair.after} />
-            <div className="rounded-xl bg-surface-warm dark:bg-surface-raised border border-surface-border p-4">
-              <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-semibold">
-                {page.title.replace(' Recommendations', '')} Summary
-              </p>
-              <p className="text-sm text-ink-secondary leading-relaxed font-sans">{page.summary}</p>
+              <div>
+                {page.layoutHints?.profileImage && pair.profile && pair.profileIsReal && (
+                  <div className="mb-3">
+                    <ImageFrame src={pair.profile} tag="PROFILE" />
+                  </div>
+                )}
+                <BeforeAfterPair beforeSrc={pair.before || images.fullBefore} stacked={stacked} />
+              </div>
             </div>
+            <SummaryBar
+              title={`${page.title.replace(' Recommendations', '')} Summary`}
+              summary={page.summary}
+            />
           </SectionBlock>
         )
       })}
 
-      {/* Closing — admin AI narrative */}
-      <SectionBlock title="Closing Recommendations" page={16} subtitle="Admin-reviewed narrative · CV-grounded">
-        <div className="space-y-4 text-sm text-ink-secondary leading-relaxed font-sans">
-          {closing.map((para, i) => (
-            <p key={i}>{para}</p>
-          ))}
-        </div>
-        {!aiNarrative?.content && (
-          <p className="text-xs text-amber-700 mt-4 font-sans">
-            Admin can generate AI narrative in review panel; it will appear here and in the downloaded PDF.
-          </p>
-        )}
-      </SectionBlock>
+      {closingPage}
     </div>
   )
 }

@@ -1,12 +1,8 @@
 import { jsPDF } from 'jspdf'
+import { normalizeToJpegDataUrl } from './aestheticProjection'
+import { resolveAllFeatureImages } from './protocolFeatureImages'
 import {
-  projectFullFaceAfter,
-  projectFeatureAfter,
-  cropFeatureBefore,
-  normalizeToJpegDataUrl,
-} from './aestheticProjection'
-import { safeDisplay } from './safeFormat'
-import {
+  buildClosingColumns,
   buildClosingRecommendations,
   buildFeaturePages,
   buildProtocolContents,
@@ -14,19 +10,28 @@ import {
   formatProtocolEditionDate,
   formatProtocolMonth,
   getClientName,
-  getRadarData,
+  getFeatureComparisonData,
   INTRODUCTION_PARAGRAPHS,
+  LIMITATIONS_PARAGRAPH,
+  PRIVACY_PARAGRAPHS,
+  QOVES_PROTOCOL_FEATURES,
   UNDERSTANDING_RESULTS,
 } from './qovesProtocolModel'
 
-const BRAND = { r: 15, g: 118, b: 110 }
-const SLATE = { r: 51, g: 65, b: 85 }
-const INK = { r: 23, g: 23, b: 23 }
-const MUTED = { r: 100, g: 116, b: 125 }
+// MyFace theme tokens (docs/design/theme.md)
+const BRAND = { r: 94, g: 159, b: 139 }
+const SLATE = { r: 55, g: 65, b: 81 }
+const INK = { r: 17, g: 24, b: 39 }
+const MUTED = { r: 107, g: 114, b: 128 }
+const SURFACE_WARM = { r: 250, g: 251, b: 253 }
+const SUMMARY_BG = { r: 55, g: 65, b: 81 }
 const PAGE_W = 595.28
 const PAGE_H = 841.89
 const MARGIN = 48
 const CONTENT_W = PAGE_W - MARGIN * 2
+const COL_GAP = 20
+const COL_W = (CONTENT_W - COL_GAP) / 2
+const IMG_QUALITY = 'SLOW'
 
 function setBrand(doc) {
   doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
@@ -40,50 +45,48 @@ function setMuted(doc) {
   doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
 }
 
+function setWhite(doc) {
+  doc.setTextColor(255, 255, 255)
+}
+
 function addFooter(doc, pageNum) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
-  doc.text('AuraScan · Confidential Facial Analysis', MARGIN, PAGE_H - 28)
+  doc.text('MyFace · Confidential Facial Analysis', MARGIN, PAGE_H - 28)
   doc.text(`Page ${pageNum}`, PAGE_W - MARGIN, PAGE_H - 28, { align: 'right' })
 }
 
-function addPageHeader(doc, title, subtitle) {
-  doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
-  doc.rect(0, 0, PAGE_W, 6, 'F')
+function drawPageNumber(doc, num) {
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  setInk(doc)
-  doc.text(title, MARGIN, 52)
-  if (subtitle) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    setMuted(doc)
-    doc.text(subtitle, MARGIN, 68)
-  }
-  doc.setDrawColor(230, 235, 238)
-  doc.line(MARGIN, 78, PAGE_W - MARGIN, 78)
+  doc.setFontSize(9)
+  setMuted(doc)
+  doc.text(`PAGE / ${String(num).padStart(2, '0')}`, PAGE_W - MARGIN, 40, { align: 'right' })
 }
 
-function wrapText(doc, text, x, y, maxWidth, lineHeight = 14) {
+function drawBrandBar(doc) {
+  doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
+  doc.rect(0, 0, PAGE_W, 4, 'F')
+}
+
+function wrapText(doc, text, x, y, maxWidth, lineHeight = 13) {
   const lines = doc.splitTextToSize(text || '', maxWidth)
   lines.forEach((line, i) => doc.text(line, x, y + i * lineHeight))
   return y + lines.length * lineHeight
 }
 
-function drawScoreBar(doc, x, y, width, height, score, label) {
-  doc.setFillColor(240, 244, 245)
-  doc.roundedRect(x, y, width, height, 2, 2, 'F')
-  const fillW = (Math.min(100, Math.max(0, score)) / 100) * width
-  doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
-  doc.roundedRect(x, y, fillW, height, 2, 2, 'F')
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  setInk(doc)
-  doc.text(label, x, y - 3)
-  setBrand(doc)
+function drawSplitTitle(doc, x, y, primary, secondary, size = 22) {
   doc.setFont('helvetica', 'bold')
-  doc.text(String(score), x + width + 8, y + height - 1)
+  doc.setFontSize(size)
+  setInk(doc)
+  doc.text(primary, x, y)
+  if (secondary) {
+    doc.setFont('helvetica', 'normal')
+    setMuted(doc)
+    doc.text(secondary, x, y + size * 0.85)
+    return y + size * 1.6
+  }
+  return y + size * 0.5
 }
 
 function fitImage(w, h, maxW, maxH) {
@@ -95,259 +98,169 @@ function addPdfImage(doc, dataUrl, x, y, maxW, maxH) {
   if (!dataUrl) return { w: 0, h: 0 }
   const props = doc.getImageProperties(dataUrl)
   const fit = fitImage(props.width, props.height, maxW, maxH)
-  doc.addImage(dataUrl, 'JPEG', x, y, fit.w, fit.h, undefined, 'FAST')
+  doc.addImage(dataUrl, 'JPEG', x, y, fit.w, fit.h, undefined, IMG_QUALITY)
   return fit
 }
 
-function tipsFromExplanation(explanation, fallbacks = []) {
-  if (!explanation) return fallbacks.length ? fallbacks : ['Follow the personalized protocol for this feature.']
-  const parts = explanation.split(/[.!?]+/).map((s) => s.trim()).filter(Boolean)
-  return parts.slice(0, 3).map((s) => (s.endsWith('.') ? s : `${s}.`))
-}
-
-function buildProtocolSections(cvReport, photoJpeg, eyeAnalysis) {
-  const face = cvReport?.symmetry?.imageSrc || cvReport?.faceShape?.imageSrc || photoJpeg
-  const sections = [
-    { id: 'hair', title: 'Hair', score: cvReport?.hair?.score,
-      before: cvReport?.hair?.imageSrc || face,
-      tips: tipsFromExplanation(cvReport?.hair?.explanation, [
-        'Keep hairline clean with regular trims.',
-        'Use lightweight products to avoid weighing hair down.',
-      ]),
-    },
-    { id: 'eyebrows', title: 'Eyebrows', score: cvReport?.eyebrows?.metrics ? 80 : null,
-      before: cvReport?.eyebrows?.crop || face,
-      tips: tipsFromExplanation(null, [
-        `Shape: ${safeDisplay(cvReport?.eyebrows?.metrics?.shape, 'Natural')}. Consider professional grooming for definition.`,
-        'Brush brows upward in the morning for a lifted look.',
-      ]),
-    },
-    { id: 'eyes', title: 'Eyes', score: cvReport?.eyes?.score,
-      before: eyeAnalysis?.eyesCrop || face,
-      tips: tipsFromExplanation(eyeAnalysis?.metrics?.explanation || cvReport?.eyes?.explanation, [
-        'Prioritize 7–9 hours sleep to reduce periorbital shadows.',
-        'Apply SPF and sunglasses to protect the delicate eye area.',
-      ]),
-    },
-    { id: 'nose', title: 'Nose', score: cvReport?.nose?.score,
-      before: cvReport?.nose?.imageSrc || face,
-      tips: tipsFromExplanation(cvReport?.nose?.explanation, [
-        'Subtle highlight along the bridge can refine proportions.',
-        'Keep skin matte on the nose to reduce shine.',
-      ]),
-    },
-    { id: 'cheeks', title: 'Cheeks', score: cvReport?.cheeks?.score,
-      before: cvReport?.cheeks?.imageSrc || face,
-      tips: tipsFromExplanation(cvReport?.cheeks?.explanation, [
-        'Maintain even hydration across both cheeks.',
-        'Light contour can enhance cheekbone definition.',
-      ]),
-    },
-    { id: 'jaw', title: 'Jaw', score: cvReport?.jaw?.score || cvReport?.jawChin?.score,
-      before: cvReport?.jaw?.imageSrc || cvReport?.jawChin?.imageSrc || face,
-      tips: tipsFromExplanation(cvReport?.jaw?.explanation || cvReport?.jawChin?.explanation, [
-        'Jaw exercises can support lower-face definition over time.',
-        'Maintain good posture for a sharper jaw-neck angle.',
-      ]),
-    },
-    { id: 'lips', title: 'Lips', score: cvReport?.lips?.score,
-      before: cvReport?.lips?.imageSrc || face,
-      tips: tipsFromExplanation(cvReport?.lips?.explanation, [
-        'Use a hydrating lip balm with ceramides daily.',
-        'Gentle exfoliation 1–2× weekly keeps lips smooth.',
-      ]),
-    },
-    { id: 'chin', title: 'Chin', score: cvReport?.chin?.score || cvReport?.jawChin?.score,
-      before: cvReport?.chin?.imageSrc || cvReport?.jawChin?.imageSrc || face,
-      tips: tipsFromExplanation(cvReport?.chin?.explanation, [
-        'Chin posture exercises support a balanced profile.',
-        'Keep beard lines sharp if facial hair is worn.',
-      ]),
-    },
-    { id: 'skin', title: 'Skin', score: cvReport?.skin?.score,
-      before: face,
-      tips: tipsFromExplanation(cvReport?.skin?.explanation, [
-        'Daily SPF 30+ is the foundation of skin improvement.',
-        'Consistent cleanser + moisturizer morning and night.',
-      ]),
-    },
-    { id: 'neck', title: 'Neck', score: cvReport?.neck?.score,
-      before: cvReport?.neck?.imageSrc || face,
-      tips: tipsFromExplanation(cvReport?.neck?.explanation, [
-        'Extend skincare routine to the neck and décolletage.',
-        'Neck stretches improve posture and jaw-neck transition.',
-      ]),
-    },
-    { id: 'ears', title: 'Ears', score: cvReport?.ears?.score,
-      before: cvReport?.ears?.imageSrc || face,
-      tips: tipsFromExplanation(cvReport?.ears?.explanation, [
-        'Keep hair styling balanced to frame ear proportions.',
-        'Maintain clean, moisturized skin behind the ears.',
-      ]),
-    },
-  ]
-  return sections
-}
-
-function getFeatureMeasurements(sectionId, cvReport, metrics) {
-  const anth = metrics?.anthropometrics?.measurements || []
-  const pick = (...ids) => ids.map((id) => anth.find((m) => m.id === id)).filter(Boolean)
-
-  switch (sectionId) {
-    case 'hair':
-      return pick('hairline').map((m) => `${m.label}: ${m.value} (ideal ${m.ideal})`)
-    case 'eyebrows':
-      return [`Brow symmetry index: ${safeDisplay(metrics?.anthropometrics?.featureScores?.symmetry, '—')}/100`]
-    case 'eyes':
-      return pick('canthalTilt', 'interocular').map((m) => `${m.label}: ${m.value} ${m.unit}`)
-    case 'nose':
-      return [`Nasal W/L: ${safeDisplay(cvReport?.nose?.widthLengthRatio, '—')}`, ...pick('noseWidthIpd').map((m) => `${m.label}: ${m.value}`)]
-    case 'jaw':
-    case 'chin':
-      return pick('jawWidth', 'chinHeight').map((m) => `${m.label}: ${m.value}`)
-    case 'lips':
-      return pick('philtrumLip').map((m) => `${m.label}: ${m.value} (ideal ${m.ideal})`)
-    case 'skin':
-      return [`Skin score: ${cvReport?.skin?.score || '—'}/100`, `Tone: ${safeDisplay(cvReport?.skin?.tone, '—')}`]
-    default:
-      return sectionId === 'cheeks' || sectionId === 'neck' || sectionId === 'ears'
-        ? [`Feature score: ${cvReport?.[sectionId]?.score || '—'}/100`]
-        : pick('symmetry').map((m) => `${m.label}: ${m.value}`)
-  }
-}
-
-function drawRadarChart(doc, cx, cy, radius, items) {
-  const n = items.length
-  const angleStep = (Math.PI * 2) / n
-  const toPoint = (score, i) => {
-    const a = -Math.PI / 2 + i * angleStep
-    const r = (score / 100) * radius
-    return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }
-  }
-
-  doc.setDrawColor(220, 225, 230)
+function drawImageFrame(doc, x, y, w, h, dataUrl, tag) {
+  doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
+  doc.roundedRect(x, y, w, h, 6, 6, 'F')
+  doc.setDrawColor(229, 231, 235)
   doc.setLineWidth(0.5)
-  ;[0.25, 0.5, 0.75, 1].forEach((lvl) => {
-    doc.circle(cx, cy, radius * lvl, 'S')
-  })
+  doc.roundedRect(x, y, w, h, 6, 6, 'S')
 
-  items.forEach((_, i) => {
-    const a = -Math.PI / 2 + i * angleStep
-    doc.line(cx, cy, cx + Math.cos(a) * radius, cy + Math.sin(a) * radius)
-  })
-
-  const currentPts = items.map((item, i) => toPoint(item.score, i))
-  const projectedPts = items.map((item, i) => toPoint(item.projected, i))
-
-  const drawPoly = (pts, fillRgb, strokeRgb) => {
-    if (pts.length < 3) return
-    doc.setFillColor(fillRgb[0], fillRgb[1], fillRgb[2])
-    doc.setDrawColor(strokeRgb[0], strokeRgb[1], strokeRgb[2])
-    doc.setLineWidth(1)
-    for (let i = 0; i < pts.length; i++) {
-      const p1 = pts[i]
-      const p2 = pts[(i + 1) % pts.length]
-      doc.triangle(cx, cy, p1.x, p1.y, p2.x, p2.y, 'FD')
-    }
-    for (let i = 0; i < pts.length; i++) {
-      const p1 = pts[i]
-      const p2 = pts[(i + 1) % pts.length]
-      doc.line(p1.x, p1.y, p2.x, p2.y)
-    }
+  if (dataUrl) {
+    const pad = 4
+    addPdfImage(doc, dataUrl, x + pad, y + pad, w - pad * 2, h - pad * 2)
+  } else {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    setMuted(doc)
+    doc.text('Projected image pending', x + w / 2, y + h / 2, { align: 'center' })
   }
 
-  drawPoly(projectedPts, [BRAND.r, BRAND.g, BRAND.b], [BRAND.r, BRAND.g, BRAND.b])
-  drawPoly(currentPts, [SLATE.r, SLATE.g, SLATE.b], [INK.r, INK.g, INK.b])
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
-  setMuted(doc)
-  items.forEach((item, i) => {
-    const a = -Math.PI / 2 + i * angleStep
-    const lx = cx + Math.cos(a) * (radius + 14)
-    const ly = cy + Math.sin(a) * (radius + 14)
-    doc.text(item.label, lx, ly, { align: 'center' })
-  })
+  if (tag) {
+    doc.setFillColor(80, 80, 80)
+    doc.roundedRect(x + 6, y + 6, 52, 14, 2, 2, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    setWhite(doc)
+    doc.text(tag, x + 10, y + 16)
+  }
 }
 
-function drawBeforeAfterPair(doc, y, beforeSrc, afterSrc, imgMaxH = 200) {
-  const colW = (CONTENT_W - 20) / 2
-  const labelY = y
+function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 100, horizontal = true) {
+  const gap = 8
+  const frameW = horizontal ? (w - gap) / 2 : w
+  const frameH = horizontal ? imgH : (imgH - gap) / 2
+
+  if (horizontal) {
+    drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE')
+    drawImageFrame(doc, x + frameW + gap, y, frameW, frameH, afterSrc, 'AFTER')
+    return y + frameH + 10
+  }
+
+  drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE')
+  drawImageFrame(doc, x, y + frameH + gap, frameW, frameH, afterSrc, 'AFTER')
+  return y + frameH * 2 + gap + 10
+}
+
+function drawSummaryBar(doc, y, title, summary) {
+  const barH = 44
+  const barY = Math.min(y, PAGE_H - 72)
+  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
+  doc.roundedRect(MARGIN, barY, CONTENT_W, barH, 6, 6, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  setWhite(doc)
+  doc.text(title, MARGIN + 12, barY + 16)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  const summaryLines = doc.splitTextToSize(summary || '', CONTENT_W - 160)
+  doc.text(summaryLines[0] || '', MARGIN + 140, barY + 16)
+  if (summaryLines[1]) doc.text(summaryLines[1], MARGIN + 140, barY + 28)
+  return barY + barH + 8
+}
+
+function drawDumbbellChart(doc, x, y, w, h, items) {
+  const rowH = h / items.length
+  const trackX = x + 72
+  const trackW = w - 88
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
+  setInk(doc)
+  doc.text('Projected potential', x, y - 6)
+
+  items.forEach((item, i) => {
+    const rowY = y + i * rowH + rowH / 2
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    setInk(doc)
+    doc.text(item.label, x, rowY + 2)
+
+    doc.setDrawColor(229, 231, 235)
+    doc.setLineWidth(0.5)
+    doc.line(trackX, rowY, trackX + trackW, rowY)
+
+    const cx = trackX + (item.score / 100) * trackW
+    const px = trackX + (item.projected / 100) * trackW
+
+    doc.setDrawColor(SLATE.r, SLATE.g, SLATE.b)
+    doc.setLineWidth(1.5)
+    doc.line(Math.min(cx, px), rowY, Math.max(cx, px), rowY)
+
+    doc.setFillColor(SLATE.r, SLATE.g, SLATE.b)
+    doc.circle(cx, rowY, 3, 'F')
+    doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.circle(px, rowY, 3, 'F')
+  })
+
+  const legendY = y + h + 12
+  doc.setFillColor(SLATE.r, SLATE.g, SLATE.b)
+  doc.circle(x + 4, legendY, 3, 'F')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
   setMuted(doc)
-  doc.text('BEFORE', MARGIN + colW / 2, labelY, { align: 'center' })
-  doc.text('AFTER (PROJECTED)', MARGIN + colW + 20 + colW / 2, labelY, { align: 'center' })
-  y += 14
+  doc.text('Client Values', x + 12, legendY + 2)
+  doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
+  doc.circle(x + 88, legendY, 3, 'F')
+  doc.text('Projected Potential', x + 96, legendY + 2)
 
-  // Frame backgrounds
-  doc.setFillColor(248, 250, 251)
-  doc.roundedRect(MARGIN, y, colW, imgMaxH + 8, 4, 4, 'F')
-  doc.roundedRect(MARGIN + colW + 20, y, colW, imgMaxH + 8, 4, 4, 'F')
-
-  const pad = 4
-  const innerW = colW - pad * 2
-  const beforeProps = beforeSrc ? doc.getImageProperties(beforeSrc) : null
-  const afterProps = afterSrc ? doc.getImageProperties(afterSrc) : null
-  const beforeFit = beforeProps ? fitImage(beforeProps.width, beforeProps.height, innerW, imgMaxH) : { w: 0, h: 0 }
-  const afterFit = afterProps ? fitImage(afterProps.width, afterProps.height, innerW, imgMaxH) : { w: 0, h: 0 }
-
-  if (beforeSrc && beforeFit.w > 0) {
-    doc.addImage(beforeSrc, 'JPEG', MARGIN + pad + (innerW - beforeFit.w) / 2, y + pad, beforeFit.w, beforeFit.h, undefined, 'FAST')
-  }
-  if (afterSrc && afterFit.w > 0) {
-    doc.addImage(afterSrc, 'JPEG', MARGIN + colW + 20 + pad + (innerW - afterFit.w) / 2, y + pad, afterFit.w, afterFit.h, undefined, 'FAST')
-  }
-  const rowH = Math.max(beforeFit.h, afterFit.h, imgMaxH) + pad * 2 + 8
-  return y + rowH
+  return legendY + 14
 }
 
-function getFeatureScores(cvReport) {
-  return [
-    { label: 'Symmetry', score: cvReport?.symmetry?.score },
-    { label: 'Proportions', score: cvReport?.proportions?.score },
-    { label: 'Face Shape', score: cvReport?.faceShape ? 82 : null },
-    { label: 'Nose', score: cvReport?.nose?.score },
-    { label: 'Lips', score: cvReport?.lips?.score },
-    { label: 'Jaw & Chin', score: cvReport?.jawChin?.score },
-    { label: 'Skin', score: cvReport?.skin?.score },
-    { label: 'Hair', score: cvReport?.hair?.score },
-    { label: 'Eyes', score: cvReport?.eyes?.score || cvReport?.eyebrows ? 80 : null },
-  ].filter((f) => f.score != null)
-}
+function drawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal = false) {
+  drawBrandBar(doc)
+  drawPageNumber(doc, pageNum)
 
-function getMeasurements(cvReport, metrics) {
-  const rows = []
-  if (metrics?.harmonyScore) rows.push(['Harmony Score', `${metrics.harmonyScore}/100`])
-  if (metrics?.symmetry) rows.push(['Symmetry Index', `${metrics.symmetry}%`])
-  if (metrics?.proportionality) rows.push(['Proportionality', `${metrics.proportionality}%`])
-  if (metrics?.visualAge) rows.push(['Visual Age Estimate', `${metrics.visualAge} years`])
-  if (cvReport?.faceShape) {
-    rows.push(['Face Shape', cvReport.faceShape.shape])
-    rows.push(['Width / Height Ratio', cvReport.faceShape.widthHeightRatio])
+  const titleParts = section.title.split(' ')
+  const primary = titleParts[0]
+  const secondary = titleParts.slice(1).join(' ')
+  let titleY = drawSplitTitle(doc, MARGIN, 68, primary, secondary, 20)
+
+  const rightX = MARGIN + COL_W + COL_GAP
+  const imgColW = COL_W
+  let textY = titleY + 4
+  const textMaxW = COL_W - 4
+
+  section.subsections.forEach((sub) => {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    setInk(doc)
+    doc.text(sub.title, MARGIN, textY)
+    textY += 12
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    setInk(doc)
+    textY = wrapText(doc, sub.body, MARGIN, textY, textMaxW, 11) + 8
+  })
+
+  let imgY = titleY + 4
+  if (section.layoutHints?.profileImage && profileJpeg && profileIsReal) {
+    drawImageFrame(doc, rightX, imgY, imgColW, 120, profileJpeg, 'PROFILE')
+    imgY += 128
   }
-  if (cvReport?.proportions) {
-    rows.push(['Upper Third', cvReport.proportions.upperThird])
-    rows.push(['Middle Third', cvReport.proportions.middleThird])
-    rows.push(['Lower Third', cvReport.proportions.lowerThird])
-  }
-  if (cvReport?.nose?.widthLengthRatio) rows.push(['Nasal W/L Ratio', cvReport.nose.widthLengthRatio])
-  if (cvReport?.lips?.philtrumToLipRatio) rows.push(['Philtrum / Lip Ratio', cvReport.lips.philtrumToLipRatio])
-  if (cvReport?.dimorphism?.overallScore) rows.push(['Dimorphism Index', `${cvReport.dimorphism.overallScore}/100`])
-  if (cvReport?.averageness?.score) rows.push(['Averageness', `${cvReport.averageness.score}/100`])
-  return rows
+
+  const pairH = section.layoutHints?.stackedImages ? 180 : 100
+  const vertical = section.layoutHints?.stackedImages
+  drawBeforeAfterPair(doc, rightX, imgY, imgColW, beforeJpeg, null, pairH, !vertical)
+
+  const summaryTitle = `${section.title.replace(' Recommendations', '')} Summary`
+  drawSummaryBar(doc, PAGE_H - 80, summaryTitle, section.summary)
 }
 
 /**
- * Generate and download AuraScan Qoves-style aesthetic protocol PDF.
+ * Generate and download MyFace Qoves-style aesthetic protocol PDF.
  */
-export async function downloadAuraScanPdf({
+export async function downloadMyFacePdf({
   photo,
+  photos,
   cvReport,
   metrics,
   landmarks,
   protocolData,
+  protocolNarrative,
   answers,
   eyeAnalysis,
   aiNarrative,
@@ -355,18 +268,24 @@ export async function downloadAuraScanPdf({
   if (!photo || !cvReport) throw new Error('Photo and analysis data required for PDF export')
 
   const photoJpeg = await normalizeToJpegDataUrl(photo)
-  const featurePages = buildFeaturePages(cvReport, eyeAnalysis)
+  const featurePages = buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative)
 
-  const [afterFull, ...sectionPairs] = await Promise.all([
-    projectFullFaceAfter(photoJpeg, landmarks, cvReport, metrics),
-    ...featurePages.map(async (page) => {
-      const [beforeJpeg, afterJpeg] = await Promise.all([
-        cropFeatureBefore(photoJpeg, landmarks, page.projectionId),
-        projectFeatureAfter(photoJpeg, landmarks, page.projectionId, cvReport, metrics),
-      ])
-      return { ...page, beforeJpeg, afterJpeg }
-    }),
-  ])
+  const featureImages = await resolveAllFeatureImages({
+    featurePages,
+    photoJpeg,
+    landmarks,
+    cvReport,
+    eyeAnalysis,
+    photos,
+  })
+
+  const sectionPairs = featurePages.map((page) => ({
+    ...page,
+    beforeJpeg: featureImages[page.id]?.before || null,
+    profileJpeg: featureImages[page.id]?.profile || null,
+    profileIsReal: featureImages[page.id]?.profileIsReal ?? false,
+    afterJpeg: null,
+  }))
 
   const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
   let pageNum = 1
@@ -374,211 +293,206 @@ export async function downloadAuraScanPdf({
   const clientName = getClientName(answers)
   const monthLabel = formatProtocolMonth()
   const editionLabel = formatProtocolEditionDate()
-  const closingParagraphs = buildClosingRecommendations(aiNarrative, cvReport, clientName)
+  const closingParagraphs = buildClosingRecommendations(
+    aiNarrative,
+    cvReport,
+    clientName,
+    protocolNarrative
+  )
+  const closingCols = buildClosingColumns(closingParagraphs)
   const contents = buildProtocolContents(clientName)
+  const chartItems = getFeatureComparisonData(cvReport)
 
-  // ── Page 1: Cover (Qoves-style) ──
+  // ── Page 1: Cover — simple dark background, no photo ──
   doc.setFillColor(INK.r, INK.g, INK.b)
   doc.rect(0, 0, PAGE_W, PAGE_H, 'F')
-  doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text('AURASCAN', MARGIN, 72)
+  doc.setFontSize(9)
+  setWhite(doc)
+  doc.text('MYFACE', MARGIN, 72)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   doc.setTextColor(220, 220, 220)
-  doc.text(`${clientName}  ${monthLabel}`, MARGIN, 110)
+  doc.text(`${clientName}  ·  ${monthLabel}`, MARGIN, 110)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(34)
   doc.setTextColor(255, 255, 255)
   doc.text('Aesthetic', MARGIN, 170)
-  doc.text('Protocol', MARGIN, 210)
   doc.setFont('helvetica', 'normal')
+  doc.setTextColor(160, 170, 180)
+  doc.text('Protocol', MARGIN, 210)
   doc.setFontSize(9)
   doc.setTextColor(180, 180, 180)
-  doc.text(`WRITTEN ${editionLabel} PROTOCOL EDITION`, MARGIN, 240)
-  addPdfImage(doc, photoJpeg, PAGE_W - MARGIN - 160, 280, 160, 200)
+  doc.text(`WRITTEN ${editionLabel}`, MARGIN, 240)
+  doc.text('PROTOCOL EDITION', PAGE_W - MARGIN, PAGE_H - 56, { align: 'right' })
   addFooter(doc, pageNum++)
 
-  // ── Page 2: Disclaimer ──
+  // ── Page 2: Disclaimer + Privacy (two columns) ──
   doc.addPage()
-  doc.setFillColor(INK.r, INK.g, INK.b)
-  doc.rect(0, 0, PAGE_W, 4, 'F')
+  drawBrandBar(doc)
+  drawPageNumber(doc, 2)
+  y = drawSplitTitle(doc, MARGIN, 68, 'Disclaimer', 'Policy', 20)
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  setMuted(doc)
-  doc.text('PAGE / 02', MARGIN, 40)
-  doc.setFontSize(20)
   setInk(doc)
-  doc.text('Disclaimer Policy', MARGIN, 68)
-  y = 92
+  doc.text('Disclaimer Policy', MARGIN, y + 8)
+  doc.text('Privacy Policy', MARGIN + COL_W + COL_GAP, y + 8)
+  y += 20
+
+  let leftY = y
+  let rightY = y
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  setInk(doc)
+  doc.setFontSize(8)
   DISCLAIMER_PARAGRAPHS.forEach((para) => {
-    y = wrapText(doc, para, MARGIN, y, CONTENT_W, 13) + 10
+    leftY = wrapText(doc, para, MARGIN, leftY, COL_W, 11) + 8
   })
+  PRIVACY_PARAGRAPHS.forEach((para) => {
+    rightY = wrapText(doc, para, MARGIN + COL_W + COL_GAP, rightY, COL_W, 11) + 8
+  })
+
+  const footerY = Math.max(leftY, rightY) + 12
   setMuted(doc)
-  y = wrapText(
+  wrapText(
     doc,
     `The following report was commissioned for ${clientName} on ${monthLabel}.`,
     MARGIN,
-    y + 8,
+    footerY,
     CONTENT_W,
-    13
+    11
   )
   addFooter(doc, pageNum++)
 
-  // ── Page 3: Introduction + Contents ──
+  // ── Page 3: Introduction + Contents (two columns) ──
   doc.addPage()
-  doc.setFillColor(INK.r, INK.g, INK.b)
-  doc.rect(0, 0, PAGE_W, 4, 'F')
+  drawBrandBar(doc)
+  drawPageNumber(doc, 3)
+  y = drawSplitTitle(doc, MARGIN, 68, 'Introduction', null, 20)
+  y += 8
+
+  leftY = y
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  INTRODUCTION_PARAGRAPHS.forEach((para) => {
+    leftY = wrapText(doc, para, MARGIN, leftY, COL_W, 11) + 8
+  })
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  setMuted(doc)
-  doc.text('PAGE / 03', MARGIN, 40)
-  doc.setFontSize(20)
   setInk(doc)
-  doc.text('Introduction', MARGIN, 68)
-  y = 92
+  doc.text('Limitations', MARGIN, leftY + 4)
+  leftY += 14
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  INTRODUCTION_PARAGRAPHS.forEach((para) => {
-    y = wrapText(doc, para, MARGIN, y, CONTENT_W, 13) + 10
-  })
+  leftY = wrapText(doc, LIMITATIONS_PARAGRAPH, MARGIN, leftY, COL_W, 11)
+
+  rightY = y
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   setInk(doc)
-  doc.text('Contents', MARGIN, y + 8)
-  y += 24
+  doc.text('Contents', MARGIN + COL_W + COL_GAP, rightY)
+  rightY += 18
   doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
   contents.forEach((item) => {
-    doc.text(item.label, MARGIN, y)
-    doc.text(String(item.page).padStart(2, '0'), PAGE_W - MARGIN, y, { align: 'right' })
-    y += 16
+    doc.text(item.label, MARGIN + COL_W + COL_GAP, rightY)
+    doc.text(String(item.page).padStart(2, '0'), PAGE_W - MARGIN, rightY, { align: 'right' })
+    rightY += 14
   })
   addFooter(doc, pageNum++)
 
   // ── Page 4: Understanding Your Results ──
   doc.addPage()
-  doc.setFillColor(INK.r, INK.g, INK.b)
-  doc.rect(0, 0, PAGE_W, 4, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setMuted(doc)
-  doc.text('PAGE / 04', MARGIN, 40)
-  doc.setFontSize(20)
-  setInk(doc)
-  doc.text('Understanding Your Results', MARGIN, 68)
-  y = 96
+  drawBrandBar(doc)
+  drawPageNumber(doc, 4)
+  y = drawSplitTitle(doc, MARGIN, 68, 'Understanding', 'Your Results', 20)
+  y += 16
   UNDERSTANDING_RESULTS.forEach((item, idx) => {
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    setBrand(doc)
+    doc.setFontSize(20)
+    setMuted(doc)
     doc.text(String(idx + 1).padStart(2, '0'), MARGIN, y)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
+    doc.setFontSize(8)
     setInk(doc)
-    y = wrapText(doc, item, MARGIN + 24, y - 2, CONTENT_W - 24, 13) + 14
+    y = wrapText(doc, item, MARGIN + 28, y - 2, CONTENT_W - 28, 11) + 14
   })
   addFooter(doc, pageNum++)
 
   // ── Page 5: Client protocol overview ──
   doc.addPage()
-  doc.setFillColor(INK.r, INK.g, INK.b)
-  doc.rect(0, 0, PAGE_W, 4, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setMuted(doc)
-  doc.text('PAGE / 05', MARGIN, 40)
-  doc.setFontSize(20)
-  setInk(doc)
-  doc.text(`${clientName}'s Protocol`, MARGIN, 68)
-  y = 92
+  drawBrandBar(doc)
+  drawPageNumber(doc, 5)
+  const protocolTitle = `${clientName}'s Protocol`
+  y = drawSplitTitle(doc, MARGIN, 68, protocolTitle.replace(' Protocol', ''), 'Protocol', 20)
+  y += 8
+
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(8)
   y = wrapText(
     doc,
-    protocolData?.summary ||
-      'To help you achieve your aesthetic potential, this evidence-based protocol is grounded in your measured facial analysis. Projected images use region-specific corrections derived from anthropometric data.',
+    protocolNarrative?.summary ||
+      protocolData?.summary ||
+      'To help you achieve your aesthetic potential, this evidence-based protocol is grounded in your measured facial analysis. Recommendations are organised around 11 key features for facial aesthetics.',
     MARGIN,
     y,
     CONTENT_W,
-    13
-  ) + 12
-  y = drawBeforeAfterPair(doc, y, photoJpeg, afterFull, 170)
-  y += 8
-  const radarItems = getRadarData(cvReport)
-  drawRadarChart(doc, PAGE_W / 2, y + 88, 68, radarItems)
+    11
+  ) + 10
+
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, photoJpeg, null, 130, true)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  setInk(doc)
+  doc.text('Projected potential', MARGIN, y + 6)
+  y += 16
+
+  const featureList = QOVES_PROTOCOL_FEATURES.map((f) => f.title)
+  const half = Math.ceil(featureList.length / 2)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  setMuted(doc)
+  featureList.slice(0, half).forEach((label, i) => {
+    doc.text(`· ${label}`, MARGIN, y + i * 12)
+  })
+  featureList.slice(half).forEach((label, i) => {
+    doc.text(`· ${label}`, MARGIN + COL_W, y + i * 12)
+  })
+
+  drawDumbbellChart(doc, MARGIN + COL_W + COL_GAP, y - 4, COL_W, 200, chartItems)
   addFooter(doc, pageNum++)
 
-  // ── Per-feature protocol pages (Qoves-style) ──
+  // ── Per-feature pages ──
   let featurePageNum = 6
   for (const section of sectionPairs) {
     doc.addPage()
-    doc.setFillColor(INK.r, INK.g, INK.b)
-    doc.rect(0, 0, PAGE_W, 4, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    setMuted(doc)
-    doc.text(`PAGE / ${String(featurePageNum).padStart(2, '0')}`, MARGIN, 40)
-    doc.setFontSize(18)
-    setInk(doc)
-    doc.text(section.title, MARGIN, 68)
-    y = 88
-
-    section.subsections.forEach((sub) => {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(10)
-      setInk(doc)
-      doc.text(sub.title, MARGIN, y)
-      y += 14
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
-      setMuted(doc)
-      y = wrapText(doc, sub.body, MARGIN, y, CONTENT_W, 12) + 10
-    })
-
-    y = drawBeforeAfterPair(doc, y, section.beforeJpeg, section.afterJpeg, 150)
-    y += 6
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    setInk(doc)
-    const summaryTitle = `${section.title.replace(' Recommendations', '')} Summary`
-    doc.text(summaryTitle, MARGIN, y)
-    y += 14
-    doc.setFont('helvetica', 'normal')
-    setMuted(doc)
-    wrapText(doc, section.summary, MARGIN, y, CONTENT_W, 12)
+    drawFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.profileJpeg, section.profileIsReal)
     addFooter(doc, pageNum++)
     featurePageNum += 1
   }
 
-  // ── Closing Recommendations (admin AI narrative) ──
+  // ── Page 16: Closing Recommendations (two columns) ──
   doc.addPage()
-  doc.setFillColor(INK.r, INK.g, INK.b)
-  doc.rect(0, 0, PAGE_W, 4, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setMuted(doc)
-  doc.text('PAGE / 16', MARGIN, 40)
-  doc.setFontSize(20)
-  setInk(doc)
-  doc.text('Closing Recommendations', MARGIN, 68)
-  y = 96
+  drawBrandBar(doc)
+  drawPageNumber(doc, 16)
+  y = drawSplitTitle(doc, MARGIN, 68, 'Closing', 'Recommendations', 20)
+  y += 12
+
+  doc.setDrawColor(229, 231, 235)
+  doc.line(MARGIN + COL_W + COL_GAP / 2, y, MARGIN + COL_W + COL_GAP / 2, PAGE_H - 60)
+
+  leftY = y
+  rightY = y
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(8)
   setInk(doc)
-  closingParagraphs.forEach((para) => {
-    if (y > PAGE_H - 80) {
-      addFooter(doc, pageNum++)
-      doc.addPage()
-      y = 72
-    }
-    y = wrapText(doc, para, MARGIN, y, CONTENT_W, 13) + 12
+  closingCols.left.forEach((para) => {
+    leftY = wrapText(doc, para, MARGIN, leftY, COL_W, 11) + 10
+  })
+  closingCols.right.forEach((para) => {
+    rightY = wrapText(doc, para, MARGIN + COL_W + COL_GAP, rightY, COL_W, 11) + 10
   })
   addFooter(doc, pageNum++)
 
   const safeName = clientName.replace(/[^\w\s-]/g, '').trim() || 'Client'
-  doc.save(`AuraScan-Protocol-${safeName.replace(/\s+/g, '-')}.pdf`)
+  doc.save(`MyFace-Protocol-${safeName.replace(/\s+/g, '-')}.pdf`)
 }

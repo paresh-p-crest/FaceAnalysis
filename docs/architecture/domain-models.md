@@ -33,11 +33,15 @@ Stores raw user inputs, computer vision analysis outputs, AI-generated reports, 
 | `status` | `string` | Flow status: `"draft"` \| `"pending_review"` \| `"approved"` \| `"published"` |
 | `userId` | `string` \| `null` | Reference to user owning the assessment |
 | `scanId` | `string` \| `null` | Client-generated unique scan ID to prevent duplicate submissions |
-| `answers` | `dict` | Key-value pairs of user responses to questionnaire |
-| `provider` | `string` | Core CV engine provider: `"local"` \| `"aws"` \| `"openai"` |
-| `photosKeys` | `list[string]` | Storage paths or identifiers for uploaded secondary photos |
+| `answers` | `dict` | Questionnaire responses; includes `mouthWidthMm`, `philtrumLengthMm`, `scalingMethod` for ruler calibration |
+| `provider` | `string` | Core CV engine provider: `"local"` \| `"openai"` |
+| `photosKeys` | `list[string]` | Pose IDs present (backward compat): `front`, `leftProfile`, `rightProfile`, `left45`, `right45`, `smile`, `topHead` |
+| `photos` | `dict` | Per-pose storage metadata: `{ poseId, relativePath, publicUrl, contentType, byteSize, storedAt }` |
 | `analysis` | `dict` | Nested object containing raw CV calculations (see sub-schema below) |
-| `aiNarrative` | `dict` \| `null` | OpenAI-generated markdown sections (Strengths, Recommendations, etc.) |
+| `aiNarrative` | `dict` \| `null` | LLM-generated executive summary JSON (`summary`, `strengths`, `focusAreas`, etc.) |
+| `protocolData` | `dict` \| `null` | LLM-generated protocol recommendations (`summary`, `recommendations[]`) |
+| `protocolNarrative` | `dict` \| `null` | LLM-generated per-feature Qoves protocol narrative |
+| `protocolStorage` | `dict` \| `null` | Protocol file metadata (`relativePath`, `publicUrl`, `storedAt`, `byteSize`) |
 | `aiVisuals` | `dict` \| `null` | Prompts and URLs for visual variants (hairstyles, clothing, aging) |
 | `adminNotes` | `string` \| `null` | Notes added by the administrator during review |
 | `reviewedBy` | `dict` | Metadata of the reviewer (`email`, `role`, etc.) |
@@ -49,10 +53,10 @@ Stores raw user inputs, computer vision analysis outputs, AI-generated reports, 
 ### Analysis Sub-Schema (`analysis`)
 | Nested Field | Type | Description |
 |---|---|---|
-| `cvReport` | `dict` | Calculated facial metrics (proportions, nose width, jaw angle, symmetry) |
+| `cvReport` | `dict` | Calculated facial metrics; includes `profile`, `quarter`, `calibration`, `photos`, `meta.pipelineVersion` |
 | `landmarks` | `list[list[float]]` | 478 MediaPipe Face Mesh coordinates `[x, y, z]` |
 | `imagePreview` | `string` | Base64-encoded image preview or thumbnail |
-| `faceDetails` | `dict` \| `null` | Raw AWS Rekognition details (if AWS provider used) |
+| `faceDetails` | `dict` \| `null` | Reserved; always `null` (AWS Rekognition removed) |
 | `protocolWarnings` | `list[string]` | Flagged issue warnings (e.g. head pose off-angle, eyes closed) |
 
 ### Indexes
@@ -101,6 +105,8 @@ Maintains conversational history between clients and the report-grounded Beauty 
 | `assessmentId` | `string` | Reference to assessment coordinates used as context grounding |
 | `userId` | `string` | Reference to User participating in chat |
 | `messages` | `list[dict]` | Ordered list of messages (see format below) |
+| `sessionSummary` | `string` \| `null` | Compressed coaching context for cost-efficient follow-up turns |
+| `summaryAtUserCount` | `int` \| `null` | User message count when `sessionSummary` was last refreshed |
 | `createdAt` | `ISODate` | Conversation session start date |
 | `updatedAt` | `ISODate` | Last message exchange date |
 
@@ -130,3 +136,20 @@ Global application settings and default configuration values.
 | `productDescription` | `string` | Product line description shown during checkout |
 | `updatedAt` | `ISODate` | Timestamp of last modification |
 | `updatedBy` | `string` \| `null` | Reference to admin who adjusted values |
+
+---
+
+## 6. Collection: `assistant_rate_limits`
+Tracks hourly Beauty Assistant message quotas per user.
+
+### Schema Fields
+| Field | Type | Description |
+|---|---|---|
+| `_id` | `ObjectId` | Primary key |
+| `userId` | `string` | User being rate-limited |
+| `hourBucket` | `string` | UTC hour key (`YYYY-MM-DDTHH`) |
+| `count` | `int` | Messages sent in this hour |
+| `createdAt` | `ISODate` | First message in bucket |
+
+### Indexes
+- `userId + hourBucket` (Unique compound index)

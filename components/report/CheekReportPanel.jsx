@@ -1,4 +1,4 @@
-import { FaceImageFrame } from './FaceImageFrame'
+import { FeatureAnalysisPage } from './FeatureAnalysisPage'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -57,16 +57,27 @@ export function CheekReportPanel({ cheeks }) {
   const c = cheeks
 
   return (
+    <FeatureAnalysisPage
+      featureName="cheeks"
+      subtitle="MediaPipe landmarks + Canvas pixel analysis"
+      heroImage={c.imageSrc}
+      summaryCards={[
+        { label: 'Structure', value: c.scoreLabel },
+        { label: 'Cheekbone Height', value: c.cheekboneHeightClass },
+        { label: 'Prominence', value: c.prominence },
+        { label: 'Apple Volume', value: c.appleVolume },
+      ]}
+      details={[{
+        title: 'Cheekbone Structure',
+        body: `Cheekbone height: ${c.cheekboneHeight}% of face height (${c.cheekboneHeightClass}). Projection: ${c.prominence}.`,
+        metricLabel: 'Overall Score',
+        metricValue: `${c.score}/100`,
+        markerPct: c.score,
+        rangeMin: 55,
+        rangeMax: 90,
+      }]}
+    >
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h3 className="font-display text-lg font-semibold text-ink mb-1">An overview of your cheeks</h3>
-        <p className="text-[10px] text-ink-muted font-sans mb-4">MediaPipe landmarks + Canvas pixel analysis · $0 API cost</p>
-        {c.imageSrc && (
-          <FaceImageFrame src={c.imageSrc} alt="Your cheeks" aspect="auto" maxW="380px" />
-        )}
-      </div>
-
       {/* ── Section 1: Cheekbone Structure ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
         <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Cheekbone Structure</p>
@@ -163,11 +174,11 @@ export function CheekReportPanel({ cheeks }) {
         </div>
       </div>
 
-      {/* ── Overall Explanation ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-2">Full Analysis Summary</p>
+        <p className="qoves-report-mono-label mb-2">Full Analysis Summary</p>
         <p className="text-sm text-ink-secondary leading-relaxed font-sans">{c.explanation}</p>
       </div>
     </div>
+    </FeatureAnalysisPage>
   )
 }

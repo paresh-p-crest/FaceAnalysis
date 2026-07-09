@@ -9,7 +9,7 @@ const inflightScans = new Map()
 
 function scanCacheKey(scanId) {
   if (!scanId) return null
-  const token = localStorage.getItem('aurascan_auth_token') || 'anon'
+  const token = localStorage.getItem('myface_auth_token') || 'anon'
   return `${token}:${scanId}`
 }
 
@@ -23,7 +23,7 @@ export function isBackendApiEnabled() {
 }
 
 function getAuthToken() {
-  return localStorage.getItem('aurascan_auth_token') || ''
+  return localStorage.getItem('myface_auth_token') || ''
 }
 
 function authHeaders() {
@@ -223,6 +223,47 @@ export async function generateAssessmentNarrative(assessmentId) {
   return data
 }
 
+export async function fetchAssessmentProtocol(assessmentId) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/protocol`, {
+    headers: authHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.detail || 'Failed to load protocol')
+    err.status = res.status
+    throw err
+  }
+  return data
+}
+
+export async function generateAssessmentProtocol(assessmentId) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/ai-protocol`, {
+    method: 'POST',
+    headers: authHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.detail || 'Failed to generate AI protocol')
+  return data
+}
+
+/** Load stored protocol or trigger one-time backend generation when missing. */
+export async function ensureAssessmentProtocol(assessmentId) {
+  try {
+    return await fetchAssessmentProtocol(assessmentId)
+  } catch (err) {
+    if (err.status !== 404) throw err
+    const assessment = await generateAssessmentProtocol(assessmentId)
+    return {
+      protocolData: assessment?.protocolData,
+      protocolNarrative: assessment?.protocolNarrative,
+      protocolStorage: assessment?.protocolStorage,
+      source: 'generated',
+    }
+  }
+}
+
 export async function generateAssessmentVisuals(assessmentId, variants = ['hair', 'outfit', 'aging']) {
   const base = getApiBaseUrl()
   const res = await fetch(`${base}/api/assessments/${assessmentId}/ai-visuals`, {
@@ -277,7 +318,7 @@ export async function downloadAssessmentPdf(assessmentId) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `AuraScan-${assessmentId}.pdf`
+  link.download = `MyFace-${assessmentId}.pdf`
   document.body.appendChild(link)
   link.click()
   link.remove()

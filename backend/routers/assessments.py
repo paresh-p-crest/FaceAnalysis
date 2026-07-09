@@ -13,7 +13,14 @@ from ..analyze_face import run_face_analysis
 from ..auth import get_current_user, get_optional_current_user, require_admin
 from ..database import is_mongodb_configured
 from ..image_utils import decode_image, decode_photo_dict
-from ..openai_client import generate_cv_narrative
+from ..ai_access import require_paid_ai_access
+from ..protocol_service import (
+    delete_stored_protocol,
+    generate_and_store_protocol,
+    load_protocol_bundle,
+    persist_protocol_bundle,
+)
+from ..text_ai_service import generate_cv_narrative
 from ..repositories.assessment_repository import (
     create_assessment,
     delete_all_assessment_data,
@@ -25,10 +32,26 @@ from ..repositories.assessment_repository import (
     update_assessment_admin_review,
     update_assessment_ai_narrative,
     update_assessment_ai_visuals,
+    update_assessment_analysis,
+)
+from ..photo_storage import (
+    apply_photo_urls_to_cv_report,
+    photos_map_to_urls,
+    save_all_poses,
 )
 from ..repositories.payment_repository import user_has_completed_payment
 from ..serialization import to_json_safe
+from ..report_status import (
+    format_report_status,
+    is_pdf_allowed_status,
+    normalize_report_status,
+    parse_status_input,
+    serialize_assessment,
+    serialize_assessments,
+)
+
 from ..visual_generation import generate_visual_variants
+from ..answer_summary import format_answers_summary
 
 router = APIRouter(prefix="/api", tags=["assessments"])
 
@@ -38,7 +61,6 @@ class AssessmentCreateRequest(BaseModel):
     answers: dict = {}
     photos: dict = {}
     provider: str = "local"
-    awsCredentials: Optional[dict] = None
     scanId: Optional[str] = None
 
 
@@ -56,20 +78,11 @@ class AssessmentVisualsRequest(BaseModel):
     variants: list[str] = ["hair", "outfit", "aging"]
 
 
-WORKFLOW_STATUSES = {"pending_review", "approved"}
-REPORT_STATUSES = WORKFLOW_STATUSES | {"draft", "published"}  # legacy read support
-PDF_ALLOWED_STATUSES = {"approved", "published"}
-
-
-def _aws_creds_from_request(req: AssessmentCreateRequest) -> Optional[dict]:
-    if not req.awsCredentials:
-        return None
-    return {
-        "access_key_id": req.awsCredentials.get("accessKeyId", ""),
-        "secret_access_key": req.awsCredentials.get("secretAccessKey", ""),
-        "session_token": req.awsCredentials.get("sessionToken"),
-        "region": req.awsCredentials.get("region", "us-east-1"),
-    }
+def _parse_status_or_400(status: str) -> str:
+    try:
+        return parse_status_input(status)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _can_access_assessment(existing: dict, current_user: Optional[dict]) -> bool:
@@ -103,7 +116,7 @@ def _assessment_pdf_markdown(existing: dict) -> str:
     face_shape = cv_report.get("faceShape") or {}
     proportions = cv_report.get("proportions") or {}
     lines = [
-        "# AuraScan Facial Analysis Report",
+        "# MyFace Facial Analysis Report",
         "",
         f"Report status: {existing.get('status', 'draft')}",
         f"Assessment ID: {existing.get('id', '')}",
@@ -161,17 +174,50 @@ def _assessment_pdf_markdown(existing: dict) -> str:
                 lines.extend(["", f"## {title}", ""])
                 lines.extend([f"- {item}" for item in items])
 
+    profile = format_answers_summary(answers)
+    lines.extend(["", "## Questionnaire Context", ""])
+    for key, label in (
+        ("goals", "Goals"),
+        ("goalAesthetic", "Goal Aesthetic"),
+        ("aestheticDistress", "Aesthetic Distress"),
+        ("appearanceFrequency", "Appearance Thought Frequency"),
+        ("motivation", "Motivation"),
+        ("skinType", "Skin Type"),
+        ("skinConcerns", "Skin Concerns"),
+        ("severity", "Skin Concern Severity"),
+        ("hadNonSurgical", "Had Non-Surgical Treatments"),
+        ("hadSurgery", "Had Surgery"),
+        ("comfortableTreatments", "Comfortable Treatments"),
+        ("medicalConditions", "Medical Conditions"),
+        ("medications", "Medications"),
+        ("usedRetinoids", "Used Retinoids (Past 6-12 Months)"),
+        ("allergies", "Allergies"),
+        ("activeInfections", "Active Infections/Conditions"),
+        ("proneToHyperpigmentation", "Prone to Hyperpigmentation"),
+        ("age", "Age Range"),
+        ("gender", "Gender"),
+        ("genderPreference", "Gender Preference"),
+        ("growBeard", "Can Grow Full Beard"),
+        ("ethnicity", "Ethnic Heritage"),
+        ("featureLike", "Likes Most About Face"),
+        ("featureDislike", "Dislikes Most About Face"),
+        ("celebrityMatch", "Celebrity Aesthetic Match"),
+        ("occupation", "Occupation"),
+        ("smoking", "Smoking Frequency"),
+        ("drinking", "Drinking Frequency"),
+        ("sleepQuality", "Sleep Quality"),
+        ("waterIntake", "Daily Water Intake"),
+        ("sunExposure", "Sun Exposure"),
+        ("comfortableWeightLoss", "Comfortable with Weight Loss Recommendations"),
+        ("additionalNotes", "Additional Notes"),
+    ):
+        val = profile.get(key)
+        if not val:
+            val = answers.get(key, "N/A")
+        lines.append(f"- {label}: {val}")
+
     lines.extend(
         [
-            "",
-            "## Questionnaire Context",
-            "",
-            f"- Goals: {answers.get('goals', 'N/A')}",
-            f"- Skin type: {answers.get('skinType', 'N/A')}",
-            f"- Skin concerns: {answers.get('skinConcerns', 'N/A')}",
-            f"- Sleep quality: {answers.get('sleepQuality', 'N/A')}",
-            f"- Water intake: {answers.get('waterIntake', 'N/A')}",
-            f"- Sun exposure: {answers.get('sunExposure', 'N/A')}",
             "",
             "## Disclaimer",
             "",
@@ -208,7 +254,6 @@ async def post_assessment(
         raise HTTPException(status_code=400, detail="Invalid image data")
 
     photos = decode_photo_dict(req.photos)
-    aws_creds = _aws_creds_from_request(req)
 
     analysis = await asyncio.to_thread(
         run_face_analysis,
@@ -216,7 +261,6 @@ async def post_assessment(
         req.answers,
         photos,
         req.provider,
-        aws_creds,
     )
 
     if not analysis.get("success"):
@@ -229,16 +273,32 @@ async def post_assessment(
         provider=req.provider,
         analysis=analysis,
         user_id=current_user["id"],
-        photos_keys=list(req.photos.keys()),
+        photos_keys=list(photos.keys()) + (["front"] if "front" not in photos else []),
         status="pending_review",
         scan_id=req.scanId,
     )
 
+    assessment_id = saved["id"]
+    all_photo_bytes = {**photos, "front": photo_bytes}
+    stored = await asyncio.to_thread(save_all_poses, assessment_id, all_photo_bytes, photo_bytes)
+    photos_doc = {pose_id: s.to_dict() for pose_id, s in stored.items()}
+    photo_urls = photos_map_to_urls(stored)
+
+    if analysis.get("cvReport") and photo_urls:
+        analysis["cvReport"] = apply_photo_urls_to_cv_report(analysis["cvReport"], photo_urls)
+        if analysis["cvReport"].get("meta"):
+            analysis["cvReport"]["meta"]["posesStored"] = list(photo_urls.keys())
+
+    await update_assessment_analysis(assessment_id, analysis, photos_doc)
+    saved["photos"] = photos_doc
+    saved["analysis"] = analysis
+
     return {
-        "assessmentId": saved["id"],
-        "status": saved["status"],
+        "assessmentId": assessment_id,
+        "status": format_report_status(saved["status"]),
         "createdAt": saved["createdAt"],
         "analysis": analysis,
+        "photos": photos_doc,
     }
 
 
@@ -255,7 +315,7 @@ async def get_assessment_pdf(
         raise HTTPException(status_code=404, detail="Assessment not found")
     if not _can_access_assessment(existing, current_user):
         raise HTTPException(status_code=403, detail="You do not have access to this assessment")
-    if existing.get("status") not in PDF_ALLOWED_STATUSES:
+    if not is_pdf_allowed_status(existing.get("status")):
         raise HTTPException(status_code=403, detail="PDF download is available after admin approval")
 
     analysis = existing.get("analysis") or {}
@@ -273,7 +333,7 @@ async def get_assessment_pdf(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="AuraScan-{assessment_id}.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="MyFace-{assessment_id}.pdf"'},
     )
 
 
@@ -290,7 +350,7 @@ async def get_assessment(
         raise HTTPException(status_code=404, detail="Assessment not found")
     if not _can_access_assessment(doc, current_user):
         raise HTTPException(status_code=403, detail="You do not have access to this assessment")
-    return to_json_safe(doc)
+    return serialize_assessment(doc)
 
 
 @router.get("/assessments")
@@ -298,7 +358,7 @@ async def get_assessments_list(limit: int = 20, current_user: dict = Depends(req
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
     limit = min(max(1, limit), 100)
-    return {"items": to_json_safe(await list_assessments(limit=limit))}
+    return {"items": serialize_assessments(await list_assessments(limit=limit))}
 
 
 @router.get("/my/assessments")
@@ -306,7 +366,7 @@ async def get_my_assessments(limit: int = 20, current_user: dict = Depends(get_c
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
     limit = min(max(1, limit), 100)
-    return {"items": to_json_safe(await list_assessments_for_user(current_user["id"], limit=limit))}
+    return {"items": serialize_assessments(await list_assessments_for_user(current_user["id"], limit=limit))}
 
 
 @router.delete("/assessments")
@@ -331,6 +391,7 @@ async def delete_assessment_by_id(
     deleted = await delete_assessment(assessment_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Assessment not found")
+    await delete_stored_protocol(assessment_id)
     return {"deleted": True, "assessmentId": assessment_id}
 
 
@@ -342,15 +403,11 @@ async def patch_assessment_status(
 ):
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
-    if req.status not in WORKFLOW_STATUSES:
-        raise HTTPException(
-            status_code=400,
-            detail="Status must be one of: pending_review, approved",
-        )
+    canonical_status = _parse_status_or_400(req.status)
     existing = await get_assessment_by_id(assessment_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Assessment not found")
-    if existing.get("status") == "approved" and req.status != "approved":
+    if normalize_report_status(existing.get("status")) == "approved" and canonical_status != "approved":
         raise HTTPException(
             status_code=400,
             detail="Approved reports cannot be moved back to pending review",
@@ -359,8 +416,8 @@ async def patch_assessment_status(
     is_owner = existing.get("userId") == current_user.get("id")
     if not is_admin:
         raise HTTPException(status_code=403, detail="Only admins can update report status")
-    doc = await update_assessment_status(assessment_id, req.status)
-    return to_json_safe(doc)
+    doc = await update_assessment_status(assessment_id, canonical_status)
+    return serialize_assessment(doc)
 
 
 @router.patch("/assessments/{assessment_id}/admin-review")
@@ -371,16 +428,18 @@ async def patch_assessment_admin_review(
 ):
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
-    if req.status is not None and req.status not in WORKFLOW_STATUSES:
-        raise HTTPException(
-            status_code=400,
-            detail="Status must be one of: pending_review, approved",
-        )
+    canonical_status = None
+    if req.status is not None:
+        canonical_status = _parse_status_or_400(req.status)
 
     existing = await get_assessment_by_id(assessment_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Assessment not found")
-    if existing.get("status") == "approved" and req.status not in (None, "approved"):
+    if (
+        normalize_report_status(existing.get("status")) == "approved"
+        and canonical_status is not None
+        and canonical_status != "approved"
+    ):
         raise HTTPException(
             status_code=400,
             detail="Approved reports cannot be moved back to pending review",
@@ -408,12 +467,12 @@ async def patch_assessment_admin_review(
     }
     updated = await update_assessment_admin_review(
         assessment_id,
-        status=req.status,
+        status=canonical_status,
         admin_notes=req.adminNotes,
         ai_narrative=ai_narrative,
         reviewer=reviewer,
     )
-    return to_json_safe(updated)
+    return serialize_assessment(updated)
 
 
 @router.post("/assessments/{assessment_id}/ai-narrative")
@@ -423,6 +482,8 @@ async def post_assessment_ai_narrative(
 ):
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
+
+    await require_paid_ai_access(current_user)
 
     existing = await get_assessment_by_id(assessment_id)
     if not existing:
@@ -451,7 +512,7 @@ async def post_assessment_ai_narrative(
         "content": result.get("content"),
     }
     updated = await update_assessment_ai_narrative(assessment_id, ai_narrative)
-    return to_json_safe(updated)
+    return serialize_assessment(updated)
 
 
 @router.post("/assessments/{assessment_id}/ai-visuals")
@@ -462,6 +523,8 @@ async def post_assessment_ai_visuals(
 ):
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
+
+    await require_paid_ai_access(current_user)
 
     existing = await get_assessment_by_id(assessment_id)
     if not existing:
@@ -487,4 +550,59 @@ async def post_assessment_ai_visuals(
         variant_types=req.variants,
     )
     updated = await update_assessment_ai_visuals(assessment_id, ai_visuals)
-    return to_json_safe(updated)
+    return serialize_assessment(updated)
+
+
+@router.get("/assessments/{assessment_id}/protocol")
+async def get_assessment_protocol(
+    assessment_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Load persisted protocol bundle from storage (MongoDB fallback)."""
+    if not is_mongodb_configured():
+        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+
+    existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not _can_access_assessment(existing, current_user):
+        raise HTTPException(status_code=403, detail="You do not have access to this assessment")
+
+    bundle = load_protocol_bundle(assessment_id, existing)
+    if not bundle or not bundle.get("protocolData"):
+        raise HTTPException(status_code=404, detail="Protocol not generated for this assessment.")
+
+    if bundle.get("source") == "mongodb":
+        await persist_protocol_bundle(
+            assessment_id,
+            protocol_data=bundle["protocolData"],
+            protocol_narrative=bundle.get("protocolNarrative"),
+        )
+
+    return to_json_safe(bundle)
+
+
+@router.post("/assessments/{assessment_id}/ai-protocol")
+async def post_assessment_ai_protocol(
+    assessment_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Generate protocol once, persist to storage + MongoDB (paid users only)."""
+    if not is_mongodb_configured():
+        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+
+    await require_paid_ai_access(current_user)
+
+    existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not _can_access_assessment(existing, current_user):
+        raise HTTPException(status_code=403, detail="You do not have access to this assessment")
+
+    analysis = existing.get("analysis") or {}
+    if not analysis.get("cvReport"):
+        raise HTTPException(status_code=400, detail="Stored cvReport is required for AI protocol.")
+
+    bundle = await generate_and_store_protocol(existing)
+    updated = bundle.get("assessment") or existing
+    return serialize_assessment(updated)

@@ -21,12 +21,12 @@ export default {
           border: 'var(--color-surface-border)',
         },
         brand: {
-          DEFAULT: '#0F766E',
-          light: '#14B8A6',
-          lighter: '#99F6E4',
-          dark: '#115E59',
+          DEFAULT: '#5e9f8b',
+          light: '#73bfa9',
+          lighter: '#a8d9cb',
+          dark: '#548f7d',
           50: 'var(--color-brand-50)',
-          100: '#CCFBF1',
+          100: '#dbeee8',
         },
         ink: {
           DEFAULT: 'var(--color-ink)',
@@ -35,9 +35,9 @@ export default {
           faint: 'var(--color-ink-faint)',
         },
         accent: {
-          DEFAULT: '#0F766E',
-          dim: '#0D9488',
-          glow: '#14B8A6',
+          DEFAULT: '#5e9f8b',
+          dim: '#548f7d',
+          glow: '#73bfa9',
         },
         violet: {
           glow: '#7C3AED',
@@ -49,8 +49,8 @@ export default {
         'card-hover': '0 4px 12px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.04)',
         'elevated': '0 8px 24px rgba(0,0,0,0.08), 0 16px 48px rgba(0,0,0,0.04)',
         'modal': '0 20px 60px rgba(0,0,0,0.12), 0 8px 20px rgba(0,0,0,0.06)',
-        'glow': '0 0 20px rgba(15,118,110,0.15)',
-        'brand': '0 2px 8px rgba(15,118,110,0.25)',
+        'glow': '0 0 20px rgba(94,159,139,0.15)',
+        'brand': '0 2px 8px rgba(94,159,139,0.25)',
       },
       borderRadius: {
         '4xl': '2rem',

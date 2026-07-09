@@ -45,8 +45,9 @@ export const GENDER_OPTIONS = [
 
 export const SMOKING_OPTIONS = [
   { value: 'never', label: 'Never' },
-  { value: 'occasionally', label: 'Occasionally' },
-  { value: 'regularly', label: 'Regularly' },
+  { value: 'rarely', label: 'Rarely' },
+  { value: 'sometimes', label: 'Sometimes' },
+  { value: 'often', label: 'Often' },
   { value: 'daily', label: 'Daily' },
 ]
 
@@ -103,6 +104,48 @@ export const SKINCARE_OPTIONS = [
   { value: 'extensive', label: 'Extensive', desc: '6+ products, regular actives' },
 ]
 
+export const DRINKING_OPTIONS = [
+  { value: 'never', label: 'Never' },
+  { value: 'rarely', label: 'Rarely' },
+  { value: 'sometimes', label: 'Sometimes' },
+  { value: 'often', label: 'Often' },
+  { value: 'daily', label: 'Daily' },
+]
+
+export const GENDER_PREFERENCE_OPTIONS = [
+  { value: 'masculine', label: 'Masculine' },
+  { value: 'feminine', label: 'Feminine' },
+  { value: 'no-preference', label: 'No Preference' },
+]
+
+export const TREATMENT_COMFORT_OPTIONS = [
+  { value: 'injectables', label: 'Injectables (minimally invasive)', desc: 'Botox, Dermal Fillers, Fat-Dissolving Injections' },
+  { value: 'non-invasive', label: 'Non-invasive treatments', desc: 'Laser, IPL/LED, Ultrasound, Radiofrequency Treatments' },
+  { value: 'invasive', label: 'Invasive treatments', desc: 'Microneedling, Endo-Lift, Collagen-Stimulating Procedures' },
+  { value: 'semi-permanent', label: 'Semi-permanent enhancements', desc: 'Microblading, Lip Blush, Tattoo-Based Treatments' },
+]
+
+export const GOAL_AESTHETIC_OPTIONS = [
+  { value: 'refine', label: 'Refine and enhance my facial aesthetic' },
+  { value: 'transform', label: 'Significantly transform my facial aesthetic' },
+  { value: 'undecided', label: 'Undecided' },
+]
+
+export const AESTHETIC_DISTRESS_OPTIONS = [
+  { value: 'no-distress', label: 'No distress at all' },
+  { value: 'minor', label: 'Minor distress' },
+  { value: 'moderate', label: 'Moderate distress' },
+  { value: 'extreme', label: 'Extreme distress and affects my day to day' },
+]
+
+export const APPEARANCE_FREQUENCY_OPTIONS = [
+  { value: 'rarely', label: 'Rarely (a few times a week or less)' },
+  { value: 'occasionally', label: 'Occasionally (once a day)' },
+  { value: 'frequently', label: 'Frequently (multiple times a day)' },
+  { value: 'very-often', label: 'Very often (most of the day)' },
+  { value: 'constantly', label: 'Constantly (it\'s always on my mind)' },
+]
+
 const goalLabels = Object.fromEntries(GOAL_OPTIONS.map((o) => [o.value, o.label]))
 const concernLabels = Object.fromEntries(SKIN_CONCERN_OPTIONS.map((o) => [o.value, o.label]))
 const ageLabels = Object.fromEntries(AGE_OPTIONS.map((o) => [o.value, o.label]))
@@ -116,6 +159,12 @@ const ethnicityLabels = Object.fromEntries(ETHNICITY_OPTIONS.map((o) => [o.value
 const skinTypeLabels = Object.fromEntries(SKIN_TYPE_OPTIONS.map((o) => [o.value, o.label]))
 const skincareLabels = Object.fromEntries(SKINCARE_OPTIONS.map((o) => [o.value, o.label]))
 
+const genderPreferenceLabels = Object.fromEntries(GENDER_PREFERENCE_OPTIONS.map((o) => [o.value, o.label]))
+const drinkingLabels = Object.fromEntries(DRINKING_OPTIONS.map((o) => [o.value, o.label]))
+const goalAestheticLabels = Object.fromEntries(GOAL_AESTHETIC_OPTIONS.map((o) => [o.value, o.label]))
+const distressLabels = Object.fromEntries(AESTHETIC_DISTRESS_OPTIONS.map((o) => [o.value, o.label]))
+const appearanceFrequencyLabels = Object.fromEntries(APPEARANCE_FREQUENCY_OPTIONS.map((o) => [o.value, o.label]))
+
 export function formatAnswersSummary(answers) {
   const goals = (answers.goals || []).map((g) => goalLabels[g] || g).join(', ') || 'not specified'
   const concerns = (answers.skinConcerns || []).map((c) => concernLabels[c] || c).join(', ') || 'none selected'
@@ -123,13 +172,47 @@ export function formatAnswersSummary(answers) {
   const ethnicity = ethnicityLabels[answers.ethnicity] || 'not specified'
   const skinType = skinTypeLabels[answers.skinType] || 'not specified'
   const skincareRoutine = skincareLabels[answers.skincareRoutine] || 'not specified'
-  const occupation = answers.environment === 'outdoor' ? 'Outdoor' : answers.environment === 'mixed' ? 'Mixed indoor/outdoor' : answers.environment === 'indoor' ? 'Indoor' : 'not specified'
+  
+  // Real occupation
+  const occupation = answers.occupation || (answers.environment === 'outdoor' ? 'Outdoor' : answers.environment === 'mixed' ? 'Mixed indoor/outdoor' : answers.environment === 'indoor' ? 'Indoor' : 'not specified')
+  
   const age = ageLabels[answers.ageRange] || answers.ageRange || 'not specified'
   const gender = genderLabels[answers.gender] || answers.gender || 'not specified'
   const smoking = smokingLabels[answers.smoking] || 'not specified'
   const sleep = sleepLabels[answers.sleepQuality] || 'not specified'
   const water = waterLabels[answers.waterIntake] || 'not specified'
   const sun = sunLabels[answers.sunExposure] || 'not specified'
-  const medicalConditions = 'none reported'
-  return { goals, concerns, severity, ethnicity, skinType, skincareRoutine, occupation, age, gender, smoking, sleep, water, sun, medicalConditions }
+  
+  // New fields mapping
+  const drinking = drinkingLabels[answers.drinking] || answers.drinking || 'not specified'
+  const genderPreference = genderPreferenceLabels[answers.genderPreference] || answers.genderPreference || 'not specified'
+  const hadNonSurgical = answers.hadNonSurgical || 'no'
+  const hadSurgery = answers.hadSurgery || 'no'
+  const comfortableTreatments = (answers.comfortableTreatments || []).map(val => {
+    const matched = TREATMENT_COMFORT_OPTIONS.find(o => o.value === val)
+    return matched ? matched.label : val
+  }).join(', ') || 'none'
+  const medicalConditions = answers.medicalConditions === 'yes' ? answers.medicalConditionsDetails || 'yes' : 'none reported'
+  const medications = answers.medications === 'yes' ? answers.medicationsDetails || 'yes' : 'none reported'
+  const usedRetinoids = answers.usedRetinoids || 'no'
+  const allergies = answers.allergies === 'yes' ? answers.allergiesDetails || 'yes' : 'none reported'
+  const activeInfections = answers.activeInfections === 'yes' ? answers.activeInfectionsDetails || 'yes' : 'none reported'
+  const proneToHyperpigmentation = answers.proneToHyperpigmentation || 'no'
+  const featureLike = answers.featureLike || 'not specified'
+  const featureDislike = answers.featureDislike || 'not specified'
+  const celebrityMatch = answers.celebrityMatch || 'not specified'
+  const comfortableWeightLoss = answers.comfortableWeightLoss || 'no'
+  const goalAesthetic = goalAestheticLabels[answers.goalAesthetic] || answers.goalAesthetic || 'not specified'
+  const growBeard = answers.growBeard || 'no'
+  const aestheticDistress = distressLabels[answers.aestheticDistress] || answers.aestheticDistress || 'not specified'
+  const appearanceFrequency = appearanceFrequencyLabels[answers.appearanceFrequency] || answers.appearanceFrequency || 'not specified'
+  const motivation = answers.motivation || 'not specified'
+  const additionalNotes = answers.additionalNotes || 'not specified'
+
+  return {
+    goals, concerns, severity, ethnicity, skinType, skincareRoutine, occupation, age, gender, smoking, sleep, water, sun,
+    drinking, genderPreference, hadNonSurgical, hadSurgery, comfortableTreatments, medicalConditions, medications,
+    usedRetinoids, allergies, activeInfections, proneToHyperpigmentation, featureLike, featureDislike, celebrityMatch,
+    comfortableWeightLoss, goalAesthetic, growBeard, aestheticDistress, appearanceFrequency, motivation, additionalNotes
+  }
 }

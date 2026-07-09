@@ -2,7 +2,7 @@ import './globals.css'
 import { AnalyticsScripts } from '../components/AnalyticsScripts'
 
 export const metadata = {
-  title: 'AuraScan — AI Facial Analysis',
+  title: 'MyFace - AI Facial Analysis',
   description: 'AI-powered facial analysis for aesthetic insights and personalized recommendations.',
   icons: {
     icon: '/favicon.svg',

@@ -10,7 +10,7 @@ from ..database import get_db
 SETTINGS_ID = "app"
 DEFAULT_PREMIUM_AMOUNT_CENTS = 50  # $0.50
 DEFAULT_PREMIUM_CURRENCY = "usd"
-DEFAULT_PRODUCT_NAME = "AuraScan Premium Report"
+DEFAULT_PRODUCT_NAME = "MyFace Premium Report"
 DEFAULT_PRODUCT_DESCRIPTION = "Full facial analysis report with review-ready PDF workflow."
 
 
@@ -35,7 +35,7 @@ async def get_settings_doc() -> dict:
 async def get_premium_product() -> dict:
     doc = await get_settings_doc()
     return {
-        "id": "aurascan_report",
+        "id": "myface_report",
         "name": doc.get("productName") or DEFAULT_PRODUCT_NAME,
         "description": doc.get("productDescription") or DEFAULT_PRODUCT_DESCRIPTION,
         "amountCents": int(doc.get("premiumAmountCents") or DEFAULT_PREMIUM_AMOUNT_CENTS),

@@ -1,0 +1,130 @@
+/* ── Questionnaire Split-screen Styles ── */
+
+.fluid-gradient-mesh {
+  position: relative;
+  background-color: #0d1e1f; /* Base QOVES-like deep dark slate/teal */
+  overflow: hidden;
+}
+
+/* Wavy fluid mesh blobs animation */
+.fluid-gradient-mesh::before,
+.fluid-gradient-mesh::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.28;
+  mix-blend-mode: screen;
+  animation: float-mesh-blob 20s infinite alternate ease-in-out;
+  pointer-events: none;
+}
+
+.fluid-gradient-mesh::before {
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(circle, #2d5a57 0%, #153c3a 40%, transparent 70%);
+  top: -40%;
+  left: -30%;
+}
+
+.fluid-gradient-mesh::after {
+  width: 120%;
+  height: 120%;
+  background: radial-gradient(circle, #3b716e 0%, #0d2e2c 50%, transparent 80%);
+  bottom: -30%;
+  right: -20%;
+  animation-duration: 25s;
+  animation-delay: -7s;
+}
+
+@keyframes float-mesh-blob {
+  0% {
+    transform: translate(0px, 0px) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.08) rotate(120deg);
+  }
+  66% {
+    transform: translate(-40px, 20px) scale(0.95) rotate(240deg);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1) rotate(360deg);
+  }
+}
+
+/* Questionnaire specific animations */
+.fade-in-slide {
+  animation: fadeInSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Premium bottom border text inputs */
+.qoves-input {
+  width: 100% !important;
+  padding: 12px 0 !important;
+  font-size: 1.25rem !important;
+  font-weight: 400 !important;
+  color: #1e293b !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-bottom: 1.5px solid #cbd5e1 !important;
+  border-radius: 0 !important;
+  transition: all 0.25s ease !important;
+}
+
+.qoves-input:focus {
+  outline: none !important;
+  border-bottom-color: #0d9488 !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
+}
+
+.dark .qoves-input {
+  color: #f1f5f9 !important;
+  border-bottom-color: #475569 !important;
+}
+
+.dark .qoves-input:focus {
+  border-bottom-color: #2dd4bf !important;
+}
+
+/* Sleek textarea */
+.qoves-textarea {
+  width: 100% !important;
+  padding: 12px 0 !important;
+  font-size: 1.125rem !important;
+  color: #1e293b !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-bottom: 1.5px solid #cbd5e1 !important;
+  border-radius: 0 !important;
+  transition: all 0.25s ease !important;
+  resize: none !important;
+  min-height: 100px !important;
+}
+
+.qoves-textarea:focus {
+  outline: none !important;
+  border-bottom-color: #0d9488 !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
+}
+
+.dark .qoves-textarea {
+  color: #f1f5f9 !important;
+  border-bottom-color: #475569 !important;
+}
+
+.dark .qoves-textarea:focus {
+  border-bottom-color: #2dd4bf !important;
+}

@@ -84,7 +84,7 @@ Expected output from the smoke test script:
 2. **Import to Replit:** Create a new project in Replit by importing your GitHub repository.
 3. **Configure Secrets:** Open the **Secrets** tool in Replit and add:
    ```text
-   MONGODB_URI=mongodb+srv://USER:PASSWORD@HOST/aurascan?retryWrites=true&w=majority
+   MONGODB_URI=mongodb+srv://USER:PASSWORD@HOST/myface?retryWrites=true&w=majority
    AUTH_SECRET=long-random-secret-key
    ADMIN_EMAIL=admin@example.com
    ADMIN_PASSWORD=strong-admin-password
@@ -141,7 +141,7 @@ SMTP_PORT=587
 SMTP_USERNAME=your-username
 SMTP_PASSWORD=your-password
 SMTP_FROM_EMAIL=no-reply@yourdomain.com
-SMTP_FROM_NAME=AuraScan
+SMTP_FROM_NAME=MyFace
 ```
 
 ### Meta Pixel & Google Tag Manager

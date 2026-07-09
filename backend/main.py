@@ -1,4 +1,4 @@
-"""FastAPI backend server — AuraScan facial analysis API."""
+"""FastAPI backend server — MyFace facial analysis API."""
 
 from __future__ import annotations
 
@@ -19,14 +19,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .api_routes import router as api_router
 from .analyze_face import run_face_analysis
 from .auth import ensure_bootstrap_admin
-from .build_aws_report import build_aws_report
-from .build_eye_report import build_eye_report
 from .database import close_db, connect_db, is_mongodb_configured, ping_db
 from .image_utils import decode_image, decode_photo_dict
-from .openai_client import generate_report
 from .routers.auth import router as auth_router
 from .routers.assessments import router as assessments_router
 from .routers.assistant import router as assistant_router
@@ -50,7 +46,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AuraScan Backend",
+    title="MyFace Backend",
     description="Python FastAPI backend for facial analysis",
     version="1.1.0",
     lifespan=lifespan,
@@ -74,7 +70,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router)
 app.include_router(auth_router)
 app.include_router(assessments_router)
 app.include_router(assistant_router)
@@ -88,34 +83,11 @@ class RunAnalysisRequest(BaseModel):
     answers: dict = {}
     photos: dict = {}
     provider: str = "local"
-    awsCredentials: Optional[dict] = None
-
-
-class GenerateReportRequest(BaseModel):
-    answers: dict = {}
-    imagePreview: Optional[str] = None
-    cvMetrics: Optional[dict] = None
-    cvError: Optional[str] = None
-    faceDetails: Optional[dict] = None
-    protocolWarnings: list = []
-    eyeAnalysis: Optional[dict] = None
-    apiKey: Optional[str] = None
 
 
 class GeneratePdfRequest(BaseModel):
     reportMarkdown: str
     reportData: Optional[dict] = None
-
-
-def _aws_creds_from_request(req: RunAnalysisRequest) -> Optional[dict]:
-    if not req.awsCredentials:
-        return None
-    return {
-        "access_key_id": req.awsCredentials.get("accessKeyId", ""),
-        "secret_access_key": req.awsCredentials.get("secretAccessKey", ""),
-        "session_token": req.awsCredentials.get("sessionToken"),
-        "region": req.awsCredentials.get("region", "us-east-1"),
-    }
 
 
 @app.get("/api/health")
@@ -139,7 +111,6 @@ async def run_analysis(req: RunAnalysisRequest):
         raise HTTPException(status_code=400, detail="Invalid image data")
 
     photos = decode_photo_dict(req.photos)
-    aws_creds = _aws_creds_from_request(req)
 
     try:
         result = await asyncio.to_thread(
@@ -148,46 +119,10 @@ async def run_analysis(req: RunAnalysisRequest):
             req.answers,
             photos,
             req.provider,
-            aws_creds,
         )
         return to_json_safe(result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/generate-report")
-async def generate_report_endpoint(req: GenerateReportRequest):
-    if not req.cvMetrics:
-        raise HTTPException(status_code=400, detail="No analysis data available.")
-
-    source = req.cvMetrics.get("source", "local")
-    provider = source if source in ("aws", "openai") else "local"
-
-    if provider == "aws":
-        content = build_aws_report(req.faceDetails, req.cvMetrics, req.answers, req.protocolWarnings)
-        if not content:
-            raise HTTPException(status_code=400, detail="AWS data missing.")
-        return {"content": content, "source": "aws", "error": None}
-
-    if provider == "local":
-        if not req.eyeAnalysis:
-            raise HTTPException(status_code=400, detail="Eye analysis data missing.")
-        content = build_eye_report(req.eyeAnalysis, req.answers)
-        return {"content": content, "source": "local", "error": None}
-
-    result = generate_report(
-        answers=req.answers,
-        image_preview=req.imagePreview,
-        cv_metrics=req.cvMetrics,
-        cv_error=req.cvError,
-        face_details=req.faceDetails,
-        protocol_warnings=req.protocolWarnings,
-        eye_analysis=req.eyeAnalysis,
-        api_key=req.apiKey or os.environ.get("OPENAI_API_KEY"),
-    )
-    if result.get("error"):
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
 
 
 @app.post("/api/generate-pdf")

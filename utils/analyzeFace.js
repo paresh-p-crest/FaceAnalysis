@@ -51,7 +51,7 @@ async function runLocalCvPath(photo, answers, photos) {
   const metrics = computeMetricsFromLandmarks(mpResult.landmarks, answers, imageStats)
   const [eyeAnalysis, cvReport] = await Promise.all([
     analyzeEyes(mpResult.landmarks, photo),
-    buildCvReport(mpResult.landmarks, photo, metrics, photos),
+    buildCvReport(mpResult.landmarks, photo, metrics, photos, answers),
   ])
 
   return {
@@ -118,7 +118,7 @@ export async function runFaceAnalysis(photo, answers, photos = {}, scanId = null
       const metrics = computeMetricsFromLandmarks(mpResult.landmarks, answers, imageStats)
       const [eyeAnalysis, cvReport] = await Promise.all([
         analyzeEyes(mpResult.landmarks, photo),
-        buildCvReport(mpResult.landmarks, photo, metrics, photos),
+        buildCvReport(mpResult.landmarks, photo, metrics, photos, answers),
       ])
 
       return {

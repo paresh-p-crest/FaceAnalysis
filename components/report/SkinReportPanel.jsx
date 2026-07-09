@@ -1,4 +1,5 @@
 import { safeDisplay } from '../../utils/safeFormat'
+import { FeatureAnalysisPage } from './FeatureAnalysisPage'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -129,16 +130,27 @@ export function SkinReportPanel({ skin }) {
   }
 
   return (
+    <FeatureAnalysisPage
+      featureName="skin"
+      subtitle="Canvas pixel analysis from 6 facial regions"
+      heroImage={s.imageSrc}
+      summaryCards={[
+        { label: 'Skin Tone', value: s.skinTone },
+        { label: 'Texture', value: s.texture },
+        { label: 'Overall Score', value: `${s.score}/100` },
+        ...(s.hydration ? [{ label: 'Hydration', value: s.hydration }] : []),
+      ]}
+      details={[{
+        title: 'Skin Quality Overview',
+        body: s.explanation,
+        metricLabel: 'Overall Score',
+        metricValue: `${s.score}/100`,
+        markerPct: s.score,
+        rangeMin: 50,
+        rangeMax: 95,
+      }]}
+    >
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h3 className="font-display text-lg font-semibold text-ink mb-1">An overview of your skin</h3>
-        <p className="text-[10px] text-ink-muted font-sans mb-4">Canvas pixel analysis from 6 facial regions · $0 API cost</p>
-        {s.imageSrc && (
-          <FaceImageFrame src={s.imageSrc} alt="Your skin" aspect="auto" maxW="380px" />
-        )}
-      </div>
-
       {/* ── Section 1: Skin Tone & Type ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
         <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Skin Tone & Type</p>
@@ -273,11 +285,11 @@ export function SkinReportPanel({ skin }) {
         </div>
       </div>
 
-      {/* ── Full Explanation ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-2">Full Analysis Summary</p>
+        <p className="qoves-report-mono-label mb-2">Full Analysis Summary</p>
         <p className="text-sm text-ink-secondary leading-relaxed font-sans">{safeDisplay(s.explanation)}</p>
       </div>
     </div>
+    </FeatureAnalysisPage>
   )
 }

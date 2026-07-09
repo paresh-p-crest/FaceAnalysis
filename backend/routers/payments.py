@@ -29,8 +29,8 @@ from ..serialization import to_json_safe
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 
 DEFAULT_PRODUCT = {
-    "id": "aurascan_report",
-    "name": "AuraScan Premium Report",
+    "id": "myface_report",
+    "name": "MyFace Premium Report",
     "description": "Full facial analysis report with review-ready PDF workflow.",
     "amountCents": 50,
     "currency": "usd",
@@ -306,7 +306,7 @@ async def create_paypal_order(
             }
         ],
         "application_context": {
-            "brand_name": "AuraScan",
+            "brand_name": "MyFace",
             "shipping_preference": "NO_SHIPPING",
             "user_action": "PAY_NOW",
             "return_url": req.successUrl or f"{_public_base_url()}/?payment=paypal-success",

@@ -34,6 +34,7 @@ async def create_assessment(
     analysis: dict,
     user_id: Optional[str] = None,
     photos_keys: Optional[list[str]] = None,
+    photos: Optional[dict] = None,
     status: str = "draft",
     scan_id: Optional[str] = None,
 ) -> dict:
@@ -50,6 +51,7 @@ async def create_assessment(
         "provider": provider,
         "userId": user_id,
         "photosKeys": photos_keys or [],
+        "photos": photos or {},
         "analysis": analysis,
         "scanId": scan_id,
         "createdAt": now,
@@ -170,6 +172,24 @@ async def update_assessment_admin_review(
     return _serialize_doc(doc) if doc else None
 
 
+async def update_assessment_analysis(assessment_id: str, analysis: dict, photos: Optional[dict] = None) -> Optional[dict]:
+    db = get_db()
+    try:
+        oid = ObjectId(assessment_id)
+    except Exception:
+        return None
+    update_fields: dict[str, Any] = {"analysis": analysis, "updatedAt": _utcnow()}
+    if photos is not None:
+        update_fields["photos"] = photos
+        update_fields["photosKeys"] = list(photos.keys())
+    doc = await db.assessments.find_one_and_update(
+        {"_id": oid},
+        {"$set": update_fields},
+        return_document=ReturnDocument.AFTER,
+    )
+    return _serialize_doc(doc) if doc else None
+
+
 async def update_assessment_ai_narrative(assessment_id: str, ai_narrative: dict) -> Optional[dict]:
     db = get_db()
     try:
@@ -193,6 +213,33 @@ async def update_assessment_ai_visuals(assessment_id: str, ai_visuals: dict) -> 
     doc = await db.assessments.find_one_and_update(
         {"_id": oid},
         {"$set": {"aiVisuals": ai_visuals, "updatedAt": _utcnow()}},
+        return_document=ReturnDocument.AFTER,
+    )
+    return _serialize_doc(doc) if doc else None
+
+
+async def update_assessment_protocol(
+    assessment_id: str,
+    *,
+    protocol_data: Optional[dict] = None,
+    protocol_narrative: Optional[dict] = None,
+    protocol_storage: Optional[dict] = None,
+) -> Optional[dict]:
+    db = get_db()
+    try:
+        oid = ObjectId(assessment_id)
+    except Exception:
+        return None
+    update_fields: dict[str, Any] = {"updatedAt": _utcnow()}
+    if protocol_data is not None:
+        update_fields["protocolData"] = protocol_data
+    if protocol_narrative is not None:
+        update_fields["protocolNarrative"] = protocol_narrative
+    if protocol_storage is not None:
+        update_fields["protocolStorage"] = protocol_storage
+    doc = await db.assessments.find_one_and_update(
+        {"_id": oid},
+        {"$set": update_fields},
         return_document=ReturnDocument.AFTER,
     )
     return _serialize_doc(doc) if doc else None
