@@ -23,7 +23,7 @@ import { clearSession, fetchCurrentUser, getStoredUser } from '../utils/authClie
 import { fetchAssessment, isBackendApiEnabled, confirmStripeCheckout } from '../utils/apiClient'
 import { trackEvent } from '../utils/analytics'
 import { clearAdminTab, persistAdminTab, readAdminTab } from '../utils/adminPanel'
-import { createHistoryId } from '../utils/historyStorage'
+import { createHistoryId, loadHistory } from '../utils/historyStorage'
 import { userHasAnalysisAccess } from '../utils/paymentAccess'
 import ConfirmDialog from './ConfirmDialog'
 
@@ -368,7 +368,16 @@ function AppInner() {
     }
   }
 
-  const viewHistoryItem = (id) => {
+  const viewHistoryItem = async (id) => {
+    const item = loadHistory().find((entry) => entry.id === id)
+    if (item?.assessmentId && isBackendApiEnabled()) {
+      try {
+        applyCloudAssessment(await fetchAssessment(item.assessmentId))
+        return
+      } catch {
+        // Fall back to the compact local entry if the cloud report cannot be reached.
+      }
+    }
     setHistoryId(id)
     setStage(STAGES.REPORT)
   }
