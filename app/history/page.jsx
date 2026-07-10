@@ -8,6 +8,7 @@ export default function HistoryRoutePage() {
     user,
     viewHistoryItem,
     viewCloudAssessment,
+    openingReportId,
     openDashboard,
   } = useApp()
 
@@ -15,6 +16,7 @@ export default function HistoryRoutePage() {
     <HistoryPage
       onViewItem={viewHistoryItem}
       onViewCloudItem={viewCloudAssessment}
+      openingReportId={openingReportId}
       onOpenAdmin={openDashboard}
       user={user}
     />

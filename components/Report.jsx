@@ -103,14 +103,24 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   const displayPhoto = historyEntry?.photo ?? photo
   const displayAnalysis = historyEntry?.analysis ?? analysis
   const displayAnswers = historyEntry?.answers ?? answers
-
-  const cvFailed = !isFromHistory && !!displayAnalysis && (!displayAnalysis.success || !!displayAnalysis.error)
+  const cvReport = historyEntry?.cvReport ?? displayAnalysis?.cvReport ?? null
+  const isSavedAssessment = !!(displayAnalysis?.savedToDb || displayAnalysis?.assessmentId || historyEntry?.assessmentId)
+  const cvFailed = !isFromHistory && !!displayAnalysis && !isSavedAssessment
+    && (displayAnalysis.success === false || !!displayAnalysis.error)
+  const hasRenderableCvReport = !!(
+    cvReport?.faceShape
+    || cvReport?.nose
+    || cvReport?.eyes
+    || cvReport?.features
+    || cvReport?.symmetry?.summary
+    || cvReport?.proportions?.summary
+  )
+  const cvPending = !isFromHistory && !hasRenderableCvReport && !cvFailed && !!displayAnalysis
   const metrics = displayAnalysis?.metrics
   const landmarks = displayAnalysis?.landmarks
   const eyeAnalysis = historyEntry?.eyeAnalysis ?? displayAnalysis?.eyeAnalysis ?? null
-  const cvReport = historyEntry?.cvReport ?? displayAnalysis?.cvReport ?? null
   const cvLabel = historyEntry?.cvLabel ?? getCvLabel(displayAnalysis, metrics)
-  const showQovesReport = !!cvReport
+  const showQovesReport = hasRenderableCvReport
   const reportStatus = normalizeReportStatus(statusOverride || historyEntry?.reportStatus || displayAnalysis?.reportStatus)
   const assessmentId = displayAnalysis?.assessmentId || historyEntry?.assessmentId
   const requiresApproval = !!displayAnalysis?.savedToDb || !!displayAnalysis?.assessmentId || !!historyEntry?.assessmentId
@@ -469,12 +479,19 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
               ))}
             </div>
           </ReportDocumentLayout>
-        ) : (
+        ) : cvPending ? (
           <div className="max-w-lg mx-auto px-4">
             <div className="bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border text-center">
               <Loader2 className="w-8 h-8 text-brand animate-spin mx-auto mb-4" />
               <p className="text-sm text-ink-muted">Building structured report from landmarks…</p>
             </div>
+          </div>
+        ) : (
+          <div className="max-w-lg mx-auto px-4">
+            <ErrorPanel
+              title="Report unavailable"
+              message={displayAnalysis?.error || 'No analysis data was returned. Upload all 7 required photos and run analysis again.'}
+            />
           </div>
         )}
       </div>

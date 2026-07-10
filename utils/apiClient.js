@@ -4,6 +4,7 @@
  */
 
 import { getAwsCredentials } from './settings'
+import { prepareImageForBackend, preparePhotosForBackend } from './imagePayload'
 
 const inflightScans = new Map()
 
@@ -32,28 +33,11 @@ function authHeaders() {
 }
 
 async function toBackendImagePayload(src) {
-  if (!src || typeof src !== 'string') return src
-  if (src.startsWith('data:')) return src
-  if (!src.startsWith('/')) return src
-
-  const res = await fetch(src)
-  if (!res.ok) throw new Error(`Could not load image ${src}`)
-  const blob = await res.blob()
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = () => reject(new Error(`Could not read image ${src}`))
-    reader.readAsDataURL(blob)
-  })
+  return prepareImageForBackend(src)
 }
 
 async function normalizePhotosForBackend(photos = {}) {
-  const entries = await Promise.all(
-    Object.entries(photos)
-      .filter(([, value]) => Boolean(value))
-      .map(async ([key, value]) => [key, await toBackendImagePayload(value)])
-  )
-  return Object.fromEntries(entries)
+  return preparePhotosForBackend(photos)
 }
 
 export async function runFaceAnalysisViaBackend(photo, answers, photos = {}, provider = 'local', scanId = null) {
@@ -68,6 +52,9 @@ export async function runFaceAnalysisViaBackend(photo, answers, photos = {}, pro
       toBackendImagePayload(photo),
       normalizePhotosForBackend(photos),
     ])
+    if (imageBase64 && !normalizedPhotos.front) {
+      normalizedPhotos.front = imageBase64
+    }
 
     const body = {
       imageBase64,

@@ -17,7 +17,7 @@ import {
   adminTabToPath,
 } from '../../utils/routes'
 import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser } from '../../utils/authClient'
-import { isBackendApiEnabled, confirmStripeCheckout, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers } from '../../utils/apiClient'
+import { isBackendApiEnabled, confirmStripeCheckout, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment } from '../../utils/apiClient'
 import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
@@ -68,6 +68,7 @@ export function AppProvider({ children }) {
   const [questionnaireStartAtEnd, setQuestionnaireStartAtEnd] = useState(false)
   const [analysisStep, setAnalysisStep] = useState(ANALYSIS_STEPS.WELCOME)
   const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [openingReportId, setOpeningReportId] = useState(null)
   const [adminWorkspace, setAdminWorkspace] = useState({
     assessments: [],
     payments: [],
@@ -249,6 +250,7 @@ export function AppProvider({ children }) {
     setPhotos(hydratePhotosFromAssessment(assessment))
     setAnalysis({
       ...(assessment.analysis || {}),
+      success: assessment.analysis?.success ?? true,
       assessmentId: assessment.id,
       savedToDb: true,
       reportStatus: assessment.status || 'pending_review',
@@ -512,9 +514,22 @@ export function AppProvider({ children }) {
     openReportModal()
   }, [openReportModal])
 
-  const viewCloudAssessment = useCallback((assessment) => {
-    hydrateFromCloudAssessment(assessment)
-    openReportModal()
+  const viewCloudAssessment = useCallback(async (assessment) => {
+    if (!assessment?.id || !isBackendApiEnabled()) {
+      hydrateFromCloudAssessment(assessment)
+      openReportModal()
+      return
+    }
+    setOpeningReportId(assessment.id)
+    try {
+      const full = await fetchAssessment(assessment.id)
+      hydrateFromCloudAssessment(full)
+      openReportModal()
+    } catch (err) {
+      alert(err?.message || 'Could not load report')
+    } finally {
+      setOpeningReportId(null)
+    }
   }, [hydrateFromCloudAssessment, openReportModal])
 
   const skipQuestionnaireWithSampleData = useCallback(() => {
@@ -564,6 +579,7 @@ export function AppProvider({ children }) {
     setQuestionnaireStartAtEnd,
     analysisStep,
     reportModalOpen,
+    openingReportId,
     primaryPhoto,
     pathname,
     goTo,
@@ -598,7 +614,7 @@ export function AppProvider({ children }) {
     user, authReady, answers, photos, analysis, historyId, settingsOpen, authOpen, returnPath,
     billingMessage, paymentReturn, logoutConfirmOpen, scanId,
     adminWorkspace,
-    questionnaireStartAtEnd, analysisStep, reportModalOpen, primaryPhoto, pathname,
+    questionnaireStartAtEnd, analysisStep, reportModalOpen, openingReportId, primaryPhoto, pathname,
     goTo, goToStage, openDashboard, openHistory, openBilling, startNewAnalysis,
     startAnalysisAfterPayment, handleScanComplete, handleRetryLocal, logout,
     handleAuthenticated, viewHistoryItem, viewCloudAssessment,

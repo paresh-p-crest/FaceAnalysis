@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { PHOTO_POSES } from '../utils/constants'
 import { getAllDemoPhotos } from '../utils/demoPhotos'
+import { prepareImageForBackend } from '../utils/imagePayload'
 import { validatePhoto } from '../utils/photoValidation'
 
 const POSES = PHOTO_POSES.map((p) => ({
@@ -60,6 +61,7 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
   const [activePose, setActivePose] = useState('front')
   const [validation, setValidation] = useState({})
   const [validating, setValidating] = useState(false)
+  const [loadingDemos, setLoadingDemos] = useState(false)
 
   const allChecked = confirmedChecks.every(Boolean)
   const requiredPoses = POSES.filter((p) => p.required)
@@ -93,22 +95,30 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
     setValidating(false)
   }
 
-  const handleUseAllDemos = () => {
+  const handleUseAllDemos = async () => {
     const allDemos = getAllDemoPhotos()
-    const demoValidation = {}
-    const demoPhotos = {}
-
-    POSES.forEach((pose) => {
-      demoPhotos[pose.id] = allDemos[pose.id] || allDemos.front
-      demoValidation[pose.id] = {
-        overall: 'pass',
-        checks: [{ pass: true, message: 'Demo image', severity: 'ok' }],
-      }
-    })
-
-    setPhotos((prev) => ({ ...prev, ...demoPhotos }))
-    setValidation((prev) => ({ ...prev, ...demoValidation }))
-    setActivePose('front')
+    setLoadingDemos(true)
+    try {
+      const demoPhotos = {}
+      const demoValidation = {}
+      await Promise.all(
+        POSES.map(async (pose) => {
+          const src = allDemos[pose.id] || allDemos.front
+          demoPhotos[pose.id] = await prepareImageForBackend(src)
+          demoValidation[pose.id] = {
+            overall: 'pass',
+            checks: [{ pass: true, message: 'Demo image', severity: 'ok' }],
+          }
+        })
+      )
+      setPhotos((prev) => ({ ...prev, ...demoPhotos }))
+      setValidation((prev) => ({ ...prev, ...demoValidation }))
+      setActivePose('front')
+    } catch (err) {
+      alert(err?.message || 'Could not load demo photos')
+    } finally {
+      setLoadingDemos(false)
+    }
   }
 
   const removePhoto = (poseId) => {
@@ -293,10 +303,11 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
           <button
             type="button"
             onClick={handleUseAllDemos}
-            className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 hover:text-[#5e9f8b] transition-colors"
+            disabled={loadingDemos}
+            className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 hover:text-[#5e9f8b] transition-colors disabled:opacity-50"
           >
             <Sparkles className="w-3 h-3" />
-            Use demo photos
+            {loadingDemos ? 'Loading demo photos…' : 'Use demo photos'}
           </button>
         </div>
 

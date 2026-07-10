@@ -16,7 +16,12 @@ All notable changes to this project will be documented in this file. The format 
 - **Optional hair segmentation hook** — `backend/hair_segmentation.py` gated by `HAIR_SEGMENTATION_ENABLED`.
 - **Profile silhouette fallback** — `backend/profile_silhouette.py` for edge-based profile points (Phase 2 model integration).
 - `backend/tests/test_photo_validation.py`.
-### Changed
+### Fixed
+- **`POST /api/assessments` 400** — front photo sent via `imageBase64` is now counted toward required-pose validation (was rejecting valid uploads).
+- **Report modal** — shows an error instead of infinite "Building structured report…" when analysis returns without `cvReport`.
+- **Demo photo analysis** — demo images (~40MB each) are compressed before upload; fixes oversized payloads on `POST /api/assessments`.
+- **Open Report from dashboard/history** — fetches full assessment via `GET /api/assessments/{id}`; summary rows no longer misclassified as failed analysis.
+- **Report PDF feature crops** — per-feature landmark crops for eyes (brows / periorbital / dual-eye preview), lips (oval masked preview), and cheeks (landmark-based measurement overlays); generic guardrail narrative no longer replaces distinct subsection copy.
 - **Hair PDF page** — `drawHairFeaturePage()` reads live `section.subsections` / `summary` and Norwood stage from `cvReport.hair`.
 - **Nose PDF page** — no longer tags front crop as `PROFILE`; profile panel only when real side profile exists.
 - **Nose CV enrichment** — profile measurements merged into `cvReport.nose` in `analyze_face._enrich_cv_report()`.

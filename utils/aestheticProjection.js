@@ -16,6 +16,8 @@ import {
   bboxEyesRegion,
   mergeBboxes,
 } from './faceCrop'
+
+const PREVIEW_BG = { r: 232, g: 238, b: 244 }
 import { projectionStrengths } from './anthropometrics'
 import { warpHorizontal, pathFromIndices, strokePath, healRegion, addNoiseOverlay } from './projectionCanvas'
 
@@ -130,6 +132,27 @@ function getFeatureBox(landmarks, featureKey) {
     }
     case 'eyebrows': return bboxBrowsRegion(landmarks)
     case 'eyes': return bboxEyesRegion(landmarks)
+    case 'periorbital':
+      return mergeBboxes(bboxBrowsRegion(landmarks), bboxEyesRegion(landmarks), 0.012)
+    case 'eyelashes': {
+      const eyes = bboxEyesRegion(landmarks)
+      return {
+        x: eyes.x,
+        y: Math.max(0, eyes.y - eyes.h * 0.08),
+        w: eyes.w,
+        h: Math.min(1 - eyes.y, eyes.h * 1.12),
+      }
+    }
+    case 'underEye': {
+      const eyes = bboxEyesRegion(landmarks)
+      const y = eyes.y + eyes.h * 0.55
+      return {
+        x: eyes.x,
+        y,
+        w: eyes.w,
+        h: Math.min(1 - y, eyes.h * 0.55),
+      }
+    }
     case 'nose': return bboxFromIndices(landmarks, NOSE_INDICES, 0.05)
     case 'lips': return bboxFromIndices(landmarks, MOUTH, 0.05)
     case 'jaw':
@@ -637,6 +660,102 @@ export async function cropFeatureBeforeForPdf(imageSrc, landmarks, featureKey, m
   return cropDataUrl(canvas, getFeatureBox(lmArr, featureKey), minPx)
 }
 
+/** Side-by-side left/right eye crops for PDF eye preview panel. */
+export async function cropDualEyesForPdf(imageSrc, landmarks, minPx = 180) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  const base = await normalizeToJpegDataUrl(imageSrc)
+  if (!lmArr?.length) return null
+
+  const img = await loadImage(base)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+
+  const rightOnly = bboxFromIndices(lmArr, RIGHT_EYE, 0.03)
+  const leftOnly = bboxFromIndices(lmArr, LEFT_EYE, 0.03)
+
+  const rightCrop = cropDataUrl(canvas, rightOnly, minPx)
+  const leftCrop = cropDataUrl(canvas, leftOnly, minPx)
+
+  const rImg = await loadImage(rightCrop)
+  const lImg = await loadImage(leftCrop)
+  const gap = Math.round(Math.min(rImg.width, lImg.width) * 0.08)
+  const out = document.createElement('canvas')
+  out.width = rImg.width + lImg.width + gap
+  out.height = Math.max(rImg.height, lImg.height)
+  const ctx = out.getContext('2d')
+  ctx.fillStyle = '#fafbfc'
+  ctx.fillRect(0, 0, out.width, out.height)
+  ctx.drawImage(rImg, 0, Math.round((out.height - rImg.height) / 2))
+  ctx.drawImage(lImg, rImg.width + gap, Math.round((out.height - lImg.height) / 2))
+  return out.toDataURL('image/jpeg', 0.92)
+}
+
+/** Masked oval preview (lips) on protocol-blue panel background. */
+export async function createMaskedFeaturePreview(imageSrc, landmarks, featureKey, minPx = 220) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  const base = await normalizeToJpegDataUrl(imageSrc)
+  if (!lmArr?.length) return null
+
+  const img = await loadImage(base)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+  const featureCrop = await loadImage(cropDataUrl(canvas, getFeatureBox(lmArr, featureKey), minPx))
+
+  const panelW = Math.max(featureCrop.width + 80, 320)
+  const panelH = Math.max(featureCrop.height + 100, 220)
+  const out = document.createElement('canvas')
+  out.width = panelW
+  out.height = panelH
+  const ctx = out.getContext('2d')
+  ctx.fillStyle = `rgb(${PREVIEW_BG.r},${PREVIEW_BG.g},${PREVIEW_BG.b})`
+  ctx.fillRect(0, 0, panelW, panelH)
+
+  const cx = panelW / 2
+  const cy = panelH / 2
+  const rx = featureCrop.width * 0.58
+  const ry = featureCrop.height * 0.62
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+  ctx.clip()
+  ctx.drawImage(
+    featureCrop,
+    cx - featureCrop.width / 2,
+    cy - featureCrop.height / 2,
+    featureCrop.width,
+    featureCrop.height
+  )
+  ctx.restore()
+
+  return out.toDataURL('image/jpeg', 0.92)
+}
+
+export function getCropBox(landmarks, featureKey) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  if (!lmArr?.length) return null
+  return getFeatureBox(lmArr, featureKey)
+}
+
+/** Normalized overlay guide points (0–1) within a feature crop box. */
+export function featureOverlayPoints(landmarks, cropBox, indices) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  if (!lmArr?.length || !cropBox) return []
+  return indices
+    .map((idx) => {
+      const p = lm(lmArr, idx)
+      return {
+        x: (p.x - cropBox.x) / cropBox.w,
+        y: (p.y - cropBox.y) / cropBox.h,
+      }
+    })
+    .filter((p) => p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1)
+}
+
 /** Profile-side crop for nose/jaw feature pages. */
 export async function cropProfileBefore(imageSrc, landmarks, minPx = 450) {
   const lmArr = landmarksFromOverlay(landmarks)
@@ -693,4 +812,4 @@ export async function createEnhancedPortrait(src, landmarks, cvReport, metrics) 
   return normalizeToJpegDataUrl(src)
 }
 
-export { getFeatureBox, getProfileBox, projectionStrengths }
+export { getFeatureBox, getProfileBox, projectionStrengths, PREVIEW_BG }

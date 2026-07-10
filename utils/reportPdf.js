@@ -167,15 +167,21 @@ function fitImage(w, h, maxW, maxH) {
   return { w: w * ratio, h: h * ratio }
 }
 
-function addPdfImage(doc, dataUrl, x, y, maxW, maxH) {
+function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false) {
   if (!dataUrl) return { w: 0, h: 0 }
   const props = doc.getImageProperties(dataUrl)
-  const fit = fitImage(props.width, props.height, maxW, maxH)
-  doc.addImage(dataUrl, 'JPEG', x, y, fit.w, fit.h, undefined, IMG_QUALITY)
-  return fit
+  const ratio = cover
+    ? Math.max(maxW / props.width, maxH / props.height)
+    : Math.min(maxW / props.width, maxH / props.height)
+  const w = props.width * ratio
+  const h = props.height * ratio
+  const ox = x + (maxW - w) / 2
+  const oy = y + (maxH - h) / 2
+  doc.addImage(dataUrl, 'JPEG', ox, oy, w, h, undefined, IMG_QUALITY)
+  return { w, h, ox, oy }
 }
 
-function drawImageFrame(doc, x, y, w, h, dataUrl, tag) {
+function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false } = {}) {
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.roundedRect(x, y, w, h, 6, 6, 'F')
   doc.setDrawColor(229, 231, 235)
@@ -184,7 +190,7 @@ function drawImageFrame(doc, x, y, w, h, dataUrl, tag) {
 
   if (dataUrl) {
     const pad = 4
-    addPdfImage(doc, dataUrl, x + pad, y + pad, w - pad * 2, h - pad * 2)
+    addPdfImage(doc, dataUrl, x + pad, y + pad, w - pad * 2, h - pad * 2, cover)
   } else {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
@@ -194,7 +200,8 @@ function drawImageFrame(doc, x, y, w, h, dataUrl, tag) {
 
   if (tag) {
     doc.setFillColor(80, 80, 80)
-    doc.roundedRect(x + 6, y + 6, 52, 14, 2, 2, 'F')
+    const tagW = Math.min(72, tag.length * 5.5 + 14)
+    doc.roundedRect(x + 6, y + 6, tagW, 14, 2, 2, 'F')
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7)
     setWhite(doc)
@@ -202,19 +209,57 @@ function drawImageFrame(doc, x, y, w, h, dataUrl, tag) {
   }
 }
 
-function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 100, horizontal = true) {
+function drawCheekMeasurementOverlay(doc, frameX, frameY, frameW, frameH, points = []) {
+  if (!points.length) return
+  const pad = 6
+  const ix = frameX + pad
+  const iy = frameY + pad
+  const iw = frameW - pad * 2
+  const ih = frameH - pad * 2
+  const toX = (p) => ix + p.x * iw
+  const toY = (p) => iy + p.y * ih
+
+  doc.setDrawColor(255, 255, 255)
+  doc.setLineWidth(0.85)
+  doc.setFillColor(255, 255, 255)
+
+  const left = points.filter((p) => p.x < 0.48).sort((a, b) => a.y - b.y)
+  const right = points.filter((p) => p.x >= 0.52).sort((a, b) => a.y - b.y)
+  const midY = points.reduce((sum, p) => sum + p.y, 0) / points.length
+
+  if (left.length >= 2) {
+    const top = left[0]
+    const bottom = left[left.length - 1]
+    doc.line(toX(top), toY(top), toX(bottom), toY(bottom))
+    doc.circle(toX(top), toY(top), 1.6, 'F')
+    doc.circle(toX(bottom), toY(bottom), 1.6, 'F')
+  }
+  if (right.length >= 2) {
+    const top = right[0]
+    const bottom = right[right.length - 1]
+    doc.line(toX(top), toY(top), toX(bottom), toY(bottom))
+    doc.circle(toX(top), toY(top), 1.6, 'F')
+    doc.circle(toX(bottom), toY(bottom), 1.6, 'F')
+  }
+
+  doc.line(ix + iw * 0.18, iy + midY * ih, ix + iw * 0.82, iy + midY * ih)
+  doc.circle(ix + iw * 0.18, iy + midY * ih, 1.6, 'F')
+  doc.circle(ix + iw * 0.82, iy + midY * ih, 1.6, 'F')
+}
+
+function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 100, horizontal = true, cover = true) {
   const gap = 8
   const frameW = horizontal ? (w - gap) / 2 : w
   const frameH = horizontal ? imgH : (imgH - gap) / 2
 
   if (horizontal) {
-    drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE')
-    drawImageFrame(doc, x + frameW + gap, y, frameW, frameH, afterSrc, 'AFTER')
+    drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE', { cover })
+    drawImageFrame(doc, x + frameW + gap, y, frameW, frameH, afterSrc, 'AFTER', { cover })
     return y + frameH + 10
   }
 
-  drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE')
-  drawImageFrame(doc, x, y + frameH + gap, frameW, frameH, afterSrc, 'AFTER')
+  drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE', { cover })
+  drawImageFrame(doc, x, y + frameH + gap, frameW, frameH, afterSrc, 'AFTER', { cover })
   return y + frameH * 2 + gap + 10
 }
 
@@ -573,76 +618,71 @@ function drawHairFeaturePage(doc, section, pageNum, beforeJpeg) {
   })
 }
 
-function drawEyesFeaturePage(doc, section, pageNum, beforeJpeg) {
+function drawEyesFeaturePage(doc, section, pageNum) {
+  const slots = section.imageSlots || {}
+  const pairBefore = slots.pairBefore || slots.brows || section.beforeJpeg
+  const eyesPreview = slots.preview || slots.eyes || section.beforeJpeg
+  const subs = section.subsections || []
+
   drawHeader(doc, pageNum)
-  
-  // Title
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Eye', 'Recommendations', 26)
+  drawSplitTitle(doc, MARGIN, 85, 'Eye', 'Recommendations', 26)
 
-  // Section 1: Eyebrows
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Eyebrows', MARGIN, 150)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[0].body, MARGIN, 168, COL_W, 11.5)
+  if (subs[0]) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    setInk(doc)
+    doc.text('Eyebrows', MARGIN, 150)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    wrapText(doc, subs[0].body, MARGIN, 168, COL_W, 11.5)
+  }
 
-  // Section 2: Eyelashes
   const rightX = MARGIN + COL_W + COL_GAP
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Eyelashes', rightX, 150)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[1].body, rightX, 168, COL_W, 11.5)
+  if (subs[1]) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    setInk(doc)
+    doc.text('Eyelashes', rightX, 150)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    wrapText(doc, subs[1].body, rightX, 168, COL_W, 11.5)
+  }
 
-  // Middle BEFORE / AFTER images
-  drawBeforeAfterPair(doc, MARGIN, 270, CONTENT_W, beforeJpeg, null, 90, true)
+  drawBeforeAfterPair(doc, MARGIN, 270, CONTENT_W, pairBefore, null, 100, true)
 
-  // Section 3: Eyes
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Eyes', MARGIN, 385)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[2].body, MARGIN, 403, COL_W, 11.5)
+  if (subs[2]) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    setInk(doc)
+    doc.text('Eyes', MARGIN, 395)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    wrapText(doc, subs[2].body, MARGIN, 413, COL_W, 11.5)
+  }
 
-  // Section 4: Under eye
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Under eye', rightX, 385)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[3].body, rightX, 403, COL_W, 11.5)
+  if (subs[3]) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    setInk(doc)
+    doc.text('Under eye', rightX, 395)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    wrapText(doc, subs[3].body, rightX, 413, COL_W, 11.5)
+  }
 
-  // Bottom visual areas: Eye Crop on left, Summary Card on right
-  drawImageFrame(doc, MARGIN, 510, COL_W, 110, beforeJpeg, 'EYES')
+  drawImageFrame(doc, MARGIN, 520, COL_W, 100, eyesPreview, 'EYES', { cover: true })
 
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(rightX, 510, COL_W, 110, 6, 6, 'F')
-  
+  doc.roundedRect(rightX, 520, COL_W, 100, 6, 6, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   setWhite(doc)
-  doc.text('Eye Region Summary', rightX + 12, 526)
-  
+  doc.text('Eye Region Summary', rightX + 12, 536)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary, COL_W - 24)
+  const summaryLines = doc.splitTextToSize(section.summary || '', COL_W - 24)
   summaryLines.forEach((line, i) => {
-    doc.text(line, rightX + 12, 542 + i * 11.5)
+    doc.text(line, rightX + 12, 552 + i * 11.5)
   })
 }
 
@@ -690,59 +730,43 @@ function drawNoseFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, pro
   })
 }
 
-function drawCheeksFeaturePage(doc, section, pageNum, beforeJpeg) {
+function drawCheeksFeaturePage(doc, section, pageNum) {
+  const slots = section.imageSlots || {}
+  const analysisSrc = slots.analysis || section.beforeJpeg
+  const pairBefore = slots.pairBefore || analysisSrc
+  const overlayPoints = slots.overlayPoints || []
+
   drawHeader(doc, pageNum)
-  
-  // Title
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Cheek', 'Recommendations', 26)
+  drawSplitTitle(doc, MARGIN, 85, 'Cheek', 'Recommendations', 26)
 
-  // Top Section: Cheek Structure Text + Analysis Image on right
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Cheek Structure', MARGIN, 150)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[0].body, MARGIN, 168, COL_W, 11.5)
+  const subs = section.subsections || []
+  if (subs[0]) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    setInk(doc)
+    doc.text('Cheek Structure', MARGIN, 150)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    wrapText(doc, subs[0].body, MARGIN, 168, COL_W, 11.5)
+  }
 
-  // Right column Analysis Image
   const rightX = MARGIN + COL_W + COL_GAP
-  drawImageFrame(doc, rightX, 150, COL_W, 160, beforeJpeg, 'ANALYSIS')
-  
-  // Draw geometric overlays on analysis image
-  doc.setDrawColor(255, 255, 255)
-  doc.setLineWidth(1)
-  const imgCx = rightX + COL_W / 2
-  const imgCy = 150 + 80
-  
-  // Horizontal guides
-  doc.line(rightX + 40, imgCy - 20, rightX + COL_W - 40, imgCy - 20)
-  doc.circle(rightX + 40, imgCy - 20, 2, 'F')
-  doc.circle(rightX + COL_W - 40, imgCy - 20, 2, 'F')
-  
-  // Cheek contour slant guides
-  doc.line(rightX + 40, imgCy - 20, imgCx - 20, imgCy + 40)
-  doc.line(rightX + COL_W - 40, imgCy - 20, imgCx + 20, imgCy + 40)
+  const analysisY = 150
+  const analysisH = 170
+  drawImageFrame(doc, rightX, analysisY, COL_W, analysisH, analysisSrc, 'ANALYSIS', { cover: true })
+  drawCheekMeasurementOverlay(doc, rightX, analysisY, COL_W, analysisH, overlayPoints)
 
-  // Middle Section: Before / After cheek crops
-  drawBeforeAfterPair(doc, MARGIN, 330, CONTENT_W, beforeJpeg, null, 160, true)
+  drawBeforeAfterPair(doc, MARGIN, 340, CONTENT_W, pairBefore, null, 150, true)
 
-  // Bottom Section: Summary Bar (full width)
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
   doc.roundedRect(MARGIN, 520, CONTENT_W, 60, 6, 6, 'F')
-  
-  // Left heading
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   setWhite(doc)
   doc.text('Cheek Region Summary', MARGIN + 12, 555)
-  
-  // Right text
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary, COL_W + 10)
+  const summaryLines = doc.splitTextToSize(section.summary || '', COL_W + 10)
   summaryLines.forEach((line, i) => {
     doc.text(line, rightX - 10, 545 + i * 11.5)
   })
@@ -800,44 +824,39 @@ function drawJawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, prof
   })
 }
 
-function drawLipsFeaturePage(doc, section, pageNum, beforeJpeg) {
+function drawLipsFeaturePage(doc, section, pageNum) {
+  const slots = section.imageSlots || {}
+  const previewSrc = slots.preview || section.beforeJpeg
+  const pairBefore = slots.pairBefore || section.beforeJpeg
+  const subs = section.subsections || []
+
   drawHeader(doc, pageNum)
-  
-  // Title
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Lip', 'Recommendations', 26)
+  drawSplitTitle(doc, MARGIN, 85, 'Lip', 'Recommendations', 26)
 
-  // Top Section: Lip Structure Text + Cropped lip visual on right
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Lip', MARGIN, 150)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[0].body, MARGIN, 168, COL_W, 11.5)
+  if (subs[0]) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    setInk(doc)
+    doc.text('Lip', MARGIN, 150)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    wrapText(doc, subs[0].body, MARGIN, 168, COL_W, 11.5)
+  }
 
-  // Right column cropped lips image
   const rightX = MARGIN + COL_W + COL_GAP
-  drawImageFrame(doc, rightX, 150, COL_W, 110, beforeJpeg, 'LIPS')
+  drawImageFrame(doc, rightX, 150, COL_W, 120, previewSrc, 'LIPS', { cover: true })
 
-  // Middle Section: Before / After lip comparison crops
-  drawBeforeAfterPair(doc, MARGIN, 285, CONTENT_W, beforeJpeg, null, 160, true)
+  drawBeforeAfterPair(doc, MARGIN, 295, CONTENT_W, pairBefore, null, 150, true)
 
-  // Bottom Section: Summary Bar (full width)
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
   doc.roundedRect(MARGIN, 475, CONTENT_W, 60, 6, 6, 'F')
-  
-  // Left heading
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   setWhite(doc)
   doc.text('Lips Summary', MARGIN + 12, 510)
-  
-  // Right text
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary, COL_W + 10)
+  const summaryLines = doc.splitTextToSize(section.summary || '', COL_W + 10)
   summaryLines.forEach((line, i) => {
     doc.text(line, rightX - 10, 500 + i * 11.5)
   })
@@ -1102,6 +1121,7 @@ export async function downloadMyFacePdf({
   const sectionPairs = featurePages.map((page) => ({
     ...page,
     beforeJpeg: featureImages[page.id]?.before || null,
+    imageSlots: featureImages[page.id]?.slots || {},
     profileJpeg: featureImages[page.id]?.profile || null,
     profileIsReal: featureImages[page.id]?.profileIsReal ?? false,
     afterJpeg: null,
@@ -1464,15 +1484,15 @@ export async function downloadMyFacePdf({
     if (section.id === 'hair') {
       drawHairFeaturePage(doc, section, featurePageNum, section.beforeJpeg)
     } else if (section.id === 'eyes') {
-      drawEyesFeaturePage(doc, section, featurePageNum, section.beforeJpeg)
+      drawEyesFeaturePage(doc, section, featurePageNum)
     } else if (section.id === 'nose') {
       drawNoseFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.profileJpeg, section.profileIsReal)
     } else if (section.id === 'cheeks') {
-      drawCheeksFeaturePage(doc, section, featurePageNum, section.beforeJpeg)
+      drawCheeksFeaturePage(doc, section, featurePageNum)
     } else if (section.id === 'jaw') {
-      drawJawFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.profileJpeg, section.profileIsReal)
+      drawJawFeaturePage(doc, section, featurePageNum, section.imageSlots?.pairBefore || section.beforeJpeg, section.profileJpeg, section.profileIsReal)
     } else if (section.id === 'lips') {
-      drawLipsFeaturePage(doc, section, featurePageNum, section.beforeJpeg)
+      drawLipsFeaturePage(doc, section, featurePageNum)
     } else if (section.id === 'chin') {
       drawChinFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.profileJpeg, section.profileIsReal)
     } else if (section.id === 'skin') {

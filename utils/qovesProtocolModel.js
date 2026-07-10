@@ -67,14 +67,26 @@ function summaryFromExplanation(explanation, fallback, maxSentences = 2) {
   return sentences.length ? sentences.join(' ') : fallback
 }
 
+function isGenericGuardrailBody(body) {
+  return typeof body === 'string' && body.includes('evidence-aligned non-surgical care')
+}
+
+function mergeSubsections(defaults, narrativeSubs) {
+  if (!Array.isArray(narrativeSubs) || !narrativeSubs.length) return defaults
+  const allGeneric = narrativeSubs.every((sub) => isGenericGuardrailBody(sub?.body))
+  if (allGeneric) return defaults
+  return defaults.map((def) => {
+    const match = narrativeSubs.find((sub) => sub?.title === def.title)
+    if (match?.body && !isGenericGuardrailBody(match.body)) return match
+    return def
+  })
+}
+
 function mergeFeaturePage(defaults, narrativeFeature) {
   if (!narrativeFeature) return defaults
   return {
     ...defaults,
-    subsections:
-      Array.isArray(narrativeFeature.subsections) && narrativeFeature.subsections.length
-        ? narrativeFeature.subsections
-        : defaults.subsections,
+    subsections: mergeSubsections(defaults.subsections, narrativeFeature.subsections),
     summary: narrativeFeature.summary || defaults.summary,
     layoutHints: {
       ...defaults.layoutHints,

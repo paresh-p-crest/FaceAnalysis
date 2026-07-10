@@ -16,6 +16,7 @@ export default function DashboardRoutePage() {
     openHistory,
     openBilling,
     viewCloudAssessment,
+    openingReportId,
   } = useApp()
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function DashboardRoutePage() {
       onHistory={openHistory}
       onBilling={openBilling}
       onViewCloudItem={viewCloudAssessment}
+      openingReportId={openingReportId}
       user={user}
     />
   )

@@ -6,6 +6,10 @@
 import {
   cropFeatureBefore,
   cropFeatureBeforeForPdf,
+  cropDualEyesForPdf,
+  createMaskedFeaturePreview,
+  featureOverlayPoints,
+  getCropBox,
   normalizeToJpegDataUrl,
 } from './aestheticProjection'
 
@@ -15,6 +19,9 @@ const FEATURE_MIN_PX = {
   lips: 200,
   eyes: 220,
   eyebrows: 200,
+  periorbital: 260,
+  eyelashes: 200,
+  underEye: 200,
   cheeks: 260,
   jaw: 300,
   chin: 240,
@@ -24,12 +31,16 @@ const FEATURE_MIN_PX = {
   ears: 320,
 }
 
+const CHEEK_OVERLAY_INDICES = [116, 123, 50, 280, 345, 352, 234, 454]
+
 function storedCrop(cvReport, eyeAnalysis, featureId) {
   switch (featureId) {
     case 'hair':
       return cvReport?.hair?.imageSrc || null
     case 'eyes':
-      return eyeAnalysis?.eyesCrop || cvReport?.eyebrows?.crop || null
+      return eyeAnalysis?.eyesCrop || cvReport?.eyebrows?.crop || cvReport?.eyes?.ocular?.imageSrc || null
+    case 'eyebrows':
+      return cvReport?.eyebrows?.crop || cvReport?.eyes?.eyebrows?.imageSrc || null
     case 'nose':
       return cvReport?.nose?.imageSrc || null
     case 'cheeks':
@@ -68,6 +79,23 @@ function isFullFrameCrop(dataUrl, photoJpeg) {
   return dataUrl === photoJpeg
 }
 
+async function liveCrop(photoJpeg, landmarks, cropKey, minPx) {
+  if (!photoJpeg || !landmarks?.length) return null
+  try {
+    const cropped = await cropFeatureBeforeForPdf(photoJpeg, landmarks, cropKey, minPx)
+    if (cropped && !isFullFrameCrop(cropped, photoJpeg)) return cropped
+  } catch {
+    /* fall through */
+  }
+  try {
+    const cropped = await cropFeatureBefore(photoJpeg, landmarks, cropKey)
+    if (cropped && !isFullFrameCrop(cropped, photoJpeg)) return cropped
+  } catch {
+    /* fall through */
+  }
+  return null
+}
+
 /**
  * @returns {Promise<string|null>} JPEG data URL for the feature BEFORE slot
  */
@@ -79,8 +107,9 @@ export async function resolveFeatureBeforeImage({
   cvReport,
   eyeAnalysis,
   photos,
+  cropKey,
 }) {
-  const key = projectionId || featureId
+  const key = cropKey || projectionId || featureId
 
   if (featureId === 'hair' && photos?.topHead) {
     return normalizeToJpegDataUrl(photos.topHead)
@@ -89,28 +118,71 @@ export async function resolveFeatureBeforeImage({
     return normalizeToJpegDataUrl(photos.rightProfile || photos.leftProfile)
   }
 
-  // Prefer tight crops already computed during CV analysis
-  const stored = storedCrop(cvReport, eyeAnalysis, featureId)
-  if (stored) return stored
-
-  const minPx = FEATURE_MIN_PX[key] || FEATURE_MIN_PX[featureId] || 280
-
-  if (photoJpeg && landmarks?.length) {
-    try {
-      const cropped = await cropFeatureBeforeForPdf(photoJpeg, landmarks, key, minPx)
-      if (cropped && !isFullFrameCrop(cropped, photoJpeg)) return cropped
-    } catch {
-      /* fall through */
-    }
-    try {
-      const cropped = await cropFeatureBefore(photoJpeg, landmarks, key)
-      if (cropped && !isFullFrameCrop(cropped, photoJpeg)) return cropped
-    } catch {
-      /* fall through */
-    }
+  const stored = storedCrop(cvReport, eyeAnalysis, key === 'periorbital' ? 'eyes' : key)
+  if (stored && key !== 'periorbital' && key !== 'eyelashes' && key !== 'underEye') {
+    return stored
   }
 
-  return photoJpeg || null
+  const minPx = FEATURE_MIN_PX[key] || FEATURE_MIN_PX[featureId] || 280
+  const cropped = await liveCrop(photoJpeg, landmarks, key, minPx)
+  if (cropped) return cropped
+
+  return key === featureId ? (photoJpeg || null) : null
+}
+
+/**
+ * Per-page image slots for PDF layout (brows vs eyes vs lips mask, etc.).
+ */
+export async function resolveFeatureImageSlots({
+  featureId,
+  photoJpeg,
+  landmarks,
+  cvReport,
+  eyeAnalysis,
+  photos,
+}) {
+  switch (featureId) {
+    case 'eyes': {
+      const [brows, periorbital, eyes, dualEyes] = await Promise.all([
+        resolveFeatureBeforeImage({ featureId: 'eyes', cropKey: 'eyebrows', photoJpeg, landmarks, cvReport, eyeAnalysis, photos }),
+        resolveFeatureBeforeImage({ featureId: 'eyes', cropKey: 'periorbital', photoJpeg, landmarks, cvReport, eyeAnalysis, photos }),
+        resolveFeatureBeforeImage({ featureId: 'eyes', cropKey: 'eyes', photoJpeg, landmarks, cvReport, eyeAnalysis, photos }),
+        photoJpeg && landmarks?.length ? cropDualEyesForPdf(photoJpeg, landmarks, 160) : null,
+      ])
+      return {
+        before: periorbital || brows || eyes,
+        pairBefore: periorbital || brows,
+        preview: dualEyes || eyes,
+        brows,
+        eyes,
+      }
+    }
+    case 'lips': {
+      const lips = await resolveFeatureBeforeImage({ featureId: 'lips', photoJpeg, landmarks, cvReport, eyeAnalysis, photos })
+      const masked = photoJpeg && landmarks?.length
+        ? await createMaskedFeaturePreview(photoJpeg, landmarks, 'lips', 200)
+        : lips
+      return { before: lips, preview: masked || lips, pairBefore: lips }
+    }
+    case 'cheeks': {
+      const cheeks = await resolveFeatureBeforeImage({ featureId: 'cheeks', photoJpeg, landmarks, cvReport, eyeAnalysis, photos })
+      const box = getCropBox(landmarks, 'cheeks')
+      const overlayPoints = box && landmarks?.length
+        ? featureOverlayPoints(landmarks, box, CHEEK_OVERLAY_INDICES)
+        : []
+      return { before: cheeks, analysis: cheeks, pairBefore: cheeks, overlayPoints }
+    }
+    case 'jaw':
+    case 'chin':
+    case 'nose': {
+      const main = await resolveFeatureBeforeImage({ featureId, photoJpeg, landmarks, cvReport, eyeAnalysis, photos })
+      return { before: main, pairBefore: main }
+    }
+    default: {
+      const main = await resolveFeatureBeforeImage({ featureId, photoJpeg, landmarks, cvReport, eyeAnalysis, photos })
+      return { before: main, pairBefore: main }
+    }
+  }
 }
 
 /**
@@ -146,10 +218,9 @@ export async function resolveAllFeatureImages({
 }) {
   const entries = await Promise.all(
     featurePages.map(async (page) => {
-      const [beforeJpeg, profile] = await Promise.all([
-        resolveFeatureBeforeImage({
+      const [slots, profile] = await Promise.all([
+        resolveFeatureImageSlots({
           featureId: page.id,
-          projectionId: page.projectionId,
           photoJpeg,
           landmarks,
           cvReport,
@@ -163,7 +234,8 @@ export async function resolveAllFeatureImages({
       return [
         page.id,
         {
-          before: beforeJpeg,
+          before: slots.before,
+          slots,
           profile: profile?.src || null,
           profileIsReal: profile?.isRealProfile ?? false,
         },

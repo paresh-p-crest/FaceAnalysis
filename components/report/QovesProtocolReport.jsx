@@ -378,6 +378,9 @@ export default function QovesProtocolReport({
 
       {featurePages.map((page) => {
         const pair = images.features[page.id] || {}
+        const slots = pair.slots || {}
+        const beforeSrc = slots.pairBefore || pair.before || images.fullBefore
+        const previewSrc = slots.preview || pair.before || images.fullBefore
         const qovesMeta = QOVES_PROTOCOL_FEATURES.find((f) => f.id === page.id)
         const titleParts = page.title.split(' ')
         const stacked = page.layoutHints?.stackedImages
@@ -404,7 +407,12 @@ export default function QovesProtocolReport({
                     ))}
                   </div>
                   <div>
-                    <BeforeAfterPair beforeSrc={pair.before || images.fullBefore} stacked={stacked} />
+                    <BeforeAfterPair beforeSrc={beforeSrc} stacked={stacked} />
+                    {page.id === 'eyes' && slots.preview && (
+                      <div className="mt-3">
+                        <ImageFrame src={slots.preview} tag="EYES" />
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
@@ -428,7 +436,17 @@ export default function QovesProtocolReport({
                         <ImageFrame src={pair.profile} tag="PROFILE" />
                       </div>
                     )}
-                    <BeforeAfterPair beforeSrc={pair.before || images.fullBefore} stacked={stacked} />
+                    {page.id === 'lips' && slots.preview ? (
+                      <div className="mb-3">
+                        <ImageFrame src={slots.preview} tag="LIPS" />
+                      </div>
+                    ) : null}
+                    {page.id === 'cheeks' && (slots.analysis || pair.before) ? (
+                      <div className="mb-3">
+                        <ImageFrame src={slots.analysis || pair.before} tag="ANALYSIS" />
+                      </div>
+                    ) : null}
+                    <BeforeAfterPair beforeSrc={beforeSrc} stacked={stacked} />
                   </div>
                 </>
               )}

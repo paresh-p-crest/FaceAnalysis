@@ -62,6 +62,7 @@ export default function DashboardPage({
   onHistory,
   onBilling,
   onViewCloudItem,
+  openingReportId = null,
 }) {
   const [assessments, setAssessments] = useState([])
   const [payments, setPayments] = useState([])
@@ -329,9 +330,17 @@ export default function DashboardPage({
                             </div>
                             <button
                               onClick={() => onViewCloudItem?.(assessment)}
-                              className="btn-ghost text-xs px-4 py-2"
+                              disabled={openingReportId === assessment.id}
+                              className="btn-ghost text-xs px-4 py-2 disabled:opacity-60"
                             >
-                              Open Report
+                              {openingReportId === assessment.id ? (
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  Opening…
+                                </span>
+                              ) : (
+                                'Open Report'
+                              )}
                             </button>
                           </div>
                         )

@@ -107,8 +107,8 @@ async def run_analysis(req: RunAnalysisRequest):
     """Run analysis without saving to DB (legacy / quick test)."""
     try:
         photo_bytes = decode_image(req.imageBase64)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid image data")
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid image data: {exc}") from exc
 
     photos = decode_photo_dict(req.photos)
 

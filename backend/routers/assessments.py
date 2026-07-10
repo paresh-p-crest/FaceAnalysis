@@ -42,6 +42,7 @@ from ..photo_storage import (
 from ..repositories.payment_repository import user_has_completed_payment
 from ..serialization import to_json_safe
 from ..dev_config import dev_auto_approve_reports
+from ..image_utils import decode_image, decode_photo_dict
 from ..report_status import (
     format_report_status,
     is_pdf_allowed_status,
@@ -261,11 +262,13 @@ async def post_assessment(
 
     try:
         photo_bytes = decode_image(req.imageBase64)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid image data")
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid image data: {exc}") from exc
 
     photos = decode_photo_dict(req.photos)
-    missing = validate_required_poses(photos)
+    # Front is often sent only via imageBase64; count it for pose validation.
+    photos_with_front = {**photos, "front": photo_bytes}
+    missing = validate_required_poses(photos_with_front)
     if missing:
         raise HTTPException(
             status_code=400,
@@ -277,7 +280,7 @@ async def post_assessment(
         run_face_analysis,
         photo_bytes,
         req.answers,
-        photos,
+        photos_with_front,
         provider,
     )
 
@@ -291,13 +294,13 @@ async def post_assessment(
         provider=provider,
         analysis=analysis,
         user_id=current_user["id"],
-        photos_keys=list(photos.keys()) + (["front"] if "front" not in photos else []),
+        photos_keys=list(photos_with_front.keys()),
         status="approved" if dev_auto_approve_reports() else "pending_review",
         scan_id=req.scanId,
     )
 
     assessment_id = saved["id"]
-    all_photo_bytes = {**photos, "front": photo_bytes}
+    all_photo_bytes = {**photos_with_front}
     stored = await asyncio.to_thread(save_all_poses, assessment_id, all_photo_bytes, photo_bytes)
     photos_doc = {pose_id: s.to_dict() for pose_id, s in stored.items()}
     photo_urls = photos_map_to_urls(stored)
