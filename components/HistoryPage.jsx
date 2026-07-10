@@ -128,12 +128,19 @@ export default function HistoryPage({ onViewItem, onViewCloudItem, onOpenAdmin, 
                 onClick={() => onViewItem(item.id)}
                 className="bg-white dark:bg-surface-card rounded-2xl overflow-hidden text-left hover:shadow-elevated hover:border-brand/30 border border-surface-border transition-all group shadow-card w-full"
               >
-                <div className="aspect-[4/3] overflow-hidden">
-                  <img
-                    src={item.photo}
-                    alt=""
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
+                <div className="aspect-[4/3] overflow-hidden bg-brand-50 flex items-center justify-center">
+                  {item.photo ? (
+                    <img
+                      src={item.photo}
+                      alt=""
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-brand/70">
+                      <ScanFace className="w-8 h-8" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wide">Cloud report</span>
+                    </div>
+                  )}
                 </div>
                 <div className="p-4">
                   <p className="font-display text-sm font-semibold text-ink truncate tracking-tight">

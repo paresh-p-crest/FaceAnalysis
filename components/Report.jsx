@@ -202,8 +202,37 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   }, [displayPhoto, photos, cvReport, metrics, landmarks, protocolData, protocolNarrative, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis])
 
   const persistHistory = useCallback(
-    () => {
-      void saveHistoryEntry({
+    (content, source, error) => {
+      const label = showQovesReport
+        ? `AuraScan report · ${cvReport?.overall?.score ?? cvReport?.symmetry?.score ?? '—'} overall`
+        : `Analysis · ${metrics?.harmonyScore ?? '—'}/100 harmony`
+
+      if (assessmentId || displayAnalysis?.savedToDb) {
+        saveHistoryEntry({
+          id: sessionId,
+          createdAt: new Date().toISOString(),
+          answers: displayAnswers,
+          analysis: {
+            success: displayAnalysis?.success,
+            savedToDb: displayAnalysis?.savedToDb,
+            assessmentId,
+            reportStatus,
+            cvEngine: displayAnalysis?.cvEngine,
+            activeProvider: displayAnalysis?.activeProvider,
+            metrics,
+          },
+          reportSource: source,
+          reportError: error,
+          cvLabel,
+          assessmentId,
+          savedToDb: true,
+          reportStatus,
+          label,
+        })
+        return
+      }
+
+      saveHistoryEntry({
         id: sessionId,
         createdAt: new Date().toISOString(),
         photo: displayPhoto,
