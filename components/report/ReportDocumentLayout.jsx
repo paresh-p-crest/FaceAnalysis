@@ -12,10 +12,13 @@ export function ReportDocumentLayout({
   children,
 }) {
   const showRightRail = !immersive && activeId === 'protocol' && rightRail
+  const showSidebar = !immersive
 
   return (
-    <div className={`qoves-report-layout ${immersive ? 'qoves-report-layout--immersive' : ''} ${showRightRail ? 'qoves-report-layout--with-rail' : ''}`}>
-      {!immersive && (
+    <div
+      className={`qoves-report-layout ${immersive ? 'qoves-report-layout--immersive' : ''} ${showRightRail ? 'qoves-report-layout--with-rail' : ''} ${showSidebar ? 'qoves-report-layout--with-sidebar' : ''}`}
+    >
+      {showSidebar && (
         <aside className="qoves-report-sidebar">
           <ReportNavSidebar
             activeId={activeId}

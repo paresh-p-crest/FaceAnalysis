@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { Bot, Loader2, Send, ShieldCheck, User } from 'lucide-react'
 
 const SUGGESTIONS = [
@@ -7,6 +8,24 @@ const SUGGESTIONS = [
   'Which hairstyle direction fits my face shape?',
   'How should I track progress over 30 days?',
 ]
+
+function AssistantMarkdown({ content }) {
+  return (
+    <div className="assistant-markdown">
+      <ReactMarkdown
+        components={{
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
+          ),
+        }}
+      >
+        {content || ''}
+      </ReactMarkdown>
+    </div>
+  )
+}
 
 function MessageBubble({ message }) {
   const isUser = message.role === 'user'
@@ -17,12 +36,16 @@ function MessageBubble({ message }) {
           <Bot className="w-4 h-4 text-brand" />
         </div>
       )}
-      <div className={`max-w-[78%] rounded-2xl px-4 py-3 border text-sm leading-relaxed ${
+      <div className={`max-w-[85%] rounded-2xl px-4 py-3 border text-sm leading-relaxed ${
         isUser
           ? 'bg-brand text-white border-brand'
           : 'bg-white dark:bg-surface-card text-ink-secondary border-surface-border'
       }`}>
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        {isUser ? (
+          <p className="whitespace-pre-wrap">{message.content}</p>
+        ) : (
+          <AssistantMarkdown content={message.content} />
+        )}
       </div>
       {isUser && (
         <div className="w-8 h-8 rounded-lg bg-surface-warm border border-surface-border flex items-center justify-center shrink-0">
@@ -33,12 +56,31 @@ function MessageBubble({ message }) {
   )
 }
 
+function TypingBubble() {
+  return (
+    <div className="flex gap-3 justify-start" aria-live="polite" aria-label="Assistant is typing">
+      <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
+        <Bot className="w-4 h-4 text-brand" />
+      </div>
+      <div className="rounded-2xl px-4 py-3 border bg-white dark:bg-surface-card border-surface-border">
+        <div className="flex items-center gap-2 text-sm text-ink-muted">
+          <Loader2 className="w-4 h-4 animate-spin text-brand" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, onSend }) {
   const [conversation, setConversation] = useState(null)
+  const [pendingUserMessage, setPendingUserMessage] = useState(null)
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const scrollRef = useRef(null)
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
 
   const load = async () => {
     if (!canUseAssistant) return
@@ -46,6 +88,7 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
     setError('')
     try {
       setConversation(await onLoad())
+      setPendingUserMessage(null)
     } catch (err) {
       setError(err.message || 'Could not load assistant')
     } finally {
@@ -57,35 +100,54 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
     load()
   }, [assessmentId, canUseAssistant])
 
+  const serverMessages = conversation?.messages || []
+  const messages = pendingUserMessage
+    ? [...serverMessages, pendingUserMessage]
+    : serverMessages
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages.length, sending, loading])
+
   const submit = async (text = message) => {
     const trimmed = text.trim()
     if (!trimmed || sending || !canUseAssistant) return
+
+    const optimistic = {
+      role: 'user',
+      content: trimmed,
+      createdAt: new Date().toISOString(),
+      pending: true,
+    }
+
     setSending(true)
     setError('')
     setMessage('')
+    setPendingUserMessage(optimistic)
+    requestAnimationFrame(() => inputRef.current?.focus())
+
     try {
-      setConversation(await onSend(trimmed))
+      const updated = await onSend(trimmed)
+      setConversation(updated)
+      setPendingUserMessage(null)
     } catch (err) {
       setError(err.message || 'Assistant unavailable')
+      setPendingUserMessage(null)
       setMessage(trimmed)
     } finally {
       setSending(false)
+      requestAnimationFrame(() => inputRef.current?.focus())
     }
   }
 
-  const messages = conversation?.messages || []
+  const showEmpty = !loading && messages.length === 0 && !sending
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Bot className="w-5 h-5 text-brand" />
-            <h3 className="font-display text-lg font-semibold text-ink">Beauty Assistant</h3>
-          </div>
-          <p className="text-sm text-ink-muted leading-relaxed max-w-2xl">
-            Ask questions about this report. Answers are grounded on the stored cvReport and do not create new measurements.
-          </p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Bot className="w-5 h-5 text-brand" />
+          <h3 className="font-display text-lg font-semibold text-ink">Beauty Assistant</h3>
         </div>
         <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md border bg-brand-50 text-brand border-brand/20 font-semibold">
           <ShieldCheck className="w-3 h-3" />
@@ -95,7 +157,7 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
 
       {!canUseAssistant && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          Beauty Assistant is available after sign in and payment for backend-saved reports.
+          Beauty Assistant needs a backend-saved assessment to load.
         </div>
       )}
 
@@ -105,64 +167,87 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
         </div>
       )}
 
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised min-h-[360px] p-4">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-brand" />
-            <p className="text-sm text-ink-muted">Loading assistant...</p>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="py-10">
-            <div className="text-center mb-6">
-              <Bot className="w-10 h-10 text-brand mx-auto mb-3" />
-              <p className="font-display text-ink mb-1">Ask your first question</p>
-              <p className="text-sm text-ink-muted">Start with one of these report-grounded prompts.</p>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-2">
-              {SUGGESTIONS.map((item) => (
-                <button
-                  key={item}
-                  onClick={() => submit(item)}
-                  disabled={!canUseAssistant || sending}
-                  className="text-left rounded-xl border border-surface-border bg-white dark:bg-surface-card px-3 py-2 text-xs text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4 max-h-[460px] overflow-y-auto pr-1">
-            {messages.map((item, index) => (
-              <MessageBubble key={`${item.role}-${index}-${item.createdAt || ''}`} message={item} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          submit()
-        }}
-        className="flex gap-2"
-      >
-        <input
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          disabled={!canUseAssistant || sending}
-          placeholder="Ask about your report..."
-          className="input-field flex-1"
-        />
-        <button
-          type="submit"
-          disabled={!canUseAssistant || sending || !message.trim()}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand text-white text-sm font-semibold shadow-brand hover:bg-brand-dark disabled:opacity-50"
+      {/* Fixed-height chatbot shell: mid size — taller than mobile-compact, shorter than full desktop */}
+      <div className="h-[min(26rem,62vh)] sm:h-[min(32rem,68vh)] lg:h-[min(36rem,72vh)] w-full rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised flex flex-col overflow-hidden">
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-5 lg:p-6"
         >
-          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          Send
-        </button>
-      </form>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+              <Loader2 className="w-6 h-6 animate-spin text-brand" />
+              <p className="text-sm text-ink-muted">Loading assistant...</p>
+            </div>
+          ) : showEmpty ? (
+            <div className="py-6">
+              <div className="text-center mb-6">
+                <Bot className="w-10 h-10 text-brand mx-auto mb-3" />
+                <p className="font-display text-ink mb-1">Ask your first question</p>
+                <p className="text-sm text-ink-muted">Start with one of these report-grounded prompts.</p>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {SUGGESTIONS.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => submit(item)}
+                    disabled={!canUseAssistant || sending}
+                    className="text-left rounded-xl border border-surface-border bg-white dark:bg-surface-card px-3 py-2 text-xs text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {messages.map((item, index) => (
+                <MessageBubble
+                  key={`${item.role}-${index}-${item.createdAt || item.content?.slice(0, 24) || ''}`}
+                  message={item}
+                />
+              ))}
+              {sending && <TypingBubble />}
+              <div ref={bottomRef} className="h-px" aria-hidden />
+            </div>
+          )}
+        </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            submit()
+          }}
+          className="shrink-0 border-t border-surface-border bg-white/80 dark:bg-surface-card/80 backdrop-blur-sm p-3 sm:p-4 flex gap-2 sm:gap-3"
+        >
+          <input
+            ref={inputRef}
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            disabled={!canUseAssistant}
+            placeholder={sending ? 'Type your next question…' : 'Ask about your report...'}
+            className="input-field flex-1"
+            aria-label="Message Beauty Assistant"
+          />
+          <button
+            type="submit"
+            disabled={!canUseAssistant || sending || !message.trim()}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand text-white text-sm font-semibold shadow-brand hover:bg-brand-dark disabled:opacity-50 min-w-[6.5rem]"
+          >
+            {sending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Sending
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                Send
+              </>
+            )}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

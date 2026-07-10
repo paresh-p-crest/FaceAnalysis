@@ -80,7 +80,7 @@ Text AI was split across `openai_client.py`, `beauty_assistant.py`, and client-s
 ### Consequences
 - Single place to update non-surgical safety instructions and Groq/OpenAI provider config.
 - Beauty Assistant cost scales with session summary refresh (every 6 user messages) instead of full report context each turn.
-- Unpaid users see template protocol fallback locally; paid users get server-generated protocol.
+- Unpaid users see template protocol fallback locally; paid users get server-generated protocol. See ADR-011 for later unification of NL feature access with dashboard auth.
 
 ---
 
@@ -179,7 +179,7 @@ Closing page used deterministic stitch of 4 feature summaries — generic and no
 
 ## ADR-010: Neck Metrics Deferred to MediaPipe Pose
 Date: 2026-07-10  
-Status: accepted  
+Status: superseded by ADR-016  
 
 ### Context
 FaceMesh landmarks do not extend below the jaw; neck width/length used jaw proxies that overclaim precision.
@@ -190,3 +190,136 @@ FaceMesh landmarks do not extend below the jaw; neck width/length used jaw proxi
 
 ### Consequences
 - Report copy and LLM guardrails must not claim clinical neck measurements until Pose is integrated.
+
+---
+
+## ADR-016: MediaPipe Pose for Neck Metrics
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+ADR-010 deferred neck length/posture until a body model could see shoulders. MediaPipe Pose (`mp.solutions.pose`) is already available via `mediapipe==0.10.14` and can run alongside FaceMesh on the front photo.
+
+### Decision
+- Add `backend/pose_analysis.py` (Pose Landmarker, static image mode).
+- `neck_metrics(landmarks, pose)` uses FaceMesh jaw + Pose shoulders when both shoulders are visible (`visibility ≥ 0.5`):
+  - Neck length = chin → shoulder midline / face height
+  - Head-forward posture = ear–shoulder horizontal offset vs vertical (`headPostureAngleDeg`)
+  - Neck width remains jaw width / IPD (superior neck column); also store `shoulderWidthPct`
+  - `dataSource: "measured"`; omit approximate limitation text
+- If shoulders are not visible (tight crop / clothing), keep ADR-010 approximate fallback.
+- Surface posture angle / data source in `CvReportView` and `feature_context` facts.
+
+### Consequences
+- Front photos that include shoulders produce measured neck length and posture.
+- Tight face-only crops still fall back to approximate jaw proxies.
+- Pose adds a second model pass on the front image (modest latency).
+
+---
+
+## ADR-011: Unified Dashboard Access Tier for NL Features
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+AI narrative, protocol generation, AI visuals, and Beauty Assistant were gated behind a second payment check (`require_paid_ai_access` / `canUsePaidAi`) even after a user could reach the dashboard and open assessments. That split tier confused product access and blocked NL features for eligible users.
+
+### Decision
+- Any authenticated user who can access an assessment (same tier as dashboard) may use all natural-language / AI report features.
+- Remove payment checks from `backend/ai_access.require_paid_ai_access` (auth-only) and from `Report.jsx` feature unlocks.
+- Keep existing admin approval workflow for client full-report / PDF unlock unchanged.
+- Analysis entry may still use payment / prior-assessment access via `userHasAnalysisAccess` and `POST /api/assessments` payment checks.
+
+### Consequences
+- One product tier for report tools once the user is in the app; approval remains the client visibility gate.
+- Assistant hourly rate limits still apply.
+
+## ADR-012: One-Shot NL Enrichment in Assessment Pipeline
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+Opening a report called `POST /ai-narrative` (and often protocol generation) whenever local state lacked stored text. That re-ran expensive LLM work on every open and could overwrite or delay the report experience.
+
+### Decision
+- Run executive narrative + protocol/feature narratives once inside `POST /api/assessments` after CV + photo persistence (`enrich_assessment_nl_content`).
+- Report open only **loads** stored `aiNarrative` / protocol via GET; it must not trigger generation.
+- `POST /ai-narrative` is idempotent; `force=true` is admin-only (Admin Review regenerate).
+- `POST /ai-protocol` remains available for incomplete/legacy assessments but is not called from the report viewer.
+
+### Consequences
+- Scanning/upload waits longer (NL included in pipeline).
+- Reopening reports is cheap and stable.
+- Assessments created before this change may lack NL until admin regenerate or a new upload.
+
+## ADR-013: Second-Person Coaching Voice Without Tech Jargon
+Date: 2026-07-10  
+Status: superseded by ADR-017  
+
+### Context
+Protocol PDF and assistant copy mixed third-person clinic narration (“the client…”) with implementation details (MediaPipe, OpenCV, computer-vision). That broke the premium coaching tone and exposed behind-the-scenes tech.
+
+### Decision
+- All NL system prompts include shared `VOICE_RULES` (you/your) and `NO_TECH_JARGON_RULES` (no MediaPipe/OpenCV/CV/pipeline language).
+- Guardrail templates, closing stitchers, frontend closing fallbacks, Beauty Assistant, and report UI subtitles use second-person aesthetic language only.
+- Legal Disclaimer/Privacy pages may still use “client” in a legal sense.
+- Cover titles may personalize with the reader’s name.
+
+### Consequences
+- New assessments and regenerations read as direct coaching.
+- Older stored narratives keep prior wording until re-upload or admin force-regenerate.
+
+## ADR-017: Qoves-Style Third-Person Report Voice (Subject as Subject)
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+ADR-013 moved PDF/protocol copy to second person (you/your). Qoves-style clinical protocol PDFs instead narrate in third person with the assessed person as the grammatical subject (“the subject…”, or a provided name). Chat coaching still benefits from second person.
+
+### Decision
+- **PDF / protocol / executive / feature narratives:** third person with **the subject** as the grammatical subject (prefer the subject’s name when provided). Shared `NARRATIVE_VOICE_RULES` + `NO_TECH_JARGON_RULES` on narrative/protocol system prompts only.
+- **Hard-coded PDF/protocol fallbacks** (`qovesProtocolModel`, `reportPdf`, guardrail templates, closing stitchers, CV `explanation` strings) use the same third-person subject voice.
+- **Beauty Assistant** keeps second person (`ASSISTANT_VOICE_RULES` / `assistant_agent`); image-generation prompts are unchanged.
+- Do not use “the client” as the default referent in narrative copy (legal/privacy pages may still say client/reader).
+
+### Consequences
+- New assessments and regenerations read as clinic-style subject reports in the PDF/protocol.
+- Older stored narratives keep prior wording until re-upload or admin force-regenerate.
+- Assistant chat remains direct coaching (you/your).
+
+## ADR-014: OpenAI Vision Enrichment for Narratives (Optional Layer)
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+Feature narratives were text-only (scores + facts). Users want GPT multimodal context from the correct pose photos without replacing MediaPipe/OpenCV measurements.
+
+### Decision
+- Keep CV provider local for all measurements.
+- When `LLM_PROVIDER=openai` and `OPENAI_VISION_NARRATIVE` is not disabled, attach compressed pose images to feature narrative (and executive narrative front photo) calls via a dynamic `FEATURE_VISION_POSES` map.
+- Hair is the special case: `front` + `topHead`. Other features use report-aligned poses only.
+- Groq / non-OpenAI text providers remain text-only.
+
+### Consequences
+- Better visual grounding for OpenAI narrative/protocol copy at higher token cost.
+- Mapping lives in `backend/config.py` / `backend/vision_context.py` for future expansion (crops, more poses).
+
+---
+
+## ADR-015: Always-On Hair Mask + Silhouette Profile Landmarks
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+Hair segmentation was gated behind `HAIR_SEGMENTATION_ENABLED` and returned `None`, so deploys never changed hair output. Profile Tier C formulas ran on FaceMesh landmarks at 90°, which are unreliable past ~60–70° yaw. New nose fields were computed but not shown in the UI/PDF.
+
+### Decision
+- Remove the `HAIR_SEGMENTATION_ENABLED` kill-switch. OpenCV HSV hair-mask segmentation always runs in `analyze_hair_photo` / `hair_segmentation.py` as part of the analysis pipeline (BiSeNet remains a future upgrade path, not an env gate).
+- Prefer silhouette anatomical points from `profile_silhouette.extract_profile_silhouette_points` for soft-tissue profile angles; merge with FaceMesh ears when available (`landmarkSource`: `silhouette` | `facemesh` | `silhouette+facemesh`).
+- Surface Tier C fields (`nasofrontalAngleDeg`, `nasolabialAngleDeg`, `dorsalHump*`, etc.) in `cvReport.nose` explanation, `CvReportView`, `qovesProtocolModel`, and `feature_context` measured facts.
+
+### Consequences
+- Hair and profile numbers can change without setting env vars.
+- Silhouette estimates are coarse; label `landmarkSource` so narratives do not overclaim clinical cephalometrics.
+- Existing assessments keep prior stored `cvReport` until re-analyzed.
+

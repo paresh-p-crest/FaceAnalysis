@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { ReportMetricCard, ReportExplanationCard, ReportMonoLabel } from './ReportSectionHeading'
+import { PhotoLandmarkFrame } from './FaceImageFrame'
 
 export function FeatureAnalysisPage({
   featureName,
@@ -108,16 +109,12 @@ export function AssessmentGridLayout({ photo, photoOverlay, rightCards, explanat
   return (
     <div className="space-y-6">
       <div className="grid lg:grid-cols-2 gap-6">
-        <div className="relative rounded-2xl overflow-hidden border border-surface-border aspect-[4/5] bg-surface-warm">
-          {photo && (
-            <img
-              src={photo}
-              alt="Analysis"
-              className={`w-full h-full ${photoFit === 'contain' ? 'object-contain' : 'object-cover'}`}
-            />
-          )}
-          {photoOverlay}
-        </div>
+        <PhotoLandmarkFrame
+          src={photo}
+          alt="Analysis"
+          fit={photoFit === 'cover' ? 'cover' : 'contain'}
+          overlay={photoOverlay}
+        />
         <div className="space-y-4">
           {rightCards}
         </div>

@@ -42,7 +42,7 @@ export function FeatureReportPanel({ title, featureName, data, sections, imageSr
       <ReportSectionHeading
         title="Summary of your"
         accent={accent}
-        subtitle="MediaPipe landmarks + pixel analysis"
+        subtitle="Facial landmark balance from your photos"
       />
       {hasProfileImages ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

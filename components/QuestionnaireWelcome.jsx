@@ -23,7 +23,7 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
           ) : (
             <span aria-hidden className="w-px h-px" />
           )}
-          <span className="font-serif font-bold text-ink text-xl tracking-tight">MyFace</span>
+          {/* <span className="font-serif font-bold text-ink text-xl tracking-tight">MyFace</span> */}
         </div>
 
         {/* Content */}
@@ -63,11 +63,8 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
 
       {/* Right Column: Fluid Wavy Mesh Gradient (Forced Dark Background) */}
       <div className="hidden lg:flex lg:w-[60%] bg-[#0d1e1f] fluid-gradient-mesh flex-col justify-between p-16 relative">
-        <div className="flex items-center gap-3 relative z-10">
-          <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <circle cx="12" cy="12" r="8" />
-            <path d="M16 16L20 20" />
-          </svg>
+        <div className="relative z-10">
+          <span className="font-serif font-bold text-white text-3xl tracking-tight">MyFace</span>
         </div>
 
         <div className="space-y-6 max-w-xl text-left relative z-10">
@@ -78,7 +75,7 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
             Onboarding<br />Questions
           </h1>
           <p className="text-sm text-slate-300 leading-relaxed max-w-md">
-            Please answer the following questions to help us customize your QOVES journey.
+            Please answer the following questions to help us customize your MyFace journey.
           </p>
         </div>
       </div>

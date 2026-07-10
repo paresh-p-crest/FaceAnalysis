@@ -20,6 +20,7 @@ from .narrative_schemas import (
 STRICT_NON_SURGICAL_RULES = (
     "STRICT SAFETY RULES (always follow):\n"
     "- Coach ONLY on non-surgical skincare, grooming, lifestyle, nutrition, sleep, hydration, and SPF.\n"
+    "- The phrase 'non-surgical' is allowed and preferred; never recommend surgery or injectables.\n"
     "- Use ONLY data supplied in this prompt. Never invent measurements, scores, ages, or diagnoses.\n"
     "- NEVER mention or recommend: surgery, injectables, fillers, Botox, lasers, prescriptions, "
     "clinical procedures, weight-loss drugs, or in-clinic treatments.\n"
@@ -28,29 +29,76 @@ STRICT_NON_SURGICAL_RULES = (
     "- If data is missing, say what is missing and suggest a safe non-surgical next step."
 )
 
+# Beauty Assistant stays second-person; PDF/protocol narratives use Qoves-style third person.
+ASSISTANT_VOICE_RULES = (
+    "VOICE: Address the reader in second person (you/your). "
+    "Never refer to them as 'the client', 'this client', 'the subject', or by third-person narration. "
+    "Do not write clinic-style reports about a third party. "
+    "Weave 1–3 key measured cues into natural sentences; do not dump raw key:value metric lists."
+)
+
+NARRATIVE_VOICE_RULES = (
+    "VOICE: Write in third person with the subject as the grammatical subject "
+    "(e.g. 'The subject's chin projection…', 'The subject presents…'). "
+    "When a name is provided, prefer that name as the subject "
+    "(e.g. \"Alex's nasal proportions…\") instead of you/your. "
+    "Never address the reader as you/your. "
+    "Do not write second-person coaching copy. "
+    "Weave 1–3 key measured cues into natural sentences; do not dump raw key:value metric lists."
+)
+
+# Backward-compatible alias used by narrative modules.
+VOICE_RULES = NARRATIVE_VOICE_RULES
+
+NO_TECH_JARGON_RULES = (
+    "LANGUAGE: Write only aesthetic/educational clinical report language. "
+    "Never mention MediaPipe, OpenCV, computer vision, CV, landmarks, mesh, "
+    "models, APIs, LLMs, pipelines, or other implementation details. "
+    "Refer to facial measurements or this analysis instead."
+)
+
+_ASSISTANT_STYLE_RULES = (
+    "\n\n" + ASSISTANT_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES
+)
+
+_NARRATIVE_STYLE_RULES = (
+    "\n\n" + NARRATIVE_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES
+)
+
+# Deprecated alias — narrative modules should use _NARRATIVE_STYLE_RULES / NARRATIVE_VOICE_RULES.
+_NL_STYLE_RULES = _NARRATIVE_STYLE_RULES
+
 ASSISTANT_SYSTEM_PROMPT = (
     "You are MyFace Beauty Assistant. Your ONLY role is coaching non-surgical skincare, grooming, "
-    "and lifestyle routines based on THIS client's stored facial analysis report.\n\n"
+    "and lifestyle routines based on the reader's stored facial analysis report.\n\n"
     + STRICT_NON_SURGICAL_RULES
-    + "\n\nKeep answers concise, practical, and premium-client friendly (under 120 words unless listing a routine)."
+    + _ASSISTANT_STYLE_RULES
+    + "\n\nKeep answers concise, practical, and premium (under 120 words unless listing a routine). "
+    "Format replies in clean Markdown: use **bold** for emphasis, ## or **Title** for short section "
+    "headings, and bullet lists when listing steps. Do not wrap the whole reply in a code fence."
 )
 
 NARRATIVE_SYSTEM_PROMPT = (
     "You are MyFace's clinical aesthetic report writer. "
-    "You write concise, careful explanations from deterministic MediaPipe/OpenCV results.\n"
+    "You write concise, careful third-person explanations from the supplied facial measurement results.\n"
     + STRICT_NON_SURGICAL_RULES
+    + _NARRATIVE_STYLE_RULES
     + "\n\nReturn only valid JSON."
 )
 
 PROTOCOL_SYSTEM_PROMPT = (
-    "You are an expert aesthetic analyst generating a personalized non-surgical facial improvement protocol.\n"
+    "You are an expert aesthetic analyst generating a personalized non-surgical facial improvement protocol "
+    "in Qoves-style third-person report language.\n"
     + STRICT_NON_SURGICAL_RULES
+    + _NARRATIVE_STYLE_RULES
     + "\n\nReturn ONLY valid JSON."
 )
 
 PROTOCOL_NARRATIVE_SYSTEM_PREFIX = (
-    "You are an expert aesthetic analyst writing a Qoves-style personalised non-surgical facial protocol.\n"
+    "You are an expert aesthetic analyst writing a Qoves-style personalised non-surgical facial protocol "
+    "in third person (the subject / named subject as grammatical subject).\n"
     + STRICT_NON_SURGICAL_RULES
+    + _NARRATIVE_STYLE_RULES
     + "\n\nRecommend only over-the-counter skincare actives, grooming, lifestyle, nutrition, and exercise. "
     "Do NOT name lasers, injectables, fillers, surgery, or in-clinic procedures.\n"
     "Return ONLY valid JSON."
@@ -296,7 +344,7 @@ def template_protocol(cv_report: Optional[dict]) -> dict:
     )
 
     return {
-        "summary": "A personalized non-surgical protocol based on your stored facial analysis scores.",
+        "summary": "A personalized non-surgical protocol based on the subject's stored facial analysis scores.",
         "recommendations": recommendations,
     }
 
@@ -340,9 +388,17 @@ def generate_cv_narrative(
     cv_report: dict,
     metrics: Optional[dict] = None,
     api_key: Optional[str] = None,
+    assessment_id: Optional[str] = None,
+    photos_meta: Optional[dict] = None,
 ) -> dict:
     if not cv_report:
         return {"content": None, "source": None, "error": "cvReport is required."}
+
+    from .vision_context import (
+        build_multimodal_user_message,
+        load_poses_as_image_parts,
+        vision_instruction_for_feature,
+    )
 
     profile = format_answers_summary(answers or {})
     cv_summary = cv_report_summary(cv_report, metrics)
@@ -356,12 +412,12 @@ def generate_cv_narrative(
         '  "strengths": ["3 short bullets grounded in scores"],\n'
         '  "focusAreas": ["3 short bullets grounded in the lowest measured areas"],\n'
         '  "recommendations": ["4 practical non-surgical recommendations"],\n'
-        '  "disclaimer": "One sentence explaining this is educational and based on CV measurements"\n'
+        '  "disclaimer": "One sentence explaining this is educational and based on facial measurements"\n'
         "}\n\n"
         "Rules:\n"
         "- Mention numeric scores only if they appear below.\n"
         "- Keep every bullet under 22 words.\n\n"
-        f"Client profile:\n"
+        f"Profile:\n"
         f"- Goals: {profile['goals']}\n"
         f"- Skin concerns: {profile['concerns']}\n"
         f"- Skin type: {profile['skinType']}\n"
@@ -369,15 +425,25 @@ def generate_cv_narrative(
         f"- Water intake: {(answers or {}).get('waterIntake', 'N/A')}\n"
         f"- Sun exposure: {(answers or {}).get('sunExposure', 'N/A')}\n\n"
         f"Lowest measured priorities: {priorities}\n\n"
-        f"Stored CV report metrics:\n{cv_summary}"
+        f"Stored facial measurement summary:\n{cv_summary}"
     )
+
+    pose_ids, overview_parts = load_poses_as_image_parts(
+        assessment_id,
+        ["front"],
+        photos_meta,
+    )
+    if pose_ids:
+        user_content += "\n\n" + vision_instruction_for_feature("overview", pose_ids)
+
+    user_message = build_multimodal_user_message(user_content, overview_parts)
 
     result = chat_structured_completion(
         schema_name="executive_narrative",
         json_schema=executive_narrative_json_schema(),
         messages=[
             {"role": "system", "content": NARRATIVE_SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
+            {"role": "user", "content": user_message},
         ],
         temperature=0.35,
         max_tokens=900,
@@ -649,10 +715,10 @@ def answer_beauty_question(
 
     if result.get("error") or not result.get("content"):
         return {
-            "content": _fallback_assistant_answer(question, cv_report, answers),
-            "source": "template",
-            "model": None,
-            "error": result.get("error"),
+            "content": None,
+            "source": result.get("source"),
+            "model": result.get("model"),
+            "error": result.get("error") or "Beauty Assistant is not working right now.",
             "should_refresh_summary": False,
             "session_summary": session_summary,
             "summary_at_user_count": summary_at_user_count,

@@ -41,6 +41,7 @@ Served by Next.js static hosting at `/uploads/...`.
 3. `save_all_poses()` writes each pose to disk
 4. `apply_photo_urls_to_cv_report()` binds URLs into `cvReport`
 5. `update_assessment_analysis()` persists photos map + updated analysis
+6. One-shot NL enrichment — `aiNarrative` + protocol/feature narratives (idempotent; not re-run on report open)
 
 ## Production migration (planned)
 

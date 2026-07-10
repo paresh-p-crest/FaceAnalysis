@@ -59,7 +59,7 @@ export function CheekReportPanel({ cheeks }) {
   return (
     <FeatureAnalysisPage
       featureName="cheeks"
-      subtitle="MediaPipe landmarks + Canvas pixel analysis"
+      subtitle="Facial landmark balance from your photos"
       heroImage={c.imageSrc}
       summaryCards={[
         { label: 'Structure', value: c.scoreLabel },

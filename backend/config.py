@@ -21,6 +21,21 @@ PROTOCOL_FEATURE_IDS = (
     "ears",
 )
 
+# Dynamic OpenAI Vision pose mapping for feature narratives (only when LLM_PROVIDER=openai).
+# Hair is the exception: front + top-of-head. Other features use the views that match the report.
+FEATURE_VISION_POSES: dict[str, tuple[str, ...]] = {
+    "hair": ("front", "topHead"),
+    "eyes": ("front",),
+    "nose": ("front", "rightProfile"),
+    "cheeks": ("front", "left45", "right45"),
+    "jaw": ("front", "rightProfile"),
+    "lips": ("front", "smile"),
+    "chin": ("front", "rightProfile"),
+    "skin": ("front",),
+    "neck": ("front",),
+    "ears": ("front", "leftProfile", "rightProfile"),
+}
+
 STAGES = {
     "LANDING": "landing",
     "QUESTIONNAIRE": "questionnaire",

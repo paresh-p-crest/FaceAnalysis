@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -24,7 +25,14 @@ from ..repositories.conversation_repository import (
 from ..serialization import to_json_safe
 from ..assistant_agent import run_assistant_agent
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/assessments", tags=["assistant"])
+
+ASSISTANT_UNAVAILABLE = {
+    "code": "ASSISTANT_UNAVAILABLE",
+    "message": "Beauty Assistant is not working right now. Please try again later.",
+}
 
 
 class AssistantMessageRequest(BaseModel):
@@ -82,8 +90,13 @@ async def post_assistant_message(
         session_summary=conversation.get("sessionSummary"),
         summary_at_user_count=int(conversation.get("summaryAtUserCount") or 0),
     )
-    if not result.get("content"):
-        raise HTTPException(status_code=400, detail=result.get("error") or "Assistant response unavailable.")
+    if result.get("error") or not result.get("content"):
+        logger.warning(
+            "Beauty Assistant unavailable for assessment %s: %s",
+            assessment_id,
+            result.get("error") or "empty content",
+        )
+        raise HTTPException(status_code=503, detail=ASSISTANT_UNAVAILABLE)
 
     updated = await append_messages(
         conversation_id=conversation["id"],

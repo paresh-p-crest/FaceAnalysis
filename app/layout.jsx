@@ -9,7 +9,9 @@ export const metadata = {
   title: 'MyFace - AI Facial Analysis',
   description: 'AI-powered facial analysis for aesthetic insights and personalized recommendations.',
   icons: {
-    icon: '/favicon.svg',
+    icon: [{ url: '/favicon.png', type: 'image/png' }],
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
   },
 }
 

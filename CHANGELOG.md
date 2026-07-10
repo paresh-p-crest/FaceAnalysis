@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Changed
+- **Report voice (ADR-017)** — PDF/protocol hard-coded copy and narrative/protocol LLM prompts use Qoves-style third person with **the subject** as grammatical subject (name when provided). Beauty Assistant and image prompts remain second person / unchanged. Supersedes ADR-013 for report narratives. Stored second-person feature/closing narratives are rewritten to subject voice at PDF/protocol render time.
+### Fixed
+- **Chin PDF stacked analysis images** — right-column guide frames use the real right-profile photo (not frontal); frontal mouth/chin crop remains on the BEFORE pair only. Chin layout now resolves `profileImage` like nose/jaw.
+- **PDF feature-page overlaps** — Hair/Eyes/Nose/Jaw/Chin/Cheeks/Lips/Skin/Neck/Ears drawers now use cursor-based (`leftY`/`rightY`) layout; summary cards grow with content and clamp above the footer.
+- **PDF image frame overflow** — cover frames are canvas center-cropped to the exact box size before `addImage` (no jsPDF clip); keeps aspect ratio, prevents overflow, and does not blank later images.
+- **Neck feature crop** — framing is now lower-face + neck (nostrils through jaw to collar), not a thin under-chin strip; protocol PDF prefers live crop over legacy stored crops.
+- **Skin PDF split panel** — dashed center line is a true before|after split; right side shows projected after when available, otherwise "Pending" (does not mirror the before photo).
+- **Chin BEFORE image** — frontal mouth/chin crop again (not right profile); profile kept on `imageSrcProfile` for overlays.
+- **Ear BEFORE image** — front-facing ear/face crop (not right profile); PDF measurement guide lines removed for now.
+- **Jaw BEFORE image** — front-facing mouth/jaw crop (not right profile); profile kept on `imageSrcProfile` for side overlays.
+- **Hair BEFORE image** — frontal hairline/forehead/brows crop (not top-of-head scalp photo); top-head kept on `imageSrcTopHead` for density analysis.
+### Changed
+- **Nose PDF before/after** — image frame height increased from 80pt to 120pt on the Nose Recommendations page only.
+- **Jaw PDF before/after** — image frame height increased from 90pt to 140pt on the Jaw Recommendations page only.
+- **Norwood hair-loss PDF strip** — replaced line-drawn icons with head-focused Norwood stage illustrations (`public/norwood-stages/stage-1.png`…`stage-7.png`; Stage 3 vertex omitted; labels cropped out).
+- **Understanding Your Results PDF** — bold lead sentences on page 4 bumped from 9pt to 10pt (slightly more prominent vs body copy).
+### Removed
+- **Scanning CV engine badge** — removed the "MediaPipe + OpenCV" pill from the analysis scanning screen (client-facing; ADR-013).
+### Fixed
+- **Naso-aural ear < nose false reading** — FaceMesh "ear" indices only mark the face–ear junction and under-read pinna height on 90° profiles. Ear span now uses rear-side helix→lobe detection from the profile photo; nasion/subnasale refined via silhouette indents. Overlay guides track the corrected points.
+- **Chin / jaw recommendation images** — bind and display the right-profile photo (not front chin crop) in `photo_storage`, `CvReportView`, and protocol feature image resolution.
+### Added
+- **MediaPipe Pose neck metrics (ADR-016)** — `pose_analysis.py` runs alongside FaceMesh; jaw→shoulder neck length + head-forward posture angle when shoulders are visible; approximate fallback otherwise.
+### Fixed
+- **Hair segmentation kill-switch** — removed `HAIR_SEGMENTATION_ENABLED`; OpenCV HSV hair-mask always runs in the analysis pipeline (ADR-015).
+- **Profile Tier C garbage-in** — `profile_silhouette` now wired as preferred 90° landmark source; FaceMesh alone no longer feeds nasofrontal/nasolabial/dorsal-hump when a silhouette is extractable.
+- **Tier C render gap** — `nasofrontalAngleDeg`, `nasolabialAngleDeg`, `dorsalHump*` now shown in `CvReportView`, PDF protocol model, and nose explanation text (were computed but never displayed).
+### Changed
+- **`hair_analysis.analyze_hair_photo`** — prefers hair-mask density/hairline; falls back to dark-pixel heuristics only if mask fails.
+- **`profile_cephalometrics`** — accepts profile photo bytes; `landmarkSource` is `silhouette` | `facemesh` | `silhouette+facemesh`.
+### Added
+- ADR-015 (always-on hair mask + silhouette profile landmarks).
+- Tests: `test_hair_segmentation.py`, `test_profile_silhouette.py`.
+### Fixed
+- **LLM usage logs not visible** — usage boxes now `print` to stderr (uvicorn was hiding app `INFO`); `configure_backend_logging()` wires `backend.*` loggers.
+- **Beauty Assistant markdown** — assistant bubbles render Markdown (bold, headings, lists, links) via `react-markdown` + `.assistant-markdown` styles.
+- **AI visuals 500 (`Incorrect padding`)** — source portrait now loads from stored front photo / local `/uploads/...` path instead of base64-decoding public URLs; edits fail soft per variant.
+### Added
+- **LLM usage logging** — each chat completion logs provider, model, input/output/total tokens, and duration via `backend.llm_client` (pretty boxed INFO/WARNING lines).
+- **Production AI visual prompts** — identity-preserving hair / outfit / aging edit prompts; image request logging; `sourceKind` on `aiVisuals`.
+### Fixed
+- **Beauty Assistant chat UX** — user message appears immediately; assistant typing loader in the thread; input stays editable while send is blocked until the reply returns.
+- **Beauty Assistant panel** — responsive height (shorter on mobile, taller on desktop) with pinned composer; removed subtitle under the title.
+- **`qovesProtocolModel.js` syntax** — restored missing `(` in `if (strengths.length)` that broke the Next.js build.
+- **Beauty Assistant LLM failure** — no longer returns a fake score-dump template as a chat reply; `POST .../assistant` returns **503** with `ASSISTANT_UNAVAILABLE` when the model/API fails.
+- **Symmetry / landmark overlays** — map MediaPipe 0–100% points onto the real `object-fit` image content box (fixes square SVG `meet` vs 4:5 letterboxing drift); smaller dots; curated landmark set; midline from facial landmarks.
+- **Proportion overlays (ear/nose/mouth/eye)** — same content-box mapping; dots at true landmark coords (not averaged guide lines); orbito-nasal uses inner canthi (en–en) vs alae; orbital canthi L→R; live recompute from landmarks when available; 4px markers.
+- **Naso-oral mouth width** — cheilions from outer-lip extremes (not inset 61/291); label is mouth vs nose (not vs 1.6 ideal).
+- **Naso-aural ear guides** — use correct profile-side MediaPipe points; lateral ear span; short tick horizontals + endpoint dots.
+- **Questionnaire welcome** — replaced Q-mark SVG with MyFace serif wordmark on the right panel.
+- **Favicon** — page icon now uses `public/favicon.png` (replaced legacy `favicon.svg`).
+### Changed
+- **Navbar account control** — username / Sign in use `rounded-lg` (aligned with nav links), not pill shape.
+- **Dashboard Payments KPI** — descriptor reads “Completed payments” (not “records”).
+- **Dashboard** — removed Account KPI card; identity lives in the navbar only.
+- **Navbar** — shows username (tap for Sign out); shows Sign in when logged out.
+- **AI coaching voice** — narrative, protocol, closing, Beauty Assistant, and report UI use second-person (you/your) and omit MediaPipe/OpenCV/computer-vision jargon (ADR-013).
+- **OpenAI Vision narrative enrichment** — when `LLM_PROVIDER=openai`, feature narratives attach only the mapped pose photos (hair: front+topHead; others per `FEATURE_VISION_POSES`); CV scoring stays local. Disable with `OPENAI_VISION_NARRATIVE=0`.
 ### Added
 - **All 7 photo poses required** before analysis (`utils/constants.js`, `backend/photo_validation.py`, `POST /api/assessments` returns 400 when poses missing).
 - **Structured `cvReport.eyes`** — four metric slices (eyebrows, eyelashes, ocular, underEye) via `assemble_eyes_region()` in `backend/eye_analysis.py`.
@@ -21,11 +80,18 @@ All notable changes to this project will be documented in this file. The format 
 - **Report modal** — shows an error instead of infinite "Building structured report…" when analysis returns without `cvReport`.
 - **Demo photo analysis** — demo images (~40MB each) are compressed before upload; fixes oversized payloads on `POST /api/assessments`.
 - **Open Report from dashboard/history** — fetches full assessment via `GET /api/assessments/{id}`; summary rows no longer misclassified as failed analysis.
+- **Interactive report sidebar** — accordion nav (Introduction / Facial Assessments / Features Analysis / Protocol + Tools) restored; section-based navigation replaces immersive stacked scroll.
+- **Report nav CSS build** — replaced invalid `@apply dark:hover:bg-surface-card/50` (and `/60`) with `hover:bg-surface-warm` so Next.js compiles `globals.css`.
+- **Report header** — PDF (and Approve) sit in the same top bar as the title and close control.
+- **AI narrative / protocol on open** — report open only loads stored NL content; generation runs once in `POST /api/assessments` pipeline.
+- **`POST /api/assessments` 500** — `to_json_safe` now converts NumPy scalars (`np.bool_`, ints, floats, arrays) so MongoDB insert no longer fails with `cannot encode object: np.True_`.
+- **Top-of-head hair analysis** — fixed grayscale-as-BGR crash in `analyze_hair_photo`; failed enrich no longer overwrites measured hair metrics.
+- **Protocol narratives / summaries** — guardrails no longer reject the phrase `non-surgical`; templates and closing stitch produce measured, feature-specific copy instead of `Non-surgical guidance for X based on stored measurements`.
 - **Report PDF feature crops** — per-feature landmark crops for eyes (brows / periorbital / dual-eye preview), lips (oval masked preview), and cheeks (landmark-based measurement overlays); generic guardrail narrative no longer replaces distinct subsection copy.
 - **Hair PDF page** — `drawHairFeaturePage()` reads live `section.subsections` / `summary` and Norwood stage from `cvReport.hair`.
 - **Nose PDF page** — no longer tags front crop as `PROFILE`; profile panel only when real side profile exists.
 - **Nose CV enrichment** — profile measurements merged into `cvReport.nose` in `analyze_face._enrich_cv_report()`.
-- **Neck metrics** — `dataSource: approximate` with explicit limitation (MediaPipe Pose deferred).
+- **Neck metrics** — `dataSource: approximate` with user-facing limitation (no MediaPipe jargon).
 - **Eyes web viewer** — 2×2 quadrant layout via `eyesQuadrant` layout hint.
 - **Hair Norwood copy** — labeled as estimated, not clinical diagnosis.
 - `AnalysisFlow` — single `/analysis` page with gated step state (welcome → questionnaire → confirm → upload → scanning).

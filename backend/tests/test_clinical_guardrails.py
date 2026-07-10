@@ -54,4 +54,50 @@ def test_template_fallback_has_no_banned_terms():
     blob = str(tpl).lower()
     assert "botox" not in blob
     assert "laser" not in blob
+    assert "mediapipe" not in blob
+    assert "opencv" not in blob
+    assert "computer-vision" not in blob
+    assert "computer vision" not in blob
+    assert "assessment of the" not in blob
+    assert "the client" not in blob
+    assert "the subject" in blob
     assert tpl["featureId"] == "skin"
+    assert "non-surgical guidance for skin based on stored measurements" not in tpl["summary"].lower()
+    assert "your" not in tpl["summary"].lower()
+    assert "your" not in tpl["description"].lower()
+    assert len(tpl["summary"]) > 40
+    for sub in tpl["subsections"]:
+        assert "your" not in sub["body"].lower()
+        assert "the subject" in sub["body"].lower()
+
+
+def test_non_surgical_phrase_is_allowed():
+    ctx = _ctx()
+    narrative = FeatureNarrative(
+        featureId="skin",
+        measuredFacts=ctx["measuredFacts"],
+        limitations=ctx["limitations"],
+        summary="Conservative non-surgical skin care based on measured redness and texture.",
+        description="Your skin metrics indicate dryness with elevated redness on photographic analysis.",
+        subsections=[
+            {
+                "title": "Skincare Protocol",
+                "body": (
+                    "Use gentle non-surgical cleansing and niacinamide while monitoring redness under SPF. "
+                    + "x" * 80
+                ),
+                "evidenceTier": "lifestyle",
+            },
+            {
+                "title": "Further Skin Enhancement",
+                "body": (
+                    "Maintain SPF and gentle cleansing while monitoring redness. " + "y" * 80
+                ),
+                "evidenceTier": "lifestyle",
+            },
+        ],
+        recommendations=["Daily SPF 50."],
+    )
+    ok, errors = validate_feature_narrative(narrative, ctx)
+    assert ok, errors
+    assert not any("banned" in e.lower() for e in errors)

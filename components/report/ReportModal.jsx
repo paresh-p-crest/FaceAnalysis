@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic'
 import { useEffect } from 'react'
-import { X } from 'lucide-react'
 
 const Report = dynamic(() => import('../Report'), { ssr: false })
 
@@ -36,18 +35,7 @@ export function ReportModal({
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-surface">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border bg-surface-card shrink-0">
-        <h2 className="font-display text-sm font-semibold text-ink">Facial Analysis Report</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex items-center justify-center min-h-[36px] min-w-[36px] rounded-xl text-ink-muted hover:text-ink hover:bg-surface-warm transition-colors"
-          aria-label="Close report"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-hidden">
         <Report
           photo={photo}
           photos={photos}
@@ -57,6 +45,7 @@ export function ReportModal({
           onRestart={onRestart}
           onRetryLocal={onRetryLocal}
           user={user}
+          onClose={onClose}
         />
       </div>
     </div>

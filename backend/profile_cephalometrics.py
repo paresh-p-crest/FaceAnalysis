@@ -7,10 +7,29 @@ from typing import Optional
 
 from .calibration import norm_dist_to_mm
 from .face_crop import lm
+from .profile_silhouette import extract_profile_silhouette_points
 
 # Visible-side contour indices for ear vertical span on profile photos
 RIGHT_PROFILE_EAR = (356, 454, 323, 361, 288, 397, 365, 379)
 LEFT_PROFILE_EAR = (234, 127, 132, 93, 58, 172, 136, 150)
+
+# Keys used by cephalometric formulas — prefer silhouette when present
+_SILHOUETTE_KEYS = (
+    "glabella",
+    "nasion",
+    "pronasale",
+    "subnasale",
+    "upperLip",
+    "lowerLip",
+    "pogonion",
+    "menton",
+    "bridgeMid",
+    "gonion",
+    "earTop",
+    "earBottom",
+    "noseTop",
+    "noseBottom",
+)
 
 
 def _dist(a: dict, b: dict) -> float:
@@ -63,6 +82,43 @@ def _profile_landmarks(landmarks: list, pose_id: str) -> dict:
         "noseTop": lm(landmarks, 6),
         "noseBottom": lm(landmarks, 2),
     }
+
+
+def _merge_profile_points(
+    mesh_pts: Optional[dict],
+    sil_pts: Optional[dict],
+) -> tuple[Optional[dict], str]:
+    """Prefer silhouette anatomical points; prefer image ear helix→lobe over FaceMesh."""
+    if not sil_pts and not mesh_pts:
+        return None, "unavailable"
+    if sil_pts and not mesh_pts:
+        return {k: sil_pts[k] for k in _SILHOUETTE_KEYS if k in sil_pts}, "silhouette"
+    if mesh_pts and not sil_pts:
+        return mesh_pts, "facemesh"
+
+    merged = dict(mesh_pts)
+    # Soft-tissue profile + ear span from silhouette/image (FaceMesh ear indices
+    # only mark the face–ear junction and under-read true pinna height).
+    prefer_sil = (
+        "glabella",
+        "nasion",
+        "pronasale",
+        "subnasale",
+        "upperLip",
+        "lowerLip",
+        "pogonion",
+        "menton",
+        "bridgeMid",
+        "noseTop",
+        "noseBottom",
+        "gonion",
+        "earTop",
+        "earBottom",
+    )
+    for key in prefer_sil:
+        if key in sil_pts and isinstance(sil_pts[key], dict) and "x" in sil_pts[key]:
+            merged[key] = sil_pts[key]
+    return merged, "silhouette+facemesh"
 
 
 def build_naso_aural_proportion_overlay(pts: dict) -> dict:
@@ -180,14 +236,34 @@ def _profile_gonial_angle(pts: dict) -> float:
     return round(_angle_deg(tragus, gonion, menton), 1)
 
 
-def _chin_projection_norm(pts: dict) -> float:
-    return round(pts["pogonion"]["x"] - pts["subnasale"]["x"], 4)
+def _chin_projection_norm(pts: dict, facing_side: Optional[str] = None) -> float:
+    """Horizontal distance from pogonion to vertical dropped from subnasale.
+
+    Positive = chin ahead of the Sn vertical (toward the face's forward direction).
+    """
+    raw = pts["pogonion"]["x"] - pts["subnasale"]["x"]
+    if facing_side == "left":
+        # Face looks left (−x forward); flip so positive still means projected
+        raw = -raw
+    return round(raw, 4)
 
 
-def analyze_profile(landmarks: list, pose_id: str = "rightProfile", mm_per_unit: Optional[float] = None) -> Optional[dict]:
-    if not landmarks:
+def analyze_profile(
+    landmarks: Optional[list] = None,
+    pose_id: str = "rightProfile",
+    mm_per_unit: Optional[float] = None,
+    image_bytes: Optional[bytes] = None,
+) -> Optional[dict]:
+    mesh_pts = _profile_landmarks(landmarks, pose_id) if landmarks else None
+    sil_pts = extract_profile_silhouette_points(image_bytes) if image_bytes else None
+    pts, landmark_source = _merge_profile_points(mesh_pts, sil_pts)
+    if not pts:
         return None
-    pts = _profile_landmarks(landmarks, pose_id)
+
+    facing = (sil_pts or {}).get("facingSide")
+    if not facing:
+        facing = "right" if pose_id == "rightProfile" else "left"
+
     convexity = _facial_convexity(pts)
     e_line = _e_line_lip_distances(pts, mm_per_unit)
     naso_aural = _naso_aural_ratio(pts)
@@ -195,13 +271,14 @@ def analyze_profile(landmarks: list, pose_id: str = "rightProfile", mm_per_unit:
     nasofrontal = _nasofrontal_angle(pts)
     dorsal_hump = _dorsal_hump_deviation(pts)
     profile_gonial = _profile_gonial_angle(pts)
-    chin_proj = _chin_projection_norm(pts)
+    chin_proj = _chin_projection_norm(pts, facing)
     chin_mm = norm_dist_to_mm(abs(chin_proj), mm_per_unit)
     ear_protrusion = round(abs(pts["earBottom"]["x"] - pts["pogonion"]["x"]), 4)
     naso_overlay = build_naso_aural_proportion_overlay(pts)
 
     return {
         "poseId": pose_id,
+        "landmarkSource": landmark_source,
         "measurements": {
             "facialConvexityDeg": convexity,
             "nasolabialAngleDeg": nasolabial,
@@ -235,18 +312,40 @@ def analyze_profile(landmarks: list, pose_id: str = "rightProfile", mm_per_unit:
     }
 
 
-def build_profile_report(views: dict, mm_per_unit: Optional[float] = None) -> dict:
+def build_profile_report(
+    views: dict,
+    mm_per_unit: Optional[float] = None,
+    photos: Optional[dict] = None,
+) -> dict:
+    photos = photos or {}
     right = views.get("rightProfile", {})
     left = views.get("leftProfile", {})
     right_lm = right.get("landmarks", []) if right.get("success") else []
     left_lm = left.get("landmarks", []) if left.get("success") else []
+    right_bytes = photos.get("rightProfile")
+    left_bytes = photos.get("leftProfile")
 
-    primary_pose = "rightProfile" if right_lm else ("leftProfile" if left_lm else None)
-    primary_lm = right_lm or left_lm
-    primary = analyze_profile(primary_lm, primary_pose or "rightProfile", mm_per_unit) if primary_lm else None
+    primary_pose = (
+        "rightProfile"
+        if (right_lm or right_bytes)
+        else ("leftProfile" if (left_lm or left_bytes) else None)
+    )
+    primary = None
+    if primary_pose == "rightProfile":
+        primary = analyze_profile(right_lm or None, "rightProfile", mm_per_unit, right_bytes)
+    elif primary_pose == "leftProfile":
+        primary = analyze_profile(left_lm or None, "leftProfile", mm_per_unit, left_bytes)
 
-    left_analysis = analyze_profile(left_lm, "leftProfile", mm_per_unit) if left_lm else None
-    right_analysis = analyze_profile(right_lm, "rightProfile", mm_per_unit) if right_lm else None
+    left_analysis = (
+        analyze_profile(left_lm or None, "leftProfile", mm_per_unit, left_bytes)
+        if (left_lm or left_bytes)
+        else None
+    )
+    right_analysis = (
+        analyze_profile(right_lm or None, "rightProfile", mm_per_unit, right_bytes)
+        if (right_lm or right_bytes)
+        else None
+    )
 
     asymmetry = {}
     if left_analysis and right_analysis:

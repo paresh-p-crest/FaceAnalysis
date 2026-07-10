@@ -14,13 +14,41 @@ export const LEFT_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 
 export const RIGHT_BROW = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46, 124, 156, 221, 222, 223]
 export const LEFT_BROW = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276, 353, 383, 441, 442, 443]
 
+/** Outer lip contour — used for true cheilion (mouth-corner) extremes */
+export const MOUTH = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146]
+
+/** Curated symmetry overlay landmarks (paired + midline). Scoring uses full mesh elsewhere. */
 export const SYMMETRY_DOTS = [
-  ...RIGHT_EYE, ...LEFT_EYE, ...RIGHT_BROW, ...LEFT_BROW,
-  1, 2, 4, 5, 61, 291, 152, 234, 454,
+  // Right eye: outer, inner, top, bottom
+  33, 133, 159, 145,
+  // Left eye
+  362, 263, 386, 374,
+  // Right brow: outer, peak, inner
+  70, 105, 107,
+  // Left brow
+  300, 334, 336,
+  // Nose midline + alae
+  1, 2, 4, 5, 6, 98, 327,
+  // Mouth corners, chin, jaw
+  61, 291, 152, 234, 454,
 ]
 
 export function lm(landmarks, idx) {
   return landmarks[idx] || { x: 0.5, y: 0.5, z: 0 }
+}
+
+export function mouthCheilions(landmarks) {
+  const pts = MOUTH.map((i) => lm(landmarks, i))
+  const right = pts.reduce((a, b) => (a.x < b.x ? a : b))
+  const left = pts.reduce((a, b) => (a.x > b.x ? a : b))
+  return [right, left]
+}
+
+export function noseAlae(landmarks) {
+  const pts = [48, 278, 64, 294, 98, 327].map((i) => lm(landmarks, i))
+  const right = pts.reduce((a, b) => (a.x < b.x ? a : b))
+  const left = pts.reduce((a, b) => (a.x > b.x ? a : b))
+  return [right, left]
 }
 
 export function bboxFromIndices(landmarks, indices, pad = 0.02) {
@@ -109,13 +137,31 @@ export function proportionLinesInCrop(landmarks, box) {
   }
 }
 
-/** Qoves-style dashed guides per proportion tab (coords in 0–100 image space) */
+/** Qoves-style dashed guides per proportion tab (coords in 0–100 image space).
+ *  orbito-nasal: en–en vs al–al; orbital: en–en vs ex–en; naso-oral: ch–ch vs al–al.
+ */
 export function proportionRatioOverlays(landmarks, box = null) {
   const toX = (idx) => (box ? pointInCrop(landmarks, idx, box).x : pointInImage(landmarks, idx).x)
   const toY = (idx) => (box ? pointInCrop(landmarks, idx, box).y : pointInImage(landmarks, idx).y)
-  const normY = (y) => (box ? ((y - box.y) / box.h) * 100 : y * 100)
-  const noseBaseY = (lm(landmarks, 48).y + lm(landmarks, 278).y) / 2
-  const mouthY = (lm(landmarks, 61).y + lm(landmarks, 291).y) / 2
+  const pt = (idx) => ({ x: toX(idx), y: toY(idx) })
+
+  const rOut = pt(33)
+  const rIn = pt(133)
+  const lIn = pt(362)
+  const lOut = pt(263)
+  const [alRRaw, alLRaw] = noseAlae(landmarks)
+  const [chRRaw, chLRaw] = mouthCheilions(landmarks)
+  const toPct = (p) => (box
+    ? { x: ((p.x - box.x) / box.w) * 100, y: ((p.y - box.y) / box.h) * 100 }
+    : { x: p.x * 100, y: p.y * 100 })
+  const alR = toPct(alRRaw)
+  const alL = toPct(alLRaw)
+  const chR = toPct(chRRaw)
+  const chL = toPct(chLRaw)
+
+  const eyeLineY = (rOut.y + rIn.y + lIn.y + lOut.y) / 4
+  const noseBaseY = (alR.y + alL.y) / 2
+  const mouthY = (chR.y + chL.y) / 2
 
   return {
     nasoAural: {
@@ -131,52 +177,37 @@ export function proportionRatioOverlays(landmarks, box = null) {
       ],
     },
     orbitoNasal: {
-      horizontal: [{ y: toY(6) }],
+      horizontal: [{ y: eyeLineY }],
       vertical: [
-        { x: toX(33) },
-        { x: toX(263) },
-        { x: toX(48) },
-        { x: toX(278) },
+        { x: rIn.x },
+        { x: lIn.x },
+        { x: alR.x },
+        { x: alL.x },
       ],
-      dots: [
-        { x: toX(33), y: toY(33) },
-        { x: toX(263), y: toY(263) },
-        { x: toX(48), y: toY(48) },
-        { x: toX(278), y: toY(278) },
-      ],
+      dots: [rIn, lIn, alR, alL],
     },
     nasoOral: {
       horizontal: [
-        { y: normY(noseBaseY) },
-        { y: normY(mouthY) },
+        { y: noseBaseY },
+        { y: mouthY },
       ],
       vertical: [
-        { x: toX(48) },
-        { x: toX(278) },
-        { x: toX(61) },
-        { x: toX(291) },
+        { x: alR.x },
+        { x: alL.x },
+        { x: chR.x },
+        { x: chL.x },
       ],
-      dots: [
-        { x: toX(48), y: normY(noseBaseY) },
-        { x: toX(278), y: normY(noseBaseY) },
-        { x: toX(61), y: normY(mouthY) },
-        { x: toX(291), y: normY(mouthY) },
-      ],
+      dots: [alR, alL, chR, chL],
     },
     orbital: {
-      horizontal: [{ y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) }],
+      horizontal: [{ y: eyeLineY }],
       vertical: [
-        { x: toX(133) },
-        { x: toX(33) },
-        { x: toX(263) },
-        { x: toX(362) },
+        { x: rOut.x },
+        { x: rIn.x },
+        { x: lIn.x },
+        { x: lOut.x },
       ],
-      dots: [
-        { x: toX(133), y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) },
-        { x: toX(33), y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) },
-        { x: toX(263), y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) },
-        { x: toX(362), y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) },
-      ],
+      dots: [rOut, rIn, lIn, lOut],
     },
   }
 }

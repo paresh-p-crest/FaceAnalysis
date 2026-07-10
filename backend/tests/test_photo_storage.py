@@ -18,9 +18,19 @@ def test_save_and_url_binding():
         assert stored.byteSize > 0
 
         cv = apply_photo_urls_to_cv_report(
-            {"faceShape": {}, "symmetry": {}, "proportions": {"ratios": {"nasoAural": {}}}},
+            {
+                "faceShape": {},
+                "symmetry": {},
+                "chin": {"score": 70},
+                "jaw": {"score": 70},
+                "proportions": {"ratios": {"nasoAural": {}}},
+            },
             {"front": stored.publicUrl, "rightProfile": "/uploads/assessments/abc123/rightProfile.jpg"},
         )
         assert cv["photos"]["front"] == stored.publicUrl
         assert cv["faceShape"]["imageSrc"] == stored.publicUrl
         assert cv["proportions"]["ratios"]["nasoAural"]["photoSource"] == "rightProfile"
+        assert cv["chin"]["photoSource"] == "front"
+        assert cv["chin"]["imageSrcProfile"].endswith("rightProfile.jpg")
+        assert cv["jaw"]["photoSource"] == "front"
+        assert cv["jaw"]["imageSrcProfile"].endswith("rightProfile.jpg")

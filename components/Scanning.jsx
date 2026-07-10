@@ -1,20 +1,12 @@
 import { useEffect, useState } from 'react'
 import { SCAN_MESSAGES, SCAN_STAGES } from '../utils/constants'
 import { runFaceAnalysis } from '../utils/analyzeFace'
-import { getActiveProvider } from '../utils/appMode'
-import { ScanFace, Check } from 'lucide-react'
+import { Check } from 'lucide-react'
 
 export default function Scanning({ photo, photos, answers, scanId, onComplete }) {
   const [msgIndex, setMsgIndex] = useState(0)
   const [stageIndex, setStageIndex] = useState(0)
   const [completedStages, setCompletedStages] = useState([])
-
-  const provider = getActiveProvider()
-  const scanLabel = provider === 'local'
-    ? 'MediaPipe + OpenCV'
-    : provider === 'aws'
-      ? 'AWS Rekognition'
-      : 'MediaPipe + OpenCV'
 
   useEffect(() => {
     let active = true
@@ -88,11 +80,6 @@ export default function Scanning({ photo, photos, answers, scanId, onComplete })
         </div>
 
         <div className="mt-8 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 border border-brand/20 mb-4">
-            <ScanFace className="w-4 h-4 text-brand animate-pulse" />
-            <span className="text-sm font-medium text-brand">{scanLabel}</span>
-          </div>
-
           <p className="text-ink font-display text-lg font-semibold mb-2 min-h-[28px] transition-all">
             {SCAN_MESSAGES[msgIndex]}
           </p>

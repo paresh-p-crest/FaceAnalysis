@@ -121,7 +121,12 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
             cv_report[section] = {}
         elif not isinstance(cv_report[section], dict):
             return
-        cv_report[section] = {**cv_report[section], "imageSrc": url, "dataSource": "measured"}
+        # Preserve analysis dataSource (e.g. hair estimated vs measured); only attach URL.
+        prev = cv_report[section]
+        next_doc = {**prev, "imageSrc": url}
+        if prev.get("dataSource") is None:
+            next_doc["dataSource"] = "measured"
+        cv_report[section] = next_doc
 
     if front:
         for key in ("faceShape", "symmetry", "proportions", "averageness", "skin"):
@@ -152,14 +157,53 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
     right_profile = photo_urls.get("rightProfile")
     if left_profile or right_profile:
         ears = dict(cv_report.get("ears") or {})
+        # Keep frontal crop as primary imageSrc; store profiles only as L/R slots
+        prev_src = ears.get("imageSrc")
+        was_profile = ears.get("photoSource") in ("profile", "rightProfile") or prev_src in (
+            left_profile,
+            right_profile,
+        )
+        front_src = ears.get("imageSrcFront") or (None if was_profile else prev_src)
         if left_profile:
             ears["imageSrcLeft"] = left_profile
         if right_profile:
             ears["imageSrcRight"] = right_profile
-            ears["imageSrc"] = right_profile
-        ears["photoSource"] = "profile"
+        if front_src:
+            ears["imageSrc"] = front_src
+            ears["imageSrcFront"] = front_src
+        elif was_profile:
+            ears.pop("imageSrc", None)
+        ears["photoSource"] = "front"
         ears["dataSource"] = "measured"
         cv_report["ears"] = ears
+
+        # Chin / jaw BEFORE stay frontal crops; profile attached as secondary only.
+        if right_profile:
+            for section in ("jaw", "jawChin"):
+                if section in cv_report and isinstance(cv_report[section], dict):
+                    prev = cv_report[section]
+                    front_src = (
+                        prev.get("imageSrcFront")
+                        if prev.get("photoSource") == "rightProfile"
+                        else prev.get("imageSrc")
+                    ) or prev.get("imageSrcFront") or prev.get("imageSrc")
+                    cv_report[section] = {
+                        **prev,
+                        "imageSrc": front_src,
+                        "imageSrcProfile": right_profile,
+                        "photoSource": "front",
+                    }
+            if "chin" in cv_report and isinstance(cv_report["chin"], dict):
+                prev = cv_report["chin"]
+                front_src = prev.get("imageSrcFront") if prev.get("photoSource") == "rightProfile" else prev.get("imageSrc")
+                if not front_src:
+                    front_src = prev.get("imageSrcFront") or prev.get("imageSrc")
+                cv_report["chin"] = {
+                    **prev,
+                    "imageSrc": front_src,
+                    "imageSrcProfile": right_profile,
+                    "photoSource": "front",
+                }
     elif cv_report.get("ears") and front:
         # No profile photos — keep front only as last resort
         _set("ears", front)
@@ -170,7 +214,22 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
         _set("smile", smile)
 
     if top_head:
-        _set("hair", top_head)
+        hair = dict(cv_report.get("hair") or {})
+        # Keep frontal forehead/hairline crop as primary; top-head is secondary for density analysis
+        front_src = hair.get("imageSrcFront") or (
+            hair.get("imageSrc") if hair.get("photoSource") != "topHead" else None
+        )
+        if front_src and str(front_src).rstrip("/").endswith("topHead.jpg"):
+            front_src = hair.get("imageSrcFront")
+        cv_report["hair"] = {
+            **hair,
+            **({"imageSrc": front_src, "imageSrcFront": front_src} if front_src else {}),
+            "imageSrcTopHead": top_head,
+            "photoSource": "front" if front_src else hair.get("photoSource", "front"),
+        }
+        if not front_src and hair.get("imageSrc") == top_head:
+            cv_report["hair"].pop("imageSrc", None)
+            cv_report["hair"]["photoSource"] = "front"
 
     meta = dict(cv_report.get("meta") or {})
     meta["pipelineVersion"] = PIPELINE_VERSION

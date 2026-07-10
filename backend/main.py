@@ -15,6 +15,10 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env")
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
+from .logging_config import configure_backend_logging
+
+configure_backend_logging()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -39,6 +43,7 @@ def _env_list(name: str, default: str) -> list[str]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_backend_logging()
     await connect_db()
     await ensure_bootstrap_admin()
     yield

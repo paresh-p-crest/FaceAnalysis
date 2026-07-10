@@ -132,6 +132,11 @@ Main analysis entrypoint: parses image landmarks and saves the results in MongoD
     "photos": {
       "front": { "poseId": "front", "publicUrl": "/uploads/assessments/abc/front.jpg" }
     },
+    "aiNarrative": { "source": "openai", "model": "...", "content": { "summary": "..." } },
+    "protocolData": { "summary": "...", "recommendations": [] },
+    "protocolNarrative": { "summary": "...", "features": {}, "closing": [] },
+    "featureNarratives": {},
+    "protocolStorage": { "publicUrl": "/uploads/assessments/{id}/protocol.json" },
     "analysis": {
       "cvReport": {
         "photos": { "front": "/uploads/assessments/abc/front.jpg" },
@@ -140,6 +145,7 @@ Main analysis entrypoint: parses image landmarks and saves the results in MongoD
     }
   }
   ```
+- **Pipeline:** After CV analysis + photo storage, the same request runs one-shot NL enrichment (`aiNarrative` + protocol/feature narratives). When `LLM_PROVIDER=openai`, feature narratives also receive mapped pose photos (OpenAI Vision enrichment; see `FEATURE_VISION_POSES`). Report open only loads stored content; it does not regenerate.
 
 ### `POST /api/run-analysis`
 Runs quick mathematical analysis without saving to MongoDB database.
@@ -217,9 +223,9 @@ Saves admin review comments, alters client narrative text, and/or publishes repo
 - **Response Shape (200 OK):** Complete updated assessment document.
 
 ### `POST /api/assessments/{assessment_id}/ai-narrative`
-Generates CV-grounded executive narrative JSON for an existing assessment.
+Returns stored executive narrative, or generates once if missing. Prefer pipeline enrichment on `POST /api/assessments`.
 - **Auth:** Owner User or Admin
-- **Payment:** Required for non-admin users (`402` if unpaid)
+- **Query:** `force=true` — admin-only regenerate (used by Admin Review panel)
 - **Response Shape (200 OK):** Updated assessment with `aiNarrative`.
 
 ### `GET /api/assessments/{assessment_id}/protocol`
@@ -240,20 +246,19 @@ Loads persisted protocol from storage (`public/uploads/assessments/{id}/protocol
 ### `POST /api/assessments/{assessment_id}/ai-protocol`
 Generates protocol via `narrative_orchestrator` (10 per-feature structured LLM calls + guardrails), writes JSON to protocol storage, and syncs `protocolData`, `featureNarratives`, and `protocolNarrative` to MongoDB.
 - **Auth:** Owner User or Admin
-- **Payment:** Required for non-admin users (`402` if unpaid)
 - **Response Shape (200 OK):** Updated assessment document (idempotent if already stored).
 
 ### `POST /api/assessments/{assessment_id}/ai-visuals`
-Triggers hairstyle, outfits, and healthy aging visual variants.
-- **Auth:** Private (User)
-- **Payment:** Required for non-admin users (`402` if unpaid)
+Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images Edits (`OPENAI_IMAGE_MODEL`, default `gpt-image-1`).
+- **Auth:** Owner User or Admin (paid AI access)
+- **Source image:** Prefers stored front pose file (`public/uploads/assessments/{id}/front.jpg`), then `assessment.photos.front`, then `cvReport` image refs (data URL or `/uploads/...` path). Never base64-decodes public URLs.
 - **Request Body:**
   ```json
   {
     "variants": ["hair", "outfit", "aging"]
   }
   ```
-- **Response Shape (200 OK):** Generated prompts or visual URLs list.
+- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variants[]` with `prompt`, `imageSrc`, `status`, `error`). Failed edits return `status: "blocked"` per variant instead of crashing the request.
 
 ### `GET /api/assessments/{assessment_id}/pdf`
 Retrieves generated PDF bytes directly.
@@ -285,13 +290,11 @@ Builds PDF binary from input Markdown text and options.
 ### `GET /api/assessments/{assessment_id}/assistant`
 Fetches historical messages exchanged in the assessment assistant session.
 - **Auth:** Owner User or Admin
-- **Payment:** Required for non-admin users (`402` if unpaid)
 - **Response Shape (200 OK):** Conversation object with `messages`, optional `sessionSummary`.
 
 ### `POST /api/assessments/{assessment_id}/assistant`
 Sends a message to the Beauty Assistant (ReAct agent with report tools; max 3 tool rounds per reply).
 - **Auth:** Owner User or Admin
-- **Payment:** Required (`402` if unpaid)
 - **Rate limit:** 20 messages/user/hour (`429` when exceeded)
 - **Request Body:**
   ```json
@@ -300,6 +303,7 @@ Sends a message to the Beauty Assistant (ReAct agent with report tools; max 3 to
   }
   ```
 - **Response Shape (200 OK):** Updated conversation with appended `messages` (`max_tokens` 1000).
+- **503:** LLM/provider failure — `{ "detail": { "code": "ASSISTANT_UNAVAILABLE", "message": "Beauty Assistant is not working right now. Please try again later." } }`. No fake template reply is stored.
 
 ---
 

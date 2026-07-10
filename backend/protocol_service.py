@@ -3,11 +3,85 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Optional
 
 from .narrative_orchestrator import generate_all_protocol_text
 from .protocol_storage import StoredProtocol, get_protocol_storage
-from .repositories.assessment_repository import update_assessment_protocol
+from .repositories.assessment_repository import (
+    update_assessment_ai_narrative,
+    update_assessment_protocol,
+)
+from .text_ai_service import generate_cv_narrative
+
+logger = logging.getLogger(__name__)
+
+
+def _has_ai_narrative(assessment: dict) -> bool:
+    narrative = assessment.get("aiNarrative")
+    if not isinstance(narrative, dict):
+        return False
+    content = narrative.get("content")
+    if isinstance(content, dict) and (content.get("summary") or content.get("strengths")):
+        return True
+    return bool(narrative.get("summary") or narrative.get("content"))
+
+
+async def ensure_ai_narrative(assessment: dict, *, force: bool = False) -> Optional[dict]:
+    """Generate and persist executive AI narrative once (unless force=True)."""
+    if not force and _has_ai_narrative(assessment):
+        return assessment.get("aiNarrative")
+
+    analysis = assessment.get("analysis") or {}
+    cv_report = analysis.get("cvReport")
+    if not cv_report:
+        return assessment.get("aiNarrative")
+
+    result = await asyncio.to_thread(
+        generate_cv_narrative,
+        answers=assessment.get("answers") or {},
+        cv_report=cv_report,
+        metrics=analysis.get("metrics"),
+        assessment_id=assessment.get("id"),
+        photos_meta=assessment.get("photos") or {},
+    )
+    if result.get("error"):
+        logger.warning("AI narrative generation failed for %s: %s", assessment.get("id"), result["error"])
+        return None
+
+    ai_narrative = {
+        "source": result.get("source"),
+        "model": result.get("model"),
+        "content": result.get("content"),
+    }
+    updated = await update_assessment_ai_narrative(assessment["id"], ai_narrative)
+    if updated:
+        assessment["aiNarrative"] = ai_narrative
+    return ai_narrative
+
+
+async def enrich_assessment_nl_content(assessment: dict) -> dict:
+    """One-shot pipeline enrichment: executive narrative + protocol/feature text.
+
+    Idempotent — skips work that is already stored. Failures are logged; CV
+    assessment remains usable without NL content.
+    """
+    assessment_id = assessment.get("id")
+    try:
+        await ensure_ai_narrative(assessment, force=False)
+    except Exception:
+        logger.exception("AI narrative enrichment failed for %s", assessment_id)
+
+    try:
+        bundle = await generate_and_store_protocol(assessment)
+        assessment["protocolData"] = bundle.get("protocolData")
+        assessment["protocolNarrative"] = bundle.get("protocolNarrative")
+        assessment["featureNarratives"] = bundle.get("featureNarratives")
+        assessment["protocolStorage"] = bundle.get("protocolStorage")
+    except Exception:
+        logger.exception("Protocol enrichment failed for %s", assessment_id)
+
+    return assessment
 
 
 def _bundle_from_assessment(assessment: dict) -> Optional[dict]:

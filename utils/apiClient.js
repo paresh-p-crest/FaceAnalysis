@@ -94,6 +94,11 @@ export async function runFaceAnalysisViaBackend(photo, answers, photos = {}, pro
       savedToDb: true,
       reportStatus: data.status,
       scanId,
+      aiNarrative: data.aiNarrative || null,
+      protocolData: data.protocolData || null,
+      protocolNarrative: data.protocolNarrative || null,
+      featureNarratives: data.featureNarratives || null,
+      protocolStorage: data.protocolStorage || null,
     }
   }
 
@@ -199,9 +204,10 @@ export async function deleteAllPayments() {
   return data
 }
 
-export async function generateAssessmentNarrative(assessmentId) {
+export async function generateAssessmentNarrative(assessmentId, { force = false } = {}) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/ai-narrative`, {
+  const qs = force ? '?force=true' : ''
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/ai-narrative${qs}`, {
     method: 'POST',
     headers: authHeaders(),
   })
@@ -288,7 +294,16 @@ export async function sendAssistantMessage(assessmentId, message) {
     body: JSON.stringify({ message }),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to send assistant message')
+  if (!res.ok) {
+    const detail = data.detail
+    const msg = typeof detail === 'string'
+      ? detail
+      : (detail?.message || 'Beauty Assistant is not working right now. Please try again later.')
+    const err = new Error(msg)
+    err.status = res.status
+    err.code = typeof detail === 'object' ? detail?.code : undefined
+    throw err
+  }
   return data
 }
 

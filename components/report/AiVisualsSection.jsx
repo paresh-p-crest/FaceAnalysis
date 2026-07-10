@@ -17,7 +17,7 @@ function VariantCard({ variant }) {
             <Image className="w-8 h-8 text-brand mx-auto mb-3" />
             <p className="text-sm font-display font-semibold text-ink mb-1">{variant.status === 'blocked' ? 'Generation blocked' : 'Prompt ready'}</p>
             <p className="text-xs text-ink-muted leading-relaxed">
-              {variant.error || 'Add OpenAI image credits to generate this preview.'}
+              {variant.error || 'OpenAI image generation is unavailable for this preview.'}
             </p>
           </div>
         )}

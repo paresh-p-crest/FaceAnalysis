@@ -87,7 +87,7 @@ export function CvReportView({
         <ReportSectionHeading
           title="An overview of your"
           accent="symmetry"
-          subtitle="Left-right landmark balance measured via MediaPipe and OpenCV."
+          subtitle="Left-right balance measured from your facial photos."
         />
         <AssessmentGridLayout
           photo={s.imageSrc}
@@ -126,32 +126,75 @@ export function CvReportView({
 
   // Proportions (Qoves-style tabbed ratio view)
   if (activeId === 'proportions' && cvReport?.proportions?.ratios) {
-    return <ProportionsSection proportions={cvReport.proportions} />
+    return <ProportionsSection proportions={cvReport.proportions} landmarks={landmarks} />
   }
 
   // Nose
   if (activeId === 'nose' && cvReport?.nose) {
     const n = cvReport.nose
+    const hasProfileAngles =
+      n.nasofrontalAngleDeg != null || n.nasolabialAngleDeg != null || n.dorsalHumpDeviation != null
+    const summaryCards = [
+      { label: 'Width Class', value: n.width },
+      { label: 'Width/Length', value: n.widthLengthRatio },
+      { label: 'Nose/Face Ratio', value: n.noseRatio },
+      { label: 'Bridge Width', value: `${n.bridgeWidth}%` },
+    ]
+    if (n.nasofrontalAngleDeg != null) {
+      summaryCards.push({ label: 'Nasofrontal', value: `${n.nasofrontalAngleDeg}°` })
+    }
+    if (n.nasolabialAngleDeg != null) {
+      summaryCards.push({
+        label: 'Nasolabial',
+        value: `${n.nasolabialAngleDeg}°`,
+        tooltip: n.nasolabialNormalRange ? `Typical range ${n.nasolabialNormalRange}` : undefined,
+      })
+    }
+    if (n.dorsalHumpLabel || n.dorsalHumpDeviation != null) {
+      summaryCards.push({
+        label: 'Dorsal hump',
+        value: n.dorsalHumpLabel || String(n.dorsalHumpDeviation),
+      })
+    }
+    const details = [{
+      title: 'Nasal Proportions',
+      body: n.explanation,
+      metricLabel: 'Width/Length Ratio',
+      metricValue: n.widthLengthRatio,
+      markerPct: Math.min(100, Math.max(0, parseFloat(n.widthLengthRatio) * 150)),
+      rangeMin: 40,
+      rangeMax: 70,
+    }]
+    if (hasProfileAngles) {
+      details.push({
+        title: 'Profile Angles',
+        body: [
+          n.nasofrontalAngleDeg != null ? `Nasofrontal angle ${n.nasofrontalAngleDeg}° (typical ~115–130°).` : null,
+          n.nasolabialAngleDeg != null
+            ? `Nasolabial angle ${n.nasolabialAngleDeg}°${n.nasolabialNormalRange ? ` (typical ${n.nasolabialNormalRange})` : ''}.`
+            : null,
+          n.dorsalHumpLabel
+            ? `Dorsal hump ${n.dorsalHumpLabel}${n.dorsalHumpDeviation != null ? ` (deviation ${n.dorsalHumpDeviation})` : ''}.`
+            : null,
+          n.facialConvexityDeg != null ? `Facial convexity ${n.facialConvexityDeg}°.` : null,
+          n.profileLandmarkSource ? `Profile landmark source: ${n.profileLandmarkSource}.` : null,
+        ].filter(Boolean).join(' '),
+        metricLabel: 'Nasofrontal',
+        metricValue: n.nasofrontalAngleDeg != null ? `${n.nasofrontalAngleDeg}°` : '—',
+        markerPct: n.nasofrontalAngleDeg != null
+          ? Math.min(100, Math.max(0, ((n.nasofrontalAngleDeg - 100) / 50) * 100))
+          : 50,
+        rangeMin: 115,
+        rangeMax: 130,
+      })
+    }
     return (
       <FeatureAnalysisPage
         featureName="nose"
         subtitle="Nasal proportionality and structure"
         heroImage={n.imageSrc}
-        summaryCards={[
-          { label: 'Width Class', value: n.width },
-          { label: 'Width/Length', value: n.widthLengthRatio },
-          { label: 'Nose/Face Ratio', value: n.noseRatio },
-          { label: 'Bridge Width', value: `${n.bridgeWidth}%` },
-        ]}
-        details={[{
-          title: 'Nasal Proportions',
-          body: n.explanation,
-          metricLabel: 'Width/Length Ratio',
-          metricValue: n.widthLengthRatio,
-          markerPct: Math.min(100, Math.max(0, parseFloat(n.widthLengthRatio) * 150)),
-          rangeMin: 40,
-          rangeMax: 70,
-        }]}
+        summaryCards={summaryCards}
+        details={details}
       />
     )
   }
@@ -196,12 +239,16 @@ export function CvReportView({
   // Jaw
   if (activeId === 'jaw' && cvReport?.jaw) {
     const j = cvReport.jaw
+    const jawSrc =
+      j.photoSource === 'rightProfile'
+        ? j.imageSrcFront || j.imageSrc
+        : j.imageSrc || j.imageSrcFront
     return (
       <FeatureReportPanel
         title="Jaw Analysis"
         featureName="jaw"
         data={j}
-        imageSrc={j.imageSrc}
+        imageSrc={jawSrc}
         imageAlt="Your jaw"
         sections={[
           {
@@ -227,15 +274,19 @@ export function CvReportView({
     )
   }
 
-  // â”€â”€ Chin â”€â”€
+  // ── Chin ──
   if (activeId === 'chin' && cvReport?.chin) {
     const c = cvReport.chin
+    const chinSrc =
+      c.photoSource === 'rightProfile'
+        ? c.imageSrcFront || c.imageSrc
+        : c.imageSrc || c.imageSrcFront
     return (
       <FeatureReportPanel
         title="Chin Analysis"
         featureName="chin"
         data={c}
-        imageSrc={c.imageSrc}
+        imageSrc={chinSrc}
         imageAlt="Your chin"
         sections={[
           {
@@ -251,8 +302,8 @@ export function CvReportView({
             title: 'Chin Shape & Projection',
             metrics: [
               { label: 'Projection', value: c.projection, tooltip: 'Forward projection of the chin relative to the nose. Balanced projection creates a harmonious profile.' },
-              { label: 'Shape', value: c.chinShape, tooltip: 'Contour shape of the chin. Round, soft square, or pointed â€” each contributes to facial character.' },
-              { label: 'Labiomental angle', value: `${c.labiomentalAngle}Â°`, tooltip: 'The angle between the lower lip and chin. A defined angle (90-120Â°) creates a balanced profile.' },
+              { label: 'Shape', value: c.chinShape, tooltip: 'Contour shape of the chin. Round, soft square, or pointed — each contributes to facial character.' },
+              { label: 'Labiomental angle', value: `${c.labiomentalAngle}°`, tooltip: 'The angle between the lower lip and chin. A defined angle (90-120°) creates a balanced profile.' },
               { label: 'Fold classification', value: c.labiomentalClassification, tooltip: 'Depth of the labiomental sulcus. Defined folds create facial dimension without appearing aged.' },
             ],
           },
@@ -299,7 +350,7 @@ export function CvReportView({
           }] : []),
         ]}
         extraMetrics={!hasTopHeadData ? [
-          { label: 'Note', value: 'Upload a top-of-head photo for real hair density & color analysis', tooltip: 'MediaPipe face mesh doesn\'t capture hair directly. This analysis uses proportional estimates from facial landmarks.' },
+          { label: 'Note', value: 'Upload a top-of-head photo for real hair density & color analysis', tooltip: 'Hair density is estimated from your photos. A top-of-head photo improves accuracy.' },
         ] : undefined}
       />
     )
@@ -374,7 +425,16 @@ export function CvReportView({
             metrics: [
               { label: 'Jaw-neck transition', value: n.jawNeckTransition, tooltip: 'How smoothly the jawline transitions to the neck. Defined transitions create a clean silhouette.' },
               { label: 'Transition angle', value: `${n.jawNeckAngle}Â°`, tooltip: 'The angle between jawline and neck. Defined angles (120-150Â°) create a sculpted appearance.' },
-              { label: 'Head posture', value: n.headPosture, tooltip: 'Estimated head position from landmark z-depths. Neutral posture is optimal for facial aesthetics.' },
+              { label: 'Head posture', value: n.headPosture, tooltip: 'Head position relative to the shoulder line. Neutral posture is optimal for facial aesthetics.' },
+              ...(n.headPostureAngleDeg != null
+                ? [{ label: 'Posture angle', value: `${n.headPostureAngleDeg}°`, tooltip: 'Ear-to-shoulder offset from vertical. Near 0° is neutral; larger positive values suggest forward head posture.' }]
+                : []),
+              ...(n.shoulderWidthPct != null
+                ? [{ label: 'Shoulder span', value: `${n.shoulderWidthPct}% IPD`, tooltip: 'Shoulder width relative to interpupillary distance from body pose landmarks.' }]
+                : []),
+              ...(n.dataSource
+                ? [{ label: 'Data source', value: n.dataSource === 'measured' ? 'Jaw + shoulders' : 'Approximate', tooltip: n.limitation || 'Measured when shoulders are visible in the front photo.' }]
+                : []),
             ],
           },
         ]}

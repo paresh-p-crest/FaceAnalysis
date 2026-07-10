@@ -176,20 +176,20 @@
   }
 
   .site-navbar-inner {
-    @apply max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 h-full;
+    @apply max-w-[1440px] mx-auto flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 md:px-6 h-full;
   }
 
   .site-navbar-link {
-    @apply inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-ink-secondary
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-ink-secondary
       hover:text-brand transition-colors min-h-[32px];
   }
 
   .site-navbar-link-active {
-    @apply text-brand font-semibold;
+    @apply text-brand font-medium;
   }
 
   .site-navbar-btn {
-    @apply inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
+    @apply inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium
       text-ink-secondary border border-surface-border bg-surface-card hover:bg-surface-warm hover:text-brand
       transition-colors min-h-[32px] shadow-soft;
   }
@@ -286,6 +286,76 @@
     @apply text-xs bg-surface-warm px-1.5 py-0.5 rounded;
   }
 
+  /* Beauty Assistant chat markdown */
+  .assistant-markdown {
+    @apply text-sm text-ink-secondary leading-relaxed font-sans break-words;
+  }
+  .assistant-markdown > :first-child {
+    @apply mt-0;
+  }
+  .assistant-markdown > :last-child {
+    @apply mb-0;
+  }
+  .assistant-markdown p {
+    @apply mb-2.5 last:mb-0;
+  }
+  .assistant-markdown h1,
+  .assistant-markdown h2,
+  .assistant-markdown h3,
+  .assistant-markdown h4 {
+    @apply font-display font-semibold text-ink mt-3 mb-1.5 first:mt-0;
+  }
+  .assistant-markdown h1 { @apply text-base; }
+  .assistant-markdown h2 { @apply text-[0.95rem]; }
+  .assistant-markdown h3,
+  .assistant-markdown h4 { @apply text-sm; }
+  .assistant-markdown ul,
+  .assistant-markdown ol {
+    @apply mb-2.5 pl-5 space-y-1 last:mb-0;
+  }
+  .assistant-markdown ul { @apply list-disc; }
+  .assistant-markdown ol { @apply list-decimal; }
+  .assistant-markdown li {
+    @apply text-ink-secondary;
+  }
+  .assistant-markdown li > ul,
+  .assistant-markdown li > ol {
+    @apply mt-1 mb-0;
+  }
+  .assistant-markdown strong {
+    @apply text-ink font-semibold;
+  }
+  .assistant-markdown em {
+    @apply italic text-ink-secondary;
+  }
+  .assistant-markdown a {
+    @apply text-brand underline underline-offset-2 hover:text-brand-dark;
+  }
+  .assistant-markdown code {
+    @apply text-[0.8em] px-1 py-0.5 rounded bg-surface-warm border border-surface-border font-mono text-ink;
+  }
+  .assistant-markdown pre {
+    @apply mb-2.5 p-3 rounded-xl bg-surface-warm border border-surface-border overflow-x-auto last:mb-0;
+  }
+  .assistant-markdown pre code {
+    @apply border-0 bg-transparent p-0 text-xs;
+  }
+  .assistant-markdown blockquote {
+    @apply mb-2.5 pl-3 border-l-2 border-brand/30 text-ink-muted italic last:mb-0;
+  }
+  .assistant-markdown hr {
+    @apply my-3 border-surface-border;
+  }
+  .assistant-markdown table {
+    @apply w-full mb-2.5 text-xs border-collapse last:mb-0;
+  }
+  .assistant-markdown th {
+    @apply text-left py-1.5 px-2 bg-surface-warm border-b border-surface-border font-semibold text-ink;
+  }
+  .assistant-markdown td {
+    @apply py-1.5 px-2 border-b border-surface-border;
+  }
+
   /* Input fields */
   .input-field {
     @apply w-full px-4 py-3 rounded-xl bg-surface-warm border border-surface-border text-sm text-ink
@@ -357,8 +427,18 @@
 
   /* ── QOVES Report Document UI ── */
   .qoves-report-layout {
-    @apply grid gap-0 min-h-[calc(100vh-12rem)] border border-surface-border rounded-3xl overflow-hidden bg-white dark:bg-surface-card;
-    grid-template-columns: 240px 1fr;
+    @apply grid gap-0 h-full min-h-[28rem] border border-surface-border rounded-3xl overflow-hidden bg-white dark:bg-surface-card;
+    grid-template-columns: 1fr;
+  }
+
+  .qoves-report-layout--with-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 1024px) {
+    .qoves-report-layout--with-sidebar {
+      grid-template-columns: 248px 1fr;
+    }
   }
 
   .qoves-report-layout--immersive {
@@ -367,22 +447,36 @@
   }
 
   .qoves-report-layout--with-rail {
-    @apply xl:grid-cols-[240px_1fr_300px];
+    @apply xl:grid-cols-[248px_1fr_300px];
   }
 
   .qoves-report-sidebar {
-    @apply bg-surface-raised border-r border-surface-border p-4 overflow-y-auto;
-    max-height: calc(100vh - 12rem);
+    @apply bg-surface-raised border-b lg:border-b-0 lg:border-r border-surface-border p-4 overflow-y-auto;
+    max-height: none;
+  }
+
+  @media (min-width: 1024px) {
+    .qoves-report-sidebar {
+      max-height: 100%;
+      height: 100%;
+    }
   }
 
   .qoves-report-canvas {
-    @apply bg-white dark:bg-surface-card p-6 sm:p-8 lg:p-10 overflow-y-auto;
-    max-height: calc(100vh - 12rem);
+    @apply bg-white dark:bg-surface-card p-5 sm:p-7 lg:p-9 overflow-y-auto;
+    max-height: none;
+    height: 100%;
+  }
+
+  @media (min-width: 1024px) {
+    .qoves-report-canvas {
+      max-height: 100%;
+    }
   }
 
   .qoves-report-rail {
     @apply bg-surface-warm border-l border-surface-border p-5 overflow-y-auto;
-    max-height: calc(100vh - 12rem);
+    max-height: calc(100vh - 8rem);
   }
 
   .qoves-report-canvas--immersive {
@@ -406,16 +500,24 @@
     @apply rounded-xl border border-surface-border bg-white dark:bg-surface-card p-4;
   }
 
+  .qoves-report-nav-group {
+    @apply mb-1;
+  }
+
+  .qoves-report-nav-group-label {
+    @apply flex items-center gap-2 text-[13px] font-semibold text-ink px-2 py-2 w-full text-left rounded-lg transition-colors hover:bg-surface-warm;
+  }
+
+  .qoves-report-nav-group-items {
+    @apply mt-0.5 ml-3 pl-3 space-y-0.5 border-l border-surface-border;
+  }
+
   .qoves-report-nav-item {
-    @apply w-full text-left px-3 py-2 rounded-xl text-sm font-medium text-ink-secondary transition-colors hover:text-ink;
+    @apply w-full text-left px-3 py-2 rounded-xl text-[13px] font-medium text-ink-secondary transition-colors hover:text-ink hover:bg-surface-warm;
   }
 
   .qoves-report-nav-item--active {
     @apply bg-white dark:bg-surface-card text-ink shadow-soft border border-surface-border;
-  }
-
-  .qoves-report-nav-group-label {
-    @apply flex items-center gap-2 text-xs font-semibold text-ink-muted px-2 py-1 w-full text-left;
   }
 
   .qoves-protocol-viewer {
@@ -454,14 +556,14 @@
 
   @media (max-width: 1023px) {
     .qoves-report-layout,
-    .qoves-report-layout--with-rail {
+    .qoves-report-layout--with-rail,
+    .qoves-report-layout--with-sidebar {
       grid-template-columns: 1fr;
     }
 
     .qoves-report-sidebar {
       max-height: none;
       border-right: 0;
-      border-bottom: 1px solid var(--color-surface-border);
     }
 
     .qoves-report-canvas {

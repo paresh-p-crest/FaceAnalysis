@@ -18,11 +18,12 @@ def _profile_landmarks():
     lms[152] = {"x": 0.52, "y": 0.75, "z": 0}  # pogonion
     lms[13] = {"x": 0.53, "y": 0.48, "z": 0}
     lms[14] = {"x": 0.53, "y": 0.52, "z": 0}
-    # Right-profile visible ear contour (shorter than nose → Ear < Nose)
-    for idx in (356, 454, 323, 361, 288, 397, 365, 379):
-        lms[idx] = {"x": 0.3, "y": 0.35 + (idx % 3) * 0.01, "z": 0}
-    lms[356]["y"] = 0.32
-    lms[454]["y"] = 0.39
+    # Right-profile visible ear (person's RIGHT mesh) — shorter than nose → Ear < Nose
+    for idx in (162, 127, 234, 93, 132, 58):
+        lms[idx] = {"x": 0.72, "y": 0.35, "z": 0}
+    lms[162]["y"] = 0.32
+    lms[234]["y"] = 0.36
+    lms[127]["y"] = 0.39
     lms[98] = {"x": 0.52, "y": 0.48, "z": 0}
     return lms
 
@@ -42,6 +43,35 @@ def test_naso_aural_ear_shorter_than_nose_on_profile():
     assert ratio < 0.95
     assert result["classification"]["nasoAural"] == "Ear < Nose"
     assert result["overlay"]["nasoAural"]["horizontal"]
+
+
+def test_naso_aural_prefers_silhouette_ear_span_over_facemesh():
+    """FaceMesh ear junction span is tiny; silhouette helix→lobe should dominate."""
+    import cv2
+    import numpy as np
+
+    # Synthetic right-facing profile: tall rear ear band + shorter nose bump
+    img = np.full((400, 300, 3), 240, dtype=np.uint8)
+    cv2.ellipse(img, (130, 210), (55, 130), 0, 0, 360, (50, 50, 50), -1)  # head
+    cv2.ellipse(img, (185, 175), (28, 32), 0, 0, 360, (50, 50, 50), -1)  # nose
+    # Tall vertical ear on the rear (left) side
+    cv2.rectangle(img, (55, 110), (95, 250), (40, 40, 40), -1)
+    ok, buf = cv2.imencode(".jpg", img)
+    assert ok
+
+    lms = _profile_landmarks()
+    # Collapse FaceMesh ear span to a tiny band (the old bug)
+    for idx in (356, 454, 323, 361, 288, 397, 365, 379):
+        lms[idx] = {"x": 0.3, "y": 0.40, "z": 0}
+    lms[356]["y"] = 0.39
+    lms[379]["y"] = 0.41
+
+    mesh_only = analyze_profile(lms, "rightProfile", mm_per_unit=100)
+    with_sil = analyze_profile(lms, "rightProfile", mm_per_unit=100, image_bytes=buf.tobytes())
+    assert mesh_only is not None and with_sil is not None
+    # Silhouette path should report a larger ear/nose ratio than collapsed FaceMesh ears
+    assert with_sil["measurements"]["nasoAuralRatio"] > mesh_only["measurements"]["nasoAuralRatio"]
+    assert with_sil["landmarkSource"] in ("silhouette", "silhouette+facemesh")
 
 
 def test_profile_extended_angles_present():

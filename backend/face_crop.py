@@ -24,9 +24,21 @@ LEFT_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385
 RIGHT_BROW = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46, 124, 156, 221, 222, 223]
 LEFT_BROW = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276, 353, 383, 441, 442, 443]
 
+# Curated symmetry overlay landmarks (paired + midline) — not full eye/brow contours.
+# Dense mesh contours overlap visually; scoring still uses full MediaPipe mesh elsewhere.
 SYMMETRY_DOTS = [
-    *RIGHT_EYE, *LEFT_EYE, *RIGHT_BROW, *LEFT_BROW,
-    1, 2, 4, 5, 61, 291, 152, 234, 454,
+    # Right eye (person's right): outer, inner, top, bottom
+    33, 133, 159, 145,
+    # Left eye
+    362, 263, 386, 374,
+    # Right brow: outer, peak, inner
+    70, 105, 107,
+    # Left brow
+    300, 334, 336,
+    # Nose midline + alae
+    1, 2, 4, 5, 6, 98, 327,
+    # Mouth corners, chin, jaw
+    61, 291, 152, 234, 454,
 ]
 
 # Feature crop index groups (from cvReport.js)
@@ -52,6 +64,22 @@ def lm(landmarks: list, idx: int) -> dict:
     if idx < len(landmarks):
         return landmarks[idx]
     return {"x": 0.5, "y": 0.5, "z": 0}
+
+
+def mouth_cheilions(landmarks: list) -> tuple:
+    """Outer mouth corners (cheilion) from outer-lip contour extremes — not inset 61/291 alone."""
+    pts = [lm(landmarks, i) for i in MOUTH]
+    right = min(pts, key=lambda p: p["x"])  # person's right
+    left = max(pts, key=lambda p: p["x"])   # person's left
+    return right, left
+
+
+def nose_alae(landmarks: list) -> tuple:
+    """Widest nasal-base points among common alar landmarks."""
+    pts = [lm(landmarks, i) for i in (48, 278, 64, 294, 98, 327)]
+    right = min(pts, key=lambda p: p["x"])
+    left = max(pts, key=lambda p: p["x"])
+    return right, left
 
 
 def dist(a: dict, b: dict) -> float:
@@ -191,10 +219,30 @@ def _overlay_x(landmarks: list, idx: int) -> float:
 
 
 def proportion_ratio_overlays(landmarks: list) -> dict:
-    """Qoves-style dashed guides per proportion tab (full-image 0–100 coords)."""
-    nose_base_y = (lm(landmarks, 48)["y"] + lm(landmarks, 278)["y"]) / 2
-    mouth_y = (lm(landmarks, 61)["y"] + lm(landmarks, 291)["y"]) / 2
-    eye_line_y = (lm(landmarks, 159)["y"] + lm(landmarks, 386)["y"]) / 2
+    """Qoves-style dashed guides per proportion tab (full-image 0–100 coords).
+
+    Canons (Farkas / Qoves):
+    - orbito-nasal: intercanthal (en–en) vs nasal width (al–al)
+    - orbital: intercanthal vs eye fissure (ex–en)
+    - naso-oral: mouth width (ch–ch) vs nasal width
+    - naso-aural: ear height vs nose height (profile preferred; front fallback)
+    """
+    # Person's right = viewer's left on a frontal facing camera.
+    # 33/133 right eye outer/inner, 362/263 left eye inner/outer.
+    r_out = point_in_image(landmarks, 33)
+    r_in = point_in_image(landmarks, 133)
+    l_in = point_in_image(landmarks, 362)
+    l_out = point_in_image(landmarks, 263)
+    al_r_raw, al_l_raw = nose_alae(landmarks)
+    ch_r_raw, ch_l_raw = mouth_cheilions(landmarks)
+    al_r = {"x": al_r_raw["x"] * 100, "y": al_r_raw["y"] * 100}
+    al_l = {"x": al_l_raw["x"] * 100, "y": al_l_raw["y"] * 100}
+    ch_r = {"x": ch_r_raw["x"] * 100, "y": ch_r_raw["y"] * 100}
+    ch_l = {"x": ch_l_raw["x"] * 100, "y": ch_l_raw["y"] * 100}
+
+    eye_line_y = (r_out["y"] + r_in["y"] + l_in["y"] + l_out["y"]) / 4
+    nose_base_y = (al_r["y"] + al_l["y"]) / 2
+    mouth_y = (ch_r["y"] + ch_l["y"]) / 2
 
     return {
         "nasoAural": {
@@ -212,51 +260,53 @@ def proportion_ratio_overlays(landmarks: list) -> dict:
             ],
         },
         "orbitoNasal": {
-            "horizontal": [{"y": _overlay_y(landmarks, 6)}],
+            # en–en (inner canthi) vs al–al (alae)
+            "horizontal": [{"y": round(eye_line_y, 2)}],
             "vertical": [
-                {"x": _overlay_x(landmarks, 33)},
-                {"x": _overlay_x(landmarks, 263)},
-                {"x": _overlay_x(landmarks, 48)},
-                {"x": _overlay_x(landmarks, 278)},
+                {"x": r_in["x"]},
+                {"x": l_in["x"]},
+                {"x": al_r["x"]},
+                {"x": al_l["x"]},
             ],
             "dots": [
-                {"x": _overlay_x(landmarks, 33), "y": _overlay_y(landmarks, 33)},
-                {"x": _overlay_x(landmarks, 263), "y": _overlay_y(landmarks, 263)},
-                {"x": _overlay_x(landmarks, 48), "y": _overlay_y(landmarks, 48)},
-                {"x": _overlay_x(landmarks, 278), "y": _overlay_y(landmarks, 278)},
+                {"x": r_in["x"], "y": r_in["y"]},
+                {"x": l_in["x"], "y": l_in["y"]},
+                {"x": al_r["x"], "y": al_r["y"]},
+                {"x": al_l["x"], "y": al_l["y"]},
             ],
         },
         "nasoOral": {
             "horizontal": [
-                {"y": nose_base_y * 100},
-                {"y": mouth_y * 100},
+                {"y": round(nose_base_y, 2)},
+                {"y": round(mouth_y, 2)},
             ],
             "vertical": [
-                {"x": _overlay_x(landmarks, 48)},
-                {"x": _overlay_x(landmarks, 278)},
-                {"x": _overlay_x(landmarks, 61)},
-                {"x": _overlay_x(landmarks, 291)},
+                {"x": al_r["x"]},
+                {"x": al_l["x"]},
+                {"x": ch_r["x"]},
+                {"x": ch_l["x"]},
             ],
             "dots": [
-                {"x": _overlay_x(landmarks, 48), "y": nose_base_y * 100},
-                {"x": _overlay_x(landmarks, 278), "y": nose_base_y * 100},
-                {"x": _overlay_x(landmarks, 61), "y": mouth_y * 100},
-                {"x": _overlay_x(landmarks, 291), "y": mouth_y * 100},
+                {"x": al_r["x"], "y": al_r["y"]},
+                {"x": al_l["x"], "y": al_l["y"]},
+                {"x": ch_r["x"], "y": ch_r["y"]},
+                {"x": ch_l["x"], "y": ch_l["y"]},
             ],
         },
         "orbital": {
-            "horizontal": [{"y": eye_line_y * 100}],
+            # en–en vs ex–en: all four canthi, L→R on screen = 33, 133, 362, 263
+            "horizontal": [{"y": round(eye_line_y, 2)}],
             "vertical": [
-                {"x": _overlay_x(landmarks, 133)},
-                {"x": _overlay_x(landmarks, 33)},
-                {"x": _overlay_x(landmarks, 263)},
-                {"x": _overlay_x(landmarks, 362)},
+                {"x": r_out["x"]},
+                {"x": r_in["x"]},
+                {"x": l_in["x"]},
+                {"x": l_out["x"]},
             ],
             "dots": [
-                {"x": _overlay_x(landmarks, 133), "y": eye_line_y * 100},
-                {"x": _overlay_x(landmarks, 33), "y": eye_line_y * 100},
-                {"x": _overlay_x(landmarks, 263), "y": eye_line_y * 100},
-                {"x": _overlay_x(landmarks, 362), "y": eye_line_y * 100},
+                {"x": r_out["x"], "y": r_out["y"]},
+                {"x": r_in["x"], "y": r_in["y"]},
+                {"x": l_in["x"], "y": l_in["y"]},
+                {"x": l_out["x"], "y": l_out["y"]},
             ],
         },
     }

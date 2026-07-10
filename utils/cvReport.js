@@ -10,6 +10,8 @@ import {
   dotsInImage,
   proportionLinesInCrop,
   proportionRatioOverlays,
+  mouthCheilions,
+  noseAlae,
   SYMMETRY_DOTS,
   FACE_OVAL,
 } from './faceCrop'
@@ -954,18 +956,12 @@ function proportionRatios(landmarks) {
   const earTopL = lm(landmarks, 234)
   const earBotL = lm(landmarks, 127)
   const noseTip = lm(landmarks, 1)
-  const noseBaseL = lm(landmarks, 48)
-  const noseBaseR = lm(landmarks, 278)
-  const noseBridge = lm(landmarks, 6)
-  const eyeInnerL = lm(landmarks, 33)
-  const eyeInnerR = lm(landmarks, 263)
-  const eyeOuterL = lm(landmarks, 133)
-  const eyeOuterR = lm(landmarks, 362)
-  const mouthL = lm(landmarks, 61)
-  const mouthR = lm(landmarks, 291)
-  const upperLip = lm(landmarks, 13)
-  const chin = lm(landmarks, 152)
-  const forehead = lm(landmarks, 10)
+  const [noseBaseL, noseBaseR] = noseAlae(landmarks)
+  const eyeInnerL = lm(landmarks, 133)
+  const eyeInnerR = lm(landmarks, 362)
+  const eyeOuterL = lm(landmarks, 33)
+  const eyeOuterR = lm(landmarks, 263)
+  const [mouthL, mouthR] = mouthCheilions(landmarks)
 
   // Compute measurements
   const earHeight = Math.abs(earBotL.y - earTopL.y)
@@ -977,7 +973,6 @@ function proportionRatios(landmarks) {
   const eyeWidth = (eyeWidthL + eyeWidthR) / 2
   const innerEyeSpacing = Math.abs(eyeInnerR.x - eyeInnerL.x)
   const mouthWidth = Math.abs(mouthR.x - mouthL.x)
-  const faceH = chin.y - forehead.y || 0.3
 
   // 1. Naso-Aural Ratio — ear height : nose height (ideal ≈ 1.00)
   const nasoAuralYour = noseHeight > 0.001 ? earHeight / noseHeight : 1
@@ -987,17 +982,18 @@ function proportionRatios(landmarks) {
   // 2. Orbito-Nasal Ratio — nose width : inner eye spacing (ideal ≈ 1.00)
   const orbitoNasalYour = innerEyeSpacing > 0.001 ? noseWidth / innerEyeSpacing : 1
   const orbitoNasalIdeal = 1.0
-  const orbitoNasalYourLabel = orbitoNasalYour > orbitoNasalIdeal ? 'Nose > Eye' : orbitoNasalYour < orbitoNasalIdeal ? 'Nose < Eye' : 'Nose = Eye'
+  const orbitoNasalYourLabel = orbitoNasalYour > 1.05 ? 'Nose > Eye' : orbitoNasalYour < 0.95 ? 'Nose < Eye' : 'Nose ≈ Eye'
 
   // 3. Naso-Oral Proportion — mouth width : nose width (ideal ≈ 1.50–1.60)
   const nasoOralYour = noseWidth > 0.001 ? mouthWidth / noseWidth : 1
   const nasoOralIdeal = 1.6
-  const nasoOralYourLabel = nasoOralYour > nasoOralIdeal ? 'Mouth > Nose' : nasoOralYour < nasoOralIdeal ? 'Mouth < Nose' : 'Mouth = Nose'
+  // Label compares mouth vs nose (not vs the 1.6 ideal)
+  const nasoOralYourLabel = nasoOralYour > 1.05 ? 'Mouth > Nose' : nasoOralYour < 0.95 ? 'Mouth < Nose' : 'Mouth ≈ Nose'
 
   // 4. Orbital Proportion — inter-eye spacing vs eye width (ideal ≈ 1.00)
   const orbitalYour = eyeWidth > 0.001 ? innerEyeSpacing / eyeWidth : 1
   const orbitalIdeal = 1.0
-  const orbitalYourLabel = orbitalYour > orbitalIdeal ? 'Width > Spacing' : orbitalYour < orbitalIdeal ? 'Width < Spacing' : 'Width = Spacing'
+  const orbitalYourLabel = orbitalYour > 1.05 ? 'Spacing > Eye' : orbitalYour < 0.95 ? 'Spacing < Eye' : 'Spacing = Eye'
 
   return {
     nasoAural: {
@@ -1034,7 +1030,7 @@ function proportionRatios(landmarks) {
       yourValue: orbitalYour,
       idealValue: orbitalIdeal,
       yourLabel: orbitalYourLabel,
-      idealLabel: 'Width = Spacing',
+      idealLabel: 'Spacing = Eye',
       expectation: 'Generally, the space between the eyes is expected to be equal to the width of one eye.',
       explanation: `Your eye size ${orbitalYour >= 0.95 && orbitalYour <= 1.05 ? 'closely matches' : orbitalYour < 0.95 ? 'is slightly narrower than' : 'is slightly wider than'} the gap between them so your eyes read as ${orbitalYour >= 0.95 && orbitalYour <= 1.05 ? 'evenly spaced' : orbitalYour < 0.95 ? 'somewhat close-set' : 'somewhat wide-set'}, providing a regular reference for judging the size of your nose and mouth.`,
     },
@@ -1890,12 +1886,14 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
   const cheekLBox = bboxFromIndices(landmarks, CHEEK_LEFT, 0.02)
   const cheekRBox = bboxFromIndices(landmarks, CHEEK_RIGHT, 0.02)
   const cheekBox = mergeBboxes(cheekLBox, cheekRBox, 0.015)
+  const jawFrontBox = mergeBboxes(mouthBox, jawBox, 0.03)
 
-  const [noseCrop, mouthCrop, jawCrop, cheekCrop] = await Promise.all([
+  const [noseCrop, mouthCrop, jawCrop, cheekCrop, chinCrop] = await Promise.all([
     cropNormalized(imageSrc, noseBox),
     cropNormalized(imageSrc, mouthBox),
-    cropNormalized(imageSrc, jawBox),
+    cropNormalized(imageSrc, jawFrontBox),
     cropNormalized(imageSrc, cheekBox),
+    cropNormalized(imageSrc, mergeBboxes(mouthBox, chinBox, 0.02)),
   ])
 
   const nose = noseMetrics(landmarks)
@@ -1934,23 +1932,30 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
     cheekPixels = await cheekPixelAnalysis(landmarks, imageSrc)
   } catch { /* graceful fallback */ }
 
-  // Hair region crop (forehead + top of face for pixel analysis)
+  // Hair region crop: frontal hairline + forehead + brows (protocol BEFORE)
+  const browY = landmarks?.[105] && landmarks?.[334]
+    ? Math.max(landmarks[105].y, landmarks[334].y)
+    : faceBox.y + faceBox.h * 0.28
   const foreheadBox = {
-    x: faceBox.x + faceBox.w * 0.1,
-    y: faceBox.y,
-    w: faceBox.w * 0.8,
-    h: faceBox.h * 0.15,
+    x: Math.max(0, faceBox.x - faceBox.w * 0.02),
+    y: Math.max(0, faceBox.y - faceBox.h * 0.22),
+    w: Math.min(1, faceBox.w * 1.04),
+    h: Math.min(1 - Math.max(0, faceBox.y - faceBox.h * 0.22), browY + faceBox.h * 0.06 - Math.max(0, faceBox.y - faceBox.h * 0.22)),
   }
   const [foreheadCrop] = await Promise.all([
     cropNormalized(imageSrc, foreheadBox),
   ])
 
-  // Neck region crop (below chin)
+  // Neck region: lower face (from nostrils) through jaw and neck column
+  const noseY = landmarks?.[2]?.y ?? faceBox.y + faceBox.h * 0.55
+  const chinY = landmarks?.[152]?.y ?? faceBox.y + faceBox.h * 0.95
+  const neckTop = Math.max(0, Math.min(noseY - faceBox.h * 0.04, faceBox.y + faceBox.h * 0.45))
+  const lowerSpan = Math.max(chinY - neckTop, faceBox.h * 0.35)
   const neckBox = {
-    x: faceBox.x + faceBox.w * 0.2,
-    y: faceBox.y + faceBox.h * 0.85,
-    w: faceBox.w * 0.6,
-    h: faceBox.h * 0.15,
+    x: Math.max(0, faceBox.x - faceBox.w * 0.06),
+    y: neckTop,
+    w: Math.min(1 - Math.max(0, faceBox.x - faceBox.w * 0.06), faceBox.w * 1.12),
+    h: Math.min(1 - neckTop, chinY + lowerSpan * 0.7 - neckTop),
   }
   const [neckCrop] = await Promise.all([
     cropNormalized(imageSrc, neckBox),
@@ -2031,10 +2036,12 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
     jaw: {
       ...jawData,
       imageSrc: jawCrop,
+      photoSource: 'front',
     },
     chin: {
       ...chinData,
-      imageSrc: jawCrop,
+      imageSrc: chinCrop,
+      photoSource: 'front',
     },
     smile: {
       ...smileData,
@@ -2051,7 +2058,9 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
     },
     hair: {
       ...hairData,
-      imageSrc: photos.topHead || foreheadCrop,
+      imageSrc: foreheadCrop,
+      imageSrcTopHead: photos.topHead || null,
+      photoSource: 'front',
     },
     skin: {
       ...skin,

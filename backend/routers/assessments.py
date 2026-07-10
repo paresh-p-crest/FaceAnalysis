@@ -16,11 +16,12 @@ from ..photo_validation import validate_required_poses
 from ..ai_access import require_paid_ai_access
 from ..protocol_service import (
     delete_stored_protocol,
+    enrich_assessment_nl_content,
+    ensure_ai_narrative,
     generate_and_store_protocol,
     load_protocol_bundle,
     persist_protocol_bundle,
 )
-from ..text_ai_service import generate_cv_narrative
 from ..repositories.assessment_repository import (
     create_assessment,
     delete_all_assessment_data,
@@ -30,7 +31,6 @@ from ..repositories.assessment_repository import (
     list_assessments,
     update_assessment_status,
     update_assessment_admin_review,
-    update_assessment_ai_narrative,
     update_assessment_ai_visuals,
     update_assessment_analysis,
 )
@@ -233,7 +233,7 @@ def _assessment_pdf_markdown(existing: dict) -> str:
             "",
             "## Disclaimer",
             "",
-            "This report is educational aesthetic guidance based on computer vision measurements. It is not medical advice, diagnosis, or a treatment plan.",
+            "This report is educational aesthetic guidance based on facial measurements. It is not medical advice, diagnosis, or a treatment plan.",
         ]
     )
     return "\n".join(lines)
@@ -290,7 +290,7 @@ async def post_assessment(
     analysis = to_json_safe(analysis)
 
     saved = await create_assessment(
-        answers=req.answers,
+        answers=to_json_safe(req.answers or {}),
         provider=provider,
         analysis=analysis,
         user_id=current_user["id"],
@@ -314,12 +314,20 @@ async def post_assessment(
     saved["photos"] = photos_doc
     saved["analysis"] = analysis
 
+    # One-shot NL enrichment in the upload pipeline (not on report open).
+    saved = await enrich_assessment_nl_content(saved)
+
     return {
         "assessmentId": assessment_id,
         "status": format_report_status(saved["status"]),
         "createdAt": saved["createdAt"],
         "analysis": analysis,
         "photos": photos_doc,
+        "aiNarrative": saved.get("aiNarrative"),
+        "protocolData": saved.get("protocolData"),
+        "protocolNarrative": saved.get("protocolNarrative"),
+        "featureNarratives": saved.get("featureNarratives"),
+        "protocolStorage": saved.get("protocolStorage"),
     }
 
 
@@ -499,8 +507,10 @@ async def patch_assessment_admin_review(
 @router.post("/assessments/{assessment_id}/ai-narrative")
 async def post_assessment_ai_narrative(
     assessment_id: str,
+    force: bool = False,
     current_user: dict = Depends(get_current_user),
 ):
+    """Return stored narrative, or generate once. Admin may pass force=true to regenerate."""
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
 
@@ -514,26 +524,22 @@ async def post_assessment_ai_narrative(
         raise HTTPException(status_code=403, detail="You do not have access to this assessment")
 
     analysis = existing.get("analysis") or {}
-    cv_report = analysis.get("cvReport")
-    if not cv_report:
+    if not analysis.get("cvReport"):
         raise HTTPException(status_code=400, detail="Stored cvReport is required for AI narrative.")
 
-    result = await asyncio.to_thread(
-        generate_cv_narrative,
-        answers=existing.get("answers") or {},
-        cv_report=cv_report,
-        metrics=analysis.get("metrics"),
-    )
-    if result.get("error"):
-        raise HTTPException(status_code=400, detail=result["error"])
+    # Non-admin callers cannot force-regenerate; always reuse stored content.
+    allow_force = force and current_user.get("role") == "admin"
+    if not allow_force and existing.get("aiNarrative"):
+        content = (existing.get("aiNarrative") or {}).get("content")
+        if content or (existing.get("aiNarrative") or {}).get("summary"):
+            return serialize_assessment(existing)
 
-    ai_narrative = {
-        "source": result.get("source"),
-        "model": result.get("model"),
-        "content": result.get("content"),
-    }
-    updated = await update_assessment_ai_narrative(assessment_id, ai_narrative)
-    return serialize_assessment(updated)
+    ai_narrative = await ensure_ai_narrative(existing, force=allow_force)
+    if not ai_narrative:
+        raise HTTPException(status_code=400, detail="AI narrative generation failed.")
+
+    updated = await get_assessment_by_id(assessment_id)
+    return serialize_assessment(updated or existing)
 
 
 @router.post("/assessments/{assessment_id}/ai-visuals")
@@ -562,14 +568,23 @@ async def post_assessment_ai_visuals(
         cv_report.get("faceShape", {}).get("imageSrc")
         or cv_report.get("symmetry", {}).get("imageSrc")
         or cv_report.get("proportions", {}).get("imageSrc")
+        or (cv_report.get("photos") or {}).get("front")
     )
-    ai_visuals = await generate_visual_variants(
-        answers=existing.get("answers") or {},
-        cv_report=cv_report,
-        metrics=analysis.get("metrics"),
-        source_image=source_image,
-        variant_types=req.variants,
-    )
+    try:
+        ai_visuals = await generate_visual_variants(
+            answers=existing.get("answers") or {},
+            cv_report=cv_report,
+            metrics=analysis.get("metrics"),
+            source_image=source_image,
+            variant_types=req.variants,
+            assessment_id=assessment_id,
+            assessment_photos=existing.get("photos") or {},
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"AI visuals generation failed: {exc}",
+        ) from exc
     updated = await update_assessment_ai_visuals(assessment_id, ai_visuals)
     return serialize_assessment(updated)
 
@@ -609,7 +624,7 @@ async def post_assessment_ai_protocol(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    """Generate protocol once, persist to storage + MongoDB (paid users only)."""
+    """Generate protocol once, persist to storage + MongoDB."""
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
 

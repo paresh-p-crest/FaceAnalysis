@@ -11,7 +11,7 @@
 |---|---|
 | Product name | **MyFace** |
 | Logo treatment | Serif (`font-serif`), bold, tracking-tight |
-| Brand voice | Scientific, clean, premium |
+| Brand voice | Scientific, clean, premium; Qoves-style third person (“the subject”) in PDF/protocol/narrative copy; second-person (you/your) in Beauty Assistant chat; no pipeline/tech jargon in client-facing text |
 | Dark panel background | `#0d1e1f` → `#091516` → `#04090a` (gradient) |
 
 ---
@@ -166,7 +166,7 @@ Used on all stages except **landing (questionnaire welcome)**, **questionnaire**
 | Height | `--site-navbar-height`: `2.5rem` mobile · `2.75rem` from `sm` up |
 | Content gap | `--site-navbar-gap`: `1.5rem` mobile · `2rem` from `sm` up |
 | Page offset | `.site-navbar-offset` — `padding-top: var(--site-navbar-offset)` where offset = height + gap |
-| Inner row | `.site-navbar-inner` — `max-w-6xl mx-auto`, `h-full`, compact horizontal padding |
+| Inner row | `.site-navbar-inner` — `max-w-[1440px] mx-auto`, `h-full`, padding `px-3 sm:px-4 md:px-6` |
 | Compact controls | `.site-navbar-btn`, `.site-navbar-icon-btn` — `text-xs`, `min-h-[32px]` |
 | Mobile | Hamburger opens `.site-navbar-drawer`; overlay + Escape to close |
 

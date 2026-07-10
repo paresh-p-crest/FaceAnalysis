@@ -135,7 +135,7 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
     },
     {
       key: 'motivation',
-      question: 'What motivated you to sign up for QOVES?',
+      question: 'What motivated you to sign up for MyFace?',
       type: 'textarea',
       placeholder: 'Answer here',
     },

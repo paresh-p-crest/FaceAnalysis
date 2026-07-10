@@ -1,5 +1,5 @@
 import { Sparkles, Calendar, UserCheck, Timer } from 'lucide-react'
-import { SymmetryOverlay } from './FaceImageFrame'
+import { PhotoLandmarkFrame } from './FaceImageFrame'
 
 function RadarChart({ scores }) {
   const cx = 100
@@ -220,22 +220,40 @@ export function ExecutiveSummary({
 
         <div className="space-y-2">
           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Potential · Landmarks</p>
-          <div className="relative rounded-2xl overflow-hidden aspect-[4/5] bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+          <div className="relative">
             {photo ? (
-              <>
-                <img src={photo} alt="Landmarks overlay" className="w-full h-full object-cover opacity-90" />
-                {landmarks?.length > 0 && (
-                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    {landmarks.map((pt) => (
-                      <circle key={pt.id} cx={pt.x * 100} cy={pt.y * 100} r="0.4" fill="#5e9f8b" className="opacity-80" />
-                    ))}
-                  </svg>
-                )}
-              </>
+              <PhotoLandmarkFrame
+                src={photo}
+                alt="Landmarks overlay"
+                fit="cover"
+                className="opacity-90"
+                overlay={
+                  landmarks?.length > 0 ? (
+                    <svg
+                      className="absolute inset-0 w-full h-full pointer-events-none"
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
+                    >
+                      {landmarks.map((pt) => (
+                        <circle
+                          key={pt.id}
+                          cx={pt.x * 100}
+                          cy={pt.y * 100}
+                          r="0.28"
+                          fill="#5e9f8b"
+                          className="opacity-85"
+                        />
+                      ))}
+                    </svg>
+                  ) : null
+                }
+              />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-400">Potential Scan</div>
+              <div className="aspect-[4/5] rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 flex items-center justify-center text-slate-400">
+                Potential Scan
+              </div>
             )}
-            <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-sm text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+            <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-sm text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider pointer-events-none z-[2]">
               Potential
             </div>
           </div>

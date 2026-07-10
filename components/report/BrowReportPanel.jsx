@@ -125,7 +125,7 @@ export function BrowReportPanel({ eyebrows }) {
   return (
     <FeatureAnalysisPage
       featureName="eyebrows"
-      subtitle="MediaPipe landmarks + Canvas pixel analysis"
+      subtitle="Facial landmark balance from your photos"
       heroImage={eyebrows.crop}
       summaryCards={[
         { label: 'Shape', value: m.shape },

@@ -1,15 +1,11 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import {
-  ScanFace, RotateCcw, Loader2, AlertTriangle,
-  Download, Lock, ShieldCheck,
-} from 'lucide-react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import { ScanFace, RotateCcw, Loader2, AlertTriangle, Download, Lock, ShieldCheck, X } from 'lucide-react'
 import { saveHistoryEntry, createHistoryId, loadHistory } from '../utils/historyStorage'
 import {
   downloadAssessmentPdf,
   fetchAssessment,
+  fetchAssessmentProtocol,
   fetchAssistantConversation,
-  generateAssessmentNarrative,
-  ensureAssessmentProtocol,
   generateAssessmentVisuals,
   isBackendApiEnabled,
   sendAssistantMessage,
@@ -23,7 +19,6 @@ import {
   isReportApproved,
   normalizeReportStatus,
 } from '../utils/reportWorkflow'
-import { userHasAnalysisAccess } from '../utils/paymentAccess'
 import { ReportDocumentLayout } from './report/ReportDocumentLayout'
 import { LockedSectionGate } from './report/LockedSectionGate'
 import {
@@ -75,7 +70,7 @@ function StatusBadge({ status }) {
   )
 }
 
-export default function Report({ photo, photos, answers, analysis, historyId, onRestart, onRetryLocal, user }) {
+export default function Report({ photo, photos, answers, analysis, historyId, onRestart, onRetryLocal, user, onClose }) {
   const [protocolData, setProtocolData] = useState(null)
   const [protocolNarrative, setProtocolNarrative] = useState(null)
   const [protocolLoading, setProtocolLoading] = useState(false)
@@ -86,13 +81,14 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   const [aiVisuals, setAiVisuals] = useState(null)
   const [aiVisualsLoading, setAiVisualsLoading] = useState(false)
   const [aiVisualsError, setAiVisualsError] = useState('')
-  const [hasPaidAccess, setHasPaidAccess] = useState(false)
   const [sessionId] = useState(() => createHistoryId())
   const [pdfLoading, setPdfLoading] = useState(false)
   const [statusOverride, setStatusOverride] = useState('')
   const [statusUpdating, setStatusUpdating] = useState('')
   const [adminAssessment, setAdminAssessment] = useState(null)
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false)
+  const [activeSectionId, setActiveSectionId] = useState('intro')
+  const nlHydratedForId = useRef(null)
 
   const historyEntry = useMemo(() => {
     if (!historyId) return null
@@ -128,32 +124,22 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   const isUser = !isAdmin
   const canDownloadPdf = canDownloadReportPdf(reportStatus, requiresApproval)
   const clientReportLocked = isUser && requiresApproval && !canClientViewFullReport(reportStatus, false)
-  const canUsePaidAi = isUser && !!assessmentId && isBackendApiEnabled() && (hasPaidAccess || isAdmin)
 
-  const stackedSectionIds = useMemo(() => {
-    const ids = [
+  const sectionIds = useMemo(() => {
+    return [
       ...INTRO_SECTIONS,
       ...ASSESSMENT_SECTIONS,
       ...FEATURE_SECTIONS,
       ...PROTOCOL_SECTIONS,
+      ...TOOL_SECTIONS,
     ].map((section) => section.id)
-    if (canUsePaidAi) {
-      TOOL_SECTIONS.forEach((section) => ids.push(section.id))
-    }
-    return ids
-  }, [canUsePaidAi])
+  }, [])
 
   useEffect(() => {
-    if (!user || isAdmin) {
-      setHasPaidAccess(isAdmin)
-      return
+    if (!sectionIds.includes(activeSectionId)) {
+      setActiveSectionId(sectionIds[0] || 'intro')
     }
-    let cancelled = false
-    userHasAnalysisAccess(user).then((access) => {
-      if (!cancelled) setHasPaidAccess(access)
-    })
-    return () => { cancelled = true }
-  }, [user, isAdmin])
+  }, [sectionIds, activeSectionId])
 
   useEffect(() => {
     if (!isAdmin || !assessmentId || !isBackendApiEnabled()) {
@@ -274,52 +260,62 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     setProtocolError('')
   }, [historyEntry, displayAnalysis])
 
-  useEffect(() => {
-    if (!showQovesReport || !assessmentId || aiNarrative || !canUsePaidAi) return
-
-    let cancelled = false
-    ;(async () => {
-      setAiNarrativeLoading(true)
-      setAiNarrativeError('')
-      try {
-        const updated = await generateAssessmentNarrative(assessmentId)
-        const narrative = updated?.aiNarrative || null
-        if (!cancelled) setAiNarrative(narrative)
-      } catch (err) {
-        if (!cancelled) setAiNarrativeError(err.message || 'AI narrative unavailable')
-      } finally {
-        if (!cancelled) setAiNarrativeLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [showQovesReport, assessmentId, aiNarrative, canUsePaidAi])
-
+  // Load stored NL content only — never regenerate on report open.
   useEffect(() => {
     if (!showQovesReport || !assessmentId || !isBackendApiEnabled()) return
-    if (!canUsePaidAi) return
-    if (protocolData) return
+    if (aiNarrative && protocolData) {
+      nlHydratedForId.current = assessmentId
+      return
+    }
+    if (nlHydratedForId.current === assessmentId) return
 
     let cancelled = false
     ;(async () => {
-      setProtocolLoading(true)
+      const needsNarrative = !aiNarrative
+      const needsProtocol = !protocolData
+      if (needsNarrative) setAiNarrativeLoading(true)
+      if (needsProtocol) setProtocolLoading(true)
+      setAiNarrativeError('')
       setProtocolError('')
       try {
-        const bundle = await ensureAssessmentProtocol(assessmentId)
-        if (!cancelled) {
-          setProtocolData(bundle?.protocolData || null)
-          setProtocolNarrative(bundle?.protocolNarrative || null)
+        const full = await fetchAssessment(assessmentId)
+        if (cancelled) return
+        if (needsNarrative) setAiNarrative(full?.aiNarrative || null)
+        let loadedProtocol = full?.protocolData || null
+        if (needsProtocol && loadedProtocol) {
+          setProtocolData(loadedProtocol)
+          setProtocolNarrative(full?.protocolNarrative || null)
+        }
+        if (needsProtocol && !loadedProtocol) {
+          try {
+            const bundle = await fetchAssessmentProtocol(assessmentId)
+            if (!cancelled) {
+              setProtocolData(bundle?.protocolData || null)
+              setProtocolNarrative(bundle?.protocolNarrative || null)
+            }
+          } catch (err) {
+            if (!cancelled && err.status !== 404) {
+              setProtocolError(err.message || 'Protocol unavailable')
+            }
+          }
         }
       } catch (err) {
-        if (!cancelled) setProtocolError(err.message || 'Protocol unavailable')
+        if (!cancelled && needsNarrative) {
+          setAiNarrativeError(err.message || 'AI narrative unavailable')
+        }
       } finally {
-        if (!cancelled) setProtocolLoading(false)
+        if (!cancelled) {
+          nlHydratedForId.current = assessmentId
+          setAiNarrativeLoading(false)
+          setProtocolLoading(false)
+        }
       }
     })()
     return () => { cancelled = true }
-  }, [showQovesReport, assessmentId, canUsePaidAi, protocolData])
+  }, [showQovesReport, assessmentId, aiNarrative, protocolData])
 
   const handleGenerateVisuals = useCallback(async () => {
-    if (!assessmentId || !canUsePaidAi || aiVisualsLoading) return
+    if (!assessmentId || !isBackendApiEnabled() || aiVisualsLoading) return
     setAiVisualsLoading(true)
     setAiVisualsError('')
     try {
@@ -330,17 +326,17 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     } finally {
       setAiVisualsLoading(false)
     }
-  }, [assessmentId, canUsePaidAi, aiVisualsLoading])
+  }, [assessmentId, aiVisualsLoading])
 
   const handleLoadAssistant = useCallback(async () => {
-    if (!assessmentId || !canUsePaidAi) return { messages: [] }
+    if (!assessmentId || !isBackendApiEnabled()) return { messages: [] }
     return await fetchAssistantConversation(assessmentId)
-  }, [assessmentId, canUsePaidAi])
+  }, [assessmentId])
 
   const handleSendAssistant = useCallback(async (message) => {
-    if (!assessmentId || !canUsePaidAi) return { messages: [] }
+    if (!assessmentId || !isBackendApiEnabled()) return { messages: [] }
     return await sendAssistantMessage(assessmentId, message)
-  }, [assessmentId, canUsePaidAi])
+  }, [assessmentId])
 
   const confirmAdminApprove = useCallback(async () => {
     if (!assessmentId || statusUpdating) return
@@ -389,42 +385,55 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   }
 
   return (
-    <div className="min-h-screen animate-fade-up font-sans bg-surface text-ink relative">
+    <div className="h-full min-h-0 flex flex-col animate-fade-up font-sans bg-surface text-ink relative">
       {isDevAutoApproveEnabled && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[9998] rounded-full border-2 border-amber-400 bg-amber-500 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-900 shadow-lg shadow-amber-500/30">
           DEV: Admin approval bypassed
         </div>
       )}
 
-      {showQovesReport && (
-        <div className="fixed top-3 right-4 z-50 flex items-center gap-2">
-          {isAdmin && assessmentId && !isReportApproved(reportStatus) && (
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-surface-border bg-surface-card shrink-0">
+        <h2 className="font-display text-sm font-semibold text-ink truncate">Facial Analysis Report</h2>
+        <div className="flex items-center gap-2 shrink-0">
+          {showQovesReport && isAdmin && assessmentId && !isReportApproved(reportStatus) && (
             <button
               type="button"
               onClick={() => setApproveConfirmOpen(true)}
               disabled={!!statusUpdating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium font-display bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
             >
               {statusUpdating === 'approved' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
               Approve
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleDownloadPdf}
-            disabled={pdfLoading || !canDownloadPdf}
-            className="btn-primary text-xs px-4 py-2 shadow-brand"
-            title={!canDownloadPdf ? 'PDF download is available after admin approval' : 'Download PDF'}
-          >
-            {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-            PDF
-          </button>
+          {showQovesReport && (
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={pdfLoading || !canDownloadPdf}
+              className="btn-primary text-xs px-4 py-2 shadow-brand"
+              title={!canDownloadPdf ? 'PDF download is available after admin approval' : 'Download PDF'}
+            >
+              {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              PDF
+            </button>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center justify-center min-h-[36px] min-w-[36px] rounded-xl text-ink-muted hover:text-ink hover:bg-surface-warm transition-colors"
+              aria-label="Close report"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
-      <div className="max-w-[100%] mx-auto pt-14">
+      <div className="flex-1 min-h-0 flex flex-col px-3 sm:px-4 pb-3 pt-3">
         {isAdmin && adminAssessment && !isReportApproved(reportStatus) && (
-          <div className="px-4 sm:px-6 mb-4">
+          <div className="mb-3 shrink-0">
             <AdminReviewPanel
               embedded
               assessment={adminAssessment}
@@ -434,7 +443,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         )}
 
         {displayAnalysis?.protocolWarnings?.length > 0 && (
-          <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-200">
+          <div className="mb-3 shrink-0 p-4 rounded-2xl bg-amber-50 border border-amber-200">
             <p className="text-sm font-display font-semibold text-amber-700 mb-2">Protocol warnings</p>
             <ul className="space-y-1.5">
               {displayAnalysis.protocolWarnings.map((w) => (
@@ -445,7 +454,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         )}
 
         {clientReportLocked && (
-          <div className="mx-4 sm:mx-6 mb-4 p-5 rounded-2xl bg-amber-50 border border-amber-200">
+          <div className="mb-3 shrink-0 p-5 rounded-2xl bg-amber-50 border border-amber-200">
             <div className="flex items-start gap-3">
               <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div>
@@ -456,58 +465,52 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
           </div>
         )}
 
-        {!hasPaidAccess && isUser && assessmentId && isBackendApiEnabled() && (
-          <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-2xl bg-surface-warm border border-surface-border">
-            <p className="text-sm text-ink-secondary">
-              Complete payment to unlock AI narrative, protocol, visuals, and Beauty Assistant coaching.
-            </p>
-          </div>
-        )}
-
         {protocolError && (
-          <div className="mx-4 sm:mx-6 mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-700">
+          <div className="mb-3 shrink-0 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-700">
             {protocolError}
           </div>
         )}
 
         {showQovesReport ? (
-          <ReportDocumentLayout immersive>
-            <div className="space-y-16">
-              {stackedSectionIds.map((sectionId) => (
-                <LockedSectionGate
-                  key={sectionId}
-                  locked={clientReportLocked && !isPublicSection(sectionId)}
-                >
-                  <CvReportView
-                    activeId={sectionId}
-                    cvReport={cvReport}
-                    eyeAnalysis={eyeAnalysis}
-                    protocolData={protocolData}
-                    protocolNarrative={protocolNarrative}
-                    protocolLoading={protocolLoading}
-                    aiNarrative={aiNarrative}
-                    photo={displayPhoto}
-                    photos={photos}
-                    landmarks={landmarks}
-                    metrics={metrics}
-                    answers={displayAnswers}
-                    aiVisuals={aiVisuals}
-                    aiVisualsLoading={aiVisualsLoading}
-                    aiVisualsError={aiVisualsError}
-                    onGenerateVisuals={handleGenerateVisuals}
-                    canGenerateVisuals={canUsePaidAi}
-                    assessmentId={assessmentId}
-                    canUseAssistant={canUsePaidAi}
-                    onLoadAssistant={handleLoadAssistant}
-                    onSendAssistant={handleSendAssistant}
-                    onDownloadPdf={handleDownloadPdf}
-                    pdfLoading={pdfLoading}
-                    canDownloadPdf={canDownloadPdf}
-                  />
-                </LockedSectionGate>
-              ))}
-            </div>
-          </ReportDocumentLayout>
+          <div className="flex-1 min-h-0">
+            <ReportDocumentLayout
+              activeId={activeSectionId}
+              onSelect={setActiveSectionId}
+              showAiVisuals={!!assessmentId && isBackendApiEnabled()}
+              showAssistant={!!assessmentId && isBackendApiEnabled()}
+            >
+              <LockedSectionGate
+                locked={clientReportLocked && !isPublicSection(activeSectionId)}
+              >
+                <CvReportView
+                  activeId={activeSectionId}
+                  cvReport={cvReport}
+                  eyeAnalysis={eyeAnalysis}
+                  protocolData={protocolData}
+                  protocolNarrative={protocolNarrative}
+                  protocolLoading={protocolLoading}
+                  aiNarrative={aiNarrative}
+                  photo={displayPhoto}
+                  photos={photos}
+                  landmarks={landmarks}
+                  metrics={metrics}
+                  answers={displayAnswers}
+                  aiVisuals={aiVisuals}
+                  aiVisualsLoading={aiVisualsLoading}
+                  aiVisualsError={aiVisualsError}
+                  onGenerateVisuals={handleGenerateVisuals}
+                  canGenerateVisuals={!!assessmentId && isBackendApiEnabled()}
+                  assessmentId={assessmentId}
+                  canUseAssistant={!!assessmentId && isBackendApiEnabled()}
+                  onLoadAssistant={handleLoadAssistant}
+                  onSendAssistant={handleSendAssistant}
+                  onDownloadPdf={handleDownloadPdf}
+                  pdfLoading={pdfLoading}
+                  canDownloadPdf={canDownloadPdf}
+                />
+              </LockedSectionGate>
+            </ReportDocumentLayout>
+          </div>
         ) : cvPending ? (
           <div className="max-w-lg mx-auto px-4">
             <div className="bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border text-center">

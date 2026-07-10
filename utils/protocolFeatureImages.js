@@ -35,8 +35,14 @@ const CHEEK_OVERLAY_INDICES = [116, 123, 50, 280, 345, 352, 234, 454]
 
 function storedCrop(cvReport, eyeAnalysis, featureId) {
   switch (featureId) {
-    case 'hair':
-      return cvReport?.hair?.imageSrc || null
+    case 'hair': {
+      const hair = cvReport?.hair
+      // Never use top-of-head photo for protocol BEFORE
+      if (hair?.photoSource === 'topHead' || hair?.imageSrcTopHead === hair?.imageSrc) {
+        return hair?.imageSrcFront || null
+      }
+      return hair?.imageSrcFront || hair?.imageSrc || null
+    }
     case 'eyes':
       return eyeAnalysis?.eyesCrop || cvReport?.eyebrows?.crop || cvReport?.eyes?.ocular?.imageSrc || null
     case 'eyebrows':
@@ -45,12 +51,23 @@ function storedCrop(cvReport, eyeAnalysis, featureId) {
       return cvReport?.nose?.imageSrc || null
     case 'cheeks':
       return cvReport?.cheeks?.imageSrc || null
-    case 'jaw':
-      return cvReport?.jaw?.imageSrc || cvReport?.jawChin?.imageSrc || null
+    case 'jaw': {
+      const jaw = cvReport?.jaw
+      if (jaw?.photoSource === 'rightProfile') {
+        return jaw.imageSrcFront || cvReport?.jawChin?.imageSrcFront || null
+      }
+      return jaw?.imageSrc || cvReport?.jawChin?.imageSrc || jaw?.imageSrcFront || null
+    }
     case 'lips':
       return cvReport?.lips?.imageSrc || null
-    case 'chin':
-      return cvReport?.chin?.imageSrc || cvReport?.jawChin?.imageSrc || null
+    case 'chin': {
+      // Prefer frontal mouth/chin crop — never the right-profile full photo
+      const chin = cvReport?.chin
+      if (chin?.photoSource === 'rightProfile') {
+        return chin.imageSrcFront || cvReport?.jawChin?.imageSrcFront || null
+      }
+      return chin?.imageSrc || cvReport?.jawChin?.imageSrc || chin?.imageSrcFront || null
+    }
     case 'skin':
       return (
         cvReport?.cheeks?.imageSrc ||
@@ -61,13 +78,12 @@ function storedCrop(cvReport, eyeAnalysis, featureId) {
     case 'neck':
       return cvReport?.neck?.imageSrc || null
     case 'ears': {
-      if (cvReport?.ears?.imageSrcRight) return cvReport.ears.imageSrcRight
-      if (cvReport?.ears?.imageSrcLeft) return cvReport.ears.imageSrcLeft
-      const nasoAural = cvReport?.proportions?.ratios?.nasoAural
-      if (nasoAural?.photoSource === 'rightProfile' && nasoAural?.imageSrc) {
-        return nasoAural.imageSrc
+      // Frontal ear crop only — ignore profile photo bindings for BEFORE
+      const ears = cvReport?.ears
+      if (ears?.photoSource === 'profile' || ears?.photoSource === 'rightProfile') {
+        return ears.imageSrcFront || null
       }
-      return cvReport?.ears?.imageSrc || null
+      return ears?.imageSrc || ears?.imageSrcFront || null
     }
     default:
       return null
@@ -111,11 +127,55 @@ export async function resolveFeatureBeforeImage({
 }) {
   const key = cropKey || projectionId || featureId
 
-  if (featureId === 'hair' && photos?.topHead) {
-    return normalizeToJpegDataUrl(photos.topHead)
+  // Hair: frontal hairline/forehead crop (not top-of-head scalp photo)
+  if (featureId === 'hair' || key === 'hair') {
+    const minPx = FEATURE_MIN_PX.hair
+    const cropped = await liveCrop(photoJpeg, landmarks, 'hair', minPx)
+    if (cropped) return cropped
+    const stored = storedCrop(cvReport, eyeAnalysis, 'hair')
+    if (stored) return stored
+    return photoJpeg || null
   }
-  if (featureId === 'ears' && (photos?.rightProfile || photos?.leftProfile)) {
-    return normalizeToJpegDataUrl(photos.rightProfile || photos.leftProfile)
+
+  // Chin / jaw / ears BEFORE use frontal crops (see liveCrop / storedCrop below).
+  // Jaw: front-facing lower-face crop (never right profile full photo)
+  if (featureId === 'jaw' || key === 'jaw') {
+    const minPx = FEATURE_MIN_PX.jaw
+    const cropped = await liveCrop(photoJpeg, landmarks, 'jaw', minPx)
+    if (cropped) return cropped
+    const stored = storedCrop(cvReport, eyeAnalysis, 'jaw')
+    if (stored) return stored
+    return photoJpeg || null
+  }
+
+  // Ears: front-facing ear crop (never right/left profile full photo)
+  if (featureId === 'ears' || key === 'ears') {
+    const minPx = FEATURE_MIN_PX.ears
+    const cropped = await liveCrop(photoJpeg, landmarks, 'ears', minPx)
+    if (cropped) return cropped
+    const stored = storedCrop(cvReport, eyeAnalysis, 'ears')
+    if (stored) return stored
+    return photoJpeg || null
+  }
+
+  // Chin: always frontal landmark crop when possible
+  if (featureId === 'chin' || key === 'chin') {
+    const minPx = FEATURE_MIN_PX.chin
+    const cropped = await liveCrop(photoJpeg, landmarks, 'chin', minPx)
+    if (cropped) return cropped
+    const stored = storedCrop(cvReport, eyeAnalysis, 'chin')
+    if (stored) return stored
+    return photoJpeg || null
+  }
+
+  // Neck: prefer live lower-face+neck framing over legacy tight stored crops
+  if (featureId === 'neck' || key === 'neck') {
+    const minPx = FEATURE_MIN_PX.neck
+    const cropped = await liveCrop(photoJpeg, landmarks, 'neck', minPx)
+    if (cropped) return cropped
+    const stored = storedCrop(cvReport, eyeAnalysis, 'neck')
+    if (stored) return stored
+    return photoJpeg || null
   }
 
   const stored = storedCrop(cvReport, eyeAnalysis, key === 'periorbital' ? 'eyes' : key)

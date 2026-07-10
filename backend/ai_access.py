@@ -1,4 +1,9 @@
-"""Payment gating and rate limits for backend AI endpoints."""
+"""Auth and rate limits for backend AI endpoints.
+
+AI narrative, protocol, visuals, and Beauty Assistant are available to any
+authenticated user who can access the assessment (same tier as dashboard).
+Report visibility for clients remains gated by admin approval elsewhere.
+"""
 
 from __future__ import annotations
 
@@ -8,20 +13,17 @@ from fastapi import HTTPException
 
 from .config import ASSISTANT_HOURLY_MESSAGE_LIMIT
 from .database import get_db
-from .repositories.payment_repository import user_has_completed_payment
 
 
 async def require_paid_ai_access(current_user: dict) -> None:
-    """Raise 402 unless the user is admin or has a completed payment."""
-    if current_user.get("role") == "admin":
-        return
-    if not current_user.get("id"):
+    """Require an authenticated user for AI features.
+
+    Kept name for call-site compatibility. Payment is no longer required here —
+    analysis entry may still be payment-gated separately; admin approval still
+    controls client report unlock.
+    """
+    if not current_user or not current_user.get("id"):
         raise HTTPException(status_code=401, detail="Authentication required.")
-    if not await user_has_completed_payment(current_user["id"]):
-        raise HTTPException(
-            status_code=402,
-            detail="Payment required before using AI features.",
-        )
 
 
 def _hour_bucket(now: datetime | None = None) -> str:

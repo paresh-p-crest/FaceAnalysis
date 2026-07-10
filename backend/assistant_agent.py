@@ -12,7 +12,6 @@ from .report_sections import protocol_bundle_summary
 from .text_ai_service import (
     ASSISTANT_SYSTEM_PROMPT,
     _count_user_messages,
-    _fallback_assistant_answer,
     _recent_turns,
     summarize_assistant_session,
 )
@@ -54,13 +53,14 @@ def _build_seed_context(assessment: dict) -> str:
     tool_index = ", ".join(bundle_meta.get("toolIndex") or [])[:500]
 
     return (
-        f"Client: {name}\n"
+        f"You are speaking with {name}\n"
         f"Goals: {goals_str or 'N/A'}\n"
         f"Overall harmony: {overall.get('score', 'N/A')}/100\n"
         f"Lowest areas: {lowest or 'N/A'}\n"
         f"Not measured: {'; '.join(not_measured)}\n"
         f"Available tools: {tool_index}\n"
-        "Use tools to fetch report sections before answering factual or protocol questions."
+        "Use tools to fetch report sections before answering factual or protocol questions. "
+        "Always reply in second person (you/your) with no technical implementation details."
     )
 
 
@@ -81,6 +81,7 @@ def _run_tool_loop(
             max_tokens=1000,
             tools=OPENAI_TOOL_DEFINITIONS,
             api_key_override=api_key,
+            label="beauty_assistant/tools",
         )
         if result.get("error") and not result.get("tool_calls"):
             return result
@@ -129,6 +130,7 @@ def _run_tool_loop(
         temperature=0.25,
         max_tokens=1000,
         api_key_override=api_key,
+        label="beauty_assistant/final",
     )
     return {
         "content": final.get("content"),
@@ -188,13 +190,16 @@ def run_assistant_agent(
     result = _run_tool_loop(tools, messages, api_key=api_key)
 
     if not result.get("content"):
-        fallback = _fallback_assistant_answer(
-            question,
-            cv_report,
-            assessment.get("answers") or {},
-        )
-        result["content"] = fallback
-        result["source"] = result.get("source") or "template"
+        # Do not invent a template reply — surface failure to the API layer.
+        return {
+            "content": None,
+            "source": result.get("source"),
+            "model": result.get("model"),
+            "error": result.get("error") or "Beauty Assistant is not working right now.",
+            "session_summary": None,
+            "should_refresh_summary": False,
+            "summary_at_user_count": summary_at_user_count,
+        }
 
     should_refresh = (
         prior_user_count > 0
@@ -218,7 +223,7 @@ def run_assistant_agent(
         "content": result["content"],
         "source": result.get("source"),
         "model": result.get("model"),
-        "error": result.get("error"),
+        "error": None,
         "session_summary": session_summary_out,
         "should_refresh_summary": bool(session_summary_out),
         "summary_at_user_count": prior_user_count + 1 if session_summary_out else summary_at_user_count,

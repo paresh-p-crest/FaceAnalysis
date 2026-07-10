@@ -127,8 +127,14 @@ function detectHairMask(data, w, h, landmarks) {
 function getFeatureBox(landmarks, featureKey) {
   switch (featureKey) {
     case 'hair': {
-      const face = bboxFullFace(landmarks, 0.05)
-      return { x: face.x, y: Math.max(0, face.y - face.h * 0.15), w: face.w, h: face.h * 0.32 }
+      // Frontal hairline + forehead + brows (not top-of-head scalp photo)
+      const face = bboxFullFace(landmarks, 0.04)
+      const brows = bboxBrowsRegion(landmarks)
+      const y0 = Math.max(0, face.y - face.h * 0.22)
+      const y1 = Math.min(1, brows.y + brows.h * 1.2)
+      const x = Math.max(0, face.x - face.w * 0.02)
+      const w = Math.min(1 - x, face.w * 1.04)
+      return { x, y: y0, w, h: Math.max(0.16, y1 - y0) }
     }
     case 'eyebrows': return bboxBrowsRegion(landmarks)
     case 'eyes': return bboxEyesRegion(landmarks)
@@ -155,27 +161,60 @@ function getFeatureBox(landmarks, featureKey) {
     }
     case 'nose': return bboxFromIndices(landmarks, NOSE_INDICES, 0.05)
     case 'lips': return bboxFromIndices(landmarks, MOUTH, 0.05)
-    case 'jaw':
-      return mergeBboxes(bboxFromIndices(landmarks, JAW_LINE, 0.03), bboxFromIndices(landmarks, [152, 148], 0.04), 0.02)
+    case 'jaw': {
+      // Frontal lower face: mouth through jawline to upper neck (not profile)
+      const face = bboxFullFace(landmarks, 0.03)
+      const mouth = bboxFromIndices(landmarks, MOUTH, 0.04)
+      const jaw = bboxFromIndices(landmarks, JAW_LINE, 0.04)
+      const chin = lm(landmarks, 152)
+      const merged = mergeBboxes(mouth, jaw, 0.03)
+      const y0 = Math.max(0, merged.y - face.h * 0.02)
+      const y1 = Math.min(1, Math.max(merged.y + merged.h, chin.y + face.h * 0.18))
+      const x = Math.max(0, Math.min(merged.x, face.x + face.w * 0.08))
+      const x2 = Math.min(1, Math.max(merged.x + merged.w, face.x + face.w * 0.92))
+      return { x, y: y0, w: Math.max(0.2, x2 - x), h: Math.max(0.18, y1 - y0) }
+    }
     case 'cheeks': {
       const l = bboxFromIndices(landmarks, CHEEK_L, 0.02)
       const r = bboxFromIndices(landmarks, CHEEK_R, 0.02)
       return mergeBboxes(l, r, 0.01)
     }
-    case 'chin': return bboxFromIndices(landmarks, [152, 148, 176, 377, 400], 0.05)
+    case 'chin': {
+      // Frontal mouth + chin (upper lip through menton), matching protocol BEFORE framing
+      return mergeBboxes(
+        bboxFromIndices(landmarks, MOUTH, 0.04),
+        bboxFromIndices(landmarks, [152, 148, 176, 377, 400], 0.06),
+        0.02,
+      )
+    }
     case 'skin': {
       const l = bboxFromIndices(landmarks, CHEEK_L, 0.04)
       const r = bboxFromIndices(landmarks, CHEEK_R, 0.04)
       return mergeBboxes(l, r, 0.02)
     }
     case 'neck': {
-      const face = bboxFullFace(landmarks, 0.02)
-      return { x: face.x + face.w * 0.12, y: face.y + face.h * 0.8, w: face.w * 0.76, h: face.h * 0.22 }
+      // Lower face + neck: nostrils through jaw to collar (not a thin under-chin strip)
+      const face = bboxFullFace(landmarks, 0.04)
+      const noseTip = lm(landmarks, 2)
+      const chin = lm(landmarks, 152)
+      const y0 = Math.max(0, Math.min(noseTip.y - face.h * 0.04, face.y + face.h * 0.45))
+      const lowerSpan = Math.max(chin.y - y0, face.h * 0.35)
+      const y1 = Math.min(1, chin.y + lowerSpan * 0.7)
+      const x = Math.max(0, face.x - face.w * 0.06)
+      const w = Math.min(1 - x, face.w * 1.12)
+      return { x, y: y0, w, h: Math.max(0.12, y1 - y0) }
     }
     case 'ears': {
-      const left = bboxFromIndices(landmarks, [234, 127, 162, 93, 132], 0.04)
-      const right = bboxFromIndices(landmarks, [454, 356, 389, 323, 361], 0.04)
-      return mergeBboxes(left, right, 0.02)
+      // Front-facing crop of one ear with adjacent face (eye/cheek) — not a profile photo
+      const face = bboxFullFace(landmarks, 0.02)
+      const ear = bboxFromIndices(landmarks, [454, 356, 389, 323, 361], 0.08)
+      const eye = bboxFromIndices(landmarks, [263, 362, 386, 374], 0.04)
+      const merged = mergeBboxes(ear, eye, 0.04)
+      const x = Math.max(0, Math.min(merged.x, face.x + face.w * 0.35))
+      const y = Math.max(0, merged.y - face.h * 0.06)
+      const x2 = Math.min(1, Math.max(merged.x + merged.w, face.x + face.w * 0.98))
+      const y2 = Math.min(1, merged.y + merged.h + face.h * 0.1)
+      return { x, y, w: Math.max(0.12, x2 - x), h: Math.max(0.16, y2 - y) }
     }
     default: return bboxFullFace(landmarks, 0.04)
   }

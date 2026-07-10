@@ -31,6 +31,8 @@ const MARGIN = 48
 const CONTENT_W = PAGE_W - MARGIN * 2
 const COL_GAP = 20
 const COL_W = (CONTENT_W - COL_GAP) / 2
+const PAGE_BOTTOM = PAGE_H - 56
+const SECTION_GAP = 14
 
 const EVIDENCE_TIER_LABELS = {
   lifestyle: 'Routine / Topical',
@@ -167,12 +169,126 @@ function fitImage(w, h, maxW, maxH) {
   return { w: w * ratio, h: h * ratio }
 }
 
+function loadHtmlImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+/**
+ * True object-fit:cover without jsPDF clip: center-crop on canvas to the frame
+ * size, then draw that JPEG exactly into the box (no overflow, no blanking).
+ */
+function createCoverCropSession() {
+  const imgByUrl = new Map()
+  const cropByKey = new Map()
+
+  return {
+    async warm(urls) {
+      const unique = [...new Set(urls.filter(Boolean))]
+      await Promise.all(
+        unique.map(async (url) => {
+          if (imgByUrl.has(url)) return
+          try {
+            imgByUrl.set(url, await loadHtmlImage(url))
+          } catch {
+            /* leave missing; addPdfImage falls back to stretch */
+          }
+        }),
+      )
+    },
+    crop(dataUrl, maxW, maxH) {
+      if (!dataUrl || maxW <= 0 || maxH <= 0) return dataUrl
+      const key = `${maxW.toFixed(1)}x${maxH.toFixed(1)}:${dataUrl.length}:${dataUrl.slice(-48)}`
+      if (cropByKey.has(key)) return cropByKey.get(key)
+      const img = imgByUrl.get(dataUrl)
+      if (!img) return dataUrl
+
+      const pxW = Math.max(1, Math.round(maxW * 2))
+      const pxH = Math.max(1, Math.round(maxH * 2))
+      const scale = Math.max(pxW / img.width, pxH / img.height)
+      const sw = pxW / scale
+      const sh = pxH / scale
+      const sx = (img.width - sw) / 2
+      const sy = (img.height - sh) / 2
+
+      const canvas = document.createElement('canvas')
+      canvas.width = pxW
+      canvas.height = pxH
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, pxW, pxH)
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, pxW, pxH)
+      const cropped = canvas.toDataURL('image/jpeg', 0.92)
+      cropByKey.set(key, cropped)
+      return cropped
+    },
+    /**
+     * Left half = before; right half = after when present, else blank pending panel.
+     * Requires warmed HTMLImages. Returns JPEG data URL or null.
+     */
+    composeSplit(beforeSrc, afterSrc, maxW, maxH) {
+      if (!beforeSrc || maxW <= 0 || maxH <= 0) return null
+      const beforeImg = imgByUrl.get(beforeSrc)
+      if (!beforeImg) return null
+      const key = `split:${afterSrc ? '1' : '0'}:${maxW.toFixed(1)}x${maxH.toFixed(1)}:${beforeSrc.length}:${afterSrc?.length || 0}`
+      if (cropByKey.has(key)) return cropByKey.get(key)
+
+      const pxW = Math.max(1, Math.round(maxW * 2))
+      const pxH = Math.max(1, Math.round(maxH * 2))
+      const half = Math.floor(pxW / 2)
+
+      const canvas = document.createElement('canvas')
+      canvas.width = pxW
+      canvas.height = pxH
+      const ctx = canvas.getContext('2d')
+
+      const drawCover = (img) => {
+        const scale = Math.max(pxW / img.width, pxH / img.height)
+        const sw = pxW / scale
+        const sh = pxH / scale
+        const sx = (img.width - sw) / 2
+        const sy = (img.height - sh) / 2
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, pxW, pxH)
+      }
+
+      drawCover(beforeImg)
+
+      if (afterSrc && imgByUrl.get(afterSrc)) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(half, 0, pxW - half, pxH)
+        ctx.clip()
+        drawCover(imgByUrl.get(afterSrc))
+        ctx.restore()
+      } else {
+        ctx.fillStyle = `rgb(${SURFACE_WARM.r},${SURFACE_WARM.g},${SURFACE_WARM.b})`
+        ctx.fillRect(half, 0, pxW - half, pxH)
+      }
+
+      const out = canvas.toDataURL('image/jpeg', 0.92)
+      cropByKey.set(key, out)
+      return out
+    },
+  }
+}
+
+/** Active only while generating a PDF (set in downloadMyFacePdf). */
+let coverCropSession = null
+
 function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false) {
   if (!dataUrl) return { w: 0, h: 0 }
+  if (cover) {
+    const fitted =
+      coverCropSession?.crop(dataUrl, maxW, maxH) || dataUrl
+    doc.addImage(fitted, 'JPEG', x, y, maxW, maxH, undefined, IMG_QUALITY)
+    return { w: maxW, h: maxH, ox: x, oy: y }
+  }
   const props = doc.getImageProperties(dataUrl)
-  const ratio = cover
-    ? Math.max(maxW / props.width, maxH / props.height)
-    : Math.min(maxW / props.width, maxH / props.height)
+  const ratio = Math.min(maxW / props.width, maxH / props.height)
   const w = props.width * ratio
   const h = props.height * ratio
   const ox = x + (maxW - w) / 2
@@ -181,7 +297,7 @@ function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false) {
   return { w, h, ox, oy }
 }
 
-function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false } = {}) {
+function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = 10 } = {}) {
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.roundedRect(x, y, w, h, 6, 6, 'F')
   doc.setDrawColor(229, 231, 235)
@@ -207,6 +323,99 @@ function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false } = {}) {
     setWhite(doc)
     doc.text(tag, x + 10, y + 16)
   }
+  return y + h + gap
+}
+
+/**
+ * Before | After split frame. Right side shows after when available; otherwise "Projected image pending"
+ * (never falls back to the before photo on the right).
+ */
+function drawSplitComparisonFrame(doc, x, y, w, h, beforeSrc, afterSrc, { gap = 10 } = {}) {
+  doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
+  doc.roundedRect(x, y, w, h, 6, 6, 'F')
+
+  const pad = 2
+  const innerW = w - pad * 2
+  const innerH = h - pad * 2
+  const composed = coverCropSession?.composeSplit(beforeSrc, afterSrc || null, innerW, innerH)
+
+  if (composed) {
+    doc.addImage(composed, 'JPEG', x + pad, y + pad, innerW, innerH, undefined, IMG_QUALITY)
+  } else if (beforeSrc) {
+    // Fallback: left half before only (no right-side before mirror)
+    addPdfImage(doc, beforeSrc, x + pad, y + pad, innerW / 2 - 1, innerH, true)
+  }
+
+  if (!afterSrc) {
+    const rx = x + w / 2
+    doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
+    doc.rect(rx, y + pad, w / 2 - pad, innerH, 'F')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    setMuted(doc)
+    doc.text('Projected image pending', rx + (w / 2 - pad) / 2, y + h / 2, { align: 'center' })
+  }
+
+  doc.setDrawColor(229, 231, 235)
+  doc.setLineWidth(0.5)
+  doc.roundedRect(x, y, w, h, 6, 6, 'S')
+
+  doc.setDrawColor(255, 255, 255)
+  doc.setLineWidth(1)
+  doc.setLineDashPattern([3, 3], 0)
+  doc.line(x + w / 2, y + 4, x + w / 2, y + h - 4)
+  doc.setLineDashPattern([], 0)
+
+  return y + h + gap
+}
+
+/** Labeled body block; returns Y after the last text line. */
+function drawLabeledBody(doc, x, y, title, body, maxW, lineH = 11.5) {
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  setInk(doc)
+  doc.text(title, x, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setInk(doc)
+  return wrapText(doc, body || '', x, y + 18, maxW, lineH)
+}
+
+/**
+ * Summary card whose height grows with wrapped copy.
+ * Clamps to PAGE_BOTTOM so it never runs into the footer.
+ */
+function drawSummaryCard(doc, x, y, w, title, summary, { minH = 72, pad = 12, lineH = 11.5, maxBottom = PAGE_BOTTOM } = {}) {
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  const lines = doc.splitTextToSize(summary || '', w - pad * 2)
+  const titleBlock = 22
+  let cardH = Math.max(minH, titleBlock + lines.length * lineH + pad)
+  let cardY = y
+  if (cardY + cardH > maxBottom) {
+    const available = maxBottom - cardY
+    if (available < minH) {
+      cardY = Math.max(80, maxBottom - minH)
+      cardH = minH
+    } else {
+      cardH = available
+    }
+  }
+  const maxLines = Math.max(1, Math.floor((cardH - titleBlock - pad / 2) / lineH))
+  const visible = lines.slice(0, maxLines)
+
+  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
+  doc.roundedRect(x, cardY, w, cardH, 6, 6, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  setWhite(doc)
+  doc.text(title, x + pad, cardY + 16)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  visible.forEach((line, i) => {
+    doc.text(line, x + pad, cardY + titleBlock + 4 + i * lineH)
+  })
+  return cardY + cardH + 8
 }
 
 function drawCheekMeasurementOverlay(doc, frameX, frameY, frameW, frameH, points = []) {
@@ -264,8 +473,15 @@ function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 10
 }
 
 function drawSummaryBar(doc, y, title, summary) {
-  const barH = 44
-  const barY = Math.min(y, PAGE_H - 72)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  const summaryLines = doc.splitTextToSize(summary || '', CONTENT_W - 160)
+  const lineH = 12
+  const barH = Math.max(44, 20 + Math.min(summaryLines.length, 4) * lineH)
+  let barY = y
+  if (barY + barH > PAGE_BOTTOM) {
+    barY = Math.max(80, PAGE_BOTTOM - barH)
+  }
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
   doc.roundedRect(MARGIN, barY, CONTENT_W, barH, 6, 6, 'F')
   doc.setFont('helvetica', 'bold')
@@ -274,9 +490,9 @@ function drawSummaryBar(doc, y, title, summary) {
   doc.text(title, MARGIN + 12, barY + 16)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(summary || '', CONTENT_W - 160)
-  doc.text(summaryLines[0] || '', MARGIN + 140, barY + 16)
-  if (summaryLines[1]) doc.text(summaryLines[1], MARGIN + 140, barY + 28)
+  summaryLines.slice(0, 4).forEach((line, i) => {
+    doc.text(line, MARGIN + 140, barY + 16 + i * lineH)
+  })
   return barY + barH + 8
 }
 
@@ -355,16 +571,15 @@ function drawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profile
 
   let imgY = titleY + 4
   if (section.layoutHints?.profileImage && profileJpeg && profileIsReal) {
-    drawImageFrame(doc, rightX, imgY, imgColW, 120, profileJpeg, 'PROFILE')
-    imgY += 128
+    imgY = drawImageFrame(doc, rightX, imgY, imgColW, 120, profileJpeg, 'PROFILE')
   }
 
   const pairH = section.layoutHints?.stackedImages ? 180 : 100
   const vertical = section.layoutHints?.stackedImages
-  drawBeforeAfterPair(doc, rightX, imgY, imgColW, beforeJpeg, null, pairH, !vertical)
+  imgY = drawBeforeAfterPair(doc, rightX, imgY, imgColW, beforeJpeg, null, pairH, !vertical)
 
   const summaryTitle = `${section.title.replace(' Recommendations', '')} Summary`
-  drawSummaryBar(doc, PAGE_H - 80, summaryTitle, section.summary)
+  drawSummaryBar(doc, Math.max(textY, imgY) + SECTION_GAP, summaryTitle, section.summary)
 }
 
 function drawRadarChart(doc, cx, cy, rMax, items) {
@@ -471,15 +686,33 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
   doc.text('Client Values', cx + 22, legendY)
 }
 
-function drawNorwoodPanel(doc, y, activeStage = 1) {
+async function loadImageAsDataUrl(url) {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Failed to load ${url}`)
+  const blob = await res.blob()
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+/** Norwood stages 1–7 (no 3-vertex). Head-only crops from public/norwood-stages/. */
+async function loadNorwoodStageImages() {
+  return Promise.all(
+    [1, 2, 3, 4, 5, 6, 7].map((n) => loadImageAsDataUrl(`/norwood-stages/stage-${n}.png`)),
+  )
+}
+
+function drawNorwoodPanel(doc, y, activeStage = 1, stageImages = []) {
   const stageIdx = Math.max(0, Math.min(6, (activeStage || 1) - 1))
-  const panelH = 90
+  const panelH = 108
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.setDrawColor(236, 236, 236)
   doc.setLineWidth(0.75)
   doc.roundedRect(MARGIN, y, CONTENT_W, panelH, 6, 6, 'FD')
 
-  // Labels
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   setMuted(doc)
@@ -487,135 +720,75 @@ function drawNorwoodPanel(doc, y, activeStage = 1) {
   doc.text('Need Attention', MARGIN + CONTENT_W / 2, y + 14, { align: 'center' })
   doc.text('Extreme', MARGIN + CONTENT_W - 28, y + 14, { align: 'right' })
 
-  const startX = MARGIN + 36
-  const stepX = (CONTENT_W - 72) / 6
-  const cy = y + 54
+  const iconSize = 56
+  const startX = MARGIN + 40
+  const stepX = (CONTENT_W - 80) / 6
+  const cy = y + 62
 
   for (let i = 0; i < 7; i++) {
     const cx = startX + i * stepX
+    const img = stageImages[i]
+    if (img) {
+      doc.addImage(
+        img,
+        'PNG',
+        cx - iconSize / 2,
+        cy - iconSize / 2,
+        iconSize,
+        iconSize,
+        undefined,
+        IMG_QUALITY,
+      )
+    }
 
-    // 1. Draw head circle
-    doc.setDrawColor(220, 224, 230)
-    doc.setLineWidth(0.5)
-    doc.circle(cx, cy, 18, 'S')
-
-    // 2. Draw face features
-    doc.setFillColor(180, 185, 195)
-    doc.circle(cx - 5, cy + 4, 1, 'F')
-    doc.circle(cx + 5, cy + 4, 1, 'F')
-    doc.setDrawColor(180, 185, 195)
-    doc.line(cx, cy + 3, cx, cy + 6)
-    doc.line(cx - 3, cy + 10, cx + 3, cy + 10)
-
-    // 3. Highlight active Norwood stage
     if (i === stageIdx) {
       doc.setDrawColor(BRAND.r, BRAND.g, BRAND.b)
       doc.setLineWidth(1.5)
-      doc.roundedRect(cx - 24, cy - 24, 48, 48, 4, 4, 'S')
-    }
-
-    doc.setDrawColor(80, 85, 95)
-    doc.setLineWidth(0.75)
-
-    if (i === 0) {
-      // Stage 1
-      doc.line(cx - 16, cy - 6, cx - 12, cy - 12)
-      doc.line(cx - 12, cy - 12, cx, cy - 14)
-      doc.line(cx, cy - 14, cx + 12, cy - 12)
-      doc.line(cx + 12, cy - 12, cx + 16, cy - 6)
-    } else if (i === 1) {
-      // Stage 2
-      doc.line(cx - 16, cy - 6, cx - 11, cy - 9)
-      doc.line(cx - 11, cy - 9, cx - 7, cy - 12)
-      doc.line(cx - 7, cy - 12, cx, cy - 11)
-      doc.line(cx, cy - 11, cx + 7, cy - 12)
-      doc.line(cx + 7, cy - 12, cx + 11, cy - 9)
-      doc.line(cx + 11, cy - 9, cx + 16, cy - 6)
-    } else if (i === 2) {
-      // Stage 3
-      doc.line(cx - 16, cy - 6, cx - 10, cy - 6)
-      doc.line(cx - 10, cy - 6, cx - 6, cy - 10)
-      doc.line(cx - 6, cy - 10, cx, cy - 8)
-      doc.line(cx, cy - 8, cx + 6, cy - 10)
-      doc.line(cx + 6, cy - 10, cx + 10, cy - 6)
-      doc.line(cx + 10, cy - 6, cx + 16, cy - 6)
-    } else if (i === 3) {
-      // Stage 4
-      doc.line(cx - 16, cy - 6, cx - 9, cy - 4)
-      doc.line(cx - 9, cy - 4, cx - 5, cy - 8)
-      doc.line(cx - 5, cy - 8, cx, cy - 6)
-      doc.line(cx, cy - 6, cx + 5, cy - 8)
-      doc.line(cx + 5, cy - 8, cx + 9, cy - 4)
-      doc.line(cx + 9, cy - 4, cx + 16, cy - 6)
-      doc.circle(cx, cy - 14, 2, 'S')
-    } else if (i === 4) {
-      // Stage 5
-      doc.line(cx - 16, cy - 6, cx - 8, cy - 2)
-      doc.line(cx - 8, cy - 2, cx - 4, cy - 6)
-      doc.line(cx - 4, cy - 6, cx, cy - 4)
-      doc.line(cx, cy - 4, cx + 4, cy - 6)
-      doc.line(cx + 4, cy - 6, cx + 8, cy - 2)
-      doc.line(cx + 8, cy - 2, cx + 16, cy - 6)
-      doc.circle(cx, cy - 13, 4, 'S')
-    } else if (i === 5) {
-      // Stage 6
-      doc.line(cx - 16, cy - 6, cx - 8, cy + 2)
-      doc.line(cx - 8, cy + 2, cx - 4, cy - 2)
-      doc.line(cx - 4, cy - 2, cx + 4, cy - 2)
-      doc.line(cx + 4, cy - 2, cx + 8, cy + 2)
-      doc.line(cx + 8, cy + 2, cx + 16, cy - 6)
-    } else {
-      // Stage 7
-      doc.line(cx - 16, cy - 4, cx - 12, cy + 4)
-      doc.line(cx + 12, cy + 4, cx + 16, cy - 4)
+      doc.roundedRect(cx - iconSize / 2 - 4, cy - iconSize / 2 - 4, iconSize + 8, iconSize + 8, 4, 4, 'S')
     }
   }
+  return y + panelH + SECTION_GAP
 }
 
-function drawHairFeaturePage(doc, section, pageNum, beforeJpeg) {
+function drawHairFeaturePage(doc, section, pageNum, beforeJpeg, norwoodImages = []) {
   drawHeader(doc, pageNum)
-  drawSplitTitle(doc, MARGIN, 85, 'Hair', 'Recommendations', 26)
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Hair', 'Recommendations', 26) + 4
 
   const subs = section.subsections || []
   const rightX = MARGIN + COL_W + COL_GAP
   const frameH = 80
   const norwoodStage = section.layoutHints?.norwoodStage ?? section.norwoodStage ?? 1
 
-  if (subs[0]) wrapSubsectionText(doc, subs[0], MARGIN, 150, COL_W)
-  drawImageFrame(doc, rightX, 150, COL_W, frameH, beforeJpeg, 'BEFORE')
-  drawImageFrame(doc, rightX, 150 + frameH + 8, COL_W, frameH, null, 'AFTER')
+  let leftY = y
+  let rightY = y
+  if (subs[0]) leftY = wrapSubsectionText(doc, subs[0], MARGIN, leftY, COL_W)
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, beforeJpeg, 'BEFORE')
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, null, 'AFTER')
+  y = Math.max(leftY, rightY) + SECTION_GAP
 
   if (subs[1]) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     setInk(doc)
-    doc.text('Hair Loss', MARGIN, 345)
+    doc.text('Hair Loss', MARGIN, y)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     const body = subs[1].body || ''
     const mid = Math.floor(body.length / 2)
     const splitAt = body.indexOf('. ', mid)
     const splitIdx = splitAt > 0 ? splitAt + 1 : mid
-    wrapText(doc, body.slice(0, splitIdx).trim(), MARGIN, 362, COL_W, 11.5)
-    wrapText(doc, body.slice(splitIdx).trim(), rightX, 362, COL_W, 11.5)
+    const textTop = y + 18
+    leftY = wrapText(doc, body.slice(0, splitIdx).trim(), MARGIN, textTop, COL_W, 11.5)
+    rightY = wrapText(doc, body.slice(splitIdx).trim(), rightX, textTop, COL_W, 11.5)
+    y = Math.max(leftY, rightY) + SECTION_GAP
   }
 
-  drawNorwoodPanel(doc, 460, norwoodStage)
+  y = drawNorwoodPanel(doc, y, norwoodStage, norwoodImages)
 
-  if (subs[2]) wrapSubsectionText(doc, subs[2], MARGIN, 570, COL_W)
-
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(rightX, 570, COL_W, 110, 6, 6, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Hair Summary', rightX + 12, 586)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary || '', COL_W - 24)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, rightX + 12, 600 + i * 11.5)
-  })
+  leftY = y
+  rightY = y
+  if (subs[2]) leftY = wrapSubsectionText(doc, subs[2], MARGIN, leftY, COL_W)
+  drawSummaryCard(doc, rightX, rightY, COL_W, 'Hair Summary', section.summary)
 }
 
 function drawEyesFeaturePage(doc, section, pageNum) {
@@ -623,111 +796,43 @@ function drawEyesFeaturePage(doc, section, pageNum) {
   const pairBefore = slots.pairBefore || slots.brows || section.beforeJpeg
   const eyesPreview = slots.preview || slots.eyes || section.beforeJpeg
   const subs = section.subsections || []
+  const rightX = MARGIN + COL_W + COL_GAP
 
   drawHeader(doc, pageNum)
-  drawSplitTitle(doc, MARGIN, 85, 'Eye', 'Recommendations', 26)
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Eye', 'Recommendations', 26) + 4
 
-  if (subs[0]) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    setInk(doc)
-    doc.text('Eyebrows', MARGIN, 150)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    wrapText(doc, subs[0].body, MARGIN, 168, COL_W, 11.5)
-  }
+  let leftY = y
+  let rightY = y
+  if (subs[0]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Eyebrows', subs[0].body, COL_W)
+  if (subs[1]) rightY = drawLabeledBody(doc, rightX, rightY, 'Eyelashes', subs[1].body, COL_W)
+  y = Math.max(leftY, rightY) + SECTION_GAP
 
-  const rightX = MARGIN + COL_W + COL_GAP
-  if (subs[1]) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    setInk(doc)
-    doc.text('Eyelashes', rightX, 150)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    wrapText(doc, subs[1].body, rightX, 168, COL_W, 11.5)
-  }
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 100, true)
 
-  drawBeforeAfterPair(doc, MARGIN, 270, CONTENT_W, pairBefore, null, 100, true)
+  leftY = y
+  rightY = y
+  if (subs[2]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Eyes', subs[2].body, COL_W)
+  if (subs[3]) rightY = drawLabeledBody(doc, rightX, rightY, 'Under eye', subs[3].body, COL_W)
+  y = Math.max(leftY, rightY) + SECTION_GAP
 
-  if (subs[2]) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    setInk(doc)
-    doc.text('Eyes', MARGIN, 395)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    wrapText(doc, subs[2].body, MARGIN, 413, COL_W, 11.5)
-  }
-
-  if (subs[3]) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    setInk(doc)
-    doc.text('Under eye', rightX, 395)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    wrapText(doc, subs[3].body, rightX, 413, COL_W, 11.5)
-  }
-
-  drawImageFrame(doc, MARGIN, 520, COL_W, 100, eyesPreview, 'EYES', { cover: true })
-
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(rightX, 520, COL_W, 100, 6, 6, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Eye Region Summary', rightX + 12, 536)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary || '', COL_W - 24)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, rightX + 12, 552 + i * 11.5)
-  })
+  drawImageFrame(doc, MARGIN, y, COL_W, 100, eyesPreview, 'EYES', { cover: true })
+  drawSummaryCard(doc, rightX, y, COL_W, 'Eye Region Summary', section.summary, { minH: 100 })
 }
 
 function drawNoseFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal) {
   drawHeader(doc, pageNum)
-  
-  // Title
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Nose', 'Recommendations', 26)
-
-  // Left Column
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Nose', MARGIN, 150)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[0].body, MARGIN, 168, COL_W, 11.5)
-
-  // Right Column Vertical Stack
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Nose', 'Recommendations', 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
-  
-  // Profile photo (real side profile only)
-  if (profileJpeg && profileIsReal) {
-    drawImageFrame(doc, rightX, 150, COL_W, 160, profileJpeg, 'PROFILE')
-  }
-  // Front crop for before/after reference
-  drawBeforeAfterPair(doc, rightX, profileJpeg && profileIsReal ? 318 : 150, COL_W, beforeJpeg, null, 80, true)
+  const subs = section.subsections || []
 
-  // Nose summary card
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(rightX, 414, COL_W, 110, 6, 6, 'F')
-  
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Nose Summary', rightX + 12, 430)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary, COL_W - 24)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, rightX + 12, 446 + i * 11.5)
-  })
+  drawLabeledBody(doc, MARGIN, y, 'Nose', subs[0]?.body, COL_W)
+  let rightY = y
+
+  if (profileJpeg && profileIsReal) {
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, 160, profileJpeg, 'PROFILE')
+  }
+  rightY = drawBeforeAfterPair(doc, rightX, rightY, COL_W, beforeJpeg, null, 120, true)
+  drawSummaryCard(doc, rightX, rightY, COL_W, 'Nose Summary', section.summary)
 }
 
 function drawCheeksFeaturePage(doc, section, pageNum) {
@@ -735,93 +840,50 @@ function drawCheeksFeaturePage(doc, section, pageNum) {
   const analysisSrc = slots.analysis || section.beforeJpeg
   const pairBefore = slots.pairBefore || analysisSrc
   const overlayPoints = slots.overlayPoints || []
+  const rightX = MARGIN + COL_W + COL_GAP
+  const subs = section.subsections || []
 
   drawHeader(doc, pageNum)
-  drawSplitTitle(doc, MARGIN, 85, 'Cheek', 'Recommendations', 26)
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Cheek', 'Recommendations', 26) + 4
 
-  const subs = section.subsections || []
-  if (subs[0]) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    setInk(doc)
-    doc.text('Cheek Structure', MARGIN, 150)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    wrapText(doc, subs[0].body, MARGIN, 168, COL_W, 11.5)
-  }
+  let leftY = y
+  let rightY = y
+  if (subs[0]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Cheek Structure', subs[0].body, COL_W)
 
-  const rightX = MARGIN + COL_W + COL_GAP
-  const analysisY = 150
   const analysisH = 170
-  drawImageFrame(doc, rightX, analysisY, COL_W, analysisH, analysisSrc, 'ANALYSIS', { cover: true })
-  drawCheekMeasurementOverlay(doc, rightX, analysisY, COL_W, analysisH, overlayPoints)
+  drawImageFrame(doc, rightX, rightY, COL_W, analysisH, analysisSrc, 'ANALYSIS', { cover: true, gap: 0 })
+  drawCheekMeasurementOverlay(doc, rightX, rightY, COL_W, analysisH, overlayPoints)
+  rightY += analysisH + 10
+  y = Math.max(leftY, rightY) + SECTION_GAP
 
-  drawBeforeAfterPair(doc, MARGIN, 340, CONTENT_W, pairBefore, null, 150, true)
-
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(MARGIN, 520, CONTENT_W, 60, 6, 6, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Cheek Region Summary', MARGIN + 12, 555)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary || '', COL_W + 10)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, rightX - 10, 545 + i * 11.5)
-  })
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 150, true)
+  drawSummaryBar(doc, y, 'Cheek Region Summary', section.summary)
 }
 
 function drawJawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal) {
   drawHeader(doc, pageNum)
-  
-  // Title
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Jaw', 'Recommendations', 26)
-
-  // Top Section: Jaw Structure Text + Profile Image on right
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Jaw Structure', MARGIN, 150)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[0].body, MARGIN, 168, COL_W, 11.5)
-
-  // Right column Profile Image
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Jaw', 'Recommendations', 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
-  drawImageFrame(doc, rightX, 150, COL_W, 160, profileJpeg && profileIsReal ? profileJpeg : beforeJpeg, 'PROFILE')
+  const subs = section.subsections || []
 
-  // Middle Section: Before / After jaw close-ups
-  drawBeforeAfterPair(doc, MARGIN, 330, CONTENT_W, beforeJpeg, null, 90, true)
+  let leftY = drawLabeledBody(doc, MARGIN, y, 'Jaw Structure', subs[0]?.body, COL_W)
+  let rightY = drawImageFrame(
+    doc,
+    rightX,
+    y,
+    COL_W,
+    160,
+    profileJpeg && profileIsReal ? profileJpeg : beforeJpeg,
+    'PROFILE',
+  )
+  y = Math.max(leftY, rightY) + SECTION_GAP
 
-  // Bottom Section: Further Enhancement on left, Summary Card on right
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Further Enhancement', MARGIN, 445)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[1].body, MARGIN, 463, COL_W, 11.5)
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, null, 140, true)
 
-  // Jaw summary card
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(rightX, 445, COL_W, 135, 6, 6, 'F')
-  
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Jaw Region Summary', rightX + 12, 461)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary, COL_W - 24)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, rightX + 12, 477 + i * 11.5)
-  })
+  leftY = y
+  rightY = y
+  if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Further Enhancement', subs[1].body, COL_W)
+  drawSummaryCard(doc, rightX, rightY, COL_W, 'Jaw Region Summary', section.summary, { minH: 110 })
 }
 
 function drawLipsFeaturePage(doc, section, pageNum) {
@@ -829,264 +891,114 @@ function drawLipsFeaturePage(doc, section, pageNum) {
   const previewSrc = slots.preview || section.beforeJpeg
   const pairBefore = slots.pairBefore || section.beforeJpeg
   const subs = section.subsections || []
+  const rightX = MARGIN + COL_W + COL_GAP
 
   drawHeader(doc, pageNum)
-  drawSplitTitle(doc, MARGIN, 85, 'Lip', 'Recommendations', 26)
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Lip', 'Recommendations', 26) + 4
 
-  if (subs[0]) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    setInk(doc)
-    doc.text('Lip', MARGIN, 150)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    wrapText(doc, subs[0].body, MARGIN, 168, COL_W, 11.5)
-  }
+  let leftY = y
+  let rightY = y
+  if (subs[0]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Lip', subs[0].body, COL_W)
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 120, previewSrc, 'LIPS', { cover: true })
+  y = Math.max(leftY, rightY) + SECTION_GAP
 
-  const rightX = MARGIN + COL_W + COL_GAP
-  drawImageFrame(doc, rightX, 150, COL_W, 120, previewSrc, 'LIPS', { cover: true })
-
-  drawBeforeAfterPair(doc, MARGIN, 295, CONTENT_W, pairBefore, null, 150, true)
-
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(MARGIN, 475, CONTENT_W, 60, 6, 6, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Lips Summary', MARGIN + 12, 510)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary || '', COL_W + 10)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, rightX - 10, 500 + i * 11.5)
-  })
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 150, true)
+  drawSummaryBar(doc, y, 'Lips Summary', section.summary)
 }
 
 function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal) {
   drawHeader(doc, pageNum)
-  
-  // Title
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Chin', 'Recommendations', 26)
-
-  // Top Section: Chin Structure Text + stacked profile visuals with overlays on right
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Chin', MARGIN, 150)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[0].body, MARGIN, 168, COL_W, 11.5)
-
-  // Right column stacked profile images with vector guidelines
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Chin', 'Recommendations', 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
-  
-  // Top profile image + overlay 1
-  drawImageFrame(doc, rightX, 150, COL_W, 100, profileJpeg && profileIsReal ? profileJpeg : beforeJpeg, null)
-  doc.setDrawColor(255, 255, 255)
-  doc.setLineWidth(1)
-  for (let i = 0; i < 4; i++) {
-    doc.line(rightX + 60, 150 + 30 + i * 18, rightX + COL_W - 20, 150 + 30 + i * 18)
+  const subs = section.subsections || []
+  // Stacked analysis frames: right profile only (never fall back to frontal before).
+  const profileSrc = profileJpeg && profileIsReal ? profileJpeg : null
+
+  let leftY = drawLabeledBody(doc, MARGIN, y, 'Chin', subs[0]?.body, COL_W)
+  let rightY = y
+
+  if (profileSrc) {
+    const topFrameY = rightY
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, 100, profileSrc, null)
+    doc.setDrawColor(255, 255, 255)
+    doc.setLineWidth(1)
+    for (let i = 0; i < 4; i++) {
+      doc.line(rightX + 60, topFrameY + 30 + i * 18, rightX + COL_W - 20, topFrameY + 30 + i * 18)
+    }
+    doc.line(rightX + COL_W - 20, topFrameY + 30, rightX + COL_W - 20, topFrameY + 30 + 3 * 18)
+
+    const botFrameY = rightY
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, 100, profileSrc, null)
+    doc.setDrawColor(255, 255, 255)
+    doc.setLineWidth(1)
+    doc.line(rightX + 110, botFrameY + 20, rightX + 150, botFrameY + 80)
+    doc.line(rightX + 150, botFrameY + 80, rightX + 130, botFrameY + 95)
+    doc.line(rightX + 130, botFrameY + 40, rightX + 130, botFrameY + 95)
   }
-  doc.line(rightX + COL_W - 20, 150 + 30, rightX + COL_W - 20, 150 + 30 + 3 * 18)
 
-  // Bottom profile image + overlay 2
-  drawImageFrame(doc, rightX, 258, COL_W, 100, profileJpeg && profileIsReal ? profileJpeg : beforeJpeg, null)
-  doc.setDrawColor(255, 255, 255)
-  doc.setLineWidth(1)
-  doc.line(rightX + 110, 258 + 20, rightX + 150, 258 + 80)
-  doc.line(rightX + 150, 258 + 80, rightX + 130, 258 + 95)
-  doc.line(rightX + 130, 258 + 40, rightX + 130, 258 + 95)
-
-  // Middle Section: Before / After chin crops
-  drawBeforeAfterPair(doc, MARGIN, 385, CONTENT_W, beforeJpeg, null, 120, true)
-
-  // Bottom Section: Summary Bar (full width)
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(MARGIN, 535, CONTENT_W, 60, 6, 6, 'F')
-  
-  // Left heading
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Chin Summary', MARGIN + 12, 570)
-  
-  // Right text
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary, COL_W + 10)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, rightX - 10, 560 + i * 11.5)
-  })
+  y = Math.max(leftY, rightY) + SECTION_GAP
+  // BEFORE stays frontal mouth/chin crop.
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, null, 120, true)
+  drawSummaryBar(doc, y, 'Chin Summary', section.summary)
 }
 
-function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg) {
+function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null) {
   drawHeader(doc, pageNum)
-  
-  // Title
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Skin', 'Recommendations', 26)
-
-  // Top Section: Left large split diagnostic image, right explanatory text
-  // 1. Split Image on Left
-  drawImageFrame(doc, MARGIN, 150, COL_W, 240, beforeJpeg, null)
-  doc.setDrawColor(255, 255, 255)
-  doc.setLineWidth(1)
-  doc.setLineDashPattern([3, 3], 0)
-  doc.line(MARGIN + COL_W / 2, 150, MARGIN + COL_W / 2, 150 + 240)
-  doc.setLineDashPattern([], 0) // reset
-
-  // 2. Explanatory text on Right
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Skin', 'Recommendations', 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
-  const introText = "The condition of your facial skin is a key part of your overall appearance and one of the main signals of youth. To improve how your skin looks and support its health, we recommend the following steps:"
+  const subs = section.subsections || []
+
+  const diagH = 240
+  const diagY = y
+  let leftY = drawSplitComparisonFrame(doc, MARGIN, diagY, COL_W, diagH, beforeJpeg, afterJpeg, { gap: 10 })
+
+  const introText =
+    'The condition of the subject\'s facial skin is a key part of overall appearance and one of the main signals of youth. To improve how the skin looks and support its health, the following steps are recommended:'
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
-  let textY = wrapText(doc, introText, rightX, 150, COL_W, 11.5) + 12
+  let rightY = wrapText(doc, introText, rightX, y, COL_W, 11.5) + 12
+  rightY = drawLabeledBody(doc, rightX, rightY, 'Skincare Protocol', subs[0]?.body, COL_W)
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Skincare Protocol', rightX, textY)
-  textY += 18
+  y = Math.max(leftY, rightY) + SECTION_GAP
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  textY = wrapText(doc, section.subsections[0].body, rightX, textY, COL_W, 11.5)
-
-  // Bottom Section: Left has small crops and enhancement text, right has summary card
-  // 1. Before / After skin crops on Left
-  drawBeforeAfterPair(doc, MARGIN, 405, COL_W, beforeJpeg, null, 90, true)
-
-  // 2. Further Skin Enhancement text below crops
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Further Skin Enhancement', MARGIN, 515)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[1].body, MARGIN, 533, COL_W, 11.5)
-
-  // 3. Skin Summary Card on Right
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(rightX, 515, COL_W, 135, 6, 6, 'F')
-  
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Skin Summary', rightX + 12, 531)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary, COL_W - 24)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, rightX + 12, 547 + i * 11.5)
-  })
+  leftY = drawBeforeAfterPair(doc, MARGIN, y, COL_W, beforeJpeg, afterJpeg, 90, true)
+  if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Further Skin Enhancement', subs[1].body, COL_W)
+  drawSummaryCard(doc, rightX, y, COL_W, 'Skin Summary', section.summary, { minH: 110 })
 }
 
 function drawNeckFeaturePage(doc, section, pageNum, beforeJpeg) {
   drawHeader(doc, pageNum)
-  
-  // Title
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Neck', 'Recommendations', 26)
-
-  // Left column: Neck Size and Neck Skin
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Neck Size', MARGIN, 150)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  let textY = wrapText(doc, section.subsections[0].body, MARGIN, 168, COL_W, 11.5) + 16
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Neck Skin', MARGIN, textY)
-  textY += 18
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[1].body, MARGIN, textY, COL_W, 11.5)
-
-  // Left column Bottom: Summary card
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(MARGIN, 510, COL_W, 110, 6, 6, 'F')
-  
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Neck Summary', MARGIN + 12, 526)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary, COL_W - 24)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, MARGIN + 12, 542 + i * 11.5)
-  })
-
-  // Right column: Stacked neck images
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Neck', 'Recommendations', 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
-  drawImageFrame(doc, rightX, 150, COL_W, 230, beforeJpeg, 'BEFORE')
-  drawImageFrame(doc, rightX, 390, COL_W, 230, null, 'AFTER')
+  const subs = section.subsections || []
+
+  let leftY = drawLabeledBody(doc, MARGIN, y, 'Neck Size', subs[0]?.body, COL_W) + 16
+  if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Neck Skin', subs[1].body, COL_W)
+
+  let rightY = drawImageFrame(doc, rightX, y, COL_W, 230, beforeJpeg, 'BEFORE', { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 230, null, 'AFTER', { cover: true })
+
+  const summaryY = Math.max(leftY, rightY) + SECTION_GAP
+  // Prefer summary under left column when space allows; otherwise after both columns
+  const cardY = leftY + SECTION_GAP <= PAGE_BOTTOM - 80 ? leftY + SECTION_GAP : summaryY
+  drawSummaryCard(doc, MARGIN, cardY, COL_W, 'Neck Summary', section.summary)
 }
 
 function drawEarsFeaturePage(doc, section, pageNum, beforeJpeg) {
   drawHeader(doc, pageNum)
-  
-  // Title
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Ear', 'Recommendations', 26)
-
-  // Left column: Ear Structure text & Ear Summary card
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  setInk(doc)
-  doc.text('Ear Structure', MARGIN, 150)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, section.subsections[0].body, MARGIN, 168, COL_W, 11.5)
-
-  // Left column Bottom: Summary card
-  doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
-  doc.roundedRect(MARGIN, 510, COL_W, 110, 6, 6, 'F')
-  
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setWhite(doc)
-  doc.text('Ear Summary', MARGIN + 12, 526)
-  
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(section.summary, COL_W - 24)
-  summaryLines.forEach((line, i) => {
-    doc.text(line, MARGIN + 12, 542 + i * 11.5)
-  })
-
-  // Right column stacked ear photos with overlays
+  let y = drawSplitTitle(doc, MARGIN, 85, 'Ear', 'Recommendations', 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
-  
-  // Top: antihelix guide line overlay
-  drawImageFrame(doc, rightX, 150, COL_W, 160, beforeJpeg, null)
-  doc.setDrawColor(255, 255, 255)
-  doc.setLineWidth(1)
-  doc.line(rightX + COL_W - 40, 150 + 40, rightX + COL_W - 60, 150 + 130)
-  doc.line(rightX + COL_W - 20, 150 + 40, rightX + COL_W - 40, 150 + 130)
+  const subs = section.subsections || []
 
-  // Bottom: ear height guide bounding boxes
-  drawImageFrame(doc, rightX, 320, COL_W, 160, beforeJpeg, null)
-  doc.setDrawColor(255, 255, 255)
-  doc.setLineWidth(1)
-  doc.line(rightX + 50, 320 + 40, rightX + 50, 320 + 120)
-  doc.line(rightX + 40, 320 + 40, rightX + 80, 320 + 40)
-  doc.line(rightX + 40, 320 + 120, rightX + 80, 320 + 120)
+  let leftY = drawLabeledBody(doc, MARGIN, y, 'Ear Structure', subs[0]?.body, COL_W)
+
+  // Front-facing ear crop only — no measurement overlays for now
+  let rightY = drawImageFrame(doc, rightX, y, COL_W, 200, beforeJpeg, 'BEFORE', { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 200, null, 'AFTER', { cover: true })
+
+  const cardY = leftY + SECTION_GAP <= PAGE_BOTTOM - 80 ? leftY + SECTION_GAP : Math.max(leftY, rightY) + SECTION_GAP
+  drawSummaryCard(doc, MARGIN, cardY, COL_W, 'Ear Summary', section.summary)
 }
 
 /**
@@ -1107,7 +1019,10 @@ export async function downloadMyFacePdf({
   if (!photo || !cvReport) throw new Error('Photo and analysis data required for PDF export')
 
   const photoJpeg = await normalizeToJpegDataUrl(photo)
-  const featurePages = buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative)
+  const [featurePages, norwoodImages] = await Promise.all([
+    Promise.resolve(buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative)),
+    loadNorwoodStageImages().catch(() => []),
+  ])
 
   const featureImages = await resolveAllFeatureImages({
     featurePages,
@@ -1127,6 +1042,18 @@ export async function downloadMyFacePdf({
     afterJpeg: null,
   }))
 
+  // Warm HTMLImages so cover frames can canvas-crop (no jsPDF clip).
+  coverCropSession = createCoverCropSession()
+  const warmUrls = [photoJpeg]
+  for (const page of sectionPairs) {
+    warmUrls.push(page.beforeJpeg, page.profileJpeg, page.afterJpeg)
+    const slots = page.imageSlots || {}
+    for (const v of Object.values(slots)) {
+      if (typeof v === 'string') warmUrls.push(v)
+    }
+  }
+  await coverCropSession.warm(warmUrls)
+
   const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
   let pageNum = 1
   let y = 0
@@ -1143,6 +1070,7 @@ export async function downloadMyFacePdf({
   const contents = buildProtocolContents(clientName)
   const chartItems = getFeatureComparisonData(cvReport)
 
+  try {
   // ── Page 1: Cover — simple dark background, no photo ──
   doc.setFillColor(INK.r, INK.g, INK.b)
   doc.rect(0, 0, PAGE_W, PAGE_H, 'F')
@@ -1338,7 +1266,7 @@ export async function downloadMyFacePdf({
   doc.setFontSize(8.5)
   
   const contentsList = [
-    { label: 'Understanding Your Results', page: 4 },
+    { label: 'Understanding the Results', page: 4 },
     { label: `${clientName}'s Protocol`, page: 5 },
     { label: 'Hair', page: 6 },
     { label: 'Eyebrows', page: 7 },
@@ -1364,10 +1292,10 @@ export async function downloadMyFacePdf({
 
   pageNum++
 
-  // ── Page 4: Understanding Your Results ──
+  // ── Page 4: Understanding the Results ──
   doc.addPage()
   drawHeader(doc, 4)
-  y = drawSplitTitle(doc, MARGIN, 85, 'Understanding', 'Your Results', 26)
+  y = drawSplitTitle(doc, MARGIN, 85, 'Understanding', 'the Results', 26)
 
   // Horizontal divider below the title
   doc.setDrawColor(236, 236, 236)
@@ -1377,15 +1305,15 @@ export async function downloadMyFacePdf({
   const UNDERSTANDING_RESULTS_RICH = [
     {
       bold: 'These recommendations focus on key markers of facial health and harmony.',
-      normal: 'The goal is not to change what makes you uniquely you, but to understand what works best with your existing features. By refining what is already there, you can improve overall facial harmony and build a strong foundation for any future aesthetic goals.',
+      normal: 'The goal is not to change what makes the subject unique, but to understand what works best with the subject\'s existing features. By refining what is already there, overall facial harmony can improve and form a strong foundation for any future aesthetic goals.',
     },
     {
       bold: 'MyFace does not rate attractiveness.',
-      normal: 'Your assessment is designed to highlight what works best for your features. The analysis is objective by design. Rather than measuring against a single standard, it identifies what is already working well and where there is room to build, because everyone\'s features present a different set of opportunities.',
+      normal: 'The assessment is designed to highlight what works best for the subject\'s features. The analysis is objective by design. Rather than measuring against a single standard, it identifies what is already working well and where there is room to build, because everyone\'s features present a different set of opportunities.',
     },
     {
-      bold: 'You will see a mix of foundational and more advanced recommendations.',
-      normal: 'Some may feel simple or general, and you may already be following some of the recommendations. While some recommendations, like "SPF", may seem obvious, we believe the fundamentals matter most, as they support the effectiveness of any more targeted recommendations.',
+      bold: 'The protocol includes a mix of foundational and more advanced recommendations.',
+      normal: 'Some may feel simple or general, and the subject may already follow some of them. While some recommendations, like "SPF", may seem obvious, the fundamentals matter most, as they support the effectiveness of any more targeted recommendations.',
     },
     {
       bold: 'All recommendations are provided for informational purposes and reflect aesthetic considerations only.',
@@ -1405,14 +1333,14 @@ export async function downloadMyFacePdf({
     const textW = CONTENT_W - 48
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
+    doc.setFontSize(10)
     setInk(doc)
     const boldLines = doc.splitTextToSize(item.bold, textW)
     boldLines.forEach((line, i) => {
-      doc.text(line, textX, blockY + 10 + i * 13)
+      doc.text(line, textX, blockY + 10 + i * 14)
     })
     
-    let textY = blockY + 10 + boldLines.length * 13 + 4
+    let textY = blockY + 10 + boldLines.length * 14 + 4
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
@@ -1436,14 +1364,14 @@ export async function downloadMyFacePdf({
   drawImageFrame(doc, rightX, 150, COL_W, 240, null, 'AFTER')
 
   // Description text below BEFORE image
-  const beforeText = "To help you achieve your aesthetic potential, we have developed this detailed and comprehensive science-based protocol. By following this evidence-based protocol, you can reach your full aesthetic potential."
+  const beforeText = "To help the subject achieve aesthetic potential, this detailed science-based protocol has been developed. Following this evidence-based protocol supports progress toward the subject's full aesthetic potential."
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
   wrapText(doc, beforeText, MARGIN, 405, COL_W, 11.5)
 
   // Description text below AFTER image
-  const afterText = "Our analysis is designed to be objective. Instead of comparing you to a universal ideal, it highlights your strengths and areas for improvement, recognizing that each person's features offer unique possibilities."
+  const afterText = "The analysis is designed to be objective. Instead of comparing the subject to a universal ideal, it highlights strengths and areas for improvement, recognizing that each person's features offer unique possibilities."
   wrapText(doc, afterText, rightX, 405, COL_W, 11.5)
 
   // Bottom section: Projected potential (left column) and Radar chart (right column)
@@ -1482,7 +1410,7 @@ export async function downloadMyFacePdf({
   for (const section of sectionPairs) {
     doc.addPage()
     if (section.id === 'hair') {
-      drawHairFeaturePage(doc, section, featurePageNum, section.beforeJpeg)
+      drawHairFeaturePage(doc, section, featurePageNum, section.beforeJpeg, norwoodImages)
     } else if (section.id === 'eyes') {
       drawEyesFeaturePage(doc, section, featurePageNum)
     } else if (section.id === 'nose') {
@@ -1496,7 +1424,7 @@ export async function downloadMyFacePdf({
     } else if (section.id === 'chin') {
       drawChinFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.profileJpeg, section.profileIsReal)
     } else if (section.id === 'skin') {
-      drawSkinFeaturePage(doc, section, featurePageNum, section.beforeJpeg)
+      drawSkinFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.afterJpeg)
     } else if (section.id === 'neck') {
       drawNeckFeaturePage(doc, section, featurePageNum, section.beforeJpeg)
     } else if (section.id === 'ears') {
@@ -1532,4 +1460,7 @@ export async function downloadMyFacePdf({
 
   const safeName = clientName.replace(/[^\w\s-]/g, '').trim() || 'Client'
   doc.save(`MyFace-Protocol-${safeName.replace(/\s+/g, '-')}.pdf`)
+  } finally {
+    coverCropSession = null
+  }
 }

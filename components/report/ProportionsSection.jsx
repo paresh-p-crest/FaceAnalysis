@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { FaceImageFrame, ProportionFeatureOverlay } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
+import { proportionRatioOverlays, mouthCheilions, noseAlae } from '../../utils/faceCrop'
 
 const RATIO_PARTS = {
   nasoAural: { primary: 'Ear', secondary: 'Nose' },
@@ -80,13 +81,59 @@ function RatioBar({ yourValue, idealValue, label1, label2, primaryFeature, secon
   )
 }
 
-export function ProportionsSection({ proportions }) {
+function resolveOverlay(tabId, active, liveOverlays) {
+  // Profile ear overlay must stay on profile landmarks; frontal tabs recompute from MediaPipe.
+  const useLive =
+    liveOverlays &&
+    (tabId !== 'nasoAural' || active?.photoSource === 'front' || !active?.overlay)
+  if (useLive && liveOverlays[tabId]) return liveOverlays[tabId]
+  return active?.overlay || null
+}
+
+function nasoOralLabel(ratio) {
+  if (ratio > 1.05) return 'Mouth > Nose'
+  if (ratio < 0.95) return 'Mouth < Nose'
+  return 'Mouth ≈ Nose'
+}
+
+export function ProportionsSection({ proportions, landmarks = null }) {
   const [activeTab, setActiveTab] = useState('nasoAural')
+
+  const liveOverlays = useMemo(() => {
+    if (!landmarks?.length) return null
+    try {
+      return proportionRatioOverlays(landmarks)
+    } catch {
+      return null
+    }
+  }, [landmarks])
+
+  const liveNasoOral = useMemo(() => {
+    if (!landmarks?.length) return null
+    try {
+      const [alL, alR] = noseAlae(landmarks)
+      const [chL, chR] = mouthCheilions(landmarks)
+      const noseW = Math.abs(alR.x - alL.x)
+      const mouthW = Math.abs(chR.x - chL.x)
+      if (noseW < 1e-6) return null
+      const yourValue = mouthW / noseW
+      return { yourValue, yourLabel: nasoOralLabel(yourValue) }
+    } catch {
+      return null
+    }
+  }, [landmarks])
+
   if (!proportions?.ratios) return null
 
   const ratios = proportions.ratios
   const active = ratios[activeTab]
   const activeImageSrc = active?.imageSrc || proportions.imageSrc
+  const overlay = resolveOverlay(activeTab, active, liveOverlays)
+
+  const displayYourValue =
+    activeTab === 'nasoOral' && liveNasoOral ? liveNasoOral.yourValue : active?.yourValue
+  const displayYourLabel =
+    activeTab === 'nasoOral' && liveNasoOral ? liveNasoOral.yourLabel : active?.yourLabel
 
   return (
     <div className="pr-2 space-y-6">
@@ -132,20 +179,21 @@ export function ProportionsSection({ proportions }) {
           <div className="grid lg:grid-cols-2 gap-8 items-center">
             {activeImageSrc && (
               <FaceImageFrame
+                key={`${activeTab}-${activeImageSrc}`}
                 src={activeImageSrc}
                 alt="Facial proportions"
                 aspect="4/5"
                 maxW="280px"
                 fit="contain"
                 alignOverlay
-                overlay={<ProportionFeatureOverlay overlay={active.overlay} />}
+                overlay={overlay ? <ProportionFeatureOverlay overlay={overlay} /> : null}
               />
             )}
 
             <RatioBar
-              yourValue={active.yourValue}
+              yourValue={displayYourValue}
               idealValue={active.idealValue}
-              label1={active.yourLabel}
+              label1={displayYourLabel}
               label2={active.idealLabel}
               primaryFeature={RATIO_PARTS[activeTab]?.primary}
               secondaryFeature={RATIO_PARTS[activeTab]?.secondary}

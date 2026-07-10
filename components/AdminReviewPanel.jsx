@@ -96,7 +96,7 @@ export default function AdminReviewPanel({ assessment, onClose, onSaved, embedde
     setGenerating(true)
     setError('')
     try {
-      const updated = await generateAssessmentNarrative(assessment.id)
+      const updated = await generateAssessmentNarrative(assessment.id, { force: true })
       const content = updated?.aiNarrative?.content || {}
       applyNarrativeToForm(content, {
         setSummary,

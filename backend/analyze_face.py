@@ -12,7 +12,6 @@ from .profile_cephalometrics import build_profile_report, _naso_aural_explanatio
 from .quarter_analysis import build_quarter_report
 from .smile_analysis import analyze_smile_photo
 from .hair_analysis import analyze_hair_photo
-from .hair_segmentation import analyze_hair_segmentation
 
 
 def _fail_result(error: str, provider: str, cv_engine: str) -> dict:
@@ -48,7 +47,6 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
     cv_report["calibration"] = calibration
     mm_per_unit = calibration.get("mmPerUnit")
 
-    cv_report["profile"] = build_profile_report(views, mm_per_unit)
     cv_report["quarter"] = build_quarter_report(views)
 
     smile_bytes = photos.get("smile")
@@ -57,14 +55,18 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
         cv_report["smile"] = {**cv_report["smile"], **smile_data}
 
     top_bytes = photos.get("topHead")
-    hair_data = analyze_hair_photo(top_bytes, front_lm) if top_bytes else {}
-    if hair_data:
-        seg = analyze_hair_segmentation(top_bytes, photos.get("front"))
-        if seg:
-            hair_data = {**hair_data, **seg}
+    hair_data = (
+        analyze_hair_photo(top_bytes, front_lm, photos.get("front")) if top_bytes else {}
+    )
+    # Only merge measured top-of-head results; never clobber a working first-pass
+    # hair block with an estimated/failed fallback.
+    if hair_data and hair_data.get("dataSource") == "measured":
         cv_report["hair"] = {**cv_report.get("hair", {}), **hair_data}
+    elif hair_data and not cv_report.get("hair"):
+        cv_report["hair"] = hair_data
 
-    # Profile-enriched feature sections
+    # Profile cephalometrics prefer silhouette landmarks at 90° when extractable
+    cv_report["profile"] = build_profile_report(views, mm_per_unit, photos)
     primary = cv_report.get("profile", {}).get("primary")
     if primary:
         meas = primary.get("measurements", {})
@@ -91,18 +93,31 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
                 nasolabial_norm = "95–120°"
             elif gender in ("male", "man", "m"):
                 nasolabial_norm = "90–110°"
+            nf = meas.get("nasofrontalAngleDeg")
+            dh = meas.get("dorsalHumpDeviation")
+            hump_label = (
+                "present" if dh is not None and abs(float(dh)) > 0.008 else "minimal"
+            )
+            base_expl = cv_report["nose"].get("explanation") or ""
+            profile_expl = (
+                f" Profile angles: nasofrontal {nf}°, nasolabial {nasolabial}° "
+                f"(typical {nasolabial_norm}), dorsal hump {hump_label}."
+            )
             cv_report["nose"] = {
                 **cv_report["nose"],
                 "nasolabialAngleDeg": nasolabial,
                 "nasolabialNormalRange": nasolabial_norm,
                 "nasoAuralRatio": meas.get("nasoAuralRatio"),
                 "facialConvexityDeg": meas.get("facialConvexityDeg"),
-                "nasofrontalAngleDeg": meas.get("nasofrontalAngleDeg"),
-                "dorsalHumpDeviation": meas.get("dorsalHumpDeviation"),
+                "nasofrontalAngleDeg": nf,
+                "dorsalHumpDeviation": dh,
+                "dorsalHumpLabel": hump_label,
                 "profileGonialAngleDeg": meas.get("profileGonialAngleDeg"),
                 "chinProjectionMm": meas.get("chinProjectionMm"),
                 "profilePoseId": primary.get("poseId"),
+                "profileLandmarkSource": primary.get("landmarkSource"),
                 "dataSource": "measured",
+                "explanation": (base_expl + profile_expl).strip(),
             }
         if cv_report.get("jaw") and meas.get("profileGonialAngleDeg"):
             cv_report["jaw"] = {

@@ -17,6 +17,7 @@ import {
   PRIVACY_PARAGRAPHS,
   QOVES_PROTOCOL_FEATURES,
   UNDERSTANDING_RESULTS,
+  rewriteToSubjectVoice,
 } from '../../utils/qovesProtocolModel'
 
 const EVIDENCE_TIER_LABELS = {
@@ -57,9 +58,9 @@ function SectionBlock({ title, subtitle, page, children, splitTitle }) {
   )
 }
 
-function ImageFrame({ src, tag, emptyLabel = 'Projected image pending' }) {
+function ImageFrame({ src, tag, emptyLabel = 'Projected image pending', aspectClass = 'aspect-[4/3]' }) {
   return (
-    <div className="relative rounded-xl overflow-hidden bg-surface-warm border border-surface-border aspect-[4/3] flex items-center justify-center">
+    <div className={`relative rounded-xl overflow-hidden bg-surface-warm border border-surface-border ${aspectClass} flex items-center justify-center`}>
       {src ? (
         <img src={src} alt={tag || 'Feature'} className="w-full h-full object-cover" />
       ) : (
@@ -74,19 +75,19 @@ function ImageFrame({ src, tag, emptyLabel = 'Projected image pending' }) {
   )
 }
 
-function BeforeAfterPair({ beforeSrc, stacked = false }) {
+function BeforeAfterPair({ beforeSrc, stacked = false, aspectClass }) {
   if (stacked) {
     return (
       <div className="flex flex-col gap-3 my-4">
-        <ImageFrame src={beforeSrc} tag="BEFORE" />
-        <ImageFrame src={null} tag="AFTER" />
+        <ImageFrame src={beforeSrc} tag="BEFORE" aspectClass={aspectClass} />
+        <ImageFrame src={null} tag="AFTER" aspectClass={aspectClass} />
       </div>
     )
   }
   return (
     <div className="grid grid-cols-2 gap-3 my-4">
-      <ImageFrame src={beforeSrc} tag="BEFORE" />
-      <ImageFrame src={null} tag="AFTER" />
+      <ImageFrame src={beforeSrc} tag="BEFORE" aspectClass={aspectClass} />
+      <ImageFrame src={null} tag="AFTER" aspectClass={aspectClass} />
     </div>
   )
 }
@@ -237,7 +238,7 @@ export default function QovesProtocolReport({
             Written {edition} · Protocol Edition
           </p>
         </div>
-        <p className="text-xs text-white/40">Measurement-guided · MediaPipe + OpenCV</p>
+        <p className="text-xs text-white/40">Measurement-guided aesthetic protocol</p>
       </section>
     ),
     (
@@ -294,7 +295,7 @@ export default function QovesProtocolReport({
     (
       <SectionBlock
         key="understanding"
-        splitTitle={{ primary: 'Understanding', secondary: 'Your Results' }}
+        splitTitle={{ primary: 'Understanding', secondary: 'the Results' }}
         page={4}
       >
         <ol className="space-y-5 mt-4">
@@ -316,9 +317,11 @@ export default function QovesProtocolReport({
         page={5}
       >
         <p className="text-sm text-ink-secondary leading-relaxed font-sans mb-4 mt-2">
-          {protocolNarrative?.summary ||
-            protocolData?.summary ||
-            'This evidence-based protocol is grounded in your measured facial analysis, organised around 11 key features for facial aesthetics.'}
+          {rewriteToSubjectVoice(
+            protocolNarrative?.summary ||
+              protocolData?.summary ||
+              "This evidence-based protocol is grounded in the subject's measured facial analysis, organised around 11 key features for facial aesthetics."
+          )}
         </p>
         <BeforeAfterPair beforeSrc={images.fullBefore} />
         <div className="grid sm:grid-cols-2 gap-6 mt-4">
@@ -343,7 +346,7 @@ export default function QovesProtocolReport({
       key="closing"
       splitTitle={{ primary: 'Closing', secondary: 'Recommendations' }}
       page={16}
-      subtitle="Synthesised protocol guidance · Grounded with your data"
+      subtitle="Synthesised protocol guidance · Grounded with the subject's data"
     >
       <div className="grid sm:grid-cols-2 gap-8 mt-4 relative">
         <div className="hidden sm:block absolute left-1/2 top-0 bottom-0 w-px bg-surface-border" />
@@ -407,7 +410,11 @@ export default function QovesProtocolReport({
                     ))}
                   </div>
                   <div>
-                    <BeforeAfterPair beforeSrc={beforeSrc} stacked={stacked} />
+                    <BeforeAfterPair
+                      beforeSrc={beforeSrc}
+                      stacked={stacked}
+                      aspectClass={page.id === 'neck' ? 'aspect-[3/4]' : undefined}
+                    />
                     {page.id === 'eyes' && slots.preview && (
                       <div className="mt-3">
                         <ImageFrame src={slots.preview} tag="EYES" />
@@ -446,7 +453,11 @@ export default function QovesProtocolReport({
                         <ImageFrame src={slots.analysis || pair.before} tag="ANALYSIS" />
                       </div>
                     ) : null}
-                    <BeforeAfterPair beforeSrc={beforeSrc} stacked={stacked} />
+                    <BeforeAfterPair
+                      beforeSrc={beforeSrc}
+                      stacked={stacked}
+                      aspectClass={page.id === 'neck' ? 'aspect-[3/4]' : undefined}
+                    />
                   </div>
                 </>
               )}

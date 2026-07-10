@@ -14,9 +14,9 @@ export const QOVES_PROTOCOL_FEATURES = [
 ]
 
 export const UNDERSTANDING_RESULTS = [
-  'These recommendations focus on key markers of facial health and harmony. The goal is not to change what makes you uniquely you, but to understand what works best with your existing features.',
-  'MyFace does not rate attractiveness. Your assessment highlights what works best for your features using objective cephalometric measurements rather than a single universal standard.',
-  'You will see a mix of foundational and more advanced recommendations. Fundamentals such as SPF, sleep, and hydration support the effectiveness of more targeted guidance.',
+  'These recommendations focus on key markers of facial health and harmony. The goal is not to change what makes the subject unique, but to understand what works best with the subject\'s existing features.',
+  'MyFace does not rate attractiveness. The assessment highlights what works best for the subject\'s features using objective cephalometric measurements rather than a single universal standard.',
+  'The protocol includes a mix of foundational and more advanced recommendations. Fundamentals such as SPF, sleep, and hydration support the effectiveness of more targeted guidance.',
   'All recommendations are for informational and aesthetic purposes only. Any in-clinic treatment or prescription product should be discussed with a qualified medical professional.',
 ]
 
@@ -28,9 +28,9 @@ export const DISCLAIMER_PARAGRAPHS = [
 ]
 
 export const PRIVACY_PARAGRAPHS = [
-  'Your facial images and questionnaire responses are processed solely to generate this personalised assessment report.',
-  'We do not sell your biometric data. Access is restricted to authorised reviewers for quality assurance before your report is approved.',
-  'You may request deletion of your assessment data by contacting support.',
+  'The subject\'s facial images and questionnaire responses are processed solely to generate this personalised assessment report.',
+  'MyFace does not sell biometric data. Access is restricted to authorised reviewers for quality assurance before the report is approved.',
+  'The subject may request deletion of assessment data by contacting support.',
   'Read the full privacy policy at myface.club.',
 ]
 
@@ -40,7 +40,7 @@ export const INTRODUCTION_PARAGRAPHS = [
 ]
 
 export const LIMITATIONS_PARAGRAPH =
-  'Limitations apply: neutral head position, lighting, camera quality, and the absence of radiographic imaging may influence measurements. This report is not a medical diagnosis. Recommendations throughout should be taken as empirical guidelines grounded in your stored computer-vision measurements.'
+  'Limitations apply: neutral head position, lighting, camera quality, and the absence of radiographic imaging may influence measurements. This report is not a medical diagnosis. Recommendations throughout should be taken as empirical guidelines grounded in the subject\'s facial measurements.'
 
 /** Split on sentence boundaries without breaking decimal numbers (e.g. 0.28). */
 export function splitSentences(text, max = 4) {
@@ -68,7 +68,79 @@ function summaryFromExplanation(explanation, fallback, maxSentences = 2) {
 }
 
 function isGenericGuardrailBody(body) {
-  return typeof body === 'string' && body.includes('evidence-aligned non-surgical care')
+  if (typeof body !== 'string') return false
+  return (
+    body.includes('evidence-aligned non-surgical care')
+    || body.includes('Assessment of the')
+    || body.includes('grounded in measured values')
+  )
+}
+
+function isGenericSummary(summary) {
+  if (typeof summary !== 'string' || !summary.trim()) return true
+  const t = summary.toLowerCase()
+  return (
+    t.includes('non-surgical guidance for')
+    || t.includes('based on stored measurements')
+    || (t.includes('assessment reflects the measured values') && t.length < 160)
+  )
+}
+
+function isGenericClosingParagraph(text) {
+  if (typeof text !== 'string' || !text.trim()) return true
+  const t = text.toLowerCase()
+  if (isGenericSummary(text)) return true
+  // Concatenated template dump
+  if ((t.match(/non-surgical guidance for/g) || []).length >= 2) return true
+  return false
+}
+
+/**
+ * Convert second-person coaching copy to Qoves-style third person
+ * ("the subject" as grammatical subject). Applied to stored narratives
+ * so older assessments render correctly without force-regenerate.
+ */
+export function rewriteToSubjectVoice(text) {
+  if (typeof text !== 'string' || !text.trim()) return text
+  let out = text
+  const pairs = [
+    [/\bA practical 30-day plan for you\b/gi, 'A practical 30-day plan for the subject'],
+    [/\bfrom your facial measurements\b/gi, "from the subject's facial measurements"],
+    [/\bBased on your\b/g, "Based on the subject's"],
+    [/\bbased on your\b/g, "based on the subject's"],
+    [/\bPrioritize your\b/g, "Prioritize the subject's"],
+    [/\bprioritize your\b/g, "prioritize the subject's"],
+    [/\bYour feature-specific priorities\b/g, 'Feature-specific priorities for the subject'],
+    [/\bYour measured strengths\b/g, 'Measured strengths for the subject'],
+    [/\bYour primary opportunities\b/g, 'Primary opportunities for the subject'],
+    [/\bYour assessment shows\b/g, "The subject's assessment shows"],
+    [/\byourself\b/gi, 'themselves'],
+    [/\bfor you\b/gi, 'for the subject'],
+    [/\byou can\b/gi, 'the subject can'],
+    [/\byou may\b/gi, 'the subject may'],
+    [/\byou're\b/gi, 'the subject is'],
+    [/\bYou've\b/g, 'The subject has'],
+    [/\byou've\b/g, 'the subject has'],
+    [/\bYour\b/g, "The subject's"],
+    [/\byour\b/g, "the subject's"],
+    [/\bYou\b/g, 'The subject'],
+    [/\byou\b/g, 'the subject'],
+  ]
+  for (const [re, rep] of pairs) out = out.replace(re, rep)
+  return out.replace(/the subject's's/gi, "the subject's")
+}
+
+function applySubjectVoiceToFeaturePage(page) {
+  if (!page) return page
+  return {
+    ...page,
+    summary: rewriteToSubjectVoice(page.summary),
+    description: rewriteToSubjectVoice(page.description),
+    subsections: (page.subsections || []).map((sub) => ({
+      ...sub,
+      body: rewriteToSubjectVoice(sub.body),
+    })),
+  }
 }
 
 function mergeSubsections(defaults, narrativeSubs) {
@@ -77,23 +149,28 @@ function mergeSubsections(defaults, narrativeSubs) {
   if (allGeneric) return defaults
   return defaults.map((def) => {
     const match = narrativeSubs.find((sub) => sub?.title === def.title)
-    if (match?.body && !isGenericGuardrailBody(match.body)) return match
+    if (match?.body && !isGenericGuardrailBody(match.body)) {
+      return { ...match, body: rewriteToSubjectVoice(match.body) }
+    }
     return def
   })
 }
 
 function mergeFeaturePage(defaults, narrativeFeature) {
-  if (!narrativeFeature) return defaults
-  return {
+  if (!narrativeFeature) return applySubjectVoiceToFeaturePage(defaults)
+  const summary = isGenericSummary(narrativeFeature.summary)
+    ? defaults.summary
+    : (narrativeFeature.summary || defaults.summary)
+  return applySubjectVoiceToFeaturePage({
     ...defaults,
     subsections: mergeSubsections(defaults.subsections, narrativeFeature.subsections),
-    summary: narrativeFeature.summary || defaults.summary,
+    summary,
     layoutHints: {
       ...defaults.layoutHints,
       ...(narrativeFeature.layoutHints || {}),
       ...(narrativeFeature.norwoodStage != null ? { norwoodStage: narrativeFeature.norwoodStage } : {}),
     },
-  }
+  })
 }
 
 export function getClientName(answers) {
@@ -111,7 +188,7 @@ export function formatProtocolMonth(date = new Date()) {
 
 export function buildProtocolContents(clientName) {
   return [
-    { label: 'Understanding Your Results', page: 4 },
+    { label: 'Understanding the Results', page: 4 },
     { label: `${clientName}'s Protocol`, page: 5 },
     ...QOVES_PROTOCOL_FEATURES.map((f) => ({ label: f.title, page: f.page })),
     { label: 'Closing Recommendations', page: 16 },
@@ -119,14 +196,19 @@ export function buildProtocolContents(clientName) {
 }
 
 export function buildClosingRecommendations(aiNarrative, cvReport, clientName, protocolNarrative) {
-  if (protocolNarrative?.closing?.length) {
-    return protocolNarrative.closing.filter((p) => typeof p === 'string' && p.trim())
+  const stored = (protocolNarrative?.closing || [])
+    .filter((p) => typeof p === 'string' && p.trim() && !isGenericClosingParagraph(p))
+    .map(rewriteToSubjectVoice)
+  if (stored.length >= 2) {
+    return stored
   }
 
   const content = aiNarrative?.content || aiNarrative || {}
   const paragraphs = []
 
-  if (content.summary) paragraphs.push(content.summary)
+  if (content.summary && !isGenericClosingParagraph(content.summary)) {
+    paragraphs.push(rewriteToSubjectVoice(content.summary))
+  }
 
   const strengths = Array.isArray(content.strengths) ? content.strengths : []
   const focusAreas = Array.isArray(content.focusAreas) ? content.focusAreas : []
@@ -134,33 +216,45 @@ export function buildClosingRecommendations(aiNarrative, cvReport, clientName, p
 
   if (strengths.length) {
     paragraphs.push(
-      `The assessment shows existing strengths including ${strengths.slice(0, 3).join('; ')}.`
+      `The subject's assessment shows existing strengths including ${strengths.slice(0, 3).join('; ')}. Preserve these with consistent grooming, SPF, sleep, and hydration.`
     )
   }
   if (focusAreas.length) {
     paragraphs.push(
-      `Primary opportunities for ${clientName} include ${focusAreas.slice(0, 3).join('; ')}.`
+      `The subject's primary opportunities include ${focusAreas.slice(0, 3).join('; ')}. Address these with conservative topical care and lifestyle consistency for 30 days before reassessing.`
     )
   }
   recommendations.forEach((item) => {
-    if (typeof item === 'string' && item.trim()) paragraphs.push(item.trim())
+    if (typeof item === 'string' && item.trim() && !isGenericClosingParagraph(item)) {
+      paragraphs.push(rewriteToSubjectVoice(item.trim()))
+    }
   })
 
-  if (!paragraphs.length) {
+  if (paragraphs.length < 2) {
     const overall = cvReport?.overall?.score
+    const hair = cvReport?.hair || {}
+    const hairBit = hair.norwoodStage != null
+      ? ` Hair findings include estimated Norwood stage ${hair.norwoodStage} with ${String(hair.densityEstimate || 'moderate').toLowerCase()} density.`
+      : ''
     paragraphs.push(
       overall != null
-        ? `This assessment shows an overall harmony score of ${overall}/100 based on stored MediaPipe and OpenCV measurements. Focus on the lowest-scoring feature areas while maintaining grooming, skincare, and lifestyle fundamentals for the next 30 days.`
+        ? `The subject's assessment shows an overall harmony score of ${overall}/100 from facial measurements.${hairBit} Focus on the lowest-scoring feature areas while maintaining grooming, skincare, and lifestyle fundamentals for the next 30 days.`
         : 'Follow the feature-specific recommendations in this protocol for 30 days, then repeat analysis under consistent lighting and a neutral expression for comparison.'
     )
     paragraphs.push(
-      'Studies on facial perception suggest that symmetry, clear skin, and proportional feature framing contribute to perceived attractiveness. A consistent routine combining daily SPF 50, targeted actives such as salicylic acid and vitamin C, and structural grooming along the jaw and brow regions supports measurable improvement toward your projected potential.'
+      'A practical plan combines daily broad-spectrum SPF 50 outdoors, gentle cleansing, adequate sleep and hydration, and the feature-specific grooming notes on each protocol page. Studies on facial perception suggest that symmetry, clear skin, and proportional feature framing contribute to perceived attractiveness; treat this report as educational guidance, not a medical diagnosis.'
     )
   }
 
-  if (content.disclaimer) paragraphs.push(content.disclaimer)
+  if (content.disclaimer && !isGenericClosingParagraph(content.disclaimer)) {
+    paragraphs.push(rewriteToSubjectVoice(content.disclaimer))
+  } else {
+    paragraphs.push(
+      'This protocol is educational guidance from the subject\'s facial measurements, not medical diagnosis or treatment.'
+    )
+  }
 
-  return paragraphs
+  return paragraphs.filter((p, i, arr) => arr.findIndex((x) => x === p) === i).map(rewriteToSubjectVoice)
 }
 
 export function buildClosingColumns(paragraphs) {
@@ -170,10 +264,10 @@ export function buildClosingColumns(paragraphs) {
 }
 
 export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
-  const faceFallback = 'Measurements for this feature are drawn from your stored facial analysis.'
+  const faceFallback = 'Measurements for this feature are drawn from the subject\'s stored facial analysis.'
   const narrativeFeatures = protocolNarrative?.features || {}
   const pendingBody =
-    'Personalised protocol narrative for this section is being generated from your stored measurements. ' +
+    'Personalised protocol narrative for this section is being generated from the subject\'s stored measurements. ' +
     'Reopen the protocol after generation completes, or contact support if this message persists.'
 
   const pages = [
@@ -190,7 +284,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
           title: 'Hair Style',
           body:
             featureExplanation(cvReport, 'hair') ||
-            `Based on your measured hairline and framing, choose styles that balance facial thirds. Gentle cleansing and lightweight styling products support a neat upper-face frame. ${faceFallback}`,
+            `Based on the subject's measured hairline and framing, choose styles that balance facial thirds. Gentle cleansing and lightweight styling products support a neat upper-face frame. ${faceFallback}`,
         },
         {
           title: 'Hair Loss',
@@ -210,7 +304,9 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
       summary:
         summaryFromExplanation(
           featureExplanation(cvReport, 'hair'),
-          'Optimizing hairstyle and scalp health supports a cleaner upper-face frame aligned with your measured proportions.'
+          cvReport?.hair?.norwoodStage != null
+            ? `Hairline ${safeDisplay(cvReport.hair.hairline, 'measured')}, ${safeDisplay(cvReport.hair.densityEstimate, 'moderate').toLowerCase()} density, estimated Norwood stage ${cvReport.hair.norwoodStage}. Prioritize gentle scalp care and framing styles for 30 days.`
+            : 'Optimizing hairstyle and scalp health supports a cleaner upper-face frame aligned with the subject\'s measured proportions.'
         ),
     },
     {
@@ -237,7 +333,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
             cvReport?.eyes?.ocular?.explanation ||
             eyeAnalysis?.metrics?.explanation ||
             featureExplanation(cvReport, 'eyes') ||
-            'Your ocular structure assessment focuses on symmetry, tilt, and periorbital support.',
+            'The subject\'s ocular structure assessment focuses on symmetry, tilt, and periorbital support.',
         },
         {
           title: 'Under eye',
@@ -248,7 +344,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         },
       ],
       summary:
-        'Refining brows, protecting lashes, and supporting the under-eye region keeps the gaze rested and balanced toward your projected potential.',
+        'Refining brows, protecting lashes, and supporting the under-eye region keeps the gaze rested and balanced toward the subject\'s projected potential.',
     },
     {
       id: 'nose',
@@ -262,6 +358,33 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
             featureExplanation(cvReport, 'nose') ||
             `Nasal proportions score ${safeDisplay(cvReport?.nose?.score, '—')}/100 with width-to-length ratio ${safeDisplay(cvReport?.nose?.widthLengthRatio, '—')}. ${faceFallback}`,
         },
+        ...(cvReport?.nose?.nasofrontalAngleDeg != null || cvReport?.nose?.nasolabialAngleDeg != null
+          ? [
+              {
+                title: 'Profile Angles',
+                body: [
+                  cvReport?.nose?.nasofrontalAngleDeg != null
+                    ? `Nasofrontal angle ${cvReport.nose.nasofrontalAngleDeg}° (typical ~115–130°).`
+                    : null,
+                  cvReport?.nose?.nasolabialAngleDeg != null
+                    ? `Nasolabial angle ${cvReport.nose.nasolabialAngleDeg}°${
+                        cvReport.nose.nasolabialNormalRange
+                          ? ` (typical ${cvReport.nose.nasolabialNormalRange})`
+                          : ''
+                      }.`
+                    : null,
+                  cvReport?.nose?.dorsalHumpLabel
+                    ? `Dorsal hump ${cvReport.nose.dorsalHumpLabel}.`
+                    : null,
+                  cvReport?.nose?.facialConvexityDeg != null
+                    ? `Facial convexity ${cvReport.nose.facialConvexityDeg}°.`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' '),
+              },
+            ]
+          : []),
       ],
       summary:
         summaryFromExplanation(
@@ -284,7 +407,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         },
       ],
       summary:
-        'Improving cheek skin quality and support helps your natural cheekbone structure read more clearly.',
+        'Improving cheek skin quality and support helps the subject\'s natural cheekbone structure read more clearly.',
     },
     {
       id: 'jaw',
@@ -326,7 +449,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
       id: 'chin',
       title: 'Chin Recommendations',
       projectionId: 'chin',
-      layoutHints: { stackedImages: true },
+      layoutHints: { profileImage: true, stackedImages: true },
       subsections: [
         {
           title: 'Chin',
@@ -356,7 +479,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         },
       ],
       summary:
-        'A disciplined routine targeting your measured skin profile supports clearer, more even facial skin over time.',
+        'A disciplined routine targeting the subject\'s measured skin profile supports clearer, more even facial skin over time.',
     },
     {
       id: 'neck',
@@ -368,7 +491,9 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
           title: 'Neck Size',
           body:
             featureExplanation(cvReport, 'neck') ||
-            'Neck curls and extensions three times per week can improve neck column strength and jaw-neck transition toward your target image.',
+            (cvReport?.neck?.dataSource === 'measured'
+              ? `Neck length and posture were measured from the subject's jaw and shoulder line (${safeDisplay(cvReport?.neck?.headPosture, 'neutral')} posture). Neck curls and extensions three times per week can support neck column strength toward the target image.`
+              : 'Neck curls and extensions three times per week can improve neck column strength and jaw-neck transition toward the target image.'),
         },
         {
           title: 'Neck Skin',

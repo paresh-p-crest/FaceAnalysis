@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
-from typing import Optional
+import sys
+import time
+from typing import Any, Optional
 
 from openai import OpenAI
 
 from .config import GROQ_MODEL, OPENAI_REPORT_MODEL
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_llm_provider() -> str:
@@ -61,6 +66,133 @@ def _extract_json_object(raw: str) -> dict:
     return json.loads(text)
 
 
+def _usage_from_response(response: Any) -> dict[str, Optional[int]]:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
+    prompt = getattr(usage, "prompt_tokens", None)
+    completion = getattr(usage, "completion_tokens", None)
+    total = getattr(usage, "total_tokens", None)
+    if total is None and prompt is not None and completion is not None:
+        total = prompt + completion
+    return {
+        "prompt_tokens": prompt,
+        "completion_tokens": completion,
+        "total_tokens": total,
+    }
+
+
+def _fmt_tokens(value: Optional[int]) -> str:
+    if value is None:
+        return "—"
+    return f"{value:,}"
+
+
+def _fmt_duration(seconds: float) -> str:
+    if seconds < 1:
+        return f"{seconds * 1000:.0f}ms"
+    return f"{seconds:.2f}s"
+
+
+def log_llm_usage(
+    *,
+    op: str,
+    source: str,
+    model: str,
+    duration_s: float,
+    usage: dict[str, Optional[int]],
+    label: Optional[str] = None,
+    ok: bool = True,
+    error: Optional[str] = None,
+) -> None:
+    """Pretty multi-line token usage log for each LLM request (always prints to stderr)."""
+    title = f"{op}" + (f" · {label}" if label else "")
+    status = "OK" if ok else "FAIL"
+    lines = [
+        "",
+        "┌─ LLM request ──────────────────────────────────────────",
+        f"│  status   : {status}",
+        f"│  op       : {title}",
+        f"│  provider : {source}",
+        f"│  model    : {model}",
+        f"│  input    : {_fmt_tokens(usage.get('prompt_tokens'))} tokens",
+        f"│  output   : {_fmt_tokens(usage.get('completion_tokens'))} tokens",
+        f"│  total    : {_fmt_tokens(usage.get('total_tokens'))} tokens",
+        f"│  duration : {_fmt_duration(duration_s)}",
+    ]
+    if error:
+        err = " ".join(str(error).split())
+        if len(err) > 240:
+            err = err[:237] + "..."
+        lines.append(f"│  error    : {err}")
+    lines.append("└────────────────────────────────────────────────────────")
+    message = "\n".join(lines)
+
+    # Always print — uvicorn often hides app INFO unless logging is configured
+    print(message, file=sys.stderr, flush=True)
+
+    if ok:
+        logger.info(
+            "LLM %s %s/%s in=%s out=%s total=%s duration=%s",
+            status,
+            source,
+            model,
+            usage.get("prompt_tokens"),
+            usage.get("completion_tokens"),
+            usage.get("total_tokens"),
+            _fmt_duration(duration_s),
+        )
+    else:
+        logger.warning(
+            "LLM %s %s/%s duration=%s error=%s",
+            status,
+            source,
+            model,
+            _fmt_duration(duration_s),
+            error,
+        )
+
+
+def _chat_create(
+    client: OpenAI,
+    *,
+    source: str,
+    op: str,
+    label: Optional[str] = None,
+    **kwargs: Any,
+) -> tuple[Any, dict[str, Optional[int]], float]:
+    """Timed chat.completions.create with usage logging. Raises on API errors."""
+    started = time.perf_counter()
+    model = kwargs.get("model") or "unknown"
+    try:
+        response = client.chat.completions.create(**kwargs)
+        duration_s = time.perf_counter() - started
+        usage = _usage_from_response(response)
+        log_llm_usage(
+            op=op,
+            source=source,
+            model=model,
+            duration_s=duration_s,
+            usage=usage,
+            label=label,
+            ok=True,
+        )
+        return response, usage, duration_s
+    except Exception as exc:
+        duration_s = time.perf_counter() - started
+        log_llm_usage(
+            op=op,
+            source=source,
+            model=model,
+            duration_s=duration_s,
+            usage={"prompt_tokens": None, "completion_tokens": None, "total_tokens": None},
+            label=label,
+            ok=False,
+            error=str(exc),
+        )
+        raise
+
+
 def chat_structured_completion(
     *,
     schema_name: str,
@@ -73,18 +205,23 @@ def chat_structured_completion(
     """Chat completion with OpenAI strict json_schema; Groq falls back to json_object."""
     llm = get_chat_llm(api_key_override=api_key_override)
     if llm.get("error"):
-        return {"content": None, "source": None, "model": None, "error": llm["error"]}
+        return {"content": None, "source": None, "model": None, "error": llm["error"], "usage": None}
 
     client = llm["client"]
     model = llm["model"]
     source = llm["source"]
+    op = "chat_structured"
 
     def _parse_response(raw: str) -> dict:
         return _extract_json_object(raw)
 
     if source == "openai":
         try:
-            response = client.chat.completions.create(
+            response, usage, duration_s = _chat_create(
+                client,
+                source=source,
+                op=op,
+                label=schema_name,
                 model=model,
                 messages=messages,
                 temperature=temperature,
@@ -100,10 +237,21 @@ def chat_structured_completion(
             )
             raw = response.choices[0].message.content
             content = _parse_response(raw)
-            return {"content": content, "source": source, "model": model, "error": None}
+            return {
+                "content": content,
+                "source": source,
+                "model": model,
+                "error": None,
+                "usage": usage,
+                "duration_s": duration_s,
+            }
         except Exception as schema_error:
             try:
-                response = client.chat.completions.create(
+                response, usage, duration_s = _chat_create(
+                    client,
+                    source=source,
+                    op=op,
+                    label=f"{schema_name}/json_object",
                     model=model,
                     messages=messages,
                     temperature=temperature,
@@ -112,7 +260,14 @@ def chat_structured_completion(
                 )
                 raw = response.choices[0].message.content
                 content = _parse_response(raw)
-                return {"content": content, "source": source, "model": model, "error": None}
+                return {
+                    "content": content,
+                    "source": source,
+                    "model": model,
+                    "error": None,
+                    "usage": usage,
+                    "duration_s": duration_s,
+                }
             except Exception as fallback_error:
                 detail = str(fallback_error) or str(schema_error)
                 return {
@@ -120,11 +275,16 @@ def chat_structured_completion(
                     "source": source,
                     "model": model,
                     "error": detail or "Structured LLM completion failed.",
+                    "usage": None,
                 }
 
     # Groq or other providers — json_object only
     try:
-        response = client.chat.completions.create(
+        response, usage, duration_s = _chat_create(
+            client,
+            source=source,
+            op=op,
+            label=schema_name,
             model=model,
             messages=messages,
             temperature=temperature,
@@ -133,13 +293,21 @@ def chat_structured_completion(
         )
         raw = response.choices[0].message.content
         content = _parse_response(raw)
-        return {"content": content, "source": source, "model": model, "error": None}
+        return {
+            "content": content,
+            "source": source,
+            "model": model,
+            "error": None,
+            "usage": usage,
+            "duration_s": duration_s,
+        }
     except Exception as exc:
         return {
             "content": None,
             "source": source,
             "model": model,
             "error": str(exc) or "Structured LLM completion failed.",
+            "usage": None,
         }
 
 
@@ -149,18 +317,24 @@ def chat_json_completion(
     temperature: float,
     max_tokens: int,
     api_key_override: Optional[str] = None,
+    label: Optional[str] = None,
 ) -> dict:
     """Run a chat completion and parse a JSON object from the response."""
     llm = get_chat_llm(api_key_override=api_key_override)
     if llm.get("error"):
-        return {"content": None, "source": None, "model": None, "error": llm["error"]}
+        return {"content": None, "source": None, "model": None, "error": llm["error"], "usage": None}
 
     client = llm["client"]
     model = llm["model"]
     source = llm["source"]
+    op = "chat_json"
 
     try:
-        response = client.chat.completions.create(
+        response, usage, duration_s = _chat_create(
+            client,
+            source=source,
+            op=op,
+            label=label,
             model=model,
             messages=messages,
             temperature=temperature,
@@ -169,10 +343,21 @@ def chat_json_completion(
         )
         raw = response.choices[0].message.content
         content = _extract_json_object(raw)
-        return {"content": content, "source": source, "model": model, "error": None}
+        return {
+            "content": content,
+            "source": source,
+            "model": model,
+            "error": None,
+            "usage": usage,
+            "duration_s": duration_s,
+        }
     except Exception as json_mode_error:
         try:
-            response = client.chat.completions.create(
+            response, usage, duration_s = _chat_create(
+                client,
+                source=source,
+                op=op,
+                label=(f"{label}/plain" if label else "plain"),
                 model=model,
                 messages=messages,
                 temperature=temperature,
@@ -180,7 +365,14 @@ def chat_json_completion(
             )
             raw = response.choices[0].message.content
             content = _extract_json_object(raw)
-            return {"content": content, "source": source, "model": model, "error": None}
+            return {
+                "content": content,
+                "source": source,
+                "model": model,
+                "error": None,
+                "usage": usage,
+                "duration_s": duration_s,
+            }
         except Exception as fallback_error:
             detail = str(fallback_error) or str(json_mode_error)
             return {
@@ -188,6 +380,7 @@ def chat_json_completion(
                 "source": None,
                 "model": model,
                 "error": detail or "LLM narrative generation failed.",
+                "usage": None,
             }
 
 
@@ -198,15 +391,24 @@ def chat_text_completion(
     max_tokens: int,
     api_key_override: Optional[str] = None,
     tools: Optional[list[dict]] = None,
+    label: Optional[str] = None,
 ) -> dict:
     """Run a chat completion and return plain text (or tool_calls in metadata)."""
     llm = get_chat_llm(api_key_override=api_key_override)
     if llm.get("error"):
-        return {"content": None, "source": None, "model": None, "error": llm["error"], "tool_calls": None}
+        return {
+            "content": None,
+            "source": None,
+            "model": None,
+            "error": llm["error"],
+            "tool_calls": None,
+            "usage": None,
+        }
 
     client = llm["client"]
     model = llm["model"]
     source = llm["source"]
+    op = "chat_text"
 
     try:
         kwargs: dict = {
@@ -218,7 +420,13 @@ def chat_text_completion(
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
-        response = client.chat.completions.create(**kwargs)
+        response, usage, duration_s = _chat_create(
+            client,
+            source=source,
+            op=op,
+            label=label or ("tools" if tools else None),
+            **kwargs,
+        )
         message = response.choices[0].message
         tool_calls = None
         if message.tool_calls:
@@ -232,13 +440,23 @@ def chat_text_completion(
             ]
         content = (message.content or "").strip()
         if not content and not tool_calls:
-            return {"content": None, "source": source, "model": model, "error": "Empty LLM response", "tool_calls": None}
+            return {
+                "content": None,
+                "source": source,
+                "model": model,
+                "error": "Empty LLM response",
+                "tool_calls": None,
+                "usage": usage,
+                "duration_s": duration_s,
+            }
         return {
             "content": content or None,
             "source": source,
             "model": model,
             "error": None,
             "tool_calls": tool_calls,
+            "usage": usage,
+            "duration_s": duration_s,
         }
     except Exception as exc:
         return {
@@ -247,4 +465,5 @@ def chat_text_completion(
             "model": model,
             "error": str(exc) or "LLM text generation failed.",
             "tool_calls": None,
+            "usage": None,
         }
