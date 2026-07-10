@@ -34,13 +34,14 @@ Stores raw user inputs, computer vision analysis outputs, AI-generated reports, 
 | `userId` | `string` \| `null` | Reference to user owning the assessment |
 | `scanId` | `string` \| `null` | Client-generated unique scan ID to prevent duplicate submissions |
 | `answers` | `dict` | Questionnaire responses; includes `mouthWidthMm`, `philtrumLengthMm`, `scalingMethod` for ruler calibration |
-| `provider` | `string` | Core CV engine provider: `"local"` \| `"openai"` |
+| `provider` | `string` | Core CV engine provider: `"local"` only (legacy `"openai"` requests are normalized to `"local"`) |
 | `photosKeys` | `list[string]` | Pose IDs present (backward compat): `front`, `leftProfile`, `rightProfile`, `left45`, `right45`, `smile`, `topHead` |
 | `photos` | `dict` | Per-pose storage metadata: `{ poseId, relativePath, publicUrl, contentType, byteSize, storedAt }` |
 | `analysis` | `dict` | Nested object containing raw CV calculations (see sub-schema below) |
 | `aiNarrative` | `dict` \| `null` | LLM-generated executive summary JSON (`summary`, `strengths`, `focusAreas`, etc.) |
 | `protocolData` | `dict` \| `null` | LLM-generated protocol recommendations (`summary`, `recommendations[]`) |
-| `protocolNarrative` | `dict` \| `null` | LLM-generated per-feature Qoves protocol narrative |
+| `protocolNarrative` | `dict` \| `null` | Compat shim: `summary`, `closing[]`, `features{}` for Qoves PDF viewer |
+| `featureNarratives` | `dict` \| `null` | Per-feature structured narratives (`measuredFacts`, `subsections[]`, `limitations`) — source for PDF pages 6–15 |
 | `protocolStorage` | `dict` \| `null` | Protocol file metadata (`relativePath`, `publicUrl`, `storedAt`, `byteSize`) |
 | `aiVisuals` | `dict` \| `null` | Prompts and URLs for visual variants (hairstyles, clothing, aging) |
 | `adminNotes` | `string` \| `null` | Notes added by the administrator during review |
@@ -53,7 +54,7 @@ Stores raw user inputs, computer vision analysis outputs, AI-generated reports, 
 ### Analysis Sub-Schema (`analysis`)
 | Nested Field | Type | Description |
 |---|---|---|
-| `cvReport` | `dict` | Calculated facial metrics; includes `profile`, `quarter`, `calibration`, `photos`, `meta.pipelineVersion` |
+| `cvReport` | `dict` | Calculated facial metrics; includes `profile`, `quarter`, `calibration`, `photos`, `meta.pipelineVersion`; `eyes` has sub-slices `eyebrows`, `eyelashes`, `ocular`, `underEye`; `nose` includes profile angles when measured |
 | `landmarks` | `list[list[float]]` | 478 MediaPipe Face Mesh coordinates `[x, y, z]` |
 | `imagePreview` | `string` | Base64-encoded image preview or thumbnail |
 | `faceDetails` | `dict` \| `null` | Reserved; always `null` (AWS Rekognition removed) |

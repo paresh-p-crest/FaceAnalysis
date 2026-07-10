@@ -8,7 +8,6 @@ import {
   History,
   Loader2,
   RefreshCw,
-  ShieldCheck,
   Sparkles,
   User,
   Wallet,
@@ -50,16 +49,15 @@ function money(amountCents, currency = 'usd') {
 
 function EmptyState({ title, text }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-6 text-center">
-      <p className="font-display text-slate-800 dark:text-slate-200 font-semibold mb-1">{title}</p>
-      <p className="text-sm text-slate-500 dark:text-slate-400">{text}</p>
+    <div className="rounded-2xl border border-dashed border-surface-border bg-surface-warm/50 dark:bg-surface-raised/30 p-6 text-center">
+      <p className="font-display text-ink font-semibold mb-1">{title}</p>
+      <p className="text-sm text-ink-muted">{text}</p>
     </div>
   )
 }
 
 export default function DashboardPage({
   user,
-  onAuth,
   onStartAssessment,
   onHistory,
   onBilling,
@@ -141,39 +139,26 @@ export default function DashboardPage({
   }, [approvedScoreSource])
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 py-12 pt-20 animate-fade-up font-sans bg-surface text-slate-900 dark:text-slate-100">
-      <div className="max-w-6xl mx-auto pt-8">
-        
-        {/* ── Top Header Bar ── */}
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-5 mb-8">
-          
-          {/* Serif branding */}
-          <div className="flex items-center">
-            <span className="font-serif font-bold text-slate-900 dark:text-white text-2xl tracking-tight">MyFace</span>
+    <div className="min-h-screen px-4 sm:px-6 pb-8 site-navbar-offset animate-fade-up font-sans bg-gradient-to-b from-brand-100/40 to-surface dark:from-surface dark:to-surface text-ink">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-tight">Your Dashboard</h1>
+            <p className="text-sm text-ink-muted">Track and review your aesthetic facial assessments</p>
           </div>
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={load}
               disabled={loading || !canLoad}
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-[50px] text-xs font-semibold border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 text-slate-700 dark:text-slate-200"
+              className="btn-ghost text-xs px-4 py-2 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" /> : <RefreshCw className="w-3.5 h-3.5 text-slate-450" />}
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin text-ink-muted" /> : <RefreshCw className="w-3.5 h-3.5" />}
               Refresh
             </button>
-            <button
-              onClick={onStartAssessment}
-              className="inline-flex items-center gap-2 px-5 py-1.5 rounded-[50px] bg-[#5e9f8b] hover:bg-[#548f7d] text-white text-xs font-bold transition-all shadow-sm"
-            >
+            <button onClick={onStartAssessment} className="btn-primary text-xs px-5 py-2">
               Start New Analysis
             </button>
           </div>
-        </div>
-
-        {/* Dashboard Title & Subtitle */}
-        <div className="mb-8">
-          <h1 className="font-display text-2xl font-bold tracking-tight">Your Dashboard</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Track and review your aesthetic facial assessments</p>
         </div>
 
         {error && (
@@ -184,56 +169,47 @@ export default function DashboardPage({
 
         {!isBackendApiEnabled() ? (
           <EmptyState title="Backend API required" text="Set NEXT_PUBLIC_API_URL to load cloud reports and payments." />
-        ) : !user ? (
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-10 text-center shadow-sm border border-slate-100 dark:border-slate-800 max-w-lg mx-auto">
-            <ShieldCheck className="w-12 h-12 text-[#5e9f8b] mx-auto mb-4" />
-            <h2 className="font-display text-xl font-bold mb-2">Sign in to view your dashboard</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your facial reports and payment history are securely synced to your email.</p>
-            <button onClick={onAuth} className="px-6 py-3 rounded-[50px] bg-[#5e9f8b] hover:bg-[#548f7d] text-white font-semibold text-sm tracking-[-0.03px] transition-all shadow-sm">
-              Sign In
-            </button>
-          </div>
         ) : (
           <div className="space-y-8">
             
             {/* ── Top-level Overview Cards ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wider font-semibold">
-                  <User className="w-4 h-4 text-[#5e9f8b]" />
+              <div className="bg-surface-card rounded-2xl p-5 border border-surface-border shadow-card">
+                <div className="flex items-center gap-2 text-xs text-ink-muted mb-2 uppercase tracking-wider font-semibold">
+                  <User className="w-4 h-4 text-brand" />
                   Account
                 </div>
                 <p className="text-sm font-bold truncate" title={user.email}>{user.email}</p>
-                <p className="text-xs text-slate-400 mt-1 capitalize font-medium">{user.role || 'user'}</p>
+                <p className="text-xs text-ink-muted mt-1 capitalize font-medium">{user.role || 'user'}</p>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wider font-semibold">
-                  <FileText className="w-4 h-4 text-[#5e9f8b]" />
+              <div className="bg-surface-card rounded-2xl p-5 border border-surface-border shadow-card">
+                <div className="flex items-center gap-2 text-xs text-ink-muted mb-2 uppercase tracking-wider font-semibold">
+                  <FileText className="w-4 h-4 text-brand" />
                   Reports
                 </div>
-                <p className="font-display text-3xl font-bold text-slate-800 dark:text-white">{reportStats.total}</p>
-                <p className="text-xs text-slate-400 mt-1 font-medium">Cloud assessments saved</p>
+                <p className="font-display text-3xl font-bold text-ink">{reportStats.total}</p>
+                <p className="text-xs text-ink-muted mt-1 font-medium">Cloud assessments saved</p>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wider font-semibold">
-                  <BarChart3 className="w-4 h-4 text-[#5e9f8b]" />
+              <div className="bg-surface-card rounded-2xl p-5 border border-surface-border shadow-card">
+                <div className="flex items-center gap-2 text-xs text-ink-muted mb-2 uppercase tracking-wider font-semibold">
+                  <BarChart3 className="w-4 h-4 text-brand" />
                   Latest Score
                 </div>
-                <p className="font-display text-3xl font-bold text-slate-800 dark:text-white">{latestScore ?? '--'}</p>
-                <p className="text-xs text-slate-400 mt-1 font-medium">
+                <p className="font-display text-3xl font-bold text-ink">{latestScore ?? '--'}</p>
+                <p className="text-xs text-ink-muted mt-1 font-medium">
                   {latestScore != null ? 'Out of 100 overall' : 'Available after approval'}
                 </p>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wider font-semibold">
-                  <CreditCard className="w-4 h-4 text-[#5e9f8b]" />
+              <div className="bg-surface-card rounded-2xl p-5 border border-surface-border shadow-card">
+                <div className="flex items-center gap-2 text-xs text-ink-muted mb-2 uppercase tracking-wider font-semibold">
+                  <CreditCard className="w-4 h-4 text-brand" />
                   Payments
                 </div>
-                <p className="font-display text-3xl font-bold text-slate-800 dark:text-white">{paidCount}</p>
-                <p className="text-xs text-slate-400 mt-1 font-medium">Completed records</p>
+                <p className="font-display text-3xl font-bold text-ink">{paidCount}</p>
+                <p className="text-xs text-ink-muted mt-1 font-medium">Completed records</p>
               </div>
             </div>
 
@@ -244,25 +220,25 @@ export default function DashboardPage({
               <div className="space-y-6">
                 
                 {/* Minty Gradient Hero/Status Area */}
-                <div className="bg-gradient-to-br from-[#f0fdf4] to-[#f0fdfa] dark:from-[#132c2a] dark:to-[#0d2321] border border-teal-100/50 dark:border-teal-900/30 p-6 sm:p-8 rounded-3xl relative overflow-hidden shadow-sm">
+                <div className="bg-gradient-to-br from-brand-100 to-surface-warm dark:from-[#132c2a] dark:to-[#0d2321] border border-brand/20 dark:border-brand/30 p-6 sm:p-8 rounded-3xl relative overflow-hidden shadow-card">
                   <div className="relative z-10 space-y-4">
-                    <span className="inline-block px-3 py-1 rounded-full bg-[#5e9f8b]/10 text-[#5e9f8b] text-[10px] font-bold uppercase tracking-wider">
+                    <span className="inline-block px-3 py-1 rounded-full bg-brand/10 text-brand text-[10px] font-bold uppercase tracking-wider">
                       Scientific Analysis
                     </span>
                     
                     {latestAssessment ? (
                       <div className="space-y-4">
-                        <h2 className="font-display text-2xl font-bold text-[#5e9f8b] leading-tight">
+                        <h2 className="font-display text-2xl font-bold text-brand leading-tight">
                           Attractiveness & Facial Harmony
                         </h2>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 max-w-lg leading-relaxed">
+                        <p className="text-sm text-ink-secondary dark:text-ink-secondary max-w-lg leading-relaxed">
                           Your face was scanned against 468+ landmarks. Your overall attractiveness score is calculated based on horizontal/vertical symmetry, golden ratios, and structure.
                         </p>
                         
                         <div className="pt-2">
                           <button
                             onClick={() => onViewCloudItem?.(latestAssessment)}
-                            className="inline-flex items-center gap-2 px-5 py-3 rounded-[50px] bg-[#5e9f8b] hover:bg-[#548f7d] text-white text-xs font-bold tracking-[-0.03px] transition-all shadow-sm"
+                            className="btn-primary text-xs px-5 py-3"
                           >
                             Open Latest Report →
                           </button>
@@ -270,10 +246,10 @@ export default function DashboardPage({
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <h2 className="font-display text-2xl font-bold text-[#5e9f8b] leading-tight">
+                        <h2 className="font-display text-2xl font-bold text-brand leading-tight">
                           Get Your Attractiveness Report in 3 Steps
                         </h2>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 max-w-lg leading-relaxed">
+                        <p className="text-sm text-ink-secondary dark:text-ink-secondary max-w-lg leading-relaxed">
                           Analyze your facial structure, golden proportions, and skin health using our neural CV scan. Discover scientific recommendations to improve your appearance.
                         </p>
                         
@@ -284,9 +260,9 @@ export default function DashboardPage({
                             ['2. Photo Scan', '468+ coordinates'],
                             ['3. PDF Report', 'Symmetry metrics'],
                           ].map(([step, desc]) => (
-                            <div key={step} className="p-3 bg-white/50 dark:bg-slate-900/30 rounded-xl border border-teal-500/10">
-                              <p className="text-xs font-bold text-[#5e9f8b]">{step}</p>
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{desc}</p>
+                            <div key={step} className="p-3 bg-surface-card/50 dark:bg-surface-raised/30 rounded-xl border border-brand/10">
+                              <p className="text-xs font-bold text-brand">{step}</p>
+                              <p className="text-[10px] text-ink-muted mt-0.5">{desc}</p>
                             </div>
                           ))}
                         </div>
@@ -294,7 +270,7 @@ export default function DashboardPage({
                         <div className="pt-2">
                           <button
                             onClick={onStartAssessment}
-                            className="inline-flex items-center gap-2 px-5 py-3 rounded-[50px] bg-[#5e9f8b] hover:bg-[#548f7d] text-white text-xs font-bold tracking-[-0.03px] transition-all shadow-sm"
+                            className="btn-primary text-xs px-5 py-3"
                           >
                             Analyze Attractiveness Now →
                           </button>
@@ -308,15 +284,15 @@ export default function DashboardPage({
                 </div>
 
                 {/* Recent Assessments list */}
-                <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
+                <section className="bg-surface-card rounded-3xl p-6 border border-surface-border shadow-card">
                   <div className="flex items-center justify-between mb-5">
                     <div>
                       <h2 className="font-display text-lg font-bold">Recent Assessments</h2>
-                      <p className="text-xs text-slate-400">Open approved reports or track review status.</p>
+                      <p className="text-xs text-ink-muted">Open approved reports or track review status.</p>
                     </div>
                     <button
                       onClick={onHistory}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[50px] border border-slate-200 dark:border-slate-800 text-xs font-bold hover:text-[#5e9f8b] hover:border-[#5e9f8b] transition-colors"
+                      className="btn-ghost text-xs px-3.5 py-2 hover:text-brand hover:border-brand"
                     >
                       <History className="w-3.5 h-3.5" />
                       View History
@@ -325,13 +301,13 @@ export default function DashboardPage({
 
                   {loading ? (
                     <div className="py-12 text-center">
-                      <Loader2 className="w-7 h-7 text-[#5e9f8b] animate-spin mx-auto mb-3" />
-                      <p className="text-sm text-slate-400">Loading reports...</p>
+                      <Loader2 className="w-7 h-7 text-brand animate-spin mx-auto mb-3" />
+                      <p className="text-sm text-ink-muted">Loading reports...</p>
                     </div>
                   ) : assessments.length === 0 ? (
                     <EmptyState title="No cloud reports yet" text="Run a backend-connected assessment to populate your dashboard." />
                   ) : (
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                    <div className="divide-y divide-surface-border">
                       {assessments.map((assessment) => {
                         const approved = isReportApproved(assessment.status)
                         const score = approved
@@ -341,19 +317,19 @@ export default function DashboardPage({
                           <div key={assessment.id} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between gap-4">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <p className="font-display text-sm font-bold truncate text-slate-800 dark:text-slate-100">
+                                <p className="font-display text-sm font-bold truncate text-ink">
                                   Assessment {assessment.id.slice(-6).toUpperCase()}
                                 </p>
                                 <StatusBadge status={assessment.status} />
                               </div>
-                              <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                              <p className="text-[11px] text-ink-muted font-medium">
                                 {formatHistoryDate(assessment.createdAt)} - {assessment.provider || 'local'}
                                 {approved ? ` - score ${score}/100` : ' - awaiting review'}
                               </p>
                             </div>
                             <button
                               onClick={() => onViewCloudItem?.(assessment)}
-                              className="px-4 py-2 rounded-[50px] bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors"
+                              className="btn-ghost text-xs px-4 py-2"
                             >
                               Open Report
                             </button>
@@ -370,7 +346,7 @@ export default function DashboardPage({
               <div className="space-y-6">
                 
                 {/* Proportions Metrics Cards */}
-                <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                <section className="bg-surface-card rounded-3xl p-6 border border-surface-border shadow-card relative overflow-hidden">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="font-display text-base font-bold">Harmony & Proportions</h2>
                     {extractedMetrics.locked && (
@@ -390,15 +366,15 @@ export default function DashboardPage({
                   ) : (
                     <>
                   {/* Gauge score */}
-                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-900/30 mb-5">
-                    <div className="w-14 h-14 rounded-full border-[3.5px] border-[#5e9f8b]/20 flex items-center justify-center text-center">
-                      <div className="font-display text-lg font-extrabold text-[#5e9f8b]">
+                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-surface-warm/50 dark:bg-surface-raised/20 border border-surface-border mb-5">
+                    <div className="w-14 h-14 rounded-full border-[3.5px] border-brand/20 flex items-center justify-center text-center">
+                      <div className="font-display text-lg font-extrabold text-brand">
                         {extractedMetrics.overall}
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Overall Facial Harmony</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500">Based on vertical and golden ratio parameters</p>
+                      <p className="text-xs font-bold text-ink">Overall Facial Harmony</p>
+                      <p className="text-[10px] text-ink-muted">Based on vertical and golden ratio parameters</p>
                     </div>
                   </div>
 
@@ -412,17 +388,16 @@ export default function DashboardPage({
                     ].map(([label, score, desc]) => (
                       <div key={label} className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-slate-700 dark:text-slate-300">{label}</span>
-                          <span className="font-bold text-[#5e9f8b]">{score}/100</span>
+                          <span className="font-bold text-ink-secondary">{label}</span>
+                          <span className="font-bold text-brand">{score}/100</span>
                         </div>
-                        {/* Custom progress line */}
-                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-1.5 w-full bg-surface-raised rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-[#5e9f8b] to-[#548f7d] transition-all duration-500 rounded-full"
+                            className="h-full bg-brand transition-all duration-500 rounded-full"
                             style={{ width: `${score}%` }}
                           />
                         </div>
-                        <p className="text-[9px] text-slate-400 dark:text-slate-500">{desc}</p>
+                        <p className="text-[9px] text-ink-muted">{desc}</p>
                       </div>
                     ))}
                   </div>
@@ -431,15 +406,15 @@ export default function DashboardPage({
                 </section>
 
                 {/* Review Pipeline details */}
-                <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
+                <section className="bg-surface-card rounded-3xl p-6 border border-surface-border shadow-card">
                   <h2 className="font-display text-base font-bold mb-3">Review Pipeline</h2>
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       ['Pending Review', reportStats.pending_review],
                       ['Dermatologist Approved', reportStats.approved],
                     ].map(([label, value]) => (
-                      <div key={label} className="rounded-2xl bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-900/30 p-3.5">
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider">{label}</p>
+                      <div key={label} className="rounded-2xl bg-surface-warm/50 dark:bg-surface-raised/20 border border-surface-border p-3.5">
+                        <p className="text-[10px] text-ink-muted font-semibold uppercase tracking-wider">{label}</p>
                         <p className="font-display text-2xl font-bold mt-1">{value}</p>
                       </div>
                     ))}
@@ -447,15 +422,15 @@ export default function DashboardPage({
                 </section>
 
                 {/* Payments Section */}
-                <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
+                <section className="bg-surface-card rounded-3xl p-6 border border-surface-border shadow-card">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h2 className="font-display text-base font-bold">Payments</h2>
-                      <p className="text-xs text-slate-400">Captures and receipts</p>
+                      <p className="text-xs text-ink-muted">Captures and receipts</p>
                     </div>
                     <button
                       onClick={onBilling}
-                      className="inline-flex items-center gap-1 px-3 py-2 rounded-[50px] border border-slate-200 dark:border-slate-800 text-xs font-bold hover:text-[#5e9f8b] hover:border-[#5e9f8b] transition-colors"
+                      className="btn-ghost text-xs px-3 py-2 hover:text-brand hover:border-brand"
                     >
                       <Wallet className="w-3.5 h-3.5" />
                       Billing
@@ -467,13 +442,13 @@ export default function DashboardPage({
                   ) : (
                     <div className="space-y-2">
                       {payments.slice(0, 3).map((payment) => (
-                        <div key={payment.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-900/30 p-3">
+                        <div key={payment.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface-warm/50 dark:bg-surface-raised/20 border border-surface-border p-3">
                           <div>
                             <p className="text-xs font-bold capitalize">{payment.provider}</p>
-                            <p className="text-[10px] text-slate-400">{formatHistoryDate(payment.createdAt)}</p>
+                            <p className="text-[10px] text-ink-muted">{formatHistoryDate(payment.createdAt)}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs font-display font-extrabold text-[#5e9f8b]">
+                            <p className="text-xs font-display font-extrabold text-brand">
                               {money(payment.amountCents, payment.currency)}
                             </p>
                             <StatusBadge status={payment.status} />

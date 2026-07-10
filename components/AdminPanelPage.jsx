@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   BarChart3,
   CreditCard,
@@ -18,19 +19,18 @@ import {
   deleteAllPayments,
   deleteAssessment,
   deleteAdminUser,
-  fetchAdminAssessments,
-  fetchAdminPayments,
   fetchAdminPricing,
-  fetchAdminUsers,
+  fetchAssessment,
   isBackendApiEnabled,
   updateAdminPricing,
   updateAssessmentStatus,
 } from '../utils/apiClient'
-import { dedupeAssessments } from '../utils/assessmentDedupe'
-import { ADMIN_TABS, persistAdminTab, readAdminTab } from '../utils/adminPanel'
+import { ADMIN_TABS, adminTabToPath, persistAdminTab } from '../utils/adminPanel'
+import { isAdminResourceLoading, resourcesForAdminTab } from '../utils/adminWorkspace'
 import { formatHistoryDate } from '../utils/historyStorage'
 import { isReportApproved, normalizeReportStatus, REPORT_WORKFLOW_STATUSES } from '../utils/reportWorkflow'
 import ConfirmDialog from './ConfirmDialog'
+import { useApp } from './providers/AppProvider'
 
 const TAB_META = {
   overview: { label: 'Overview', icon: LayoutDashboard },
@@ -80,14 +80,13 @@ function EmptyState({ title, text }) {
   )
 }
 
-export default function AdminPanelPage({ user, onSettings, onViewCloudItem, initialTab }) {
-  const [activeTab, setActiveTab] = useState(() => initialTab || readAdminTab())
-  const [assessments, setAssessments] = useState([])
-  const [payments, setPayments] = useState([])
-  const [users, setUsers] = useState([])
-  const [loading, setLoading] = useState(false)
+export default function AdminPanelPage({ user, onSettings, onViewCloudItem, activeTab }) {
+  const router = useRouter()
+  const { adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace } = useApp()
+  const { assessments, payments, users, loading: resourceLoading, error: workspaceError } = adminWorkspace
   const [deletingId, setDeletingId] = useState('')
   const [updatingId, setUpdatingId] = useState('')
+  const [openingId, setOpeningId] = useState('')
   const [adminMode, setAdminMode] = useState('production')
   const [resetting, setResetting] = useState('')
   const [error, setError] = useState('')
@@ -99,43 +98,34 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
   const [confirmState, setConfirmState] = useState(null)
 
   const canLoad = !!user && user.role === 'admin' && isBackendApiEnabled()
+  const tabResources = resourcesForAdminTab(activeTab)
+  const loading = isAdminResourceLoading(resourceLoading, tabResources)
 
   const changeTab = (tab) => {
     if (!ADMIN_TABS.includes(tab)) return
-    setActiveTab(tab)
     persistAdminTab(tab)
+    router.push(adminTabToPath(tab))
   }
 
   useEffect(() => {
-    if (initialTab && ADMIN_TABS.includes(initialTab)) {
-      setActiveTab(initialTab)
-      persistAdminTab(initialTab)
+    if (activeTab && ADMIN_TABS.includes(activeTab)) {
+      persistAdminTab(activeTab)
     }
-  }, [initialTab])
-
-  const load = async () => {
-    if (!canLoad) return
-    setLoading(true)
-    setError('')
-    try {
-      const [nextAssessments, nextPayments, nextUsers] = await Promise.all([
-        fetchAdminAssessments(100),
-        fetchAdminPayments(50),
-        fetchAdminUsers(250),
-      ])
-      setAssessments(dedupeAssessments(nextAssessments))
-      setPayments(nextPayments)
-      setUsers(nextUsers)
-    } catch (err) {
-      setError(err.message || 'Could not load admin data')
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [activeTab])
 
   useEffect(() => {
-    load()
-  }, [user?.id])
+    if (!canLoad || !activeTab) return
+    loadAdminTab(activeTab)
+  }, [activeTab, canLoad, loadAdminTab])
+
+  useEffect(() => {
+    if (workspaceError) setError(workspaceError)
+  }, [workspaceError])
+
+  const handleRefresh = () => {
+    if (!canLoad || !activeTab) return
+    refreshAdminTab(activeTab)
+  }
 
   useEffect(() => {
     if (activeTab !== 'settings' || !canLoad) return
@@ -174,7 +164,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
 
   const userById = useMemo(() => Object.fromEntries(users.map((item) => [item.id, item])), [users])
 
-  const visibleAssessments = useMemo(() => dedupeAssessments(assessments), [assessments])
+  const visibleAssessments = assessments
 
   const reportCountByUser = useMemo(() => {
     const counts = {}
@@ -213,7 +203,9 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
     setError('')
     try {
       const updated = await updateAssessmentStatus(assessmentId, status)
-      setAssessments((prev) => prev.map((item) => (item.id === assessmentId ? updated : item)))
+      patchAdminWorkspace({
+        assessments: assessments.map((item) => (item.id === assessmentId ? { ...item, ...updated, id: assessmentId } : item)),
+      })
     } catch (err) {
       setError(err.message || 'Could not update status')
     } finally {
@@ -232,7 +224,9 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
         setError('')
         try {
           await deleteAssessment(assessmentId)
-          setAssessments((prev) => prev.filter((item) => item.id !== assessmentId))
+          patchAdminWorkspace({
+            assessments: assessments.filter((item) => item.id !== assessmentId),
+          })
         } catch (err) {
           setError(err.message || 'Could not delete report')
         } finally {
@@ -258,9 +252,11 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
         setError('')
         try {
           await deleteAdminUser(targetUser.id)
-          setUsers((prev) => prev.filter((item) => item.id !== targetUser.id))
-          setAssessments((prev) => prev.filter((item) => item.userId !== targetUser.id))
-          setPayments((prev) => prev.filter((item) => item.userId !== targetUser.id))
+          patchAdminWorkspace({
+            users: users.filter((item) => item.id !== targetUser.id),
+            assessments: assessments.filter((item) => item.userId !== targetUser.id),
+            payments: payments.filter((item) => item.userId !== targetUser.id),
+          })
         } catch (err) {
           setError(err.message || 'Could not delete user')
         } finally {
@@ -294,7 +290,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
         setResetting('reports')
         try {
           await deleteAllAssessments()
-          setAssessments([])
+          patchAdminWorkspace({ assessments: [] })
         } catch (err) {
           setError(err.message || 'Could not reset report history')
         } finally {
@@ -316,7 +312,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
         setResetting('payments')
         try {
           await deleteAllPayments()
-          setPayments([])
+          patchAdminWorkspace({ payments: [] })
         } catch (err) {
           setError(err.message || 'Could not reset payment history')
         } finally {
@@ -338,6 +334,19 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
       )
     }
     return <span className="text-xs text-amber-700">Unlinked report</span>
+  }
+
+  const handleOpenAssessment = async (assessment) => {
+    setOpeningId(assessment.id)
+    setError('')
+    try {
+      const full = await fetchAssessment(assessment.id)
+      onViewCloudItem?.(full)
+    } catch (err) {
+      setError(err.message || 'Could not open report')
+    } finally {
+      setOpeningId('')
+    }
   }
 
   const renderReportRow = (assessment, { showStatus = false } = {}) => {
@@ -366,10 +375,11 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
               </button>
             )}
             <button
-              onClick={() => onViewCloudItem?.(assessment)}
-              className="px-3 py-2 rounded-xl bg-white dark:bg-surface-card border border-surface-border text-xs font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors"
+              onClick={() => handleOpenAssessment(assessment)}
+              disabled={openingId === assessment.id}
+              className="px-3 py-2 rounded-xl bg-white dark:bg-surface-card border border-surface-border text-xs font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
             >
-              Open
+              {openingId === assessment.id ? 'Opening…' : 'Open'}
             </button>
             <button
               onClick={() => handleDeleteAssessment(assessment.id)}
@@ -386,8 +396,8 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
   }
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 py-12 pt-20 animate-fade-up font-sans bg-surface">
-      <div className="max-w-7xl mx-auto pt-12">
+    <div className="min-h-screen px-4 sm:px-6 pb-8 site-navbar-offset animate-fade-up font-sans bg-surface">
+      <div className="max-w-7xl mx-auto">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center">
@@ -401,7 +411,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, init
           <div className="flex flex-wrap gap-2">
             <button onClick={onSettings} className="btn-ghost text-sm">API settings</button>
             <button
-              onClick={load}
+              onClick={handleRefresh}
               disabled={loading || !canLoad}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border border-surface-border bg-white dark:bg-surface-card text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
             >

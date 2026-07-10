@@ -32,13 +32,15 @@ STAGES = {
 
 PHOTO_POSES = [
     {"id": "front", "label": "Front Face", "required": True, "hint": "Entire face head-on with a neutral expression"},
-    {"id": "leftProfile", "label": "Left Profile", "required": False, "hint": "Left side profile (optional)"},
-    {"id": "rightProfile", "label": "Right Profile", "required": False, "hint": "Right side profile (optional)"},
-    {"id": "left45", "label": "Left 45°", "required": False, "hint": "Three-quarter angle from left (optional)"},
-    {"id": "right45", "label": "Right 45°", "required": False, "hint": "Three-quarter angle from right (optional)"},
-    {"id": "smile", "label": "Smile", "required": False, "hint": "Smile naturally showing teeth — helps analyze smile shape & teeth"},
-    {"id": "topHead", "label": "Top of Head", "required": False, "hint": "Tilt head down showing top of head & hairline — helps analyze hair density"},
+    {"id": "leftProfile", "label": "Left Profile", "required": True, "hint": "Left side profile — full face from the left"},
+    {"id": "rightProfile", "label": "Right Profile", "required": True, "hint": "Right side profile — full face from the right"},
+    {"id": "left45", "label": "Left 45°", "required": True, "hint": "Three-quarter angle from the left"},
+    {"id": "right45", "label": "Right 45°", "required": True, "hint": "Three-quarter angle from the right"},
+    {"id": "smile", "label": "Smile", "required": True, "hint": "Smile naturally showing teeth — for smile shape & teeth analysis"},
+    {"id": "topHead", "label": "Top of Head", "required": True, "hint": "Tilt head down showing top of head & hairline — for hair density analysis"},
 ]
+
+REQUIRED_POSE_IDS = tuple(p["id"] for p in PHOTO_POSES if p.get("required"))
 
 SCAN_STAGES = [
     "Preparing images",

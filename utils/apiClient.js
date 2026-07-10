@@ -73,7 +73,7 @@ export async function runFaceAnalysisViaBackend(photo, answers, photos = {}, pro
       imageBase64,
       answers: answers || {},
       photos: normalizedPhotos || {},
-      provider: provider === 'aws' ? 'aws' : provider === 'openai' ? 'openai' : 'local',
+      provider: provider === 'aws' ? 'aws' : 'local',
       scanId: scanId || undefined,
     }
 
@@ -258,6 +258,7 @@ export async function ensureAssessmentProtocol(assessmentId) {
     return {
       protocolData: assessment?.protocolData,
       protocolNarrative: assessment?.protocolNarrative,
+      featureNarratives: assessment?.featureNarratives,
       protocolStorage: assessment?.protocolStorage,
       source: 'generated',
     }

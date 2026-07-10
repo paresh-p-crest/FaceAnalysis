@@ -30,9 +30,10 @@ This document contains standard step-by-step procedures for local environment se
    pip install -r requirements.txt
    ```
 4. **Environment Configuration:**
-   - Copy `.env.example` to `backend/.env` and configure `MONGODB_URI` along with admin credential seeds.
-   - Set up root project directory `.env` if needed.
-   - Copy `.env.example` to `.env.local` in project root and set `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+   - Copy `.env.example` to `.env` in the **project root** (single file for backend + Next.js).
+   - Set `MONGODB_URI`, `AUTH_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
+   - Set `NEXT_PUBLIC_API_URL=http://localhost:8000` so the frontend calls the FastAPI backend.
+   - For AI narratives/protocol: set `LLM_PROVIDER=groq` + `GROQ_API_KEY`, or `LLM_PROVIDER=openai` + `OPENAI_API_KEY`. AI visuals require `OPENAI_API_KEY` regardless of text provider.
 
 ---
 

@@ -15,14 +15,16 @@ import { getPrototypicalityNorms } from './prototypicalityNorms'
 export const METHODOLOGY = 'five_ratio_proportion_conformity'
 
 const SCORE_WEIGHTS = {
-  'jaw width': 0.22,
-  'facial thirds': 0.26,
-  symmetry: 0.20,
-  nose: 0.16,
-  brows: 0.16,
+  'jaw width': 0.24,
+  'facial thirds': 0.22,
+  symmetry: 0.10,
+  nose: 0.22,
+  brows: 0.22,
 }
 
-const SCORE_PENALTY_SCALE = 320
+const SCORE_BASE = 84
+const SCORE_PENALTY_SCALE = 195
+const MAX_FEATURE_MAGNITUDE = 0.38
 
 const FEATURE_TOPOLOGY = [
   { id: 'jaw', type: 'polyline', indices: FACE_OVAL, strokeWidth: 1.1 },
@@ -50,16 +52,25 @@ function distLandmarks(a, b) {
 }
 
 function symmetryScore(landmarks, metrics) {
-  if (metrics?.symmetry) return Math.round(parseFloat(metrics.symmetry))
-  const pairs = [[33, 263], [133, 362], [61, 291], [105, 334]]
+  if (!landmarks?.length) return 70
   const nose = lm(landmarks, 1)
-  let totalDev = 0
-  pairs.forEach(([li, ri]) => {
+  const forehead = lm(landmarks, 10)
+  const chin = lm(landmarks, 152)
+  const faceH = Math.max(chin.y - forehead.y, 0.2)
+  const mirrorPairs = [
+    [33, 263], [133, 362], [61, 291], [105, 334],
+    [159, 386], [145, 374], [234, 454], [127, 356],
+  ]
+  const deviations = mirrorPairs.map(([li, ri]) => {
     const l = lm(landmarks, li)
     const r = lm(landmarks, ri)
-    totalDev += Math.abs(Math.abs(l.x - nose.x) - Math.abs(r.x - nose.x))
+    const xMir = (Math.abs(Math.abs(l.x - nose.x) - Math.abs(r.x - nose.x)) / faceH) * 100
+    const yMir = (Math.abs(l.y - r.y) / faceH) * 100
+    const zMir = Math.abs(Math.abs(l.z || 0) - Math.abs(r.z || 0)) * 100
+    return xMir * 0.55 + yMir * 0.30 + zMir * 0.15
   })
-  return Math.min(99, Math.max(65, Math.round(97 - totalDev * 150)))
+  const avgDev = deviations.reduce((s, d) => s + d, 0) / deviations.length
+  return Math.max(55, Math.min(96, Math.round(90 - avgDev * 9)))
 }
 
 function scoreLabel(score) {
@@ -142,6 +153,12 @@ function syntheticIdealLandmarks(bounds, norms) {
   landmarks[10] = { x: cx, y: top, z: 0 }
   landmarks[152] = { x: cx, y: bottom, z: 0 }
   landmarks[1] = { x: cx, y: noseTipY, z: 0 }
+  landmarks[2] = { x: cx, y: noseTipY - fh * norms.middleThird * 0.15, z: 0 }
+  const jawHalf = fw * 0.5
+  landmarks[172] = { x: cx - jawHalf, y: bottom - fh * 0.12, z: 0 }
+  landmarks[397] = { x: cx + jawHalf, y: bottom - fh * 0.12, z: 0 }
+  landmarks[127] = { x: cx - fw * 0.5, y: browY + fh * 0.08, z: 0 }
+  landmarks[356] = { x: cx + fw * 0.5, y: browY + fh * 0.08, z: 0 }
   landmarks[234] = { x: cx - fw * 0.48, y: bottom - fh * 0.08, z: 0 }
   landmarks[454] = { x: cx + fw * 0.48, y: bottom - fh * 0.08, z: 0 }
 
@@ -180,28 +197,36 @@ function syntheticIdealLandmarks(bounds, norms) {
 }
 
 function faceProportions(landmarks) {
-  const jawL = lm(landmarks, 234)
-  const jawR = lm(landmarks, 454)
+  const jawL = lm(landmarks, 172)
+  const jawR = lm(landmarks, 397)
+  const cheekL = lm(landmarks, 127)
+  const cheekR = lm(landmarks, 356)
   const chin = lm(landmarks, 152)
   const forehead = lm(landmarks, 10)
-  const noseTip = lm(landmarks, 1)
+  const subnasale = lm(landmarks, 2)
   const eyeL = lm(landmarks, 33)
   const eyeR = lm(landmarks, 263)
 
   const faceH = chin.y - forehead.y || 0.3
-  const faceW = Math.abs(jawR.x - jawL.x) || 0.3
+  const jawW = Math.abs(jawR.x - jawL.x) || 0.3
+  const cheekW = Math.abs(cheekR.x - cheekL.x) || jawW
   const browLineY = (eyeL.y + eyeR.y) / 2
 
   return {
     faceH,
-    faceW,
-    faceRatio: faceW / faceH,
+    faceW: cheekW,
+    jawW,
+    faceRatio: jawW / faceH,
     browLineY,
     upperThird: (browLineY - forehead.y) / faceH,
-    middleThird: (browLineY - noseTip.y) / faceH,
-    lowerThird: (chin.y - noseTip.y) / faceH,
-    noseRatio: distLandmarks(lm(landmarks, 48), lm(landmarks, 278)) / faceW,
+    middleThird: (subnasale.y - browLineY) / faceH,
+    lowerThird: (chin.y - subnasale.y) / faceH,
+    noseRatio: distLandmarks(lm(landmarks, 48), lm(landmarks, 278)) / cheekW,
   }
+}
+
+function relativeError(measured, ideal) {
+  return Math.min(MAX_FEATURE_MAGNITUDE, Math.abs(measured - ideal) / Math.max(Math.abs(ideal), 0.05))
 }
 
 function measureDeviations(landmarks, metrics, norms) {
@@ -212,32 +237,35 @@ function measureDeviations(landmarks, metrics, norms) {
   const items = [
     {
       feature: 'jaw width',
-      magnitude: Math.abs(props.faceRatio - norms.faceWidthHeight) / norms.faceWidthHeight,
+      magnitude: relativeError(props.faceRatio, norms.faceWidthHeight),
       direction: props.faceRatio < norms.faceWidthHeight ? 'narrower' : 'wider',
     },
     {
       feature: 'nose',
-      magnitude: Math.abs(props.noseRatio - norms.noseRatio) / norms.noseRatio,
+      magnitude: relativeError(props.noseRatio, norms.noseRatio),
       direction: props.noseRatio < norms.noseRatio ? 'narrower' : 'broader',
     },
     {
       feature: 'brows',
-      magnitude: Math.abs(browLineRel - norms.upperThird) / Math.max(norms.upperThird, 0.01),
+      magnitude: relativeError(browLineRel, norms.upperThird),
       direction: browLineRel < norms.upperThird ? 'lower' : 'higher',
     },
     {
       feature: 'facial thirds',
-      magnitude: (
-        Math.abs(props.upperThird - norms.upperThird)
-        + Math.abs(props.middleThird - norms.middleThird)
-        + Math.abs(props.lowerThird - norms.lowerThird)
-      ) / 3,
+      magnitude: Math.min(
+        MAX_FEATURE_MAGNITUDE,
+        (
+          Math.abs(props.upperThird - norms.upperThird)
+          + Math.abs(props.middleThird - norms.middleThird)
+          + Math.abs(props.lowerThird - norms.lowerThird)
+        ) / 3,
+      ),
       direction: 'shifted',
     },
     {
       feature: 'symmetry',
-      magnitude: Math.max(0, 85 - symScore) / 85,
-      direction: symScore < 85 ? 'more asymmetric' : 'balanced',
+      magnitude: Math.min(MAX_FEATURE_MAGNITUDE, Math.max(0, 80 - symScore) / 120),
+      direction: symScore < 80 ? 'more asymmetric' : 'balanced',
     },
   ]
 
@@ -246,10 +274,20 @@ function measureDeviations(landmarks, metrics, norms) {
 
 function buildExplanation(deviations, score) {
   const notable = deviations.filter((d) => d.magnitude > 0.04 && d.direction !== 'balanced' && d.direction !== 'shifted').slice(0, 3)
+  if (score >= 70) {
+    if (notable.length === 0) {
+      return 'You sit on the typical side overall: central features and skin quality are very average, with proportions that align closely to your demographic norm.'
+    }
+    const phrases = notable.map((d) => {
+      if (d.feature === 'brows') return d.direction === 'higher' ? 'higher, thicker brows' : 'lower brows'
+      if (d.feature === 'nose') return d.direction === 'narrower' ? 'a straighter nose' : `a ${d.direction} nose`
+      if (d.feature === 'jaw width') return `a ${d.direction} jaw`
+      return d.feature
+    })
+    return `You sit on the typical side overall: central features and skin quality are very average, while ${phrases.join(', ')} add moderate distinctiveness without moving you far from the demographic norm.`
+  }
   if (notable.length === 0) {
-    return score >= 70
-      ? 'Your key facial ratios align closely with the ideal proportion targets for your selected profile.'
-      : 'Your ratios show a mix of conformity and variation relative to the ideal proportion targets.'
+    return 'Your ratios show a mix of conformity and variation relative to the ideal proportion targets.'
   }
   const phrases = notable.map((d) => {
     if (d.feature === 'brows') return `${d.direction} brow line`
@@ -257,9 +295,6 @@ function buildExplanation(deviations, score) {
     if (d.feature === 'jaw width') return `a ${d.direction} jaw`
     return `${d.direction} ${d.feature}`
   })
-  if (score >= 70) {
-    return `Overall your proportions sit close to the ideal targets; minor variation shows in ${phrases.join(', ')}.`
-  }
   return `Compared to the ideal proportion targets, notable variation appears in ${phrases.join(', ')}.`
 }
 
@@ -269,7 +304,7 @@ function computeScore(deviations) {
     0,
   )
   const penalty = weighted * SCORE_PENALTY_SCALE
-  return Math.max(0, Math.min(100, Math.round(100 - penalty)))
+  return Math.max(25, Math.min(96, Math.round(SCORE_BASE - penalty)))
 }
 
 export function computePrototypicalityReport(landmarks, metrics = {}, answers = {}) {

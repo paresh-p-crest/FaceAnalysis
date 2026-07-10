@@ -1,4 +1,4 @@
-import { getActiveProvider, shouldUseAwsCV, shouldUseMediaPipeCV, shouldUseLocalCV } from './appMode'
+import { getActiveProvider, shouldUseAwsCV, shouldUseLocalCV } from './appMode'
 import { getAwsCredentials } from './settings'
 import { isBackendApiEnabled, runFaceAnalysisViaBackend } from './apiClient'
 import { analyzeFaceWithAWS } from './awsRekognition'
@@ -69,27 +69,6 @@ async function runLocalCvPath(photo, answers, photos) {
   }
 }
 
-async function runMediaPipePath(photo, answers) {
-  const [mpResult, imageStats] = await Promise.all([
-    analyzeWithMediaPipe(photo),
-    analyzeImageStats(photo),
-  ])
-
-  return {
-    mode: 'real',
-    success: true,
-    cvEngine: 'mediapipe+opencv',
-    activeLLM: 'openai',
-    activeProvider: 'openai',
-    faceDetails: null,
-    landmarks: landmarksToOverlay(mpResult.landmarks),
-    metrics: computeMetricsFromLandmarks(mpResult.landmarks, answers, imageStats),
-    eyeAnalysis: null,
-    cvReport: null,
-    error: null,
-  }
-}
-
 export async function runFaceAnalysis(photo, answers, photos = {}, scanId = null) {
   const provider = getActiveProvider()
 
@@ -103,7 +82,7 @@ export async function runFaceAnalysis(photo, answers, photos = {}, scanId = null
 
   const credError = validateCredentials()
   if (credError) {
-    return failResult(credError, provider, provider === 'aws' ? 'aws' : 'mediapipe+opencv')
+    return failResult(credError, provider, provider === 'aws' ? 'aws' : 'local-cv')
   }
 
   if (shouldUseAwsCV()) {
@@ -145,14 +124,6 @@ export async function runFaceAnalysis(photo, answers, photos = {}, scanId = null
       return await runLocalCvPath(photo, answers, photos)
     } catch (err) {
       return failResult(err.message || 'MediaPipe analysis failed.', provider, 'local-cv')
-    }
-  }
-
-  if (shouldUseMediaPipeCV()) {
-    try {
-      return await runMediaPipePath(photo, answers)
-    } catch (err) {
-      return failResult(err.message || 'MediaPipe analysis failed.', provider, 'mediapipe+opencv')
     }
   }
 

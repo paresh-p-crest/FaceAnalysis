@@ -6,7 +6,7 @@ const RATIO_PARTS = {
   nasoAural: { primary: 'Ear', secondary: 'Nose' },
   orbitoNasal: { primary: 'Nose', secondary: 'Eye' },
   nasoOral: { primary: 'Mouth', secondary: 'Nose' },
-  orbital: { primary: 'Eye', secondary: 'Nose' },
+  orbital: { primary: 'Spacing', secondary: 'Eye' },
 }
 
 const RATIO_TABS = [
@@ -134,8 +134,10 @@ export function ProportionsSection({ proportions }) {
               <FaceImageFrame
                 src={activeImageSrc}
                 alt="Facial proportions"
-                aspect={activeTab === 'nasoAural' && active.photoSource === 'rightProfile' ? 'auto' : '4/5'}
-                maxW={activeTab === 'nasoAural' && active.photoSource === 'rightProfile' ? '320px' : '280px'}
+                aspect="4/5"
+                maxW="280px"
+                fit="contain"
+                alignOverlay
                 overlay={<ProportionFeatureOverlay overlay={active.overlay} />}
               />
             )}

@@ -34,6 +34,7 @@ class ProtocolStorage(Protocol):
         *,
         protocol_data: dict,
         protocol_narrative: Optional[dict] = None,
+        feature_narratives: Optional[dict] = None,
     ) -> StoredProtocol: ...
 
     def load_protocol(self, assessment_id: str) -> Optional[dict]: ...
@@ -57,6 +58,7 @@ class LocalPublicProtocolStorage:
         *,
         protocol_data: dict,
         protocol_narrative: Optional[dict] = None,
+        feature_narratives: Optional[dict] = None,
     ) -> StoredProtocol:
         dest_path = self._protocol_path(assessment_id)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -65,6 +67,7 @@ class LocalPublicProtocolStorage:
             "storedAt": datetime.now(timezone.utc).isoformat(),
             "protocolData": protocol_data,
             "protocolNarrative": protocol_narrative,
+            "featureNarratives": feature_narratives,
         }
         raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         dest_path.write_bytes(raw)
@@ -90,6 +93,7 @@ class LocalPublicProtocolStorage:
         return {
             "protocolData": payload.get("protocolData"),
             "protocolNarrative": payload.get("protocolNarrative"),
+            "featureNarratives": payload.get("featureNarratives"),
             "storedAt": payload.get("storedAt"),
             "version": payload.get("version"),
         }

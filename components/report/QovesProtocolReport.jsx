@@ -19,6 +19,12 @@ import {
   UNDERSTANDING_RESULTS,
 } from '../../utils/qovesProtocolModel'
 
+const EVIDENCE_TIER_LABELS = {
+  lifestyle: 'Routine / Topical',
+  otc: 'Non-invasive / OTC',
+  refer_clinician: 'See clinician',
+}
+
 function PageLabel({ page }) {
   return (
     <p className="text-[10px] uppercase tracking-[0.2em] text-ink-muted font-sans mb-2">
@@ -382,22 +388,50 @@ export default function QovesProtocolReport({
             splitTitle={{ primary: titleParts[0], secondary: titleParts.slice(1).join(' ') }}
           >
             <div className="grid sm:grid-cols-2 gap-6 mt-4">
-              <div>
-                {page.subsections.map((sub) => (
-                  <div key={sub.title} className="mb-5">
-                    <h3 className="text-sm font-semibold text-ink font-display mb-2">{sub.title}</h3>
-                    <p className="text-sm text-ink-secondary leading-relaxed font-sans">{sub.body}</p>
+              {page.layoutHints?.eyesQuadrant ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    {page.subsections.map((sub) => (
+                      <div key={sub.title}>
+                        <h3 className="text-sm font-semibold text-ink font-display mb-2">{sub.title}</h3>
+                        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{sub.body}</p>
+                        {sub.evidenceTier && EVIDENCE_TIER_LABELS[sub.evidenceTier] && (
+                          <p className="text-[10px] text-slate-500 mt-1 italic font-sans">
+                            Recommendation tier: {EVIDENCE_TIER_LABELS[sub.evidenceTier]}
+                          </p>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div>
-                {page.layoutHints?.profileImage && pair.profile && pair.profileIsReal && (
-                  <div className="mb-3">
-                    <ImageFrame src={pair.profile} tag="PROFILE" />
+                  <div>
+                    <BeforeAfterPair beforeSrc={pair.before || images.fullBefore} stacked={stacked} />
                   </div>
-                )}
-                <BeforeAfterPair beforeSrc={pair.before || images.fullBefore} stacked={stacked} />
-              </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    {page.subsections.map((sub) => (
+                      <div key={sub.title} className="mb-5">
+                        <h3 className="text-sm font-semibold text-ink font-display mb-2">{sub.title}</h3>
+                        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{sub.body}</p>
+                        {sub.evidenceTier && EVIDENCE_TIER_LABELS[sub.evidenceTier] && (
+                          <p className="text-[10px] text-slate-500 mt-1 italic font-sans">
+                            Recommendation tier: {EVIDENCE_TIER_LABELS[sub.evidenceTier]}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    {page.layoutHints?.profileImage && pair.profile && pair.profileIsReal && (
+                      <div className="mb-3">
+                        <ImageFrame src={pair.profile} tag="PROFILE" />
+                      </div>
+                    )}
+                    <BeforeAfterPair beforeSrc={pair.before || images.fullBefore} stacked={stacked} />
+                  </div>
+                </>
+              )}
             </div>
             <SummaryBar
               title={`${page.title.replace(' Recommendations', '')} Summary`}

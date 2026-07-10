@@ -79,18 +79,44 @@ async def get_assessment_by_id(assessment_id: str) -> Optional[dict]:
     return _serialize_doc(doc) if doc else None
 
 
-async def list_assessments(limit: int = 20) -> list[dict]:
-    db = get_db()
-    cursor = db.assessments.find().sort("createdAt", -1).limit(limit)
-    docs = await cursor.to_list(length=limit)
-    return [_serialize_doc(d) for d in docs]
+ASSESSMENT_SUMMARY_PROJECTION = {
+    "status": 1,
+    "userId": 1,
+    "provider": 1,
+    "scanId": 1,
+    "createdAt": 1,
+    "updatedAt": 1,
+    "analysis.cvReport.overall": 1,
+    "analysis.cvReport.symmetry.score": 1,
+    "analysis.cvReport.proportions.score": 1,
+    "analysis.cvReport.skin.score": 1,
+    "analysis.cvReport.structure.score": 1,
+    "analysis.metrics": 1,
+}
 
 
-async def list_assessments_for_user(user_id: str, limit: int = 20) -> list[dict]:
+def _serialize_summary_doc(doc: dict) -> dict:
+    return _serialize_doc(doc)
+
+
+async def list_assessments(limit: int = 20, *, summary: bool = True) -> list[dict]:
     db = get_db()
-    cursor = db.assessments.find({"userId": user_id}).sort("createdAt", -1).limit(limit)
+    kwargs = {}
+    if summary:
+        kwargs["projection"] = ASSESSMENT_SUMMARY_PROJECTION
+    cursor = db.assessments.find({}, **kwargs).sort("createdAt", -1).limit(limit)
     docs = await cursor.to_list(length=limit)
-    return [_serialize_doc(d) for d in docs]
+    return [_serialize_summary_doc(d) for d in docs]
+
+
+async def list_assessments_for_user(user_id: str, limit: int = 20, *, summary: bool = True) -> list[dict]:
+    db = get_db()
+    kwargs = {}
+    if summary:
+        kwargs["projection"] = ASSESSMENT_SUMMARY_PROJECTION
+    cursor = db.assessments.find({"userId": user_id}, **kwargs).sort("createdAt", -1).limit(limit)
+    docs = await cursor.to_list(length=limit)
+    return [_serialize_summary_doc(d) for d in docs]
 
 
 async def delete_assessment(assessment_id: str) -> bool:
@@ -224,6 +250,7 @@ async def update_assessment_protocol(
     protocol_data: Optional[dict] = None,
     protocol_narrative: Optional[dict] = None,
     protocol_storage: Optional[dict] = None,
+    feature_narratives: Optional[dict] = None,
 ) -> Optional[dict]:
     db = get_db()
     try:
@@ -235,6 +262,8 @@ async def update_assessment_protocol(
         update_fields["protocolData"] = protocol_data
     if protocol_narrative is not None:
         update_fields["protocolNarrative"] = protocol_narrative
+    if feature_narratives is not None:
+        update_fields["featureNarratives"] = feature_narratives
     if protocol_storage is not None:
         update_fields["protocolStorage"] = protocol_storage
     doc = await db.assessments.find_one_and_update(

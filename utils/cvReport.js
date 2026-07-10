@@ -7,7 +7,7 @@ import {
   bboxFullFace,
   bboxFromIndices,
   mergeBboxes,
-  dotsInCrop,
+  dotsInImage,
   proportionLinesInCrop,
   proportionRatioOverlays,
   SYMMETRY_DOTS,
@@ -885,23 +885,45 @@ function faceShapeFromLandmarks(landmarks) {
 }
 
 function symmetryScore(landmarks, metrics) {
-  if (metrics?.symmetry) return Math.round(parseFloat(metrics.symmetry))
-  const pairs = [[33, 263], [133, 362], [61, 291], [105, 334]]
+  if (!landmarks?.length) return 70
   const nose = lm(landmarks, 1)
-  let totalDev = 0
-  pairs.forEach(([li, ri]) => {
+  const forehead = lm(landmarks, 10)
+  const chin = lm(landmarks, 152)
+  const faceH = Math.max(chin.y - forehead.y, 0.2)
+  const mirrorPairs = [
+    [33, 263], [133, 362], [61, 291], [105, 334],
+    [159, 386], [145, 374], [234, 454], [127, 356],
+  ]
+  const deviations = mirrorPairs.map(([li, ri]) => {
     const l = lm(landmarks, li)
     const r = lm(landmarks, ri)
-    totalDev += Math.abs(Math.abs(l.x - nose.x) - Math.abs(r.x - nose.x))
+    const xMir = (Math.abs(Math.abs(l.x - nose.x) - Math.abs(r.x - nose.x)) / faceH) * 100
+    const yMir = (Math.abs(l.y - r.y) / faceH) * 100
+    const zMir = Math.abs(Math.abs(l.z || 0) - Math.abs(r.z || 0)) * 100
+    return xMir * 0.55 + yMir * 0.30 + zMir * 0.15
   })
-  return Math.min(99, Math.max(65, Math.round(97 - totalDev * 150)))
+  const avgDev = deviations.reduce((s, d) => s + d, 0) / deviations.length
+  return Math.max(55, Math.min(96, Math.round(90 - avgDev * 9)))
 }
 
 function symmetryLabel(score) {
-  if (score >= 82) return 'Highly Symmetric'
-  if (score >= 72) return 'Balanced'
-  if (score >= 62) return 'Moderate'
+  if (score >= 85) return 'Highly Symmetric'
+  if (score >= 74) return 'Quite Symmetric'
+  if (score >= 64) return 'Balanced'
   return 'Noticeable asymmetry'
+}
+
+function symmetryExplanation(score, label) {
+  if (score >= 74) {
+    return 'Your facial symmetry is notably above average, with balanced left-right features and only minor asymmetries that are common in natural faces. Overall, your face appears harmonious and proportionate from most viewing angles.'
+  }
+  if (score >= 72) {
+    return 'Your facial symmetry is above average with generally balanced features. Minor left-right differences in the periorbital and jaw regions are typical and do not detract from overall harmony.'
+  }
+  if (score >= 62) {
+    return `Your facial symmetry score of ${score} indicates ${label.toLowerCase()} proportions. Some feature pairs show mild asymmetry, which is common in natural faces.`
+  }
+  return `Your facial symmetry score of ${score} reflects noticeable left-right variation in several feature pairs. This is still within the range seen in everyday faces.`
 }
 
 function proportionsFromLandmarks(landmarks, metrics) {
@@ -947,7 +969,8 @@ function proportionRatios(landmarks) {
 
   // Compute measurements
   const earHeight = Math.abs(earBotL.y - earTopL.y)
-  const noseHeight = Math.abs(noseTip.y - noseBridge.y)
+  const subnasale = lm(landmarks, 2)
+  const noseHeight = Math.abs(noseTip.y - subnasale.y)
   const noseWidth = Math.abs(noseBaseR.x - noseBaseL.x)
   const eyeWidthL = Math.abs(eyeOuterL.x - eyeInnerL.x)
   const eyeWidthR = Math.abs(eyeOuterR.x - eyeInnerR.x)
@@ -959,7 +982,7 @@ function proportionRatios(landmarks) {
   // 1. Naso-Aural Ratio — ear height : nose height (ideal ≈ 1.00)
   const nasoAuralYour = noseHeight > 0.001 ? earHeight / noseHeight : 1
   const nasoAuralIdeal = 1.0
-  const nasoAuralYourLabel = nasoAuralYour > nasoAuralIdeal ? 'Ear > Nose' : nasoAuralYour < nasoAuralIdeal ? 'Ear < Nose' : 'Ear = Nose'
+  const nasoAuralYourLabel = nasoAuralYour > 1.05 ? 'Ear > Nose' : nasoAuralYour < 0.95 ? 'Ear < Nose' : 'Ear ≈ Nose'
 
   // 2. Orbito-Nasal Ratio — nose width : inner eye spacing (ideal ≈ 1.00)
   const orbitoNasalYour = innerEyeSpacing > 0.001 ? noseWidth / innerEyeSpacing : 1
@@ -971,10 +994,10 @@ function proportionRatios(landmarks) {
   const nasoOralIdeal = 1.6
   const nasoOralYourLabel = nasoOralYour > nasoOralIdeal ? 'Mouth > Nose' : nasoOralYour < nasoOralIdeal ? 'Mouth < Nose' : 'Mouth = Nose'
 
-  // 4. Orbital Proportion — eye width : nose width (ideal ≈ 1.00)
-  const orbitalYour = noseWidth > 0.001 ? eyeWidth / noseWidth : 1
+  // 4. Orbital Proportion — inter-eye spacing vs eye width (ideal ≈ 1.00)
+  const orbitalYour = eyeWidth > 0.001 ? innerEyeSpacing / eyeWidth : 1
   const orbitalIdeal = 1.0
-  const orbitalYourLabel = orbitalYour > orbitalIdeal ? 'Eye > Nose' : orbitalYour < orbitalIdeal ? 'Eye < Nose' : 'Eye = Nose'
+  const orbitalYourLabel = orbitalYour > orbitalIdeal ? 'Width > Spacing' : orbitalYour < orbitalIdeal ? 'Width < Spacing' : 'Width = Spacing'
 
   return {
     nasoAural: {
@@ -984,7 +1007,9 @@ function proportionRatios(landmarks) {
       yourLabel: nasoAuralYourLabel,
       idealLabel: 'Ear = Nose',
       expectation: 'Generally, the ears are expected to be roughly the same height as the nose.',
-      explanation: `${nasoAuralYour > 1.05 ? 'Your slightly taller ears compared with nose height create a firm vertical frame from the side which prevents the nose and chin from overpowering the profile and ties the hairline visually into the jaw angle.' : nasoAuralYour < 0.95 ? 'Your ears are slightly shorter relative to nose height, which can make the midface appear more prominent from the side. This is well within normal variation.' : 'Your ear-to-nose height ratio is close to the population average, creating a balanced lateral profile.'}`,
+      explanation: 'Upload a side-profile photo for an accurate naso-aural measurement. Front-facing estimates are not clinically meaningful for this ratio.',
+      dataSource: 'front_estimate',
+      requiresProfile: true,
     },
     orbitoNasal: {
       ratioLabel: 'ORBITO-NASAL RATIO',
@@ -1009,9 +1034,9 @@ function proportionRatios(landmarks) {
       yourValue: orbitalYour,
       idealValue: orbitalIdeal,
       yourLabel: orbitalYourLabel,
-      idealLabel: 'Eye ≈ Nose',
-      expectation: 'Generally, the eye width is expected to be roughly equal to the nose width for balanced proportions.',
-      explanation: `${orbitalYour > 1.1 ? 'Your eyes are wider relative to nose width, creating an open, alert appearance. Wider-set eyes are often associated with neoteny and perceived attractiveness.' : orbitalYour < 0.9 ? 'Your eyes are slightly narrower relative to nose width, which can create a more focused, intense gaze. This is well within normal variation.' : 'Your eye width closely matches nose width, creating a classically balanced upper facial proportion.'}`,
+      idealLabel: 'Width = Spacing',
+      expectation: 'Generally, the space between the eyes is expected to be equal to the width of one eye.',
+      explanation: `Your eye size ${orbitalYour >= 0.95 && orbitalYour <= 1.05 ? 'closely matches' : orbitalYour < 0.95 ? 'is slightly narrower than' : 'is slightly wider than'} the gap between them so your eyes read as ${orbitalYour >= 0.95 && orbitalYour <= 1.05 ? 'evenly spaced' : orbitalYour < 0.95 ? 'somewhat close-set' : 'somewhat wide-set'}, providing a regular reference for judging the size of your nose and mouth.`,
     },
   }
 }
@@ -1835,9 +1860,9 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
     analyzeBrowsCrop(landmarks, imageSrc),
   ])
 
-  const symmetryDots = dotsInCrop(landmarks, SYMMETRY_DOTS, faceBox)
+  const symmetryDots = dotsInImage(landmarks, SYMMETRY_DOTS)
   const proportionLines = proportionLinesInCrop(landmarks, faceBox)
-  const ratioOverlays = proportionRatioOverlays(landmarks, faceBox)
+  const ratioOverlays = proportionRatioOverlays(landmarks)
   const ratios = proportionRatios(landmarks)
   Object.keys(ratios).forEach((key) => {
     ratios[key].overlay = ratioOverlays[key]
@@ -1943,7 +1968,7 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
       scaleRight: 'Symmetric',
       scaleMarkerPct: symScore,
       rangeHighlight: { left: 70, width: 28 },
-      explanation: `Your facial symmetry score of ${symScore} indicates ${symLabel.toLowerCase()} left-right proportions. Mild asymmetry in the periorbital and jaw regions is common and within normal variation.`,
+      explanation: symmetryExplanation(symScore, symLabel),
       imageSrc: faceCrop,
       symmetryDots,
     },

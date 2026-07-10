@@ -6,12 +6,81 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Added
+- **All 7 photo poses required** before analysis (`utils/constants.js`, `backend/photo_validation.py`, `POST /api/assessments` returns 400 when poses missing).
+- **Structured `cvReport.eyes`** — four metric slices (eyebrows, eyelashes, ocular, underEye) via `assemble_eyes_region()` in `backend/eye_analysis.py`.
+- **LLM closing synthesis** — `generate_closing_synthesis_async()` in `narrative_orchestrator.py` with `ClosingSynthesis` schema; deterministic stitch fallback.
+- **Severity-gated 3-tier recommendations** — `evidenceTier` prompts, `deviationFacts`, tier ceiling validation in `clinical_guardrails.py`; tier labels in PDF and web viewer.
+- **Profile cephalometrics extensions** — nasofrontal angle, dorsal hump deviation, profile gonial angle in `profile_cephalometrics.py`.
+- **Skin texture module** — `backend/skin_texture.py` (Laplacian roughness, R−G redness, oiliness proxy) wired into `skin_quality_metrics()`.
+- **Tier A landmark metrics** — jaw U/V/square classifier, cupid's bow definition, formalized frontal gonial angle proxy.
+- **Optional hair segmentation hook** — `backend/hair_segmentation.py` gated by `HAIR_SEGMENTATION_ENABLED`.
+- **Profile silhouette fallback** — `backend/profile_silhouette.py` for edge-based profile points (Phase 2 model integration).
+- `backend/tests/test_photo_validation.py`.
+### Changed
+- **Hair PDF page** — `drawHairFeaturePage()` reads live `section.subsections` / `summary` and Norwood stage from `cvReport.hair`.
+- **Nose PDF page** — no longer tags front crop as `PROFILE`; profile panel only when real side profile exists.
+- **Nose CV enrichment** — profile measurements merged into `cvReport.nose` in `analyze_face._enrich_cv_report()`.
+- **Neck metrics** — `dataSource: approximate` with explicit limitation (MediaPipe Pose deferred).
+- **Eyes web viewer** — 2×2 quadrant layout via `eyesQuadrant` layout hint.
+- **Hair Norwood copy** — labeled as estimated, not clinical diagnosis.
+- `AnalysisFlow` — single `/analysis` page with gated step state (welcome → questionnaire → confirm → upload → scanning).
+### Changed
+- Admin panel tabs use real routes (`/dashboard/admin-overview`, `/dashboard/admin-users`, `/dashboard/admin-review`, `/dashboard/admin-payments`, `/dashboard/admin-settings`) instead of `dashboard#admin-*` hash URLs.
+- Assessment list APIs (`GET /api/assessments`, `GET /api/my/assessments`) return summary rows only (scores + metadata); full report loads on `GET /api/assessments/{id}` when opening a report.
+- Admin workspace data is cached in `AppProvider` with tab-specific loading (no refetch when switching admin tabs; Refresh forces reload).
+- Session is validated with `/api/auth/me` before `authReady`; route content does not render until complete.
+- Inline theme bootstrap script in root layout prevents dark/light flash on refresh.
+- Admin panel renders on `/dashboard` for admin users; Stripe success shows on `/billing`.
+- Legacy URLs (`/report/*`, `/analysis/*`, `/admin`, `/payment-success`) redirect to the correct top-level route.
+- `components/providers/AppProvider.jsx` — shared app state and navigation context.
+- `components/AppShell.jsx` and `components/analysis/AnalysisShell.jsx` — layout shells with/without site navbar.
+- Flattened App Router pages (`app/dashboard`, `app/history`, `app/billing`) — removed `(main)` route group to fix RSC bundler errors on `/history`.
+- History and Billing pages: removed Back buttons; responsive stacked headers and full-width action buttons on mobile.
+- Mobile `SiteNavbar`: full-width expandable panel below the header bar (replaces right-side drawer).
+### Fixed
+- Boot screen no longer shows navbar links (e.g. Analysis History) before session validation completes.
+- Dashboard flash on refresh: auth gate blocks route content until session validation completes (no sign-in card swap).
+- `/history` 500 from React Client Manifest / `SegmentViewNode` bundler errors after route-group flattening and client-only history load.
+- `HistoryPage` loads local history in `useEffect` (avoids `localStorage` during SSR).
+- `utils/settings.js` guards `localStorage` access during SSR (fixes 500 on report routes when `Settings` mounts).
+- Report deep links show a loading state while assessment hydrates; no longer treats missing `analysis` as a CV failure.
+### Changed
+- Compact site navbar: reduced bar height (`2.5rem`/`2.75rem`), smaller nav links and auth/theme controls; hidden on analysis flow pages.
+- Navbar-to-content spacing: `--site-navbar-gap` added to page offset on all navbar pages; fixed `py-8` overriding offset on dashboard, report, history, billing, admin, and payment success.
+- Report view: immersive full-width layout without global navbar or report sidebar; floating PDF download only (admin Approve when pending).
+- Questionnaire welcome: **Back to Dashboard** control (top-left) for signed-in users.
+- Full-width responsive `SiteNavbar` replaces floating icon `TopNav`; preserves all app nav actions (Dashboard, History, Billing, Sign in/out, theme, etc.) with mobile drawer; hidden on questionnaire and scanning stages.
+- Dashboard aligned to design tokens (`bg-brand`, `text-ink`, `bg-surface-card`) and landing-style gradient background; duplicate MyFace header removed.
+### Added
+- PDF-first clinical protocol pipeline: per-feature `featureNarratives` with OpenAI strict JSON Schema (`backend/narrative_schemas.py`, `chat_structured_completion` in `llm_client.py`).
+- `backend/narrative_orchestrator.py` — 10 parallel structured LLM calls + clinical guardrails + protocol bundle stitching.
+- `backend/feature_context.py`, `backend/clinical_guardrails.py`, `backend/recommendation_rules.py`, `backend/protocol_page_schema.py`, `backend/report_sections.py`.
+- Beauty Assistant ReAct agent (`backend/assistant_agent.py`) with report fetch tools (`backend/assistant_tools.py`); max 3 tool rounds, `max_tokens=1000`.
+- Unit tests: `test_narrative_schemas.py`, `test_clinical_guardrails.py`, `test_feature_context.py`.
+### Changed
+- Reorganized `.env.example` (single root file, removed unused `BACKEND_PORT` / duplicate `PORT`, outdated Settings UI key note).
+- `docs/sop.md` — env setup uses one root `.env` instead of `backend/.env` + `.env.local`.
+- Removed legacy OpenAI CV provider stub (`run_mediapipe_path` / partial analysis without `cvReport`); all assessments use full local CV. Settings OpenAI tab removed; `provider=openai` normalized to `local`.
+- `POST /api/assessments/{id}/ai-protocol` now uses orchestrator (replaces monolithic `generate_protocol_narrative` for new bundles).
+- Protocol JSON bundle stores `featureNarratives`; `GET /protocol` returns full PDF-ready bundle.
+- `utils/qovesProtocolModel.js` fallback copy sanitized (no injectables/lasers/procedures in defaults).
+- `ProtocolSideRail` label: Non-Surgical Protocol.
+- Executive narrative and protocol action cards use structured JSON Schema output.
+- Backend fallback PDF markdown notes Qoves client PDF as canonical when photo available.
+### Added
 - Unified backend text AI layer (`backend/text_ai_service.py`) for narrative, protocol, protocol narrative, and Beauty Assistant; shared non-surgical safety rules.
 - Payment gating (`backend/ai_access.py`) on all AI endpoints (`402` when unpaid); Beauty Assistant hourly rate limit (20 messages/user/hour).
 - `POST /api/assessments/{id}/ai-protocol` — server-side protocol generation persisted as `protocolData` + `protocolNarrative`.
 - Beauty Assistant session summary compression (refresh after first exchange, then every 6 user messages) stored on `conversations.sessionSummary`.
 - MongoDB `assistant_rate_limits` collection for hourly assistant quotas.
 ### Changed
+- Redesigned downloaded PDF report pages 2, 3, and 4 to align with Qoves layout line-by-line, including vertical/horizontal dividers, even text distribution, and MyFace top-left text branding.
+- Redesigned PDF cover page (Page 1) with a centered title, metadata fields grid, top and bottom border accent lines, and brand footers.
+- Redesigned Page 5 (Client Protocol overview) with portrait BEFORE/AFTER images, description texts, and a mathematically-generated vector radar chart.
+- Redesigned Page 6 (Hair Recommendations) with stacked BEFORE/AFTER hair crops, a programmatic 7-stage Norwood hairline diagram panel, a double-column text layout for hair loss details, and a dark-slate summary card.
+- Redesigned Page 7 (Eyes), Page 8 (Nose), and Page 9 (Cheeks) to match visual screenshots, incorporating custom 4-section grids, vertical profile stacks, geometric analysis overlays, and full-width summary panels.
+- Redesigned Page 10 (Jaw), Page 11 (Lips), and Page 12 (Chin) to match visual screenshots, incorporating profile stacks, lip crops, double geometric overlays, and summary panels/bars.
+- Redesigned Page 13 (Skin), Page 14 (Neck), and Page 15 (Ears) to match visual screenshots, incorporating split images, vertical image stacks, antihelix/height overlays, and summary panels.
 - Beauty Assistant context now includes `aiNarrative`, `protocolData`, and `protocolNarrative`; uses Groq/OpenAI via shared `llm_client`.
 - Protocol AI generation routed through `backend/protocol_service.py` with local JSON storage (`protocol_storage.py`); frontend uses `GET /protocol` + `ensureAssessmentProtocol()`.
 - `utils/protocolGenerator.js` removed (no client-side protocol generation).
@@ -26,7 +95,14 @@ All notable changes to this project will be documented in this file. The format 
 ### Changed
 - Ears report section now shows **left and right profile** photos (not front face); `cvReport.ears` stores `imageSrcLeft` / `imageSrcRight` from persisted pose URLs.
 ### Added
-- Dev-only questionnaire skip button (`NEXT_PUBLIC_DEV_SHORTCUTS=true`): fills sample answers and jumps to photo upload. Remove `DevShortcuts.jsx` + `devSampleAnswers.js` before prod.
+- Dev-only auto-approve (`NEXT_PUBLIC_DEV_AUTO_APPROVE` + `DEV_AUTO_APPROVE_REPORTS`): skips admin review in dev. Delete `devConfig.js`, `backend/dev_config.py`, and unset env vars before prod.
+### Fixed
+- Facial assessment overlays: symmetry dots and proportion guides now use full-image coordinates with `object-contain` + SVG `meet` alignment (fixes misplaced landmarks on front photos).
+- Orbital proportion tab aligned to Qoves (inter-eye spacing vs eye width); backend now generates ratio overlays and explanations.
+- Prototypicality score: fixed inverted middle-third calculation that collapsed scores to ~9; explanations match Qoves tone.
+- Dimorphism overview: richer Qoves-style narrative and per-feature explanations.
+- Pipeline calibration vs Qoves: symmetry score recalibrated (8 mirror pairs incl. ears; typical faces ~72–82, not inflated 90+); naso-aural ratio measured from profile photo (nasion→subnasale vs visible ear span); front-view naso-aural marked `front_estimate` until profile enrichment.
+- Prototypicality score recalibrated for MediaPipe landmarks: jaw width (172↔397), nose/cheek ratio (127↔356), updated cohort norms, softer penalty curve — typical faces now land ~70–80 (Qoves band) instead of collapsing to ~23.
 ### Changed
 - `PhotoUpload.jsx` uses canonical `PHOTO_POSES` keys (7 poses: front, profiles, 45°, smile, topHead).
 - `analyze_face.py` orchestrates multi-view analysis and enriches `cvReport` with profile, quarter, calibration, and meta fields.

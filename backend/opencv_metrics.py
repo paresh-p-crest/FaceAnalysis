@@ -112,7 +112,8 @@ def compute_metrics_from_landmarks(landmarks: list, answers: Optional[dict] = No
     rb = lm(landmarks, 334)
 
     eye_y_diff = abs(LE["y"] - RE["y"])
-    symmetry = str(min(99, max(65, 97 - eye_y_diff * 500)))
+    # Harmony helper only — cv_report.symmetry_score is authoritative for the report UI.
+    symmetry = str(min(88, max(60, 86 - eye_y_diff * 400)))
 
     face_h = chin["y"] - forehead["y"]
     brow_y = (lb["y"] + rb["y"]) / 2

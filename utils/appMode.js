@@ -6,10 +6,6 @@ export function shouldUseAwsCV() {
   return getActiveProvider() === 'aws'
 }
 
-export function shouldUseMediaPipeCV() {
-  return getActiveProvider() === 'openai'
-}
-
 export function shouldUseLocalCV() {
   return getActiveProvider() === 'local'
 }

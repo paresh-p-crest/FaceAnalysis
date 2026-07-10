@@ -22,7 +22,7 @@ from ..repositories.conversation_repository import (
     update_session_summary,
 )
 from ..serialization import to_json_safe
-from ..text_ai_service import answer_beauty_question
+from ..assistant_agent import run_assistant_agent
 
 router = APIRouter(prefix="/api/assessments", tags=["assistant"])
 
@@ -73,18 +73,12 @@ async def post_assistant_message(
     assessment = await _load_assessment_or_403(assessment_id, current_user)
     conversation = await get_or_create_conversation(assessment_id=assessment_id, user_id=current_user["id"])
     messages = conversation.get("messages") or []
-    analysis = assessment.get("analysis") or {}
 
     result = await asyncio.to_thread(
-        answer_beauty_question,
+        run_assistant_agent,
         question=req.message,
-        answers=assessment.get("answers") or {},
-        cv_report=analysis.get("cvReport") or {},
-        metrics=analysis.get("metrics"),
+        assessment=assessment,
         history=messages,
-        ai_narrative=assessment.get("aiNarrative"),
-        protocol_data=assessment.get("protocolData"),
-        protocol_narrative=assessment.get("protocolNarrative"),
         session_summary=conversation.get("sessionSummary"),
         summary_at_user_count=int(conversation.get("summaryAtUserCount") or 0),
     )

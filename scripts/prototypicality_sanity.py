@@ -17,11 +17,14 @@ def _base_landmarks() -> list:
     lm_list = [{"x": 0.5, "y": 0.5, "z": 0.0} for _ in range(478)]
     lm_list[10] = {"x": 0.5, "y": 0.18, "z": 0}   # forehead
     lm_list[152] = {"x": 0.5, "y": 0.88, "z": 0}  # chin
-    lm_list[1] = {"x": 0.5, "y": 0.55, "z": 0}    # nose
+    lm_list[2] = {"x": 0.5, "y": 0.58, "z": 0}    # subnasale
+    lm_list[1] = {"x": 0.5, "y": 0.55, "z": 0}    # nose tip
     lm_list[33] = {"x": 0.38, "y": 0.42, "z": 0}
     lm_list[263] = {"x": 0.62, "y": 0.42, "z": 0}
-    lm_list[234] = {"x": 0.28, "y": 0.78, "z": 0}
-    lm_list[454] = {"x": 0.72, "y": 0.78, "z": 0}
+    lm_list[172] = {"x": 0.32, "y": 0.80, "z": 0}
+    lm_list[397] = {"x": 0.68, "y": 0.80, "z": 0}
+    lm_list[127] = {"x": 0.28, "y": 0.50, "z": 0}
+    lm_list[356] = {"x": 0.72, "y": 0.50, "z": 0}
     lm_list[48] = {"x": 0.44, "y": 0.56, "z": 0}
     lm_list[278] = {"x": 0.56, "y": 0.56, "z": 0}
     return lm_list
@@ -39,8 +42,8 @@ def main() -> None:
 
     variants = [
         _variant("ideal-ish", lambda p: None),
-        _variant("wide jaw", lambda p: p.__setitem__(454, {"x": 0.78, "y": 0.78, "z": 0}) or p.__setitem__(234, {"x": 0.22, "y": 0.78, "z": 0})),
-        _variant("narrow jaw", lambda p: p.__setitem__(454, {"x": 0.66, "y": 0.78, "z": 0}) or p.__setitem__(234, {"x": 0.34, "y": 0.78, "z": 0})),
+        _variant("wide jaw", lambda p: p.__setitem__(397, {"x": 0.74, "y": 0.80, "z": 0}) or p.__setitem__(172, {"x": 0.26, "y": 0.80, "z": 0})),
+        _variant("narrow jaw", lambda p: p.__setitem__(397, {"x": 0.64, "y": 0.80, "z": 0}) or p.__setitem__(172, {"x": 0.36, "y": 0.80, "z": 0})),
         _variant("high brows", lambda p: p.__setitem__(33, {"x": 0.38, "y": 0.35, "z": 0}) or p.__setitem__(263, {"x": 0.62, "y": 0.35, "z": 0})),
         _variant("low brows", lambda p: p.__setitem__(33, {"x": 0.38, "y": 0.48, "z": 0}) or p.__setitem__(263, {"x": 0.62, "y": 0.48, "z": 0})),
         _variant("broad nose", lambda p: p.__setitem__(48, {"x": 0.40, "y": 0.56, "z": 0}) or p.__setitem__(278, {"x": 0.60, "y": 0.56, "z": 0})),

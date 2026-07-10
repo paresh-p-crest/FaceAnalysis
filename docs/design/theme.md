@@ -156,6 +156,22 @@ Used on: Questionnaire, PhotoUpload confirmation, PhotoUpload upload.
 | Left panel (compact, with scrollable body) | `px-7 pt-7 pb-4` (header) · `px-7 py-5` (footer) |
 | Right panel | `p-12` |
 
+### 6.3 Site Navbar (full-width app chrome)
+
+Used on all stages except **landing (questionnaire welcome)**, **questionnaire**, and **scanning**. Questionnaire welcome and wizard keep inline navigation only.
+
+| Element | Value |
+|---|---|
+| Shell | `.site-navbar` — `fixed top-0 inset-x-0 w-full`, `bg-surface-card`, `border-b border-surface-border`, `shadow-soft` |
+| Height | `--site-navbar-height`: `2.5rem` mobile · `2.75rem` from `sm` up |
+| Content gap | `--site-navbar-gap`: `1.5rem` mobile · `2rem` from `sm` up |
+| Page offset | `.site-navbar-offset` — `padding-top: var(--site-navbar-offset)` where offset = height + gap |
+| Inner row | `.site-navbar-inner` — `max-w-6xl mx-auto`, `h-full`, compact horizontal padding |
+| Compact controls | `.site-navbar-btn`, `.site-navbar-icon-btn` — `text-xs`, `min-h-[32px]` |
+| Mobile | Hamburger opens `.site-navbar-drawer`; overlay + Escape to close |
+
+**Visibility:** `AppShell` shows the navbar only on `/dashboard`, `/history`, `/billing`, `/admin`, and `/payment-success`. The `/analysis/*` flow and `/report` are chromeless (full-bleed / immersive).
+
 ---
 
 ## 7. Pre-Built Component Classes

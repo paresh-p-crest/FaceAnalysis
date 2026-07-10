@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import { X, Settings as SettingsIcon, Key, Cloud, Info, CheckCircle2, Cpu, Loader2, Wifi, WifiOff } from 'lucide-react'
+import { X, Settings as SettingsIcon, Cloud, Info, CheckCircle2, Cpu, Loader2, Wifi, WifiOff } from 'lucide-react'
 import { loadSettings, saveSettings } from '../utils/settings'
 import { testAwsConnection } from '../utils/awsRekognition'
-import { OPENAI_REPORT_MODEL } from '../utils/constants'
 
 const TABS = [
   { id: 'local', label: 'Free CV', icon: Cpu },
   { id: 'aws', label: 'AWS', icon: Cloud },
-  { id: 'openai', label: 'OpenAI', icon: Key },
 ]
 
 export default function Settings({ open, onClose }) {
@@ -49,7 +47,6 @@ export default function Settings({ open, onClose }) {
   const TAB_LABELS = {
     local: { app: 'Free CV', desc: 'MediaPipe + OpenCV ($0)' },
     aws: { app: 'AWS', desc: 'Amazon Rekognition' },
-    openai: { app: 'OpenAI', desc: `GPT-4o-mini` },
   }
   const headerLabel = TAB_LABELS[activeTab]
 
@@ -120,7 +117,7 @@ export default function Settings({ open, onClose }) {
                 <span className="text-brand">$0 API cost</span>
               </p>
             </div>
-          ) : activeTab === 'aws' ? (
+          ) : (
             <>
               <input
                 type="text"
@@ -169,21 +166,6 @@ export default function Settings({ open, onClose }) {
                 <span className="text-ink-secondary">CV:</span> Amazon Rekognition DetectFaces
                 <span className="text-ink-faint mx-1">·</span>
                 <span className="text-ink-secondary">Report:</span> Template from AWS data (no LLM / Bedrock)
-              </p>
-            </>
-          ) : (
-            <>
-              <input
-                type="password"
-                placeholder="OpenAI API Key (sk-...)"
-                value={form.openaiKey}
-                onChange={(e) => setForm({ ...form, openaiKey: e.target.value })}
-                className="input-field"
-              />
-              <p className="text-[10px] text-ink-muted leading-relaxed">
-                <span className="text-ink-secondary">CV:</span> MediaPipe Face Landmarker + OpenCV
-                <span className="text-ink-faint mx-1">·</span>
-                <span className="text-ink-secondary">Report model:</span> {OPENAI_REPORT_MODEL}
               </p>
             </>
           )}

@@ -1,17 +1,15 @@
 /**
  * DEV ONLY — remove before production:
- *   1. Delete this file + utils/devSampleAnswers.js
- *   2. Remove DevShortcuts import/render from App.jsx
- *   3. Unset NEXT_PUBLIC_DEV_SHORTCUTS in .env
+ *   1. Delete this file + utils/devConfig.js + utils/devSampleAnswers.js + backend/dev_config.py
+ *   2. Remove DevShortcuts import/render from analysis layout
+ *   3. Unset NEXT_PUBLIC_DEV_* and DEV_AUTO_APPROVE_REPORTS in .env
  */
-import { STAGES } from '../utils/constants'
+import { isDevShortcutsEnabled } from '../utils/devConfig'
 
-export const isDevShortcutsEnabled = process.env.NEXT_PUBLIC_DEV_SHORTCUTS === 'true'
+export { isDevShortcutsEnabled } from '../utils/devConfig'
 
-const VISIBLE_STAGES = new Set([STAGES.LANDING, STAGES.QUESTIONNAIRE])
-
-export default function DevShortcuts({ stage, onSkipQuestionnaire }) {
-  if (!isDevShortcutsEnabled || !VISIBLE_STAGES.has(stage)) return null
+export default function DevShortcuts({ onSkipQuestionnaire }) {
+  if (!isDevShortcutsEnabled) return null
 
   return (
     <button

@@ -104,12 +104,18 @@ export function FeatureAnalysisPage({
   )
 }
 
-export function AssessmentGridLayout({ photo, photoOverlay, rightCards, explanation, metrics = [] }) {
+export function AssessmentGridLayout({ photo, photoOverlay, rightCards, explanation, metrics = [], photoFit = 'contain' }) {
   return (
     <div className="space-y-6">
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="relative rounded-2xl overflow-hidden border border-surface-border aspect-[4/5] bg-surface-warm">
-          {photo && <img src={photo} alt="Analysis" className="w-full h-full object-cover" />}
+          {photo && (
+            <img
+              src={photo}
+              alt="Analysis"
+              className={`w-full h-full ${photoFit === 'contain' ? 'object-contain' : 'object-cover'}`}
+            />
+          )}
           {photoOverlay}
         </div>
         <div className="space-y-4">

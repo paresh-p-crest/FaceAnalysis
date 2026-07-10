@@ -1,5 +1,5 @@
 /** Portrait frame for cropped face/feature images — avoids wide-banner cropping */
-export function FaceImageFrame({ src, alt = '', overlay, aspect = '4/5', maxW = '280px', fit = 'cover' }) {
+export function FaceImageFrame({ src, alt = '', overlay, aspect = '4/5', maxW = '280px', fit = 'cover', alignOverlay = false }) {
   if (aspect === 'auto') {
     return (
       <div
@@ -14,7 +14,7 @@ export function FaceImageFrame({ src, alt = '', overlay, aspect = '4/5', maxW = 
 
   const aspectClass =
     aspect === '3/1' ? 'aspect-[3/1]' : aspect === '5/2' ? 'aspect-[5/2]' : aspect === '2/1' ? 'aspect-[2/1]' : 'aspect-[4/5]'
-  const fitClass = fit === 'contain' ? 'object-contain' : 'object-cover'
+  const fitClass = alignOverlay || fit === 'contain' ? 'object-contain' : 'object-cover'
 
   return (
     <div
@@ -29,7 +29,7 @@ export function FaceImageFrame({ src, alt = '', overlay, aspect = '4/5', maxW = 
 
 export function SymmetryOverlay({ dots }) {
   return (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
       <line x1="50" y1="4" x2="50" y2="96" stroke="rgba(255,255,255,0.92)" strokeWidth="0.4" strokeDasharray="1.5 1" />
       <polygon points="50,3 48.2,7 51.8,7" fill="rgba(255,255,255,0.92)" />
       <polygon points="50,97 48.2,93 51.8,93" fill="rgba(255,255,255,0.92)" />
@@ -44,7 +44,7 @@ export function ProportionsOverlay({ lines }) {
   if (!lines) return null
   const lineProps = { stroke: 'rgba(255,255,255,0.88)', strokeWidth: '0.35', strokeDasharray: '2 1.5' }
   return (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
       {[lines.hair, lines.brow, lines.nose, lines.chin].map((y, i) => (
         <line key={i} x1="8" y1={y} x2="92" y2={y} {...lineProps} />
       ))}
@@ -66,7 +66,7 @@ export function ProportionFeatureOverlay({ overlay }) {
   }
 
   return (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
       {overlay.horizontal?.map((line, i) => (
         <line key={`h-${i}`} x1="4" y1={line.y} x2="96" y2={line.y} {...dash} />
       ))}

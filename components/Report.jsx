@@ -1,10 +1,8 @@
-﻿import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import {
   ScanFace, RotateCcw, Loader2, AlertTriangle,
-  History, Settings, Sun, Moon, Download, Lock,
-  ChevronLeft, ShieldCheck,
+  Download, Lock, ShieldCheck,
 } from 'lucide-react'
-import { useTheme } from '../utils/theme'
 import { saveHistoryEntry, createHistoryId, loadHistory } from '../utils/historyStorage'
 import {
   downloadAssessmentPdf,
@@ -21,14 +19,21 @@ import {
   canClientViewFullReport,
   canDownloadReportPdf,
   clientAwaitingReviewMessage,
+  isDevAutoApproveEnabled,
   isReportApproved,
   normalizeReportStatus,
 } from '../utils/reportWorkflow'
 import { userHasAnalysisAccess } from '../utils/paymentAccess'
 import { ReportDocumentLayout } from './report/ReportDocumentLayout'
-import { ProtocolSideRail } from './report/ProtocolSideRail'
 import { LockedSectionGate } from './report/LockedSectionGate'
-import { isPublicSection } from './report/reportNavConfig'
+import {
+  isPublicSection,
+  INTRO_SECTIONS,
+  ASSESSMENT_SECTIONS,
+  FEATURE_SECTIONS,
+  PROTOCOL_SECTIONS,
+  TOOL_SECTIONS,
+} from './report/reportNavConfig'
 import { CvReportView } from './report/CvReportView'
 import { runFaceAnalysis } from '../utils/analyzeFace'
 import AdminReviewPanel from './AdminReviewPanel'
@@ -70,9 +75,7 @@ function StatusBadge({ status }) {
   )
 }
 
-export default function Report({ photo, photos, answers, analysis, historyId, onRestart, onRetryLocal, onHistory, onDashboard, onSettings, user }) {
-  const { theme, toggleTheme } = useTheme()
-  const [activeSection, setActiveSection] = useState('intro')
+export default function Report({ photo, photos, answers, analysis, historyId, onRestart, onRetryLocal, user }) {
   const [protocolData, setProtocolData] = useState(null)
   const [protocolNarrative, setProtocolNarrative] = useState(null)
   const [protocolLoading, setProtocolLoading] = useState(false)
@@ -101,7 +104,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   const displayAnalysis = historyEntry?.analysis ?? analysis
   const displayAnswers = historyEntry?.answers ?? answers
 
-  const cvFailed = !isFromHistory && (!displayAnalysis?.success || displayAnalysis?.error)
+  const cvFailed = !isFromHistory && !!displayAnalysis && (!displayAnalysis.success || !!displayAnalysis.error)
   const metrics = displayAnalysis?.metrics
   const landmarks = displayAnalysis?.landmarks
   const eyeAnalysis = historyEntry?.eyeAnalysis ?? displayAnalysis?.eyeAnalysis ?? null
@@ -116,6 +119,19 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   const canDownloadPdf = canDownloadReportPdf(reportStatus, requiresApproval)
   const clientReportLocked = isUser && requiresApproval && !canClientViewFullReport(reportStatus, false)
   const canUsePaidAi = isUser && !!assessmentId && isBackendApiEnabled() && (hasPaidAccess || isAdmin)
+
+  const stackedSectionIds = useMemo(() => {
+    const ids = [
+      ...INTRO_SECTIONS,
+      ...ASSESSMENT_SECTIONS,
+      ...FEATURE_SECTIONS,
+      ...PROTOCOL_SECTIONS,
+    ].map((section) => section.id)
+    if (canUsePaidAi) {
+      TOOL_SECTIONS.forEach((section) => ids.push(section.id))
+    }
+    return ids
+  }, [canUsePaidAi])
 
   useEffect(() => {
     if (!user || isAdmin) {
@@ -210,10 +226,6 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   }, [showQovesReport, cvReport, persistHistory])
 
   useEffect(() => {
-    if (showQovesReport) setActiveSection((prev) => (prev === 'summary' || prev === 'landmarks' ? 'intro' : prev))
-  }, [historyId, showQovesReport])
-
-  useEffect(() => {
     setAiNarrative(historyEntry?.aiNarrative || displayAnalysis?.aiNarrative || null)
     setAiNarrativeError('')
     setAiVisuals(historyEntry?.aiVisuals || displayAnalysis?.aiVisuals || null)
@@ -306,8 +318,6 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     }
   }, [assessmentId, statusUpdating])
 
-  const sectionLocked = clientReportLocked && !isPublicSection(activeSection)
-
   if (cvFailed) {
     const isAwsError = displayAnalysis?.error?.includes('expired') ||
       displayAnalysis?.error?.includes('credential') ||
@@ -317,7 +327,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
       <div className="min-h-screen px-4 sm:px-6 py-8 animate-fade-up font-sans pt-16 bg-surface">
         <div className="max-w-xl mx-auto mt-12">
           <div className="bg-white dark:bg-surface-card rounded-3xl p-8 shadow-card border border-surface-border">
-            <ErrorPanel title="Analysis failed" message={displayAnalysis.error} />
+            <ErrorPanel title="Analysis failed" message={displayAnalysis?.error || 'Analysis could not be completed.'} />
             {isAwsError && photo && (
               <div className="mt-4">
                 <button
@@ -340,84 +350,52 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   }
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 py-8 animate-fade-up font-sans bg-surface text-slate-900 dark:text-slate-100">
-      <div className="max-w-[1600px] mx-auto">
-
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-5 mb-8">
-          <div className="flex items-center">
-            <span className="font-serif font-bold text-slate-900 dark:text-white text-2xl tracking-tight">MyFace</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isAdmin ? (
-              <>
-                <button
-                  onClick={onDashboard}
-                  className="px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft flex items-center gap-1.5"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  Back to Admin
-                </button>
-                {assessmentId && !isReportApproved(reportStatus) && (
-                  <button
-                    onClick={() => setApproveConfirmOpen(true)}
-                    disabled={!!statusUpdating}
-                    className="px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {statusUpdating === 'approved' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-                    Approve
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <button onClick={onDashboard} className="px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft flex items-center gap-1.5">
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  Dashboard
-                </button>
-                <button onClick={onRestart} className="px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft flex items-center gap-1.5">
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  New Analysis
-                </button>
-                <button onClick={onHistory} className="p-1.5 rounded-lg bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft" title="Analysis History">
-                  <History className="w-4 h-4" />
-                </button>
-              </>
-            )}
-
-            {showQovesReport && (
-              <button
-                onClick={handleDownloadPdf}
-                disabled={pdfLoading || !canDownloadPdf}
-                className="px-4 py-1.5 rounded-[50px] text-[11px] font-bold bg-[#5e9f8b] text-white hover:bg-[#548f7d] shadow-sm transition-colors flex items-center gap-1"
-                title={!canDownloadPdf ? 'PDF download is available after admin approval' : 'Download PDF'}
-              >
-                {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                PDF
-              </button>
-            )}
-
-            {isAdmin && (
-              <button onClick={() => onSettings()} className="p-1.5 rounded-lg bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-brand hover:border-brand/30 transition-colors shadow-soft" title="API Settings">
-                <Settings className="w-4 h-4" />
-              </button>
-            )}
-            <button onClick={toggleTheme} className="p-1.5 rounded-lg bg-white dark:bg-surface-card border border-surface-border text-ink-muted hover:text-[#5e9f8b] hover:border-[#5e9f8b]/30 transition-colors shadow-soft" title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-          </div>
+    <div className="min-h-screen animate-fade-up font-sans bg-surface text-ink relative">
+      {isDevAutoApproveEnabled && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[9998] rounded-full border-2 border-amber-400 bg-amber-500 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-900 shadow-lg shadow-amber-500/30">
+          DEV: Admin approval bypassed
         </div>
+      )}
 
+      {showQovesReport && (
+        <div className="fixed top-3 right-4 z-50 flex items-center gap-2">
+          {isAdmin && assessmentId && !isReportApproved(reportStatus) && (
+            <button
+              type="button"
+              onClick={() => setApproveConfirmOpen(true)}
+              disabled={!!statusUpdating}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[50px] text-[11px] font-medium font-display bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+            >
+              {statusUpdating === 'approved' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+              Approve
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={pdfLoading || !canDownloadPdf}
+            className="btn-primary text-xs px-4 py-2 shadow-brand"
+            title={!canDownloadPdf ? 'PDF download is available after admin approval' : 'Download PDF'}
+          >
+            {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            PDF
+          </button>
+        </div>
+      )}
+
+      <div className="max-w-[100%] mx-auto pt-14">
         {isAdmin && adminAssessment && !isReportApproved(reportStatus) && (
-          <AdminReviewPanel
-            embedded
-            assessment={adminAssessment}
-            onSaved={handleAdminReviewSaved}
-          />
+          <div className="px-4 sm:px-6 mb-4">
+            <AdminReviewPanel
+              embedded
+              assessment={adminAssessment}
+              onSaved={handleAdminReviewSaved}
+            />
+          </div>
         )}
 
         {displayAnalysis?.protocolWarnings?.length > 0 && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200">
+          <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-200">
             <p className="text-sm font-display font-semibold text-amber-700 mb-2">Protocol warnings</p>
             <ul className="space-y-1.5">
               {displayAnalysis.protocolWarnings.map((w) => (
@@ -428,7 +406,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         )}
 
         {clientReportLocked && (
-          <div className="mb-6 p-5 rounded-2xl bg-amber-50 border border-amber-200">
+          <div className="mx-4 sm:mx-6 mb-4 p-5 rounded-2xl bg-amber-50 border border-amber-200">
             <div className="flex items-start gap-3">
               <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div>
@@ -440,7 +418,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         )}
 
         {!hasPaidAccess && isUser && assessmentId && isBackendApiEnabled() && (
-          <div className="mb-6 p-4 rounded-2xl bg-slate-50 border border-slate-200 dark:bg-surface-raised dark:border-surface-border">
+          <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-2xl bg-surface-warm border border-surface-border">
             <p className="text-sm text-ink-secondary">
               Complete payment to unlock AI narrative, protocol, visuals, and Beauty Assistant coaching.
             </p>
@@ -448,60 +426,52 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         )}
 
         {protocolError && (
-          <div className="mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-700">
+          <div className="mx-4 sm:mx-6 mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-700">
             {protocolError}
           </div>
         )}
 
         {showQovesReport ? (
-          <ReportDocumentLayout
-            activeId={activeSection}
-            onSelect={setActiveSection}
-            showAiVisuals={isUser && canUsePaidAi}
-            showAssistant={isUser && canUsePaidAi}
-            clientName={displayAnswers?.name || 'Client'}
-            assessmentId={assessmentId}
-            rightRail={
-              <ProtocolSideRail
-                photo={displayPhoto}
-                answers={displayAnswers}
-                assessmentId={assessmentId}
-                onViewProtocol={() => setActiveSection('protocol')}
-              />
-            }
-          >
-            <LockedSectionGate locked={sectionLocked}>
-              <CvReportView
-                activeId={activeSection}
-                cvReport={cvReport}
-                eyeAnalysis={eyeAnalysis}
-                protocolData={protocolData}
-                protocolNarrative={protocolNarrative}
-                protocolLoading={protocolLoading}
-                aiNarrative={aiNarrative}
-                photo={displayPhoto}
-                photos={photos}
-                landmarks={landmarks}
-                metrics={metrics}
-                answers={displayAnswers}
-                aiVisuals={aiVisuals}
-                aiVisualsLoading={aiVisualsLoading}
-                aiVisualsError={aiVisualsError}
-                onGenerateVisuals={handleGenerateVisuals}
-                canGenerateVisuals={canUsePaidAi}
-                assessmentId={assessmentId}
-                canUseAssistant={canUsePaidAi}
-                onLoadAssistant={handleLoadAssistant}
-                onSendAssistant={handleSendAssistant}
-                onDownloadPdf={handleDownloadPdf}
-                pdfLoading={pdfLoading}
-                canDownloadPdf={canDownloadPdf}
-              />
-            </LockedSectionGate>
+          <ReportDocumentLayout immersive>
+            <div className="space-y-16">
+              {stackedSectionIds.map((sectionId) => (
+                <LockedSectionGate
+                  key={sectionId}
+                  locked={clientReportLocked && !isPublicSection(sectionId)}
+                >
+                  <CvReportView
+                    activeId={sectionId}
+                    cvReport={cvReport}
+                    eyeAnalysis={eyeAnalysis}
+                    protocolData={protocolData}
+                    protocolNarrative={protocolNarrative}
+                    protocolLoading={protocolLoading}
+                    aiNarrative={aiNarrative}
+                    photo={displayPhoto}
+                    photos={photos}
+                    landmarks={landmarks}
+                    metrics={metrics}
+                    answers={displayAnswers}
+                    aiVisuals={aiVisuals}
+                    aiVisualsLoading={aiVisualsLoading}
+                    aiVisualsError={aiVisualsError}
+                    onGenerateVisuals={handleGenerateVisuals}
+                    canGenerateVisuals={canUsePaidAi}
+                    assessmentId={assessmentId}
+                    canUseAssistant={canUsePaidAi}
+                    onLoadAssistant={handleLoadAssistant}
+                    onSendAssistant={handleSendAssistant}
+                    onDownloadPdf={handleDownloadPdf}
+                    pdfLoading={pdfLoading}
+                    canDownloadPdf={canDownloadPdf}
+                  />
+                </LockedSectionGate>
+              ))}
+            </div>
           </ReportDocumentLayout>
         ) : (
-          <div className="max-w-lg mx-auto">
-            <div className="bg-white dark:bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border text-center">
+          <div className="max-w-lg mx-auto px-4">
+            <div className="bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border text-center">
               <Loader2 className="w-8 h-8 text-brand animate-spin mx-auto mb-4" />
               <p className="text-sm text-ink-muted">Building structured report from landmarks…</p>
             </div>

@@ -158,3 +158,105 @@ def proportion_lines_in_crop(landmarks: list, box: dict) -> dict:
         "nose": to_pct(lm(landmarks, 2)["y"]),
         "chin": to_pct(lm(landmarks, 152)["y"]),
     }
+
+
+def point_in_image(landmarks: list, idx: int) -> dict:
+    """Landmark position in full-image percentage space (0–100)."""
+    p = lm(landmarks, idx)
+    return {"x": p["x"] * 100, "y": p["y"] * 100}
+
+
+def dots_in_image(landmarks: list, indices: list) -> list:
+    """Symmetry / overlay dots in full-image percentage space."""
+    return [{"id": i, **point_in_image(landmarks, i)} for i in indices]
+
+
+def proportion_lines_in_image(landmarks: list) -> dict:
+    """Facial third guide lines in full-image percentage space."""
+    brow_y = (lm(landmarks, 105)["y"] + lm(landmarks, 334)["y"]) / 2
+    return {
+        "hair": lm(landmarks, 10)["y"] * 100,
+        "brow": brow_y * 100,
+        "nose": lm(landmarks, 2)["y"] * 100,
+        "chin": lm(landmarks, 152)["y"] * 100,
+    }
+
+
+def _overlay_y(landmarks: list, idx: int) -> float:
+    return point_in_image(landmarks, idx)["y"]
+
+
+def _overlay_x(landmarks: list, idx: int) -> float:
+    return point_in_image(landmarks, idx)["x"]
+
+
+def proportion_ratio_overlays(landmarks: list) -> dict:
+    """Qoves-style dashed guides per proportion tab (full-image 0–100 coords)."""
+    nose_base_y = (lm(landmarks, 48)["y"] + lm(landmarks, 278)["y"]) / 2
+    mouth_y = (lm(landmarks, 61)["y"] + lm(landmarks, 291)["y"]) / 2
+    eye_line_y = (lm(landmarks, 159)["y"] + lm(landmarks, 386)["y"]) / 2
+
+    return {
+        "nasoAural": {
+            "horizontal": [
+                {"y": _overlay_y(landmarks, 234)},
+                {"y": _overlay_y(landmarks, 127)},
+                {"y": _overlay_y(landmarks, 6)},
+                {"y": _overlay_y(landmarks, 2)},
+            ],
+            "segments": [
+                {"x1": _overlay_x(landmarks, 234), "y1": _overlay_y(landmarks, 234),
+                 "x2": _overlay_x(landmarks, 234), "y2": _overlay_y(landmarks, 127)},
+                {"x1": _overlay_x(landmarks, 2), "y1": _overlay_y(landmarks, 6),
+                 "x2": _overlay_x(landmarks, 2), "y2": _overlay_y(landmarks, 2)},
+            ],
+        },
+        "orbitoNasal": {
+            "horizontal": [{"y": _overlay_y(landmarks, 6)}],
+            "vertical": [
+                {"x": _overlay_x(landmarks, 33)},
+                {"x": _overlay_x(landmarks, 263)},
+                {"x": _overlay_x(landmarks, 48)},
+                {"x": _overlay_x(landmarks, 278)},
+            ],
+            "dots": [
+                {"x": _overlay_x(landmarks, 33), "y": _overlay_y(landmarks, 33)},
+                {"x": _overlay_x(landmarks, 263), "y": _overlay_y(landmarks, 263)},
+                {"x": _overlay_x(landmarks, 48), "y": _overlay_y(landmarks, 48)},
+                {"x": _overlay_x(landmarks, 278), "y": _overlay_y(landmarks, 278)},
+            ],
+        },
+        "nasoOral": {
+            "horizontal": [
+                {"y": nose_base_y * 100},
+                {"y": mouth_y * 100},
+            ],
+            "vertical": [
+                {"x": _overlay_x(landmarks, 48)},
+                {"x": _overlay_x(landmarks, 278)},
+                {"x": _overlay_x(landmarks, 61)},
+                {"x": _overlay_x(landmarks, 291)},
+            ],
+            "dots": [
+                {"x": _overlay_x(landmarks, 48), "y": nose_base_y * 100},
+                {"x": _overlay_x(landmarks, 278), "y": nose_base_y * 100},
+                {"x": _overlay_x(landmarks, 61), "y": mouth_y * 100},
+                {"x": _overlay_x(landmarks, 291), "y": mouth_y * 100},
+            ],
+        },
+        "orbital": {
+            "horizontal": [{"y": eye_line_y * 100}],
+            "vertical": [
+                {"x": _overlay_x(landmarks, 133)},
+                {"x": _overlay_x(landmarks, 33)},
+                {"x": _overlay_x(landmarks, 263)},
+                {"x": _overlay_x(landmarks, 362)},
+            ],
+            "dots": [
+                {"x": _overlay_x(landmarks, 133), "y": eye_line_y * 100},
+                {"x": _overlay_x(landmarks, 33), "y": eye_line_y * 100},
+                {"x": _overlay_x(landmarks, 263), "y": eye_line_y * 100},
+                {"x": _overlay_x(landmarks, 362), "y": eye_line_y * 100},
+            ],
+        },
+    }

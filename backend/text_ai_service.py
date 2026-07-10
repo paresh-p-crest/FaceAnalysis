@@ -9,7 +9,13 @@ from .config import (
     ASSISTANT_SUMMARY_REFRESH_EVERY,
     PROTOCOL_FEATURE_IDS,
 )
-from .llm_client import chat_json_completion, chat_text_completion
+from .llm_client import chat_json_completion, chat_structured_completion, chat_text_completion
+from .narrative_schemas import (
+    ExecutiveNarrative,
+    ProtocolActionCards,
+    executive_narrative_json_schema,
+    protocol_action_cards_json_schema,
+)
 
 STRICT_NON_SURGICAL_RULES = (
     "STRICT SAFETY RULES (always follow):\n"
@@ -366,7 +372,9 @@ def generate_cv_narrative(
         f"Stored CV report metrics:\n{cv_summary}"
     )
 
-    result = chat_json_completion(
+    result = chat_structured_completion(
+        schema_name="executive_narrative",
+        json_schema=executive_narrative_json_schema(),
         messages=[
             {"role": "system", "content": NARRATIVE_SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
@@ -375,10 +383,24 @@ def generate_cv_narrative(
         max_tokens=900,
         api_key_override=api_key,
     )
+    if result.get("error") and not result.get("content"):
+        result = chat_json_completion(
+            messages=[
+                {"role": "system", "content": NARRATIVE_SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.35,
+            max_tokens=900,
+            api_key_override=api_key,
+        )
     if result.get("error"):
         return {"content": None, "source": None, "error": result["error"]}
+    try:
+        content = ExecutiveNarrative.model_validate(result["content"]).model_dump()
+    except Exception:
+        content = result["content"]
     return {
-        "content": result["content"],
+        "content": content,
         "source": result["source"],
         "model": result["model"],
         "error": None,
@@ -416,7 +438,9 @@ def generate_protocol(
         f"CV scores:\n{cv_summary}"
     )
 
-    result = chat_json_completion(
+    result = chat_structured_completion(
+        schema_name="protocol_action_cards",
+        json_schema=protocol_action_cards_json_schema(),
         messages=[
             {"role": "system", "content": PROTOCOL_SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
@@ -425,10 +449,24 @@ def generate_protocol(
         max_tokens=1200,
         api_key_override=api_key,
     )
+    if result.get("error") and not result.get("content"):
+        result = chat_json_completion(
+            messages=[
+                {"role": "system", "content": PROTOCOL_SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.5,
+            max_tokens=1200,
+            api_key_override=api_key,
+        )
     if result.get("error"):
         return {"content": None, "source": None, "error": result["error"]}
+    try:
+        content = ProtocolActionCards.model_validate(result["content"]).model_dump()
+    except Exception:
+        content = result["content"]
     return {
-        "content": result["content"],
+        "content": content,
         "source": result["source"],
         "model": result["model"],
         "error": None,

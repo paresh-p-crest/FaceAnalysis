@@ -3,16 +3,16 @@
 from __future__ import annotations
 from typing import Optional
 
-from .mediapipe_analysis import analyze_with_mediapipe
 from .opencv_metrics import analyze_image_stats, compute_metrics_from_landmarks, landmarks_to_overlay
-from .eye_analysis import analyze_eyes
+from .eye_analysis import analyze_eyes, assemble_eyes_region
 from .cv_report import build_cv_report
 from .multi_view import analyze_all_views
 from .calibration import build_calibration
-from .profile_cephalometrics import build_profile_report
+from .profile_cephalometrics import build_profile_report, _naso_aural_explanation, _naso_aural_label
 from .quarter_analysis import build_quarter_report
 from .smile_analysis import analyze_smile_photo
 from .hair_analysis import analyze_hair_photo
+from .hair_segmentation import analyze_hair_segmentation
 
 
 def _fail_result(error: str, provider: str, cv_engine: str) -> dict:
@@ -59,6 +59,9 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
     top_bytes = photos.get("topHead")
     hair_data = analyze_hair_photo(top_bytes, front_lm) if top_bytes else {}
     if hair_data:
+        seg = analyze_hair_segmentation(top_bytes, photos.get("front"))
+        if seg:
+            hair_data = {**hair_data, **seg}
         cv_report["hair"] = {**cv_report.get("hair", {}), **hair_data}
 
     # Profile-enriched feature sections
@@ -80,16 +83,46 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
                 "earProtrusion": meas.get("earProtrusionNorm"),
                 "dataSource": "measured",
             }
+        if cv_report.get("nose"):
+            gender = (answers or {}).get("gender", "").lower()
+            nasolabial = meas.get("nasolabialAngleDeg")
+            nasolabial_norm = "90–120°"
+            if gender in ("female", "woman", "f"):
+                nasolabial_norm = "95–120°"
+            elif gender in ("male", "man", "m"):
+                nasolabial_norm = "90–110°"
+            cv_report["nose"] = {
+                **cv_report["nose"],
+                "nasolabialAngleDeg": nasolabial,
+                "nasolabialNormalRange": nasolabial_norm,
+                "nasoAuralRatio": meas.get("nasoAuralRatio"),
+                "facialConvexityDeg": meas.get("facialConvexityDeg"),
+                "nasofrontalAngleDeg": meas.get("nasofrontalAngleDeg"),
+                "dorsalHumpDeviation": meas.get("dorsalHumpDeviation"),
+                "profileGonialAngleDeg": meas.get("profileGonialAngleDeg"),
+                "chinProjectionMm": meas.get("chinProjectionMm"),
+                "profilePoseId": primary.get("poseId"),
+                "dataSource": "measured",
+            }
+        if cv_report.get("jaw") and meas.get("profileGonialAngleDeg"):
+            cv_report["jaw"] = {
+                **cv_report["jaw"],
+                "profileGonialAngleDeg": meas.get("profileGonialAngleDeg"),
+                "dataSource": "measured",
+            }
         ratios = cv_report.get("proportions", {}).get("ratios", {})
         if isinstance(ratios, dict) and "nasoAural" in ratios:
             naso = dict(ratios["nasoAural"])
             naso_val = meas.get("nasoAuralRatio", naso.get("yourValue"))
             naso["yourValue"] = naso_val
-            naso["yourLabel"] = cls.get("nasoAural", naso.get("yourLabel"))
+            naso["yourLabel"] = cls.get("nasoAural", _naso_aural_label(naso_val))
+            naso["explanation"] = _naso_aural_explanation(naso_val)
             naso["photoSource"] = primary.get("poseId", "rightProfile")
             naso["dataSource"] = "measured"
+            naso["requiresProfile"] = False
             if primary.get("overlay", {}).get("nasoAural"):
                 naso["overlay"] = primary["overlay"]["nasoAural"]
+                naso["overlaySpace"] = "image"
             ratios = {**ratios, "nasoAural": naso}
             cv_report["proportions"] = {**cv_report["proportions"], "ratios": ratios}
 
@@ -121,6 +154,8 @@ def run_local_cv_path(
     metrics = compute_metrics_from_landmarks(landmarks, answers, image_stats)
     eye_analysis = analyze_eyes(landmarks, photo_bytes)
     cv_report = build_cv_report(landmarks, photo_bytes, metrics, photos, answers)
+    brow_metrics = (cv_report.get("eyebrows") or {}).get("metrics") or {}
+    cv_report["eyes"] = assemble_eyes_region(landmarks, photo_bytes, brow_metrics, eye_analysis)
     cv_report = _enrich_cv_report(cv_report, answers, photos, multi_view)
 
     return {
@@ -139,29 +174,11 @@ def run_local_cv_path(
     }
 
 
-def run_mediapipe_path(
-    photo_bytes: bytes,
-    answers: dict,
-) -> dict:
-    """Run MediaPipe + OpenCV path without eye/cv report (for OpenAI provider mode)."""
-    mp_result = analyze_with_mediapipe(photo_bytes)
-    image_stats = analyze_image_stats(photo_bytes)
-    metrics = compute_metrics_from_landmarks(mp_result.get("landmarks", []), answers, image_stats)
-
-    return {
-        "mode": "real",
-        "success": True,
-        "cvEngine": "mediapipe+opencv",
-        "activeLLM": "openai",
-        "activeProvider": "openai",
-        "faceDetails": None,
-        "landmarks": landmarks_to_overlay(mp_result.get("landmarks", [])),
-        "metrics": metrics,
-        "eyeAnalysis": None,
-        "cvReport": None,
-        "protocolWarnings": None,
-        "error": None,
-    }
+def _normalize_cv_provider(provider: str) -> str:
+    """Map legacy provider values to the supported local CV engine."""
+    if provider in ("openai", "local", ""):
+        return "local"
+    return provider
 
 
 def run_face_analysis(
@@ -174,9 +191,11 @@ def run_face_analysis(
     if photos is None:
         photos = {}
 
+    provider = _normalize_cv_provider(provider)
+
     if provider == "aws":
         return _fail_result(
-            "AWS Rekognition provider is no longer supported. Use provider 'local' or 'openai'.",
+            "AWS Rekognition provider is no longer supported. Use provider 'local'.",
             provider,
             "none",
         )
@@ -187,13 +206,8 @@ def run_face_analysis(
         except Exception as e:
             return _fail_result(str(e) or "MediaPipe analysis failed.", provider, "local-cv")
 
-    if provider == "openai":
-        try:
-            return run_mediapipe_path(photo_bytes, answers)
-        except Exception as e:
-            return _fail_result(str(e) or "MediaPipe analysis failed.", provider, "mediapipe+opencv")
-
     return _fail_result(
-        "No active provider configured. Open Settings and select a provider tab.",
-        provider, "none",
+        f"Unsupported CV provider '{provider}'. Use provider 'local'.",
+        provider,
+        "none",
     )

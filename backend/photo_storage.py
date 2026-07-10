@@ -126,6 +126,17 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
     if front:
         for key in ("faceShape", "symmetry", "proportions", "averageness", "skin"):
             _set(key, front)
+        if cv_report.get("symmetry"):
+            cv_report["symmetry"] = {**cv_report["symmetry"], "overlaySpace": "image"}
+        if cv_report.get("proportions"):
+            prop = {**cv_report["proportions"], "overlaySpace": "image"}
+            ratios = prop.get("ratios", {})
+            if isinstance(ratios, dict):
+                prop["ratios"] = {
+                    k: {**v, "overlaySpace": "image"} if isinstance(v, dict) else v
+                    for k, v in ratios.items()
+                }
+            cv_report["proportions"] = prop
 
     if profile:
         ratios = cv_report.get("proportions", {}).get("ratios", {})

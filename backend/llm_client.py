@@ -61,6 +61,88 @@ def _extract_json_object(raw: str) -> dict:
     return json.loads(text)
 
 
+def chat_structured_completion(
+    *,
+    schema_name: str,
+    json_schema: dict,
+    messages: list[dict],
+    temperature: float,
+    max_tokens: int,
+    api_key_override: Optional[str] = None,
+) -> dict:
+    """Chat completion with OpenAI strict json_schema; Groq falls back to json_object."""
+    llm = get_chat_llm(api_key_override=api_key_override)
+    if llm.get("error"):
+        return {"content": None, "source": None, "model": None, "error": llm["error"]}
+
+    client = llm["client"]
+    model = llm["model"]
+    source = llm["source"]
+
+    def _parse_response(raw: str) -> dict:
+        return _extract_json_object(raw)
+
+    if source == "openai":
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": schema_name,
+                        "strict": True,
+                        "schema": json_schema,
+                    },
+                },
+            )
+            raw = response.choices[0].message.content
+            content = _parse_response(raw)
+            return {"content": content, "source": source, "model": model, "error": None}
+        except Exception as schema_error:
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format={"type": "json_object"},
+                )
+                raw = response.choices[0].message.content
+                content = _parse_response(raw)
+                return {"content": content, "source": source, "model": model, "error": None}
+            except Exception as fallback_error:
+                detail = str(fallback_error) or str(schema_error)
+                return {
+                    "content": None,
+                    "source": source,
+                    "model": model,
+                    "error": detail or "Structured LLM completion failed.",
+                }
+
+    # Groq or other providers — json_object only
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format={"type": "json_object"},
+        )
+        raw = response.choices[0].message.content
+        content = _parse_response(raw)
+        return {"content": content, "source": source, "model": model, "error": None}
+    except Exception as exc:
+        return {
+            "content": None,
+            "source": source,
+            "model": model,
+            "error": str(exc) or "Structured LLM completion failed.",
+        }
+
+
 def chat_json_completion(
     *,
     messages: list[dict],
@@ -115,31 +197,54 @@ def chat_text_completion(
     temperature: float,
     max_tokens: int,
     api_key_override: Optional[str] = None,
+    tools: Optional[list[dict]] = None,
 ) -> dict:
-    """Run a chat completion and return plain text."""
+    """Run a chat completion and return plain text (or tool_calls in metadata)."""
     llm = get_chat_llm(api_key_override=api_key_override)
     if llm.get("error"):
-        return {"content": None, "source": None, "model": None, "error": llm["error"]}
+        return {"content": None, "source": None, "model": None, "error": llm["error"], "tool_calls": None}
 
     client = llm["client"]
     model = llm["model"]
     source = llm["source"]
 
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        content = (response.choices[0].message.content or "").strip()
-        if not content:
-            return {"content": None, "source": source, "model": model, "error": "Empty LLM response"}
-        return {"content": content, "source": source, "model": model, "error": None}
+        kwargs: dict = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+        response = client.chat.completions.create(**kwargs)
+        message = response.choices[0].message
+        tool_calls = None
+        if message.tool_calls:
+            tool_calls = [
+                {
+                    "id": tc.id,
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
+                }
+                for tc in message.tool_calls
+            ]
+        content = (message.content or "").strip()
+        if not content and not tool_calls:
+            return {"content": None, "source": source, "model": model, "error": "Empty LLM response", "tool_calls": None}
+        return {
+            "content": content or None,
+            "source": source,
+            "model": model,
+            "error": None,
+            "tool_calls": tool_calls,
+        }
     except Exception as exc:
         return {
             "content": None,
             "source": source,
             "model": model,
             "error": str(exc) or "LLM text generation failed.",
+            "tool_calls": None,
         }

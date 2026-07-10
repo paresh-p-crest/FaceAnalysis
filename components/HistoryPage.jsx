@@ -1,12 +1,13 @@
+'use client'
+
 import { useEffect, useState } from 'react'
-import { History, Trash2, ChevronLeft, ScanFace, ShieldCheck, Loader2, RefreshCw } from 'lucide-react'
+import { History, Trash2, ScanFace, ShieldCheck, Loader2, RefreshCw } from 'lucide-react'
 import { loadHistory, deleteAllHistory, formatHistoryDate } from '../utils/historyStorage'
 import {
   deleteAssessment,
   fetchMyAssessments,
   isBackendApiEnabled,
 } from '../utils/apiClient'
-
 import { isReportApproved, normalizeReportStatus, formatReportStatusLabel, clientAwaitingReviewMessage } from '../utils/reportWorkflow'
 
 const STATUS_STYLE = {
@@ -24,8 +25,8 @@ function StatusBadge({ status }) {
   )
 }
 
-export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpenAdmin, user }) {
-  const items = loadHistory()
+export default function HistoryPage({ onViewItem, onViewCloudItem, onOpenAdmin, user }) {
+  const [items, setItems] = useState([])
   const [cloudItems, setCloudItems] = useState([])
   const [cloudLoading, setCloudLoading] = useState(false)
   const [cloudError, setCloudError] = useState('')
@@ -33,6 +34,10 @@ export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpe
 
   const isAdmin = user?.role === 'admin'
   const canLoadCloud = !!user && !isAdmin && isBackendApiEnabled()
+
+  useEffect(() => {
+    setItems(loadHistory())
+  }, [])
 
   const loadCloudItems = async () => {
     if (!canLoadCloud) return
@@ -54,7 +59,7 @@ export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpe
   const handleDeleteAll = () => {
     if (!window.confirm('Delete all analysis history?')) return
     deleteAllHistory()
-    onBack()
+    setItems([])
   }
 
   const handleDeleteCloudItem = async (assessmentId) => {
@@ -72,27 +77,22 @@ export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpe
   }
 
   return (
-    <div className="min-h-screen px-6 py-12 pt-20 animate-fade-up font-sans bg-surface">
-      <div className="max-w-4xl mx-auto pt-12">
-        <button onClick={onBack} className="btn-ghost text-sm mb-8">
-          <ChevronLeft className="w-4 h-4" />
-          Back
-        </button>
-
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+    <div className="min-h-screen px-4 sm:px-6 pb-8 site-navbar-offset animate-fade-up font-sans bg-surface">
+      <div className="max-w-4xl mx-auto w-full">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8 pt-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
               <History className="w-5 h-5 text-brand" />
             </div>
-            <div>
-              <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">Analysis History</h1>
+            <div className="min-w-0">
+              <h1 className="font-display text-xl sm:text-2xl font-semibold text-ink tracking-tight">Analysis History</h1>
               <p className="text-sm text-ink-muted font-sans">{items.length} saved {items.length === 1 ? 'result' : 'results'}</p>
             </div>
           </div>
           {items.length > 0 && (
             <button
               onClick={handleDeleteAll}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-sans text-red-500 border border-red-200 hover:bg-red-50 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-sans text-red-500 border border-red-200 hover:bg-red-50 transition-colors w-full sm:w-auto"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete all
@@ -101,31 +101,32 @@ export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpe
         </div>
 
         {isAdmin && (
-          <div className="mb-10 bg-white dark:bg-surface-card rounded-2xl p-8 shadow-card border border-surface-border text-center">
+          <div className="mb-8 sm:mb-10 bg-white dark:bg-surface-card rounded-2xl p-6 sm:p-8 shadow-card border border-surface-border text-center">
             <ShieldCheck className="w-10 h-10 text-brand mx-auto mb-3" />
-            <p className="font-display text-ink mb-1">Admin tools are in Admin Panel</p>
+            <p className="font-display text-ink mb-1">Admin tools are on Dashboard</p>
             <p className="text-sm text-ink-muted font-sans mb-4">
-              Manage registered users, client reports, review queue, and payments from the dedicated admin workspace.
+              Manage users, client reports, review queue, and payments from the dashboard.
             </p>
-            <button onClick={onOpenAdmin} className="btn-primary text-sm">
-              Open Admin Panel
+            <button onClick={onOpenAdmin} className="btn-primary text-sm w-full sm:w-auto">
+              Open Dashboard
             </button>
           </div>
         )}
 
         {items.length === 0 ? (
-          <div className="bg-white dark:bg-surface-card rounded-3xl p-16 text-center shadow-card border border-surface-border">
+          <div className="bg-white dark:bg-surface-card rounded-3xl p-10 sm:p-16 text-center shadow-card border border-surface-border">
             <ScanFace className="w-12 h-12 text-ink-faint mx-auto mb-4" />
             <p className="font-display text-ink mb-2">No analyses yet</p>
             <p className="text-sm text-ink-muted font-sans">Complete an assessment to see results here.</p>
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {items.map((item) => (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => onViewItem(item.id)}
-                className="bg-white dark:bg-surface-card rounded-2xl overflow-hidden text-left hover:shadow-elevated hover:border-brand/30 border border-surface-border transition-all group shadow-card"
+                className="bg-white dark:bg-surface-card rounded-2xl overflow-hidden text-left hover:shadow-elevated hover:border-brand/30 border border-surface-border transition-all group shadow-card w-full"
               >
                 <div className="aspect-[4/3] overflow-hidden">
                   <img
@@ -149,21 +150,22 @@ export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpe
         )}
 
         {canLoadCloud && (
-          <div className="mt-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+          <div className="mt-8 sm:mt-10">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
                   <History className="w-5 h-5 text-brand" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h2 className="font-display text-lg font-semibold text-ink">Cloud reports</h2>
                   <p className="text-xs text-ink-muted font-sans">Assessments saved under your account</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={loadCloudItems}
                 disabled={cloudLoading}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border border-surface-border bg-white dark:bg-surface-card text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium border border-surface-border bg-white dark:bg-surface-card text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50 w-full sm:w-auto"
               >
                 {cloudLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 Refresh
@@ -195,10 +197,10 @@ export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpe
                     : '—'
                   return (
                     <div key={item.id} className="bg-white dark:bg-surface-card rounded-2xl p-4 shadow-card border border-surface-border">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex flex-col gap-3">
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-display text-sm font-semibold text-ink truncate">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <p className="font-display text-sm font-semibold text-ink">
                               Assessment {item.id.slice(-6)}
                             </p>
                             <StatusBadge status={item.status} />
@@ -209,27 +211,30 @@ export default function HistoryPage({ onBack, onViewItem, onViewCloudItem, onOpe
                           </p>
                         </div>
 
-                        <p className="text-xs text-ink-muted sm:text-right">
+                        <p className="text-xs text-ink-muted">
                           {isReportApproved(item.status)
                             ? 'Approved — PDF download available'
                             : clientAwaitingReviewMessage()}
                         </p>
-                      </div>
-                      <div className="mt-3 flex justify-end gap-2">
-                        <button
-                          onClick={() => onViewCloudItem?.(item)}
-                          className="px-3 py-1.5 rounded-lg border border-surface-border bg-white dark:bg-surface-card text-[11px] font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors"
-                        >
-                          View report
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCloudItem(item.id)}
-                          disabled={deletingId === item.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-[11px] font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
-                        >
-                          {deletingId === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                          Delete
-                        </button>
+
+                        <div className="flex flex-col xs:flex-row gap-2 sm:justify-end">
+                          <button
+                            type="button"
+                            onClick={() => onViewCloudItem?.(item)}
+                            className="flex-1 sm:flex-none px-3 py-2.5 rounded-lg border border-surface-border bg-white dark:bg-surface-card text-xs font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors"
+                          >
+                            View report
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCloudItem(item.id)}
+                            disabled={deletingId === item.id}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 flex-1 sm:flex-none"
+                          >
+                            {deletingId === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )

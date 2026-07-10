@@ -14,41 +14,45 @@ from typing import Any, Optional
 from .face_crop import FACE_OVAL, RIGHT_EYE, LEFT_EYE, RIGHT_BROW, LEFT_BROW, lm
 
 DEFAULT_NORMS = {
-    "faceWidthHeight": 0.69,
-    "noseRatio": 0.17,
-    "upperThird": 0.33,
-    "middleThird": 0.34,
-    "lowerThird": 0.33,
+    # MediaPipe-calibrated: gonial jaw width / forehead–chin height
+    "faceWidthHeight": 0.90,
+    # Alar width / bizygomatic (cheek) width
+    "noseRatio": 0.30,
+    "upperThird": 0.31,
+    "middleThird": 0.27,
+    "lowerThird": 0.42,
 }
 
 ETHNICITY_NORMS = {
-    "east-asian": {"faceWidthHeight": 0.72, "noseRatio": 0.16, "upperThird": 0.32, "middleThird": 0.35, "lowerThird": 0.33},
-    "south-asian": {"faceWidthHeight": 0.70, "noseRatio": 0.17, "upperThird": 0.33, "middleThird": 0.34, "lowerThird": 0.33},
-    "southeast-asian": {"faceWidthHeight": 0.71, "noseRatio": 0.16, "upperThird": 0.32, "middleThird": 0.35, "lowerThird": 0.33},
-    "middle-eastern": {"faceWidthHeight": 0.68, "noseRatio": 0.18, "upperThird": 0.33, "middleThird": 0.34, "lowerThird": 0.33},
-    "black": {"faceWidthHeight": 0.67, "noseRatio": 0.18, "upperThird": 0.34, "middleThird": 0.33, "lowerThird": 0.33},
-    "white": {"faceWidthHeight": 0.69, "noseRatio": 0.17, "upperThird": 0.33, "middleThird": 0.34, "lowerThird": 0.33},
-    "hispanic": {"faceWidthHeight": 0.68, "noseRatio": 0.17, "upperThird": 0.33, "middleThird": 0.34, "lowerThird": 0.33},
-    "mixed": {"faceWidthHeight": 0.69, "noseRatio": 0.17, "upperThird": 0.33, "middleThird": 0.34, "lowerThird": 0.33},
+    "east-asian": {"faceWidthHeight": 0.88, "noseRatio": 0.28, "upperThird": 0.30, "middleThird": 0.28, "lowerThird": 0.42},
+    "south-asian": {"faceWidthHeight": 0.89, "noseRatio": 0.30, "upperThird": 0.31, "middleThird": 0.27, "lowerThird": 0.42},
+    "southeast-asian": {"faceWidthHeight": 0.88, "noseRatio": 0.28, "upperThird": 0.30, "middleThird": 0.28, "lowerThird": 0.42},
+    "middle-eastern": {"faceWidthHeight": 0.91, "noseRatio": 0.31, "upperThird": 0.31, "middleThird": 0.27, "lowerThird": 0.41},
+    "black": {"faceWidthHeight": 0.92, "noseRatio": 0.32, "upperThird": 0.32, "middleThird": 0.26, "lowerThird": 0.42},
+    "white": {"faceWidthHeight": 0.90, "noseRatio": 0.30, "upperThird": 0.31, "middleThird": 0.27, "lowerThird": 0.42},
+    "hispanic": {"faceWidthHeight": 0.90, "noseRatio": 0.30, "upperThird": 0.31, "middleThird": 0.27, "lowerThird": 0.42},
+    "mixed": {"faceWidthHeight": 0.90, "noseRatio": 0.30, "upperThird": 0.31, "middleThird": 0.27, "lowerThird": 0.42},
 }
 
 GENDER_NORMS = {
-    "masculine": {"faceWidthHeight": 0.02, "noseRatio": 0.01},
-    "feminine": {"faceWidthHeight": -0.02, "noseRatio": -0.008},
+    "masculine": {"faceWidthHeight": 0.03, "noseRatio": 0.015},
+    "feminine": {"faceWidthHeight": -0.03, "noseRatio": -0.012},
     "no-preference": {"faceWidthHeight": 0.0, "noseRatio": 0.0},
 }
 
 # Weights for 5-ratio conformity (tuned heuristics — see prototypicality.md)
 SCORE_WEIGHTS = {
-    "jaw width": 0.22,
-    "facial thirds": 0.26,
-    "symmetry": 0.20,
-    "nose": 0.16,
-    "brows": 0.16,
+    "jaw width": 0.24,
+    "facial thirds": 0.22,
+    "symmetry": 0.10,
+    "nose": 0.22,
+    "brows": 0.22,
 }
 
-# Maps mean weighted deviation (~0.05) → mid-80s score; no artificial 42–95 clamp.
-SCORE_PENALTY_SCALE = 320.0
+# Maps typical MediaPipe faces to mid-70s (Qoves-calibrated).
+SCORE_BASE = 84.0
+SCORE_PENALTY_SCALE = 195.0
+MAX_FEATURE_MAGNITUDE = 0.38
 
 METHODOLOGY = "five_ratio_proportion_conformity"
 
@@ -111,19 +115,8 @@ def _score_label(score: int) -> str:
 
 
 def _symmetry_score(landmarks: list, metrics: Optional[dict]) -> int:
-    if metrics and metrics.get("symmetry"):
-        try:
-            return round(float(metrics["symmetry"]))
-        except (TypeError, ValueError):
-            pass
-    pairs = [(33, 263), (133, 362), (61, 291), (105, 334)]
-    nose = lm(landmarks, 1)
-    total_dev = 0.0
-    for li, ri in pairs:
-        l_pt = lm(landmarks, li)
-        r_pt = lm(landmarks, ri)
-        total_dev += abs(abs(l_pt["x"] - nose["x"]) - abs(r_pt["x"] - nose["x"]))
-    return min(99, max(65, round(97 - total_dev * 150)))
+    from .cv_report import symmetry_score
+    return symmetry_score(landmarks, metrics)
 
 
 def _dist(a: dict, b: dict) -> float:
@@ -195,6 +188,12 @@ def _synthetic_ideal_landmarks(bounds: dict, norms: dict) -> list:
     landmarks[10] = {"x": cx, "y": top, "z": 0.0}
     landmarks[152] = {"x": cx, "y": bottom, "z": 0.0}
     landmarks[1] = {"x": cx, "y": nose_tip_y, "z": 0.0}
+    landmarks[2] = {"x": cx, "y": nose_tip_y - fh * norms["middleThird"] * 0.15, "z": 0.0}
+    jaw_half = fw * 0.5
+    landmarks[172] = {"x": cx - jaw_half, "y": bottom - fh * 0.12, "z": 0.0}
+    landmarks[397] = {"x": cx + jaw_half, "y": bottom - fh * 0.12, "z": 0.0}
+    landmarks[127] = {"x": cx - fw * 0.5, "y": brow_y + fh * 0.08, "z": 0.0}
+    landmarks[356] = {"x": cx + fw * 0.5, "y": brow_y + fh * 0.08, "z": 0.0}
     landmarks[234] = {"x": cx - fw * 0.48, "y": bottom - fh * 0.08, "z": 0.0}
     landmarks[454] = {"x": cx + fw * 0.48, "y": bottom - fh * 0.08, "z": 0.0}
 
@@ -230,29 +229,37 @@ def _synthetic_ideal_landmarks(bounds: dict, norms: dict) -> list:
 
 
 def _face_proportions(landmarks: list) -> dict:
-    """Shared brow-line (eye-center) for thirds and brow conformity."""
-    jaw_l = lm(landmarks, 234)
-    jaw_r = lm(landmarks, 454)
+    """Shared brow-line (eye-center) for thirds; jaw/cheek widths from gonial + zygomatic landmarks."""
+    jaw_l = lm(landmarks, 172)
+    jaw_r = lm(landmarks, 397)
+    cheek_l = lm(landmarks, 127)
+    cheek_r = lm(landmarks, 356)
     chin = lm(landmarks, 152)
     forehead = lm(landmarks, 10)
-    nose_tip = lm(landmarks, 1)
+    subnasale = lm(landmarks, 2)
     eye_l = lm(landmarks, 33)
     eye_r = lm(landmarks, 263)
 
     face_h = chin["y"] - forehead["y"] or 0.3
-    face_w = abs(jaw_r["x"] - jaw_l["x"]) or 0.3
+    jaw_w = abs(jaw_r["x"] - jaw_l["x"]) or 0.3
+    cheek_w = abs(cheek_r["x"] - cheek_l["x"]) or jaw_w
     brow_line_y = (eye_l["y"] + eye_r["y"]) / 2
 
     return {
         "face_h": face_h,
-        "face_w": face_w,
-        "face_ratio": face_w / face_h,
+        "face_w": cheek_w,
+        "jaw_w": jaw_w,
+        "face_ratio": jaw_w / face_h,
         "brow_line_y": brow_line_y,
         "upper_third": (brow_line_y - forehead["y"]) / face_h,
-        "middle_third": (brow_line_y - nose_tip["y"]) / face_h,
-        "lower_third": (chin["y"] - nose_tip["y"]) / face_h,
-        "nose_ratio": _dist(lm(landmarks, 48), lm(landmarks, 278)) / face_w,
+        "middle_third": (subnasale["y"] - brow_line_y) / face_h,
+        "lower_third": (chin["y"] - subnasale["y"]) / face_h,
+        "nose_ratio": _dist(lm(landmarks, 48), lm(landmarks, 278)) / cheek_w,
     }
+
+
+def _relative_error(measured: float, ideal: float) -> float:
+    return min(MAX_FEATURE_MAGNITUDE, abs(measured - ideal) / max(abs(ideal), 0.05))
 
 
 def _measure_deviations(landmarks: list, metrics: Optional[dict], norms: dict) -> list:
@@ -263,32 +270,35 @@ def _measure_deviations(landmarks: list, metrics: Optional[dict], norms: dict) -
     items = [
         {
             "feature": "jaw width",
-            "magnitude": abs(props["face_ratio"] - norms["faceWidthHeight"]) / norms["faceWidthHeight"],
+            "magnitude": _relative_error(props["face_ratio"], norms["faceWidthHeight"]),
             "direction": "narrower" if props["face_ratio"] < norms["faceWidthHeight"] else "wider",
         },
         {
             "feature": "nose",
-            "magnitude": abs(props["nose_ratio"] - norms["noseRatio"]) / norms["noseRatio"],
+            "magnitude": _relative_error(props["nose_ratio"], norms["noseRatio"]),
             "direction": "narrower" if props["nose_ratio"] < norms["noseRatio"] else "broader",
         },
         {
             "feature": "brows",
-            "magnitude": abs(brow_line_rel - norms["upperThird"]) / max(norms["upperThird"], 0.01),
+            "magnitude": _relative_error(brow_line_rel, norms["upperThird"]),
             "direction": "lower" if brow_line_rel < norms["upperThird"] else "higher",
         },
         {
             "feature": "facial thirds",
-            "magnitude": (
-                abs(props["upper_third"] - norms["upperThird"])
-                + abs(props["middle_third"] - norms["middleThird"])
-                + abs(props["lower_third"] - norms["lowerThird"])
-            ) / 3,
+            "magnitude": min(
+                MAX_FEATURE_MAGNITUDE,
+                (
+                    abs(props["upper_third"] - norms["upperThird"])
+                    + abs(props["middle_third"] - norms["middleThird"])
+                    + abs(props["lower_third"] - norms["lowerThird"])
+                ) / 3,
+            ),
             "direction": "shifted",
         },
         {
             "feature": "symmetry",
-            "magnitude": max(0, 85 - sym_score) / 85,
-            "direction": "more asymmetric" if sym_score < 85 else "balanced",
+            "magnitude": min(MAX_FEATURE_MAGNITUDE, max(0, 80 - sym_score) / 120),
+            "direction": "more asymmetric" if sym_score < 80 else "balanced",
         },
     ]
     return sorted(items, key=lambda d: d["magnitude"], reverse=True)
@@ -296,6 +306,29 @@ def _measure_deviations(landmarks: list, metrics: Optional[dict], norms: dict) -
 
 def _build_explanation(deviations: list, score: int) -> str:
     notable = [d for d in deviations if d["magnitude"] > 0.04 and d["direction"] not in ("balanced", "shifted")][:3]
+    if score >= 70:
+        if not notable:
+            return (
+                "You sit on the typical side overall: central features and skin quality are very average, "
+                "with proportions that align closely to your demographic norm."
+            )
+        phrases = []
+        for d in notable:
+            if d["feature"] == "brows":
+                adj = "higher, thicker" if d["direction"] == "higher" else "lower"
+                phrases.append(f"{adj} brows")
+            elif d["feature"] == "nose":
+                adj = "straighter" if d["direction"] == "narrower" else "broader"
+                phrases.append(f"a {adj} nose")
+            elif d["feature"] == "jaw width":
+                adj = "narrower" if d["direction"] == "narrower" else "wider"
+                phrases.append(f"a {adj} jaw")
+            else:
+                phrases.append(d["feature"])
+        return (
+            "You sit on the typical side overall: central features and skin quality are very average, "
+            f"while {', '.join(phrases)} add moderate distinctiveness without moving you far from the demographic norm."
+        )
     if not notable:
         return (
             "Your key facial ratios align closely with the ideal proportion targets for your selected profile."
@@ -324,7 +357,7 @@ def _build_explanation(deviations: list, score: int) -> str:
 def _compute_score(deviations: list) -> int:
     weighted = sum(d["magnitude"] * SCORE_WEIGHTS.get(d["feature"], 0.15) for d in deviations)
     penalty = weighted * SCORE_PENALTY_SCALE
-    return max(0, min(100, round(100 - penalty)))
+    return max(25, min(96, round(SCORE_BASE - penalty)))
 
 
 def compute_prototypicality_report(

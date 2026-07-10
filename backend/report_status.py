@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from .dev_config import dev_auto_approve_reports
+
 WORKFLOW_STATUSES = frozenset({"pending_review", "approved"})
 PDF_ALLOWED_STATUSES = frozenset({"approved", "published"})
 
@@ -38,6 +40,8 @@ def parse_status_input(status: str) -> str:
 
 
 def is_pdf_allowed_status(status: Optional[str]) -> bool:
+    if dev_auto_approve_reports():
+        return True
     return normalize_report_status(status) in PDF_ALLOWED_STATUSES
 
 
@@ -52,5 +56,53 @@ def serialize_assessment(doc: Optional[dict]) -> Optional[dict]:
     return safe
 
 
-def serialize_assessments(items: list[dict]) -> list[Any]:
-    return [serialize_assessment(item) for item in items]
+def _prune_analysis_for_summary(analysis: Optional[dict]) -> dict:
+    if not isinstance(analysis, dict):
+        return {}
+    cv = analysis.get("cvReport") if isinstance(analysis.get("cvReport"), dict) else {}
+    metrics = analysis.get("metrics") if isinstance(analysis.get("metrics"), dict) else {}
+    pruned_cv: dict = {}
+    overall = cv.get("overall") if isinstance(cv.get("overall"), dict) else None
+    if overall and overall.get("score") is not None:
+        pruned_cv["overall"] = {"score": overall.get("score")}
+    for key in ("symmetry", "proportions", "skin", "structure"):
+        section = cv.get(key)
+        if isinstance(section, dict) and section.get("score") is not None:
+            pruned_cv[key] = {"score": section.get("score")}
+    pruned_metrics = {
+        key: metrics[key]
+        for key in ("harmonyScore", "symmetryScore", "proportionsScore", "skinScore", "jawlineScore")
+        if metrics.get(key) is not None
+    }
+    out: dict = {}
+    if pruned_cv:
+        out["cvReport"] = pruned_cv
+    if pruned_metrics:
+        out["metrics"] = pruned_metrics
+    return out
+
+
+def serialize_assessment_summary(doc: Optional[dict]) -> Optional[dict]:
+    if not doc:
+        return doc
+    from .serialization import to_json_safe
+
+    safe = to_json_safe(doc)
+    if not isinstance(safe, dict):
+        return safe
+    analysis = _prune_analysis_for_summary(safe.get("analysis"))
+    return {
+        "id": safe.get("id"),
+        "userId": safe.get("userId"),
+        "status": format_report_status(safe.get("status")),
+        "provider": safe.get("provider"),
+        "scanId": safe.get("scanId"),
+        "createdAt": safe.get("createdAt"),
+        "updatedAt": safe.get("updatedAt"),
+        "analysis": analysis,
+    }
+
+
+def serialize_assessments(items: list[dict], *, summary: bool = False) -> list[Any]:
+    serializer = serialize_assessment_summary if summary else serialize_assessment
+    return [serializer(item) for item in items]

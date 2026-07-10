@@ -1,22 +1,45 @@
 const STORAGE_KEYS = {
   activeLLM: 'myface_active_llm',
-  openai: 'myface_openai_key',
   awsAccessKeyId: 'myface_aws_access_key_id',
   awsSecretAccessKey: 'myface_aws_secret_access_key',
   awsSessionToken: 'myface_aws_session_token',
   awsRegion: 'myface_aws_region',
 }
 
+const DEFAULT_SETTINGS = {
+  activeLLM: 'local',
+  awsAccessKeyId: '',
+  awsSecretAccessKey: '',
+  awsSessionToken: '',
+  awsRegion: 'us-east-1',
+}
+
+function canUseStorage() {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+}
+
+function storageGet(key, fallback = '') {
+  if (!canUseStorage()) return fallback
+  return window.localStorage.getItem(key) || fallback
+}
+
+function storageSet(key, value) {
+  if (!canUseStorage()) return
+  window.localStorage.setItem(key, value)
+}
+
 export function getActiveProvider() {
-  const v = localStorage.getItem(STORAGE_KEYS.activeLLM)
-  if (v === 'openai' || v === 'aws' || v === 'local') return v
+  const v = storageGet(STORAGE_KEYS.activeLLM)
+  if (v === 'openai') return 'local'
+  if (v === 'aws' || v === 'local') return v
   return 'local'
 }
 
 /** Temporarily switch provider and return the previous one */
 export function setActiveProvider(provider) {
   const prev = getActiveProvider()
-  localStorage.setItem(STORAGE_KEYS.activeLLM, provider)
+  const normalized = provider === 'openai' ? 'local' : provider
+  storageSet(STORAGE_KEYS.activeLLM, normalized)
   return prev
 }
 
@@ -26,29 +49,23 @@ export function getActiveLLM() {
 }
 
 export function loadSettings() {
+  if (!canUseStorage()) return { ...DEFAULT_SETTINGS }
   return {
     activeLLM: getActiveLLM(),
-    openaiKey: localStorage.getItem(STORAGE_KEYS.openai) || '',
-    awsAccessKeyId: localStorage.getItem(STORAGE_KEYS.awsAccessKeyId) || '',
-    awsSecretAccessKey: localStorage.getItem(STORAGE_KEYS.awsSecretAccessKey) || '',
-    awsSessionToken: localStorage.getItem(STORAGE_KEYS.awsSessionToken) || '',
-    awsRegion: localStorage.getItem(STORAGE_KEYS.awsRegion) || 'us-east-1',
+    awsAccessKeyId: storageGet(STORAGE_KEYS.awsAccessKeyId),
+    awsSecretAccessKey: storageGet(STORAGE_KEYS.awsSecretAccessKey),
+    awsSessionToken: storageGet(STORAGE_KEYS.awsSessionToken),
+    awsRegion: storageGet(STORAGE_KEYS.awsRegion, 'us-east-1'),
   }
 }
 
-export function saveSettings({ activeLLM, openaiKey, awsAccessKeyId, awsSecretAccessKey, awsSessionToken, awsRegion }) {
-  const provider = ['aws', 'openai', 'local'].includes(activeLLM) ? activeLLM : 'local'
-  localStorage.setItem(STORAGE_KEYS.activeLLM, provider)
-  localStorage.setItem(STORAGE_KEYS.openai, openaiKey || '')
-  localStorage.setItem(STORAGE_KEYS.awsAccessKeyId, awsAccessKeyId || '')
-  localStorage.setItem(STORAGE_KEYS.awsSecretAccessKey, awsSecretAccessKey || '')
-  localStorage.setItem(STORAGE_KEYS.awsSessionToken, awsSessionToken || '')
-  localStorage.setItem(STORAGE_KEYS.awsRegion, awsRegion || 'us-east-1')
-}
-
-export function getOpenAIKey() {
-  if (getActiveProvider() !== 'openai') return ''
-  return localStorage.getItem(STORAGE_KEYS.openai)?.trim() || ''
+export function saveSettings({ activeLLM, awsAccessKeyId, awsSecretAccessKey, awsSessionToken, awsRegion }) {
+  const provider = activeLLM === 'openai' ? 'local' : ['aws', 'local'].includes(activeLLM) ? activeLLM : 'local'
+  storageSet(STORAGE_KEYS.activeLLM, provider)
+  storageSet(STORAGE_KEYS.awsAccessKeyId, awsAccessKeyId || '')
+  storageSet(STORAGE_KEYS.awsSecretAccessKey, awsSecretAccessKey || '')
+  storageSet(STORAGE_KEYS.awsSessionToken, awsSessionToken || '')
+  storageSet(STORAGE_KEYS.awsRegion, awsRegion || 'us-east-1')
 }
 
 export function getAwsCredentials() {
@@ -79,8 +96,7 @@ export function getAnalysisMode() {
     return 'aws-missing-creds'
   }
 
-  if (!getOpenAIKey()) return 'openai-missing-key'
-  return 'mediapipe+openai'
+  return 'local-cv'
 }
 
 export function getModeSummary() {
@@ -90,13 +106,7 @@ export function getModeSummary() {
     'local-cv': 'Free CV — MediaPipe + OpenCV ($0)',
     aws: 'AWS Rekognition (active provider)',
     'aws-missing-creds': 'AWS selected — credentials missing',
-    'mediapipe+openai': 'MediaPipe + OpenAI (active provider)',
-    'openai-missing-key': 'OpenAI API key missing',
   }
-  const appLabel = provider === 'local'
-    ? 'Free CV'
-    : provider === 'aws'
-      ? 'AWS'
-      : 'OpenAI'
+  const appLabel = provider === 'local' ? 'Free CV' : 'AWS'
   return { mode, label: labels[mode] || mode, appLabel, activeLLM: provider, activeProvider: provider }
 }

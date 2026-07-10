@@ -1,3 +1,5 @@
+import { isDevAutoApproveEnabled } from './devConfig'
+
 export const REPORT_WORKFLOW_STATUSES = [
   { value: 'pending_review', label: 'Pending Review' },
   { value: 'approved', label: 'Approved' },
@@ -18,11 +20,12 @@ export function isReportApproved(status) {
 }
 
 export function canClientViewFullReport(status, isAdmin = false) {
-  if (isAdmin) return true
+  if (isDevAutoApproveEnabled || isAdmin) return true
   return isReportApproved(status)
 }
 
 export function isReportAwaitingApproval(status) {
+  if (isDevAutoApproveEnabled) return false
   return !isReportApproved(status)
 }
 
@@ -31,6 +34,9 @@ export function clientAwaitingReviewMessage() {
 }
 
 export function canDownloadReportPdf(status, requiresApproval = true) {
+  if (isDevAutoApproveEnabled) return true
   if (!requiresApproval) return true
   return isReportApproved(status)
 }
+
+export { isDevAutoApproveEnabled }

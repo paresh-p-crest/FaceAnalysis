@@ -53,9 +53,8 @@ const CHECKLIST_ITEMS = [
   'Don\'t use filters on the pictures',
 ]
 
-export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack }) {
+export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack, step, onConfirmComplete }) {
   const inputRef = useRef(null)
-  const [step, setStep] = useState('instructions') // 'instructions' | 'upload'
   const [confirmedChecks, setConfirmedChecks] = useState([false, false, false, false, false, false, false])
   const [dragOver, setDragOver] = useState(false)
   const [activePose, setActivePose] = useState('front')
@@ -63,16 +62,14 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
   const [validating, setValidating] = useState(false)
 
   const allChecked = confirmedChecks.every(Boolean)
-  const totalUploaded = Object.values(photos).filter(Boolean).length
-
-  // Front photo must be uploaded and strictly passed (not just warn)
-  const frontPassed = validation.front?.overall === 'pass'
-  // Every uploaded optional photo must also pass — warn counts as a blocker
-  const allUploadedPass = POSES.every((pose) => {
-    if (!photos[pose.id]) return true // not uploaded — OK
-    return validation[pose.id]?.overall === 'pass'
-  })
-  const canAnalyze = !!photos.front && frontPassed && allUploadedPass
+  const requiredPoses = POSES.filter((p) => p.required)
+  const requiredCount = requiredPoses.length
+  const uploadedRequiredCount = requiredPoses.filter((p) => !!photos[p.id]).length
+  const allRequiredUploaded = uploadedRequiredCount === requiredCount
+  const allRequiredPass = requiredPoses.every(
+    (pose) => photos[pose.id] && validation[pose.id]?.overall === 'pass'
+  )
+  const canAnalyze = allRequiredUploaded && allRequiredPass
 
   const handleFile = (file, poseId = activePose) => {
     if (!file?.type.startsWith('image/')) return
@@ -151,7 +148,7 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
   // ── STEP 1: Instructions Confirmation View ──
   if (step === 'instructions') {
     return (
-      <div className="min-h-screen lg:h-screen flex flex-col lg:flex-row animate-fade-up bg-surface lg:overflow-hidden">
+      <div className="min-h-screen h-screen flex flex-col lg:flex-row animate-fade-up bg-surface lg:overflow-hidden">
         {/* Left/Main Column */}
         <div className="w-full lg:w-[380px] shrink-0 bg-white dark:bg-surface-card lg:border-r border-surface-border px-8 py-10 flex flex-col">
           {/* Back + Title */}
@@ -211,7 +208,7 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
           {/* Next Button */}
           <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800">
             <button
-              onClick={() => setStep('upload')}
+              onClick={onConfirmComplete}
               disabled={!allChecked}
               className={`w-full py-3 rounded-[50px] font-semibold text-xs tracking-[-0.03px] transition-all flex items-center justify-between px-6 ${
                 allChecked
@@ -269,14 +266,14 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
 
   // ── STEP 2: Main Image Upload View ──
   return (
-    <div className="min-h-screen lg:h-screen flex flex-col lg:flex-row animate-fade-up bg-surface lg:overflow-hidden">
+    <div className="min-h-screen h-screen flex flex-col lg:flex-row animate-fade-up bg-surface lg:overflow-hidden">
       {/* Left/Main Column */}
       <div className="w-full lg:w-[380px] shrink-0 bg-white dark:bg-surface-card lg:border-r border-surface-border flex flex-col">
 
         {/* Fixed Header */}
         <div className="px-7 pt-7 pb-4 shrink-0 space-y-4">
           <button
-            onClick={() => setStep('instructions')}
+            onClick={onBack}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -308,7 +305,7 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
           {/* Required Poses Grid */}
           <div className="space-y-2">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
-              Poses Required
+              Poses Required ({uploadedRequiredCount}/{requiredCount})
             </span>
             <div className="grid grid-cols-2 gap-2">
               {POSES.map((pose) => {
@@ -448,11 +445,9 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
           </button>
           {!canAnalyze && (
             <p className="text-[9px] text-slate-400 dark:text-slate-500 text-center mt-2">
-              {!photos.front
-                ? '* Upload a front face photo to continue'
-                : !frontPassed
-                  ? '* Front face photo must pass all validation checks'
-                  : '* Fix validation errors on uploaded photos to continue'}
+              {!allRequiredUploaded
+                ? `* Upload all ${requiredCount} required photos to continue (${uploadedRequiredCount}/${requiredCount})`
+                : '* All photos must pass validation checks to continue'}
             </p>
           )}
         </div>

@@ -1,4 +1,4 @@
-﻿import { EyeReportPanel } from '../EyeReportPanel'
+import { EyeReportPanel } from '../EyeReportPanel'
 import { SymmetryOverlay } from './FaceImageFrame'
 import { BrowReportPanel } from './BrowReportPanel'
 import { FeatureReportPanel } from './FeatureReportPanel'
@@ -92,6 +92,7 @@ export function CvReportView({
         <AssessmentGridLayout
           photo={s.imageSrc}
           photoOverlay={s.symmetryDots ? <SymmetryOverlay dots={s.symmetryDots} /> : null}
+          photoFit="contain"
           rightCards={
             <>
               <ReportMetricCard label="Symmetry Score" value={`${s.score}/100`} />

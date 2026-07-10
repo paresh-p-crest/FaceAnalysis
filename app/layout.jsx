@@ -1,5 +1,9 @@
 import './globals.css'
 import { AnalyticsScripts } from '../components/AnalyticsScripts'
+import { Providers } from '../components/providers/Providers'
+import { RouteLayout } from '../components/RouteLayout'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'MyFace - AI Facial Analysis',
@@ -13,6 +17,11 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('myface_theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -22,7 +31,9 @@ export default function RootLayout({ children }) {
       </head>
       <body className="min-h-screen bg-surface text-ink font-sans antialiased">
         <AnalyticsScripts />
-        {children}
+        <Providers>
+          <RouteLayout>{children}</RouteLayout>
+        </Providers>
       </body>
     </html>
   )

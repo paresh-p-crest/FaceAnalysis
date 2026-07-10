@@ -14,13 +14,14 @@ import numpy as np
 from .face_crop import (
     lm, dist, dist_landmarks, angle_between,
     bbox_from_indices, merge_bboxes, bbox_full_face,
-    dots_in_crop, proportion_lines_in_crop,
+    dots_in_image, proportion_lines_in_image, proportion_ratio_overlays,
     FACE_OVAL, RIGHT_EYE, LEFT_EYE, RIGHT_BROW, LEFT_BROW,
     SYMMETRY_DOTS, NOSE_BRIDGE, NOSE_TIP, UPPER_LIP, LOWER_LIP,
     JAW_LEFT, JAW_RIGHT, CHIN, MOUTH, CHEEK_LEFT, CHEEK_RIGHT,
     APPLE_LEFT, APPLE_RIGHT,
 )
 from .eye_analysis import crop_normalized, sample_region_stats, analyze_brows_crop
+from .skin_texture import analyze_skin_texture
 from .opencv_metrics import analyze_image_stats
 
 
@@ -113,6 +114,14 @@ def lip_metrics(landmarks: list) -> dict:
     lower_lip_h = abs(lower_lip["y"] - upper_lip["y"])
     philtrum_to_lip_ratio = upper_lip_h / (lower_lip_h or 0.001)
 
+    cupid_l = lm(landmarks, 37)
+    cupid_r = lm(landmarks, 267)
+    cupid_center = lm(landmarks, 13)
+    bow_width = dist_landmarks(cupid_l, cupid_r) / (mouth_width or 0.001)
+    peak_avg_y = (cupid_l["y"] + cupid_r["y"]) / 2
+    bow_depth = abs(cupid_center["y"] - peak_avg_y) / (upper_lip_h or 0.001)
+    cupids_bow = "Defined" if bow_depth > 0.25 and bow_width > 0.35 else ("Subtle" if bow_depth > 0.12 else "Flat")
+
     forehead = lm(landmarks, 10)
     chin = lm(landmarks, 152)
     face_h = chin["y"] - forehead["y"] or 0.3
@@ -147,9 +156,12 @@ def lip_metrics(landmarks: list) -> dict:
         "lipWidthRatio": f"{lip_width_ratio:.2f}",
         "philtrumToLipRatio": f"{philtrum_to_lip_ratio:.2f}",
         "lipFullness": f"{lip_fullness:.2f}",
+        "cupidsBowDefinition": cupids_bow,
+        "cupidsBowDepth": f"{bow_depth:.2f}",
         "explanation": (
             f"Your lips show {fullness.lower()} volume with a {philtrum_to_lip_ratio:.2f} "
-            f"philtrum-to-lip ratio. The upper-to-lower lip proportion is "
+            f"philtrum-to-lip ratio and {cupids_bow.lower()} cupid's bow definition. "
+            f"The upper-to-lower lip proportion is "
             f"{philtrum_class.lower()}, contributing to a "
             f"{'harmonious' if score >= 82 else 'balanced'} perioral appearance."
         ),
@@ -171,6 +183,12 @@ def jaw_chin_metrics(landmarks: list) -> dict:
 
     cheek_l = lm(landmarks, 127)
     cheek_r = lm(landmarks, 356)
+    gonion_l = lm(landmarks, 172)
+    gonion_r = lm(landmarks, 397)
+    jaw_width_gonial = dist_landmarks(gonion_l, gonion_r)
+    cheek_width = dist_landmarks(cheek_l, cheek_r) or jaw_width_gonial
+    jaw_taper = jaw_width_gonial / (cheek_width or 0.001)
+
     jaw_angle_l = abs(math.atan2(chin["y"] - jaw_l["y"], chin["x"] - jaw_l["x"]) * 180 / math.pi)
     jaw_angle_r = abs(math.atan2(chin["y"] - jaw_r["y"], chin["x"] - jaw_r["x"]) * 180 / math.pi)
     avg_jaw_angle = (jaw_angle_l + jaw_angle_r) / 2
@@ -180,8 +198,12 @@ def jaw_chin_metrics(landmarks: list) -> dict:
     chin_depth = abs(chin["y"] - lip_lower["y"]) / face_h
 
     jaw_shape = "Oval"
-    if face_ratio > 0.78:
+    if face_ratio > 0.78 and jaw_taper > 0.88:
         jaw_shape = "Square"
+    elif jaw_taper > 0.92 and avg_jaw_angle > 125:
+        jaw_shape = "V-shape"
+    elif jaw_taper < 0.78:
+        jaw_shape = "U-shape"
     elif face_ratio > 0.72:
         jaw_shape = "Round"
     elif face_ratio < 0.62:
@@ -207,7 +229,10 @@ def jaw_chin_metrics(landmarks: list) -> dict:
         "chinType": chin_type,
         "faceRatio": f"{face_ratio:.2f}",
         "jawAngle": f"{avg_jaw_angle:.1f}",
+        "gonialAngleFront": f"{avg_jaw_angle:.1f}",
+        "jawTaperRatio": f"{jaw_taper:.2f}",
         "chinDepth": f"{chin_depth:.2f}",
+        "jawAngleDataSource": "front_estimate",
         "explanation": (
             f"Your jaw displays a {jaw_shape.lower()} contour with a face width-to-height "
             f"ratio of {face_ratio:.2f}. The chin appears {chin_type.lower()} with a jaw angle "
@@ -289,6 +314,8 @@ def jaw_metrics(landmarks: list) -> dict:
         "jawWidth": f"{jaw_width_pct:.1f}",
         "jawWidthClass": jaw_width_class,
         "jawAngle": f"{avg_angle:.1f}",
+        "gonialAngleFront": f"{avg_angle:.1f}",
+        "jawAngleDataSource": "front_estimate",
         "mandibularDefinition": mandibular_def,
         "jawLength": f"{avg_jaw_length:.1f}",
         "jawLengthClass": jaw_length_class,
@@ -505,6 +532,8 @@ def neck_metrics(landmarks: list) -> dict:
         "jawNeckTransition": jaw_neck_angle,
         "jawNeckAngle": f"{avg_angle:.1f}",
         "headPosture": posture,
+        "dataSource": "approximate",
+        "limitation": "Neck metrics use jaw landmark proxies; MediaPipe Pose integration deferred.",
         "explanation": (
             f"Your neck proportions show {neck_width_class.lower()} width ({neck_width_pct:.1f}% of IPD) "
             f"and {neck_length_class.lower()} length ({neck_length_pct:.1f}% of face height). "
@@ -632,6 +661,17 @@ def skin_quality_metrics(landmarks: list, image_bytes: bytes, metrics: Optional[
                    + abs(_safe_num(right_cheek["redness"])) + abs(_safe_num(chin_stat["redness"]))) / 4
     under_eye_avg = (_safe_num(under_eye_l_stat["brightness"]) + _safe_num(under_eye_r_stat["brightness"])) / 2
 
+    texture_analysis = analyze_skin_texture(
+        image_bytes,
+        {
+            "Forehead": forehead_box,
+            "Left cheek": left_cheek_box,
+            "Right cheek": right_cheek_box,
+            "Nose bridge": nose_bridge_box,
+            "Chin": chin_box,
+        },
+    )
+
     regions = [
         {"name": "Forehead", "brightness": _safe_round(forehead["brightness"]), "redness": round(forehead["redness"], 1)},
         {"name": "Left cheek", "brightness": _safe_round(left_cheek["brightness"]), "redness": round(left_cheek["redness"], 1)},
@@ -659,16 +699,14 @@ def skin_quality_metrics(landmarks: list, image_bytes: bytes, metrics: Optional[
     elif avg_brightness > 60: skin_tone = "Tan"
     else: skin_tone = "Deep"
 
-    redness_label = "Normal"
-    if avg_redness > 12: redness_label = "Mild redness"
-    if avg_redness > 20: redness_label = "Moderate redness"
+    redness_label = texture_analysis.get("redness") or "Normal"
+    if avg_redness > 12 and redness_label == "Normal":
+        redness_label = "Mild redness"
+    if avg_redness > 20:
+        redness_label = "Moderate redness"
 
-    texture = "Smooth"
-    if avg_brightness < 100: texture = "Dull"
-    if avg_brightness < 80: texture = "Very dull"
-    if avg_brightness > 160: texture = "Well-hydrated"
-
-    pore_estimate = (
+    texture = texture_analysis.get("texture") or "Smooth"
+    pore_estimate = texture_analysis.get("oiliness") or (
         "Oily T-zone" if nose_bridge["brightness"] > forehead["brightness"] + 10
         else ("Dry T-zone" if nose_bridge["brightness"] < forehead["brightness"] - 15 else "Balanced T-zone")
     )
@@ -716,6 +754,10 @@ def skin_quality_metrics(landmarks: list, image_bytes: bytes, metrics: Optional[
         "underEyeBrightness": _safe_fixed(under_eye_avg, 0),
         "poreEstimate": pore_estimate,
         "pigmentation": pigmentation,
+        "roughnessIndex": texture_analysis.get("roughnessIndex"),
+        "rednessIndex": texture_analysis.get("rednessIndex"),
+        "oilinessIndex": texture_analysis.get("oilinessIndex"),
+        "textureRegions": texture_analysis.get("regions"),
         "regionalVariance": f"{regional_variance:.0f}",
         "regions": regions,
         "explanation": (
@@ -854,6 +896,8 @@ def dimorphism_metrics(landmarks: list, metrics: Optional[dict] = None) -> dict:
     ear_score += (6 if ear_protrusion > 0.06 else -4)
     ears_s, ears_l = score_feature(ear_score)
 
+    brow_line_y = (eye_l["y"] + eye_r["y"]) / 2
+
     all_scores = [eyebrows_s, nose_s, cheeks_s, lips_s, jaw_s, chin_feature_s, neck_s, eyes_s, ears_s]
     weights = [1.2, 1.1, 0.8, 1.0, 1.3, 1.1, 0.7, 0.9, 0.6]
     weighted_sum = sum(s * w for s, w in zip(all_scores, weights))
@@ -865,16 +909,32 @@ def dimorphism_metrics(landmarks: list, metrics: Optional[dict] = None) -> dict:
     )
 
     features = [
-        {"name": "Eyebrows", "score": eyebrows_s, "label": eyebrows_l},
-        {"name": "Eyes", "score": eyes_s, "label": eyes_l},
-        {"name": "Nose", "score": nose_s, "label": nose_l},
-        {"name": "Cheeks", "score": cheeks_s, "label": cheeks_l},
-        {"name": "Lips", "score": lips_s, "label": lips_l},
-        {"name": "Jaw", "score": jaw_s, "label": jaw_l_label},
-        {"name": "Chin", "score": chin_feature_s, "label": chin_feature_l},
-        {"name": "Neck", "score": neck_s, "label": neck_l},
-        {"name": "Ears", "score": ears_s, "label": ears_l},
+        {"name": "Eyebrows", "score": eyebrows_s, "label": eyebrows_l,
+         "explanation": f"Your brows read as {eyebrows_l.lower()} — thickness and arch relative to the eye line contribute to the overall dimorphic signal."},
+        {"name": "Eyes", "score": eyes_s, "label": eyes_l,
+         "explanation": f"Eye aperture and spacing place your eyes in the {eyes_l.lower()} range on the dimorphism scale."},
+        {"name": "Nose", "score": nose_s, "label": nose_l,
+         "explanation": f"Nasal width and projection read as {nose_l.lower()}, influencing midface structure and profile balance."},
+        {"name": "Cheeks", "score": cheeks_s, "label": cheeks_l,
+         "explanation": f"Cheek projection and width classify as {cheeks_l.lower()}, shaping midface volume and contour."},
+        {"name": "Lips", "score": lips_s, "label": lips_l,
+         "explanation": f"Lip fullness and philtrum length contribute a {lips_l.lower()} perioral signal."},
+        {"name": "Jaw", "score": jaw_s, "label": jaw_l_label,
+         "explanation": f"Jaw width and mandibular angle read as {jaw_l_label.lower()}, a primary driver of lower-face dimorphism."},
+        {"name": "Chin", "score": chin_feature_s, "label": chin_feature_l,
+         "explanation": f"Chin width and projection classify as {chin_feature_l.lower()}, supporting the lower-third silhouette."},
+        {"name": "Neck", "score": neck_s, "label": neck_l,
+         "explanation": f"Neck breadth relative to the face reads as {neck_l.lower()}, reinforcing the overall masculine/feminine read."},
+        {"name": "Ears", "score": ears_s, "label": ears_l,
+         "explanation": f"Ear size and protrusion contribute a {ears_l.lower()} framing signal at the lateral face."},
     ]
+
+    shape_info = face_shape_from_landmarks(landmarks)
+    shape_name = shape_info.get("shape", "oval").lower()
+    upper_third = (brow_line_y - forehead["y"]) / face_h
+    upper_desc = "narrow" if upper_third < 0.30 else ("broad" if upper_third > 0.36 else "balanced")
+    jaw_strength = "strong" if jaw_width_ratio > 0.9 else ("medium-strength" if jaw_width_ratio > 0.82 else "softer")
+    dimorphic_word = overall_label.lower().replace("very ", "distinctly ")
 
     return {
         "overallScore": overall_score,
@@ -882,9 +942,10 @@ def dimorphism_metrics(landmarks: list, metrics: Optional[dict] = None) -> dict:
         "scaleLeft": "Hyper Feminine",
         "scaleRight": "Hyper Masculine",
         "explanation": (
-            f"Your face sits {overall_label.lower().replace('very ', 'strongly on the ')} side, "
-            f"driven by {', '.join(f['name'].lower() for f in sorted(features, key=lambda f: abs(f['score'] - 50), reverse=True)[:3])} — "
-            f"the features with the strongest dimorphic markers in your facial structure."
+            f"Your face reads as {dimorphic_word} with an {shape_name} overall shape, "
+            f"a relatively {upper_desc} upper third, structured midface, and a {jaw_strength} jaw and chin. "
+            f"Strong brows, nasal structure, and lateral framing from ears and neck reinforce "
+            f"a clear {dimorphic_word.split()[0]} facial configuration."
         ),
         "features": features,
     }
@@ -904,26 +965,66 @@ def averageness_metrics(landmarks: list, metrics: Optional[dict] = None, answers
 # ══════════════════════════════════════════════════════════════════════════════
 
 def symmetry_score(landmarks: list, metrics: Optional[dict] = None) -> int:
-    if metrics and metrics.get("symmetry"):
-        try:
-            return round(float(metrics["symmetry"]))
-        except (TypeError, ValueError):
-            pass
-    pairs = [(33, 263), (133, 362), (61, 291), (105, 334)]
+    """Qoves-calibrated left–right balance (typical faces ~72–82, not inflated 90+)."""
+    if not landmarks:
+        return 70
+
     nose = lm(landmarks, 1)
-    total_dev = 0.0
-    for li, ri in pairs:
+    forehead = lm(landmarks, 10)
+    chin = lm(landmarks, 152)
+    face_h = max(chin["y"] - forehead["y"], 0.2)
+
+    mirror_pairs = [
+        (33, 263), (133, 362), (61, 291), (105, 334),
+        (159, 386), (145, 374), (234, 454), (127, 356),
+    ]
+
+    deviations_pct = []
+    for li, ri in mirror_pairs:
         l_pt = lm(landmarks, li)
         r_pt = lm(landmarks, ri)
-        total_dev += abs(abs(l_pt["x"] - nose["x"]) - abs(r_pt["x"] - nose["x"]))
-    return min(99, max(65, round(97 - total_dev * 150)))
+        x_mir = abs(abs(l_pt["x"] - nose["x"]) - abs(r_pt["x"] - nose["x"])) / face_h * 100
+        y_mir = abs(l_pt["y"] - r_pt["y"]) / face_h * 100
+        z_mir = abs(abs(l_pt.get("z", 0)) - abs(r_pt.get("z", 0))) * 100
+        deviations_pct.append(x_mir * 0.55 + y_mir * 0.30 + z_mir * 0.15)
+
+    avg_dev = sum(deviations_pct) / len(deviations_pct)
+    score = round(90 - avg_dev * 9)
+    return max(55, min(96, score))
 
 
 def symmetry_label(score: int) -> str:
-    if score >= 82: return "Highly Symmetric"
-    if score >= 72: return "Balanced"
-    if score >= 62: return "Moderate"
+    if score >= 85:
+        return "Highly Symmetric"
+    if score >= 74:
+        return "Quite Symmetric"
+    if score >= 64:
+        return "Balanced"
     return "Noticeable asymmetry"
+
+
+def symmetry_explanation(score: int, label: str) -> str:
+    if score >= 74:
+        return (
+            "Your facial symmetry is notably above average, with balanced left-right features "
+            "and only minor asymmetries that are common in natural faces. Overall, your face "
+            "appears harmonious and proportionate from most viewing angles."
+        )
+    if score >= 72:
+        return (
+            "Your facial symmetry is above average with generally balanced features. "
+            "Minor left-right differences in the periorbital and jaw regions are typical "
+            "and do not detract from overall harmony."
+        )
+    if score >= 62:
+        return (
+            f"Your facial symmetry score of {score} indicates {label.lower()} proportions. "
+            "Some feature pairs show mild asymmetry, which is common in natural faces."
+        )
+    return (
+        f"Your facial symmetry score of {score} reflects noticeable left-right variation "
+        "in several feature pairs. This is still within the range seen in everyday faces."
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1001,27 +1102,22 @@ def proportion_ratios(landmarks: list) -> dict:
     mouth_r = lm(landmarks, 291)
     ear_top_l = lm(landmarks, 234)
     ear_bot_l = lm(landmarks, 127)
-    upper_lip = lm(landmarks, 13)
-    chin = lm(landmarks, 152)
-    forehead = lm(landmarks, 10)
 
+    # Front-view ear span is NOT valid for naso-aural — profile photo required (enriched later).
     ear_height = abs(ear_bot_l["y"] - ear_top_l["y"])
-    nose_height = abs(nose_tip["y"] - nose_bridge["y"])
+    nose_height = abs(nose_tip["y"] - lm(landmarks, 2)["y"])
     nose_width = abs(nose_base_r["x"] - nose_base_l["x"])
     eye_width_l = abs(eye_outer_l["x"] - eye_inner_l["x"])
     eye_width_r = abs(eye_outer_r["x"] - eye_inner_r["x"])
     eye_width = (eye_width_l + eye_width_r) / 2
     inner_eye_spacing = abs(eye_inner_r["x"] - eye_inner_l["x"])
     mouth_width = abs(mouth_r["x"] - mouth_l["x"])
-    face_h = chin["y"] - forehead["y"] or 0.3
 
     naso_aural_your = ear_height / (nose_height or 0.001)
     orbito_nasal_your = nose_width / (inner_eye_spacing or 0.001)
     naso_oral_your = mouth_width / (nose_width or 0.001)
-    orbital_your = eye_width / (nose_width or 0.001)
-
-    def _label(your, ideal):
-        return ("Equal" if abs(your - ideal) < 0.05 else ("Greater" if your > ideal else "Lesser"))
+    # Qoves orbital: inter-eye spacing vs single eye width (ideal ≈ 1.00)
+    orbital_your = inner_eye_spacing / (eye_width or 0.001)
 
     return {
         "nasoAural": {
@@ -1031,6 +1127,12 @@ def proportion_ratios(landmarks: list) -> dict:
             "yourLabel": f"{'Ear > Nose' if naso_aural_your > 1.05 else ('Ear < Nose' if naso_aural_your < 0.95 else 'Ear ≈ Nose')}",
             "idealLabel": "Ear = Nose",
             "expectation": "Generally, the ears are expected to be roughly the same height as the nose.",
+            "explanation": (
+                "Upload a side-profile photo for an accurate naso-aural measurement. "
+                "Front-facing estimates are not clinically meaningful for this ratio."
+            ),
+            "dataSource": "front_estimate",
+            "requiresProfile": True,
         },
         "orbitoNasal": {
             "ratioLabel": "ORBITO-NASAL RATIO",
@@ -1039,6 +1141,9 @@ def proportion_ratios(landmarks: list) -> dict:
             "yourLabel": f"{'Nose > Eye' if orbito_nasal_your > 1.05 else ('Nose < Eye' if orbito_nasal_your < 0.95 else 'Nose ≈ Eye')}",
             "idealLabel": "Nose = Eye",
             "expectation": "Generally, the outer edges of the nostrils are expected to align with the inner corners of the eyes.",
+            "explanation": (
+                f"{'Your broader nasal base relative to inner eye spacing gives the center of your face a strong vertical column.' if orbito_nasal_your > 1.1 else 'Your narrower nose relative to inner eye spacing creates a refined central facial column.' if orbito_nasal_your < 0.9 else 'Your nose width aligns closely with inner eye spacing, creating a harmonious central facial proportion.'}"
+            ),
         },
         "nasoOral": {
             "ratioLabel": "NASO-ORAL PROPORTION",
@@ -1047,14 +1152,20 @@ def proportion_ratios(landmarks: list) -> dict:
             "yourLabel": f"{'Mouth > Nose' if naso_oral_your > 1.65 else ('Mouth < Nose' if naso_oral_your < 1.45 else 'Mouth ≈ Nose')}",
             "idealLabel": "Mouth > Nose",
             "expectation": "Generally, the width of the mouth is expected to be about 50–60% wider than the width of the nasal base.",
+            "explanation": (
+                f"{'Your comparatively wide nasal base with a more contained mouth width places structural emphasis on the nose.' if naso_oral_your < 1.3 else 'Your wider mouth relative to nose width creates a prominent oral zone.' if naso_oral_your > 1.8 else 'Your mouth-to-nose ratio is close to the ideal range, creating a balanced perioral appearance.'}"
+            ),
         },
         "orbital": {
             "ratioLabel": "ORBITAL PROPORTION",
             "yourValue": round(orbital_your, 2),
             "idealValue": 1.0,
-            "yourLabel": f"{'Eye > Nose' if orbital_your > 1.05 else ('Eye < Nose' if orbital_your < 0.95 else 'Eye ≈ Nose')}",
-            "idealLabel": "Eye ≈ Nose",
-            "expectation": "Generally, the eye width is expected to be roughly equal to the nose width for balanced proportions.",
+            "yourLabel": f"{'Width < Spacing' if orbital_your < 0.95 else ('Width > Spacing' if orbital_your > 1.05 else 'Width = Spacing')}",
+            "idealLabel": "Width = Spacing",
+            "expectation": "Generally, the space between the eyes is expected to be equal to the width of one eye.",
+            "explanation": (
+                f"Your eye size {'closely matches' if 0.95 <= orbital_your <= 1.05 else 'is slightly narrower than' if orbital_your < 0.95 else 'is slightly wider than'} the gap between them so your eyes read as {'evenly spaced' if 0.95 <= orbital_your <= 1.05 else 'somewhat close-set' if orbital_your < 0.95 else 'somewhat wide-set'}, providing a regular reference for judging the size of your nose and mouth."
+            ),
         },
     }
 
@@ -1516,10 +1627,14 @@ def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict]
     face_crop = crop_normalized(image_bytes, face_box)
     brows_data = analyze_brows_crop(landmarks, image_bytes)
 
-    symmetry_dots = dots_in_crop(landmarks, SYMMETRY_DOTS, face_box)
-    proportion_lines = proportion_lines_in_crop(landmarks, face_box)
+    symmetry_dots = dots_in_image(landmarks, SYMMETRY_DOTS)
+    proportion_lines = proportion_lines_in_image(landmarks)
 
     ratios = proportion_ratios(landmarks)
+    ratio_overlays = proportion_ratio_overlays(landmarks)
+    for key in ratios:
+        if key in ratio_overlays:
+            ratios[key] = {**ratios[key], "overlay": ratio_overlays[key], "overlaySpace": "image"}
 
     brow = eyebrow_metrics(landmarks)
 
@@ -1577,8 +1692,8 @@ def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict]
             "score": sym, "scoreLabel": sym_label,
             "scaleLeft": "Asymmetric", "scaleRight": "Symmetric",
             "scaleMarkerPct": sym,
-            "explanation": f"Your facial symmetry score of {sym} indicates {sym_label.lower()} left-right proportions.",
-            "imageSrc": face_crop, "symmetryDots": symmetry_dots,
+            "explanation": symmetry_explanation(sym, sym_label),
+            "imageSrc": face_crop, "symmetryDots": symmetry_dots, "overlaySpace": "image",
         },
         "proportions": {
             "score": prop["score"], "scoreLabel": prop["label"],
@@ -1587,10 +1702,10 @@ def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict]
             "upperThird": prop["upperThird"], "middleThird": prop["middleThird"],
             "lowerThird": prop["lowerThird"],
             "explanation": f"Vertical facial thirds — upper {prop['upperThird']}, middle {prop['middleThird']}, lower {prop['lowerThird']}.",
-            "imageSrc": face_crop, "proportionLines": proportion_lines, "ratios": ratios,
+            "imageSrc": face_crop, "proportionLines": proportion_lines, "ratios": ratios, "overlaySpace": "image",
         },
         "nose": {**nose, "imageSrc": nose_crop},
-        "eyes": {"score": 80, "scoreLabel": "Balanced"},
+        "eyes": {"score": 80, "scoreLabel": "Balanced", "dataSource": "pending"},
         "eyebrows": {
             "crop": brows_data["crop"], "metrics": brow,
         },

@@ -81,3 +81,112 @@ Text AI was split across `openai_client.py`, `beauty_assistant.py`, and client-s
 - Single place to update non-surgical safety instructions and Groq/OpenAI provider config.
 - Beauty Assistant cost scales with session summary refresh (every 6 user messages) instead of full report context each turn.
 - Unpaid users see template protocol fallback locally; paid users get server-generated protocol.
+
+---
+
+## ADR-005: PDF-First Clinical Protocol Bundle with Structured Outputs
+Date: 2026-07-09  
+Status: accepted  
+
+### Context
+The Qoves protocol PDF (16 pages) is the primary client deliverable. Monolithic `generate_protocol_narrative` produced weak grounding, and frontend `buildFeaturePages` fallbacks contained invasive procedure language. Beauty Assistant needed on-demand report section access without dumping full context each turn.
+
+### Decision
+- Generate **10 per-feature** narratives via OpenAI strict `json_schema` + Pydantic + `clinical_guardrails.py`.
+- Store `featureNarratives` on assessment and in `protocol.json`; expose via `GET /protocol`.
+- Stitch `protocolNarrative.features` compat shim for `QovesProtocolReport` / jsPDF.
+- Beauty Assistant uses ReAct loop with `assistant_tools.py` (CV + protocol fetch tools).
+- Client jsPDF remains canonical PDF renderer when front photo exists; server `GET /pdf` is summary fallback.
+
+### Consequences
+- Protocol generation cost scales with 10+ small LLM calls but failures are isolated per feature.
+- Admin review can validate stored JSON before publish.
+- Assistant factual answers require tool calls to measured sections.
+
+---
+
+## ADR-006: URL-Synced SPA Routing (Minimal Migration)
+Date: 2026-07-10  
+Status: superseded by ADR-007  
+
+### Context
+The frontend was a single-page app mounted at `/` with all navigation driven by React `stage` state. URLs never changed, so browser back/forward, bookmarking, and shareable report links did not work.
+
+### Decision (initial)
+Keep the existing `App.jsx` monolith and sync `stage` with the browser URL via a catch-all route.
+
+### Consequences
+Superseded — see ADR-007 for the proper App Router split.
+
+---
+
+## ADR-007: Next.js App Router with Analysis Route Group
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+ADR-006 used a catch-all route hosting the entire SPA. Users needed real nested routes, especially grouping the onboarding flow under `/analysis` with full-bleed layouts (no site navbar) matching the questionnaire design. Photo confirmation and upload should not be top-level routes.
+
+### Decision
+- Lift shared state into `AppProvider` (React Context).
+- Create proper Next.js pages:
+  - `app/analysis/*` — welcome, questionnaire, confirm, upload, scanning (no navbar, `AnalysisShell`).
+  - `app/(main)/*` — dashboard, history, billing, admin, report, payment-success (`AppShell` with navbar).
+- `utils/routes.js` defines canonical paths; legacy `STAGES` map to routes for localStorage restore.
+- Root `/` redirects by role; `export const dynamic = 'force-dynamic'` on root layout to avoid SSR localStorage errors.
+
+### Consequences
+- Each URL is a real Next.js route; browser back/forward works natively.
+- Analysis pages are full viewport height without navbar offset.
+- Page components remain thin wrappers over existing UI components.
+- Report deep links at `/report/[assessmentId]` hydrate via `fetchAssessment` in `AppProvider`.
+
+---
+
+## ADR-008: All Photo Poses Required for Analysis
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+Multi-view CV metrics (profile cephalometrics, quarter oblique, smile dynamics, top-of-head hair) were optional, causing placeholder fallbacks and misleading PDF copy when poses were missing.
+
+### Decision
+- Require all 7 canonical poses (`front`, `leftProfile`, `rightProfile`, `left45`, `right45`, `smile`, `topHead`) before analysis starts.
+- Enforce on frontend (`PhotoUpload.canAnalyze`) and backend (`photo_validation.validate_required_poses` on `POST /api/assessments`).
+
+### Consequences
+- Higher upload friction but eliminates stub metrics and enables full Qoves-style report parity.
+- Demo photo injector fills all 7 poses for dev testing.
+
+---
+
+## ADR-009: LLM-Synthesized Protocol Closing
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+Closing page used deterministic stitch of 4 feature summaries — generic and not assessment-specific.
+
+### Decision
+- Add `generate_closing_synthesis_async()` after all 10 feature narratives complete.
+- Input: all subsection bodies, action cards, CV summary, client goals.
+- Fallback: existing `stitch_closing_paragraphs()` on LLM failure.
+
+### Consequences
+- One additional LLM call per protocol generation; better closing cohesion at modest cost.
+
+---
+
+## ADR-010: Neck Metrics Deferred to MediaPipe Pose
+Date: 2026-07-10  
+Status: accepted  
+
+### Context
+FaceMesh landmarks do not extend below the jaw; neck width/length used jaw proxies that overclaim precision.
+
+### Decision
+- Mark `cvReport.neck.dataSource` as `"approximate"` with explicit limitation text.
+- Defer MediaPipe Pose Landmarker integration to a follow-on milestone.
+
+### Consequences
+- Report copy and LLM guardrails must not claim clinical neck measurements until Pose is integrated.

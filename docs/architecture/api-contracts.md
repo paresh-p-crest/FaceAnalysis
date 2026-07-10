@@ -104,7 +104,8 @@ Deletes a user account.
 
 ### `POST /api/assessments`
 Main analysis entrypoint: parses image landmarks and saves the results in MongoDB.
-- **Auth:** None (or optional user session context)
+- **Auth:** Private (paid user or admin)
+- **Required photos:** All 7 poses must be present in `photos` (base64 map): `front`, `leftProfile`, `rightProfile`, `left45`, `right45`, `smile`, `topHead`. Returns **400** with `Missing required photo poses: ...` if any are absent.
 - **Request Body:**
   ```json
   {
@@ -121,6 +122,7 @@ Main analysis entrypoint: parses image landmarks and saves the results in MongoD
     "scanId": "unique-uuid-here"
   }
   ```
+- **`provider`:** Must be `"local"` for full MediaPipe + OpenCV analysis (`cvReport` + `eyeAnalysis`). Legacy `"openai"` values are accepted but normalized to `"local"`. `"aws"` is rejected by the backend.
 - **Response Shape (200 OK):**
   ```json
   {
@@ -151,13 +153,15 @@ Retrieves a detailed assessment object by ID.
 - **Response Shape (200 OK):** Full assessment document JSON.
 
 ### `GET /api/assessments`
-Lists all recent assessments.
+Lists recent assessments for the admin panel (summary projection only).
 - **Auth:** Private (Admin)
-- **Response Shape (200 OK):** List of assessment summary objects.
+- **Query:** `limit` (max 100)
+- **Response Shape (200 OK):** `{ "items": [...] }` where each item includes `id`, `userId`, `status`, `provider`, `scanId`, `createdAt`, and pruned `analysis` score fields only (no photos, narratives, protocol blobs, or cvReport image data). Use `GET /api/assessments/{id}` for full detail.
 
 ### `GET /api/my/assessments`
-Lists assessment history belonging to current user context.
+Lists assessment history belonging to current user context (summary projection only).
 - **Auth:** Private (User)
+- **Query:** `limit` (max 100)
 - **Response Shape (200 OK):**
   ```json
   {
@@ -165,8 +169,12 @@ Lists assessment history belonging to current user context.
       {
         "id": "60c72b2f9b1d8e2568cf2002",
         "createdAt": "2026-07-08T12:00:00Z",
-        "status": "published",
-        "provider": "local"
+        "status": "Approved",
+        "provider": "local",
+        "analysis": {
+          "cvReport": { "overall": { "score": 81 } },
+          "metrics": { "harmonyScore": 81 }
+        }
       }
     ]
   }
@@ -222,6 +230,7 @@ Loads persisted protocol from storage (`public/uploads/assessments/{id}/protocol
   {
     "protocolData": { "summary": "...", "recommendations": [] },
     "protocolNarrative": { "summary": "...", "features": {}, "closing": [] },
+    "featureNarratives": { "hair": { "measuredFacts": [], "subsections": [] } },
     "protocolStorage": { "publicUrl": "/uploads/assessments/{id}/protocol.json" },
     "source": "storage"
   }
@@ -229,7 +238,7 @@ Loads persisted protocol from storage (`public/uploads/assessments/{id}/protocol
 - **404:** Protocol not yet generated.
 
 ### `POST /api/assessments/{assessment_id}/ai-protocol`
-Generates protocol once via `backend/protocol_service.py`, writes JSON to protocol storage, and syncs `protocolData` / `protocolNarrative` to MongoDB.
+Generates protocol via `narrative_orchestrator` (10 per-feature structured LLM calls + guardrails), writes JSON to protocol storage, and syncs `protocolData`, `featureNarratives`, and `protocolNarrative` to MongoDB.
 - **Auth:** Owner User or Admin
 - **Payment:** Required for non-admin users (`402` if unpaid)
 - **Response Shape (200 OK):** Updated assessment document (idempotent if already stored).
@@ -280,17 +289,17 @@ Fetches historical messages exchanged in the assessment assistant session.
 - **Response Shape (200 OK):** Conversation object with `messages`, optional `sessionSummary`.
 
 ### `POST /api/assessments/{assessment_id}/assistant`
-Sends user prompt and receives a CV-grounded non-surgical coaching response.
+Sends a message to the Beauty Assistant (ReAct agent with report tools; max 3 tool rounds per reply).
 - **Auth:** Owner User or Admin
-- **Payment:** Required for non-admin users (`402` if unpaid)
-- **Rate limit:** 20 messages per user per hour (`429` when exceeded)
+- **Payment:** Required (`402` if unpaid)
+- **Rate limit:** 20 messages/user/hour (`429` when exceeded)
 - **Request Body:**
   ```json
   {
     "message": "What should I focus on for skin quality?"
   }
   ```
-- **Response Shape (200 OK):** Updated conversation with appended `messages`.
+- **Response Shape (200 OK):** Updated conversation with appended `messages` (`max_tokens` 1000).
 
 ---
 

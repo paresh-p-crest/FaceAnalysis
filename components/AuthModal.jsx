@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { CheckCircle2, Loader2, Lock, UserPlus, X } from 'lucide-react'
 import { login, register } from '../utils/authClient'
 
-export default function AuthModal({ open, onClose, onAuthenticated }) {
+export default function AuthModal({ open, onClose, onAuthenticated, required = false }) {
   const [mode, setMode] = useState('login')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -24,7 +24,7 @@ export default function AuthModal({ open, onClose, onAuthenticated }) {
         ? await register({ firstName, lastName, email, password })
         : await login(email, password)
       onAuthenticated(user)
-      onClose()
+      if (!required) onClose()
     } catch (err) {
       setError(err.message || 'Authentication failed')
     } finally {
@@ -32,9 +32,17 @@ export default function AuthModal({ open, onClose, onAuthenticated }) {
     }
   }
 
+  const handleDismiss = () => {
+    if (!required) onClose()
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+        onClick={required ? undefined : handleDismiss}
+        aria-hidden
+      />
 
       <form
         onSubmit={handleSubmit}
@@ -54,9 +62,11 @@ export default function AuthModal({ open, onClose, onAuthenticated }) {
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-surface-warm text-ink-muted transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          {!required && (
+            <button type="button" onClick={handleDismiss} className="p-2 rounded-lg hover:bg-surface-warm text-ink-muted transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         <div className="flex gap-1 p-1 rounded-xl bg-surface-warm dark:bg-surface-raised border border-surface-border mb-5">

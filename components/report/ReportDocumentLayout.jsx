@@ -8,25 +8,28 @@ export function ReportDocumentLayout({
   clientName,
   assessmentId,
   rightRail = null,
+  immersive = false,
   children,
 }) {
-  const showRightRail = activeId === 'protocol' && rightRail
+  const showRightRail = !immersive && activeId === 'protocol' && rightRail
 
   return (
-    <div className={`qoves-report-layout ${showRightRail ? 'qoves-report-layout--with-rail' : ''}`}>
-      <aside className="qoves-report-sidebar">
-        <ReportNavSidebar
-          activeId={activeId}
-          onSelect={onSelect}
-          showAiVisuals={showAiVisuals}
-          showAssistant={showAssistant}
-          clientName={clientName}
-          assessmentId={assessmentId}
-        />
-      </aside>
+    <div className={`qoves-report-layout ${immersive ? 'qoves-report-layout--immersive' : ''} ${showRightRail ? 'qoves-report-layout--with-rail' : ''}`}>
+      {!immersive && (
+        <aside className="qoves-report-sidebar">
+          <ReportNavSidebar
+            activeId={activeId}
+            onSelect={onSelect}
+            showAiVisuals={showAiVisuals}
+            showAssistant={showAssistant}
+            clientName={clientName}
+            assessmentId={assessmentId}
+          />
+        </aside>
+      )}
 
-      <main className="qoves-report-canvas min-w-0">
-        <div className="qoves-report-page qoves-overview-document">
+      <main className={`qoves-report-canvas min-w-0 ${immersive ? 'qoves-report-canvas--immersive' : ''}`}>
+        <div className={`qoves-report-page ${immersive ? 'qoves-report-page--immersive' : 'qoves-overview-document'}`}>
           {children}
         </div>
       </main>

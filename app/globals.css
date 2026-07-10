@@ -6,6 +6,9 @@
 
 /* ── Theme Variables ── */
 :root {
+  --site-navbar-height: 2.5rem;
+  --site-navbar-gap: 1.5rem;
+  --site-navbar-offset: calc(var(--site-navbar-height) + var(--site-navbar-gap));
   --color-surface: #F7F8FC;
   --color-surface-warm: #FAFBFD;
   --color-surface-card: #FFFFFF;
@@ -18,6 +21,13 @@
   --color-ink-faint: #D1D5DB;
   --color-scrollbar-thumb: #D1D5DB;
   --color-scrollbar-hover: #9CA3AF;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --site-navbar-height: 2.75rem;
+    --site-navbar-gap: 2rem;
+  }
 }
 
 .dark {
@@ -159,6 +169,75 @@
     @apply text-brand border-b-2 border-brand;
   }
 
+  /* Full-width site navbar */
+  .site-navbar {
+    @apply fixed top-0 inset-x-0 z-40 w-full bg-surface-card border-b border-surface-border shadow-soft;
+    height: var(--site-navbar-height);
+  }
+
+  .site-navbar-inner {
+    @apply max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 h-full;
+  }
+
+  .site-navbar-link {
+    @apply inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-ink-secondary
+      hover:text-brand transition-colors min-h-[32px];
+  }
+
+  .site-navbar-link-active {
+    @apply text-brand font-semibold;
+  }
+
+  .site-navbar-btn {
+    @apply inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
+      text-ink-secondary border border-surface-border bg-surface-card hover:bg-surface-warm hover:text-brand
+      transition-colors min-h-[32px] shadow-soft;
+  }
+
+  .site-navbar-icon-btn {
+    @apply inline-flex items-center justify-center min-h-[32px] min-w-[32px] rounded-lg border border-surface-border
+      bg-surface-card text-ink-muted hover:text-brand hover:border-brand/30 transition-colors shadow-soft;
+  }
+
+  .site-navbar-expanded {
+    @apply shadow-elevated;
+  }
+
+  .site-navbar-mobile-panel {
+    @apply w-full border-t border-surface-border bg-surface-card overflow-hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.25s ease, opacity 0.2s ease;
+  }
+
+  .site-navbar-mobile-panel-open {
+    max-height: 24rem;
+    opacity: 1;
+  }
+
+  .site-navbar-mobile-panel-inner {
+    @apply w-full;
+  }
+
+  .site-navbar-mobile-link {
+    @apply flex items-center gap-2.5 w-full px-4 py-3 text-sm text-ink-secondary hover:bg-surface-warm
+      hover:text-brand transition-colors min-h-[44px] text-left;
+  }
+
+  .site-navbar-mobile-link-active {
+    @apply text-brand font-semibold bg-brand-50;
+  }
+
+  .site-navbar-mobile-action {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium
+      text-ink-secondary border border-surface-border bg-surface-warm hover:text-brand hover:border-brand/30
+      transition-colors min-h-[44px];
+  }
+
+  .site-navbar-offset {
+    padding-top: var(--site-navbar-offset);
+  }
+
   .report-tab {
     font-family: 'Sora', 'Inter', system-ui, sans-serif !important;
     letter-spacing: -0.02em;
@@ -282,6 +361,11 @@
     grid-template-columns: 240px 1fr;
   }
 
+  .qoves-report-layout--immersive {
+    @apply min-h-[calc(100vh-3rem)] border-0 rounded-none;
+    grid-template-columns: 1fr;
+  }
+
   .qoves-report-layout--with-rail {
     @apply xl:grid-cols-[240px_1fr_300px];
   }
@@ -299,6 +383,15 @@
   .qoves-report-rail {
     @apply bg-surface-warm border-l border-surface-border p-5 overflow-y-auto;
     max-height: calc(100vh - 12rem);
+  }
+
+  .qoves-report-canvas--immersive {
+    @apply p-4 sm:p-6 lg:p-8;
+    max-height: calc(100vh - 3rem);
+  }
+
+  .qoves-report-page--immersive {
+    @apply max-w-none w-full;
   }
 
   .qoves-report-page {

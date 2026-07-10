@@ -26,27 +26,25 @@
 
 ## Five ratios scored
 
-1. **Jaw width** — `faceW / faceH` vs `norms.faceWidthHeight`
-2. **Nose** — alar width / face width vs `norms.noseRatio`
+1. **Jaw width** — gonial width (landmarks 172↔397) / forehead–chin height vs `norms.faceWidthHeight`
+2. **Nose** — alar width / bizygomatic cheek width (127↔356) vs `norms.noseRatio`
 3. **Brows** — eye-center brow line height / face height vs `norms.upperThird` (same reference line as facial thirds)
-4. **Facial thirds** — upper / middle / lower vs norm thirds (brow line = eye-center average, landmarks 33 & 263)
-5. **Symmetry** — left–right mirror error vs ideal 85 (or `metrics.symmetry` if present)
+4. **Facial thirds** — upper / middle (brow→subnasale) / lower vs norm thirds
+5. **Symmetry** — left–right mirror error (light weight; separate symmetry section is authoritative)
 
 Each deviation is a **relative error**: `|measured - ideal| / ideal` (thirds use mean absolute difference).
 
 ## Score formula
 
 ```
-weighted = Σ (magnitude_i × weight_i)
-penalty  = weighted × 320
-score    = clamp(round(100 - penalty), 0, 100)
+weighted = Σ (magnitude_i × weight_i)   # each magnitude capped at 0.38
+penalty  = weighted × 195
+score    = clamp(round(84 - penalty), 25, 96)
 ```
 
-**Weights:** jaw 0.22, thirds 0.26, symmetry 0.20, nose 0.16, brows 0.16.
+**Weights:** jaw 0.24, nose 0.22, thirds 0.22, brows 0.22, symmetry 0.10.
 
-**No artificial 42–95 clamp.** Full 0–100 range; low scores are possible when combined error is large.
-
-`×320` is a heuristic scale factor so typical faces land ~65–90 and distinctive faces can fall below 50. Tune with `scripts/prototypicality_sanity.py`.
+**Norms** are MediaPipe-calibrated (e.g. white cohort: jaw w/h ≈ 0.90, nose/cheek ≈ 0.30). Tune with `scripts/prototypicality_sanity.py`.
 
 ## Wireframe (shape analysis chart)
 

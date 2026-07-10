@@ -101,7 +101,7 @@ def analyze_hair_photo(top_head_bytes: bytes, front_landmarks: Optional[list] = 
             "dataSource": "measured",
             "explanation": (
                 f"Hair analysis from top-of-head photo: {density_estimate.lower()} hair with "
-                f"{coverage_estimate.lower()}. Norwood stage estimate: {norwood}. "
+                f"{coverage_estimate.lower()}. Estimated Norwood stage {norwood} (not a clinical diagnosis). "
                 f"Hairline is {hairline.lower()} with {forehead_exposure.lower()} forehead exposure."
             ),
         }

@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional
 
+from .narrative_orchestrator import generate_all_protocol_text
 from .protocol_storage import StoredProtocol, get_protocol_storage
 from .repositories.assessment_repository import update_assessment_protocol
-from .text_ai_service import generate_protocol, generate_protocol_narrative, template_protocol
 
 
 def _bundle_from_assessment(assessment: dict) -> Optional[dict]:
@@ -17,6 +17,7 @@ def _bundle_from_assessment(assessment: dict) -> Optional[dict]:
     return {
         "protocolData": protocol_data,
         "protocolNarrative": assessment.get("protocolNarrative"),
+        "featureNarratives": assessment.get("featureNarratives"),
         "protocolStorage": assessment.get("protocolStorage"),
         "source": "mongodb",
     }
@@ -30,6 +31,7 @@ def load_protocol_bundle(assessment_id: str, assessment: Optional[dict] = None) 
         return {
             "protocolData": stored.get("protocolData"),
             "protocolNarrative": stored.get("protocolNarrative"),
+            "featureNarratives": stored.get("featureNarratives"),
             "protocolStorage": assessment.get("protocolStorage") if assessment else None,
             "storedAt": stored.get("storedAt"),
             "source": "storage",
@@ -44,6 +46,7 @@ async def persist_protocol_bundle(
     *,
     protocol_data: dict,
     protocol_narrative: Optional[dict],
+    feature_narratives: Optional[dict] = None,
 ) -> dict:
     """Write protocol JSON to storage and sync denormalized fields to MongoDB."""
     storage = get_protocol_storage()
@@ -52,73 +55,54 @@ async def persist_protocol_bundle(
         assessment_id,
         protocol_data=protocol_data,
         protocol_narrative=protocol_narrative,
+        feature_narratives=feature_narratives,
     )
     updated = await update_assessment_protocol(
         assessment_id,
         protocol_data=protocol_data,
         protocol_narrative=protocol_narrative,
+        feature_narratives=feature_narratives,
         protocol_storage=stored.to_dict(),
     )
     return {
         "protocolData": protocol_data,
         "protocolNarrative": protocol_narrative,
+        "featureNarratives": feature_narratives,
         "protocolStorage": stored.to_dict(),
         "assessment": updated,
     }
 
 
+def _bundle_complete(bundle: Optional[dict]) -> bool:
+    if not bundle or not bundle.get("protocolData"):
+        return False
+    features = bundle.get("featureNarratives") or {}
+    if isinstance(features, dict) and len(features) >= 10:
+        return True
+    pn = bundle.get("protocolNarrative") or {}
+    return bool(isinstance(pn, dict) and pn.get("features") and len(pn.get("features")) >= 10)
+
+
 async def generate_and_store_protocol(assessment: dict) -> dict:
-    """Generate protocol once (LLM + template fallback) and persist to storage."""
+    """Generate protocol via structured per-feature orchestrator and persist."""
     assessment_id = assessment["id"]
     existing = load_protocol_bundle(assessment_id, assessment)
-    if existing and existing.get("protocolData"):
+    if existing and _bundle_complete(existing):
         return existing
 
-    analysis = assessment.get("analysis") or {}
-    cv_report = analysis.get("cvReport") or {}
-    answers = assessment.get("answers") or {}
-    metrics = analysis.get("metrics")
+    generated = await generate_all_protocol_text(assessment, skip_existing=True)
 
-    protocol_result, narrative_result = await asyncio.gather(
-        asyncio.to_thread(
-            generate_protocol,
-            answers=answers,
-            cv_report=cv_report,
-            metrics=metrics,
-        ),
-        asyncio.to_thread(
-            generate_protocol_narrative,
-            answers=answers,
-            cv_report=cv_report,
-            metrics=metrics,
-        ),
-    )
-
-    if protocol_result.get("content"):
-        protocol_data: dict[str, Any] = {
-            "source": protocol_result.get("source"),
-            "model": protocol_result.get("model"),
-            **protocol_result["content"],
-        }
-    else:
-        protocol_data = {
-            "source": "template",
-            "model": None,
-            **template_protocol(cv_report),
-        }
-
-    protocol_narrative = None
-    if narrative_result.get("content"):
-        protocol_narrative = {
-            "source": narrative_result.get("source"),
-            "model": narrative_result.get("model"),
-            **narrative_result["content"],
-        }
+    # Merge with any partial existing feature narratives
+    if existing and existing.get("featureNarratives"):
+        merged = dict(existing.get("featureNarratives") or {})
+        merged.update(generated.get("featureNarratives") or {})
+        generated["featureNarratives"] = merged
 
     persisted = await persist_protocol_bundle(
         assessment_id,
-        protocol_data=protocol_data,
-        protocol_narrative=protocol_narrative,
+        protocol_data=generated["protocolData"],
+        protocol_narrative=generated["protocolNarrative"],
+        feature_narratives=generated.get("featureNarratives"),
     )
     persisted["source"] = "generated"
     return persisted

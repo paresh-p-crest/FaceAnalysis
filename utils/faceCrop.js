@@ -85,6 +85,15 @@ export function pointInCrop(landmarks, idx, box) {
   }
 }
 
+export function pointInImage(landmarks, idx) {
+  const p = lm(landmarks, idx)
+  return { x: p.x * 100, y: p.y * 100 }
+}
+
+export function dotsInImage(landmarks, indices) {
+  return indices.map((i) => ({ id: i, ...pointInImage(landmarks, i) }))
+}
+
 export function dotsInCrop(landmarks, indices, box) {
   return indices.map((i) => ({ id: i, ...pointInCrop(landmarks, i, box) }))
 }
@@ -100,10 +109,11 @@ export function proportionLinesInCrop(landmarks, box) {
   }
 }
 
-/** Qoves-style dashed guides per proportion tab (coords in 0–100 crop space) */
-export function proportionRatioOverlays(landmarks, box) {
-  const toX = (idx) => pointInCrop(landmarks, idx, box).x
-  const toY = (idx) => pointInCrop(landmarks, idx, box).y
+/** Qoves-style dashed guides per proportion tab (coords in 0–100 image space) */
+export function proportionRatioOverlays(landmarks, box = null) {
+  const toX = (idx) => (box ? pointInCrop(landmarks, idx, box).x : pointInImage(landmarks, idx).x)
+  const toY = (idx) => (box ? pointInCrop(landmarks, idx, box).y : pointInImage(landmarks, idx).y)
+  const normY = (y) => (box ? ((y - box.y) / box.h) * 100 : y * 100)
   const noseBaseY = (lm(landmarks, 48).y + lm(landmarks, 278).y) / 2
   const mouthY = (lm(landmarks, 61).y + lm(landmarks, 291).y) / 2
 
@@ -137,8 +147,8 @@ export function proportionRatioOverlays(landmarks, box) {
     },
     nasoOral: {
       horizontal: [
-        { y: ((noseBaseY - box.y) / box.h) * 100 },
-        { y: ((mouthY - box.y) / box.h) * 100 },
+        { y: normY(noseBaseY) },
+        { y: normY(mouthY) },
       ],
       vertical: [
         { x: toX(48) },
@@ -147,29 +157,25 @@ export function proportionRatioOverlays(landmarks, box) {
         { x: toX(291) },
       ],
       dots: [
-        { x: toX(48), y: ((noseBaseY - box.y) / box.h) * 100 },
-        { x: toX(278), y: ((noseBaseY - box.y) / box.h) * 100 },
-        { x: toX(61), y: ((mouthY - box.y) / box.h) * 100 },
-        { x: toX(291), y: ((mouthY - box.y) / box.h) * 100 },
+        { x: toX(48), y: normY(noseBaseY) },
+        { x: toX(278), y: normY(noseBaseY) },
+        { x: toX(61), y: normY(mouthY) },
+        { x: toX(291), y: normY(mouthY) },
       ],
     },
     orbital: {
-      horizontal: [{ y: toY(159) }, { y: toY(386) }],
+      horizontal: [{ y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) }],
       vertical: [
         { x: toX(133) },
         { x: toX(33) },
         { x: toX(263) },
         { x: toX(362) },
-        { x: toX(48) },
-        { x: toX(278) },
       ],
       dots: [
-        { x: toX(133), y: toY(133) },
-        { x: toX(33), y: toY(33) },
-        { x: toX(263), y: toY(263) },
-        { x: toX(362), y: toY(362) },
-        { x: toX(48), y: toY(48) },
-        { x: toX(278), y: toY(278) },
+        { x: toX(133), y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) },
+        { x: toX(33), y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) },
+        { x: toX(263), y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) },
+        { x: toX(362), y: normY((lm(landmarks, 159).y + lm(landmarks, 386).y) / 2) },
       ],
     },
   }

@@ -81,8 +81,8 @@ export default function PaymentSuccessPage({ user, sessionId, onAuth, onStartAna
   const canStart = status === 'confirmed' && !!user
 
   return (
-    <div className="min-h-screen px-6 py-12 pt-20 animate-fade-up font-sans bg-surface">
-      <div className="max-w-xl mx-auto pt-20">
+    <div className="min-h-screen px-6 pb-8 site-navbar-offset animate-fade-up font-sans bg-surface">
+      <div className="max-w-xl mx-auto">
         <div className="bg-white dark:bg-surface-card rounded-3xl p-8 shadow-card border border-surface-border text-center">
           <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-5">
             {status === 'confirming' || status === 'checking' ? (

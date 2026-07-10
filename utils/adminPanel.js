@@ -1,60 +1,75 @@
 export const ADMIN_TABS = ['overview', 'users', 'review', 'payments', 'settings']
 
-
-
 export const ADMIN_TAB_STORAGE_KEY = 'myface_admin_tab'
 
+/** URL segment per tab, e.g. `/dashboard/admin-overview`. */
+export const ADMIN_TAB_SEGMENTS = {
+  overview: 'admin-overview',
+  users: 'admin-users',
+  review: 'admin-review',
+  payments: 'admin-payments',
+  settings: 'admin-settings',
+}
 
+const SEGMENT_TO_TAB = Object.fromEntries(
+  Object.entries(ADMIN_TAB_SEGMENTS).map(([tab, segment]) => [segment, tab]),
+)
 
-export function readAdminTab() {
+export function adminTabToPath(tab) {
+  const normalized = tab === 'reports' ? 'review' : tab
+  const segment = ADMIN_TAB_SEGMENTS[normalized] || ADMIN_TAB_SEGMENTS.overview
+  return `/dashboard/${segment}`
+}
 
-  if (typeof window === 'undefined') return 'overview'
+export function adminTabFromPath(pathname) {
+  if (!pathname?.startsWith('/dashboard/')) return null
+  const segment = pathname.slice('/dashboard/'.length).split('/')[0]
+  const tab = SEGMENT_TO_TAB[segment]
+  return tab && ADMIN_TABS.includes(tab) ? tab : null
+}
 
-  const hash = window.location.hash.replace(/^#/, '')
+export function isAdminTabPath(pathname) {
+  return adminTabFromPath(pathname) !== null
+}
 
-  if (hash.startsWith('admin-')) {
+export function readAdminTab(pathname) {
+  const fromPath = adminTabFromPath(pathname)
+  if (fromPath) return fromPath
 
-    const tab = hash.slice(6)
-
-    if (tab === 'reports') return 'review'
-
-    if (ADMIN_TABS.includes(tab)) return tab
-
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash.replace(/^#/, '')
+    if (hash.startsWith('admin-')) {
+      const legacy = hash.slice(6)
+      if (legacy === 'reports') return 'review'
+      if (ADMIN_TABS.includes(legacy)) return legacy
+    }
+    const saved = localStorage.getItem(ADMIN_TAB_STORAGE_KEY)
+    if (saved === 'reports') return 'review'
+    if (saved && ADMIN_TABS.includes(saved)) return saved
   }
 
-  const saved = localStorage.getItem(ADMIN_TAB_STORAGE_KEY)
-
-  if (saved === 'reports') return 'review'
-
-  if (saved && ADMIN_TABS.includes(saved)) return saved
-
   return 'overview'
-
 }
-
-
 
 export function persistAdminTab(tab) {
-
   if (typeof window === 'undefined') return
-
   const normalized = tab === 'reports' ? 'review' : tab
-
-  localStorage.setItem(ADMIN_TAB_STORAGE_KEY, normalized)
-
-  const base = `${window.location.pathname}${window.location.search}`
-
-  window.history.replaceState({}, '', `${base}#admin-${normalized}`)
-
+  if (ADMIN_TABS.includes(normalized)) {
+    localStorage.setItem(ADMIN_TAB_STORAGE_KEY, normalized)
+  }
 }
-
-
 
 export function clearAdminTab() {
-
   if (typeof window === 'undefined') return
-
   localStorage.removeItem(ADMIN_TAB_STORAGE_KEY)
-
 }
 
+export function resolveLegacyAdminHash() {
+  if (typeof window === 'undefined') return null
+  const hash = window.location.hash.replace(/^#/, '')
+  if (!hash.startsWith('admin-')) return null
+  const legacy = hash.slice(6)
+  if (legacy === 'reports') return adminTabToPath('review')
+  if (ADMIN_TABS.includes(legacy)) return adminTabToPath(legacy)
+  return null
+}

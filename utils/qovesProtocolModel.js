@@ -160,29 +160,39 @@ export function buildClosingColumns(paragraphs) {
 export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
   const faceFallback = 'Measurements for this feature are drawn from your stored facial analysis.'
   const narrativeFeatures = protocolNarrative?.features || {}
+  const pendingBody =
+    'Personalised protocol narrative for this section is being generated from your stored measurements. ' +
+    'Reopen the protocol after generation completes, or contact support if this message persists.'
 
   const pages = [
     {
       id: 'hair',
       title: 'Hair Recommendations',
       projectionId: 'hair',
-      layoutHints: { stackedImages: true },
+      layoutHints: {
+        stackedImages: true,
+        norwoodStage: cvReport?.hair?.norwoodStage ?? null,
+      },
       subsections: [
         {
           title: 'Hair Style',
           body:
             featureExplanation(cvReport, 'hair') ||
-            'Based on your hairline and density measurements, a style that adds vertical height at the crown while keeping the sides neat can balance facial thirds. Light sea salt spray on damp hair supports texture without weighing hair down, framing the upper face closer to your target image.',
+            `Based on your measured hairline and framing, choose styles that balance facial thirds. Gentle cleansing and lightweight styling products support a neat upper-face frame. ${faceFallback}`,
         },
         {
           title: 'Hair Loss',
           body:
-            'Current analysis suggests Norwood stage 1 with minimal temporal recession. Maintain scalp health with gentle cleansing; if androgen-related thinning progresses, early consultation for topical minoxidil or low-level laser therapy may preserve density before advanced stages.',
+            cvReport?.hair?.norwoodStage
+              ? `Estimated Norwood stage ${safeDisplay(cvReport.hair.norwoodStage, '1')} from top-of-head analysis. Density: ${safeDisplay(cvReport.hair.densityEstimate, 'moderate')}. Maintain scalp health with gentle cleansing; discuss persistent thinning with a dermatologist.`
+              : cvReport?.hair?.densityEstimate
+                ? `Density estimate: ${safeDisplay(cvReport.hair.densityEstimate, 'moderate')}. Maintain scalp health with gentle cleansing and avoid harsh heat styling.`
+                : `Hair density analysis from top-of-head photo. ${pendingBody}`,
         },
         {
           title: 'Hair Health',
           body:
-            'Maintain gentle cleansing, lightweight conditioning, and protection from excessive heat styling to preserve density and scalp oil balance indicated in your analysis.',
+            'Maintain gentle cleansing, lightweight conditioning, and protection from excessive heat styling to support scalp comfort and hair appearance between assessments.',
         },
       ],
       summary:
@@ -195,30 +205,34 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
       id: 'eyes',
       title: 'Eye Recommendations',
       projectionId: 'eyes',
-      layoutHints: { stackedImages: true },
+      layoutHints: { stackedImages: true, eyesQuadrant: true },
       subsections: [
         {
           title: 'Eyebrows',
-          body: cvReport?.eyebrows?.metrics
-            ? `Brow position: ${safeDisplay(cvReport.eyebrows.metrics.position, 'natural')}; shape: ${safeDisplay(cvReport.eyebrows.metrics.shape, 'natural')}. Light threading and brow gel refine the upper orbital frame. Conservative reverse Botox brow relaxation may soften excessive arch elevation toward your target image.`
-            : 'Professional brow grooming with light threading and brow gel can sharpen the upper orbital frame and support periorbital balance.',
+          body: cvReport?.eyes?.eyebrows?.explanation
+            || (cvReport?.eyebrows?.metrics
+              ? `Brow shape: ${safeDisplay(cvReport.eyebrows.metrics.shape, 'natural')}; symmetry ${safeDisplay(cvReport.eyebrows.metrics.symmetryScore, '—')}/100. Light grooming and brow gel can refine the upper orbital frame without invasive treatment.`
+              : 'Light brow grooming and conditioning gel can support periorbital balance when shaping is desired.'),
         },
         {
           title: 'Eyelashes',
-          body:
-            'Maintain lash hygiene with gentle daily cleansing to remove debris and makeup residue. A conditioning lash serum applied at night supports fullness without irritation, keeping the lash line clean for a rested appearance.',
+          body: cvReport?.eyes?.eyelashes?.explanation
+            || 'Maintain lash hygiene with gentle daily cleansing. A conditioning lash serum applied at night supports fullness without irritation.',
         },
         {
           title: 'Eyes',
           body:
+            cvReport?.eyes?.ocular?.explanation ||
             eyeAnalysis?.metrics?.explanation ||
             featureExplanation(cvReport, 'eyes') ||
-            'Your ocular structure assessment focuses on symmetry, tilt, and periorbital support. Consistent sleep, SPF around the eyes, and reduced eye rubbing help preserve this area.',
+            'Your ocular structure assessment focuses on symmetry, tilt, and periorbital support.',
         },
         {
           title: 'Under eye',
-          body:
-            'Apply a caffeine-infused eye serum each morning, azelaic acid or vitamin C for pigment support, and daily SPF. Light-based treatments such as IPL may address persistent vascular shadows with a licensed clinician.',
+          body: cvReport?.eyes?.underEye?.explanation
+            || (eyeAnalysis?.metrics?.underEyeHealth
+              ? `Under-eye assessment: ${safeDisplay(eyeAnalysis.metrics.underEyeHealth, 'moderate')}. Caffeine-based OTC eye serum, sleep, hydration, and daily SPF support this area.`
+              : 'Gentle periorbital care with sleep, hydration, caffeine-based OTC serums, and SPF supports the under-eye region.'),
         },
       ],
       summary:
@@ -254,7 +268,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
           title: 'Cheek Structure',
           body:
             featureExplanation(cvReport, 'cheeks') ||
-            `Cheek assessment score: ${safeDisplay(cvReport?.cheeks?.score, '—')}/100. Salicylic and glycolic acids support skin clarity; professional tightening with Thermage, HIFU, or Endolift may refine mild laxity toward your target image.`,
+            `Cheek assessment score: ${safeDisplay(cvReport?.cheeks?.score, '—')}/100. Gentle exfoliation and daily SPF support skin clarity; discuss persistent laxity with a qualified clinician.`,
         },
       ],
       summary:
@@ -275,7 +289,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Further Enhancement',
           body:
-            'A clean-shaven look along the mandibular border, neck curls and extensions three times per week, and radiofrequency tightening (Thermage, HIFU, or Endolift) can sharpen jaw-neck contrast toward your projected potential.',
+            'Neck curls and extensions several times per week, posture awareness, and grooming along the mandibular border can support jaw-neck definition alongside daily SPF and moisturiser.',
         },
       ],
       summary:
@@ -306,7 +320,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
           title: 'Chin',
           body:
             featureExplanation(cvReport, 'chin', 'jawChin') ||
-            `Chin type: ${safeDisplay(cvReport?.jawChin?.chinType, 'measured')}. A well-edged goatee or subtle chin filler with a licensed injector may add visual projection toward your target image.`,
+            `Chin type: ${safeDisplay(cvReport?.jawChin?.chinType, 'measured')}. Grooming that frames the chin (e.g. neat beard edging) and posture support can emphasise lower-face balance without invasive procedures.`,
         },
       ],
       summary: 'Emphasizing chin projection through grooming supports a firmer lower third.',
@@ -326,7 +340,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Further Skin Enhancement',
           body:
-            'Professional options include fractional CO2 laser, Thermage or HIFU, Endolift, microneedling, chemical peels, microdermabrasion, HydraFacial, IPL, and a red light mask a few evenings per week with a licensed clinician.',
+            'If OTC care is insufficient after 8–12 weeks, discuss professional skin assessment with a dermatologist. This report does not recommend in-clinic procedures.',
         },
       ],
       summary:

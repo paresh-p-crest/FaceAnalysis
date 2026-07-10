@@ -9,10 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from ..analyze_face import run_face_analysis
+from ..analyze_face import run_face_analysis, _normalize_cv_provider
 from ..auth import get_current_user, get_optional_current_user, require_admin
 from ..database import is_mongodb_configured
-from ..image_utils import decode_image, decode_photo_dict
+from ..photo_validation import validate_required_poses
 from ..ai_access import require_paid_ai_access
 from ..protocol_service import (
     delete_stored_protocol,
@@ -41,6 +41,7 @@ from ..photo_storage import (
 )
 from ..repositories.payment_repository import user_has_completed_payment
 from ..serialization import to_json_safe
+from ..dev_config import dev_auto_approve_reports
 from ..report_status import (
     format_report_status,
     is_pdf_allowed_status,
@@ -219,6 +220,16 @@ def _assessment_pdf_markdown(existing: dict) -> str:
     lines.extend(
         [
             "",
+            "## Protocol PDF",
+            "",
+            "The branded Qoves-style protocol PDF is generated from the stored protocol bundle "
+            "(protocolData, featureNarratives, protocolNarrative). "
+            "Use the in-app Protocol viewer or client download when a front photo is available.",
+        ]
+    )
+    lines.extend(
+        [
+            "",
             "## Disclaimer",
             "",
             "This report is educational aesthetic guidance based on computer vision measurements. It is not medical advice, diagnosis, or a treatment plan.",
@@ -254,13 +265,20 @@ async def post_assessment(
         raise HTTPException(status_code=400, detail="Invalid image data")
 
     photos = decode_photo_dict(req.photos)
+    missing = validate_required_poses(photos)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required photo poses: {', '.join(missing)}",
+        )
+    provider = _normalize_cv_provider(req.provider)
 
     analysis = await asyncio.to_thread(
         run_face_analysis,
         photo_bytes,
         req.answers,
         photos,
-        req.provider,
+        provider,
     )
 
     if not analysis.get("success"):
@@ -270,11 +288,11 @@ async def post_assessment(
 
     saved = await create_assessment(
         answers=req.answers,
-        provider=req.provider,
+        provider=provider,
         analysis=analysis,
         user_id=current_user["id"],
         photos_keys=list(photos.keys()) + (["front"] if "front" not in photos else []),
-        status="pending_review",
+        status="approved" if dev_auto_approve_reports() else "pending_review",
         scan_id=req.scanId,
     )
 
@@ -358,7 +376,7 @@ async def get_assessments_list(limit: int = 20, current_user: dict = Depends(req
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
     limit = min(max(1, limit), 100)
-    return {"items": serialize_assessments(await list_assessments(limit=limit))}
+    return {"items": serialize_assessments(await list_assessments(limit=limit), summary=True)}
 
 
 @router.get("/my/assessments")
@@ -366,7 +384,7 @@ async def get_my_assessments(limit: int = 20, current_user: dict = Depends(get_c
     if not is_mongodb_configured():
         raise HTTPException(status_code=503, detail="MongoDB not configured.")
     limit = min(max(1, limit), 100)
-    return {"items": serialize_assessments(await list_assessments_for_user(current_user["id"], limit=limit))}
+    return {"items": serialize_assessments(await list_assessments_for_user(current_user["id"], limit=limit), summary=True)}
 
 
 @router.delete("/assessments")
@@ -577,6 +595,7 @@ async def get_assessment_protocol(
             assessment_id,
             protocol_data=bundle["protocolData"],
             protocol_narrative=bundle.get("protocolNarrative"),
+            feature_narratives=bundle.get("featureNarratives"),
         )
 
     return to_json_safe(bundle)

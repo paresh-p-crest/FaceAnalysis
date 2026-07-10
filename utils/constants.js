@@ -15,13 +15,15 @@ export const STAGES = {
 
 export const PHOTO_POSES = [
   { id: 'front', label: 'Front Face', required: true, hint: 'Entire face head-on with a neutral expression' },
-  { id: 'leftProfile', label: 'Left Profile', required: false, hint: 'Left side profile (optional)' },
-  { id: 'rightProfile', label: 'Right Profile', required: false, hint: 'Right side profile (optional)' },
-  { id: 'left45', label: 'Left 45°', required: false, hint: 'Three-quarter angle from left (optional)' },
-  { id: 'right45', label: 'Right 45°', required: false, hint: 'Three-quarter angle from right (optional)' },
-  { id: 'smile', label: 'Smile', required: false, hint: 'Smile naturally showing teeth — helps analyze smile shape & teeth' },
-  { id: 'topHead', label: 'Top of Head', required: false, hint: 'Tilt head down showing top of head & hairline — helps analyze hair density' },
+  { id: 'leftProfile', label: 'Left Profile', required: true, hint: 'Left side profile — full face from the left' },
+  { id: 'rightProfile', label: 'Right Profile', required: true, hint: 'Right side profile — full face from the right' },
+  { id: 'left45', label: 'Left 45°', required: true, hint: 'Three-quarter angle from the left' },
+  { id: 'right45', label: 'Right 45°', required: true, hint: 'Three-quarter angle from the right' },
+  { id: 'smile', label: 'Smile', required: true, hint: 'Smile naturally showing teeth — for smile shape & teeth analysis' },
+  { id: 'topHead', label: 'Top of Head', required: true, hint: 'Tilt head down showing top of head & hairline — for hair density analysis' },
 ]
+
+export const REQUIRED_PHOTO_POSE_IDS = PHOTO_POSES.filter((p) => p.required).map((p) => p.id)
 
 export const SCAN_STAGES = [
   'Preparing images',

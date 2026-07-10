@@ -45,7 +45,7 @@ export function ProtocolSideRail({ photo, answers, assessmentId, onViewProtocol 
 
       <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4">
         <p className="qoves-report-mono-label mb-2">Next Steps</p>
-        <p className="text-sm font-semibold text-ink mb-3">Surgical Recommendations</p>
+        <p className="text-sm font-semibold text-ink mb-3">Non-Surgical Protocol</p>
         <button
           type="button"
           onClick={onViewProtocol}
