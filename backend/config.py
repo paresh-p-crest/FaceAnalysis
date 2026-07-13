@@ -2,6 +2,8 @@
 
 OPENAI_REPORT_MODEL = "gpt-4o-mini"
 GROQ_MODEL = "llama-3.3-70b-versatile"
+# OpenRouter model id (use `:free` for $0 token models — still rate-limited)
+OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 
 # Beauty Assistant — cost controls
 ASSISTANT_HOURLY_MESSAGE_LIMIT = 20

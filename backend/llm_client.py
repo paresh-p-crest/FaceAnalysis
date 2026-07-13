@@ -1,4 +1,4 @@
-"""LLM provider config — OpenAI or Groq (OpenAI-compatible API)."""
+"""LLM provider config — OpenAI, Groq, or OpenRouter (OpenAI-compatible APIs)."""
 
 from __future__ import annotations
 
@@ -12,17 +12,22 @@ from typing import Any, Optional
 
 from openai import OpenAI
 
-from .config import GROQ_MODEL, OPENAI_REPORT_MODEL
+from .config import GROQ_MODEL, OPENAI_REPORT_MODEL, OPENROUTER_MODEL
 
 logger = logging.getLogger(__name__)
+
+_KNOWN_PROVIDERS = frozenset({"openai", "groq", "openrouter"})
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 def resolve_llm_provider() -> str:
     explicit = os.environ.get("LLM_PROVIDER", "").strip().lower()
-    if explicit in ("openai", "groq"):
+    if explicit in _KNOWN_PROVIDERS:
         return explicit
     if os.environ.get("GROQ_API_KEY", "").strip():
         return "groq"
+    if os.environ.get("OPENROUTER_API_KEY", "").strip():
+        return "openrouter"
     return "openai"
 
 
@@ -43,10 +48,44 @@ def get_chat_llm(*, api_key_override: Optional[str] = None) -> dict:
             "error": None,
         }
 
+    if provider == "openrouter":
+        key = (api_key_override or os.environ.get("OPENROUTER_API_KEY", "")).strip()
+        if not key:
+            return {
+                "error": (
+                    "OpenRouter API key not set. Add OPENROUTER_API_KEY to .env "
+                    "and set LLM_PROVIDER=openrouter."
+                )
+            }
+        referer = (
+            os.environ.get("OPENROUTER_HTTP_REFERER", "").strip()
+            or os.environ.get("PUBLIC_APP_URL", "").strip()
+            or "http://localhost:3000"
+        )
+        title = os.environ.get("OPENROUTER_APP_TITLE", "").strip() or "MyFace"
+        return {
+            "client": OpenAI(
+                api_key=key,
+                base_url=OPENROUTER_BASE_URL,
+                default_headers={
+                    "HTTP-Referer": referer,
+                    "X-Title": title,
+                },
+            ),
+            "model": (
+                os.environ.get("OPENROUTER_MODEL", OPENROUTER_MODEL).strip() or OPENROUTER_MODEL
+            ),
+            "source": "openrouter",
+            "error": None,
+        }
+
     key = (api_key_override or os.environ.get("OPENAI_API_KEY", "")).strip()
     if not key:
         return {
-            "error": "OpenAI API key not set. Add OPENAI_API_KEY to backend/.env or switch to Groq."
+            "error": (
+                "OpenAI API key not set. Add OPENAI_API_KEY to .env, "
+                "or set LLM_PROVIDER=groq|openrouter with the matching key."
+            )
         }
     return {
         "client": OpenAI(api_key=key),
@@ -202,7 +241,7 @@ def chat_structured_completion(
     max_tokens: int,
     api_key_override: Optional[str] = None,
 ) -> dict:
-    """Chat completion with OpenAI strict json_schema; Groq falls back to json_object."""
+    """Chat completion with OpenAI strict json_schema; Groq/OpenRouter use json_object."""
     llm = get_chat_llm(api_key_override=api_key_override)
     if llm.get("error"):
         return {"content": None, "source": None, "model": None, "error": llm["error"], "usage": None}
@@ -278,7 +317,7 @@ def chat_structured_completion(
                     "usage": None,
                 }
 
-    # Groq or other providers — json_object only
+    # Groq / OpenRouter / other providers — json_object only
     try:
         response, usage, duration_s = _chat_create(
             client,

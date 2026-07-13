@@ -521,17 +521,16 @@
   }
 
   .qoves-protocol-viewer {
-    @apply overflow-y-auto overflow-x-hidden;
+    @apply overflow-y-auto overflow-x-hidden rounded-xl bg-surface-raised;
     max-height: calc(100vh - 14rem);
   }
 
   .qoves-protocol-scroll {
-    @apply mx-auto w-full max-w-[595px] pb-8;
+    @apply mx-auto w-full max-w-[595px] px-3 sm:px-0 py-6 pb-10;
   }
 
-  .qoves-protocol-scroll .qoves-protocol-document > section,
-  .qoves-protocol-scroll .qoves-protocol-document > div {
-    @apply mb-6;
+  .qoves-protocol-scroll .qoves-protocol-document {
+    @apply flex flex-col items-center gap-6;
   }
 
   .qoves-protocol-document {
@@ -542,16 +541,30 @@
     @apply bg-white dark:bg-surface-card;
   }
 
+  /* A4 sheet preview (210×297 mm ≈ 595×842 pt at 72 dpi) */
   .qoves-report-a4-page {
-    @apply bg-white dark:bg-surface-card border border-surface-border rounded-lg shadow-card mx-auto overflow-hidden;
-    width: 100%;
-    max-width: 595px;
-    aspect-ratio: 595 / 842;
+    @apply bg-white dark:bg-surface-card border border-surface-border shadow-card mx-auto overflow-hidden;
+    width: min(100%, 595px);
+    aspect-ratio: 210 / 297;
+    border-radius: 2px;
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.06),
+      0 8px 24px rgb(0 0 0 / 0.08);
     transform-origin: top center;
   }
 
+  .qoves-report-a4-page--cover {
+    @apply bg-ink text-white;
+    border-color: var(--color-ink);
+  }
+
   .qoves-report-a4-inner {
-    @apply p-8 sm:p-10 h-full overflow-y-auto;
+    @apply p-7 sm:p-9 h-full overflow-y-auto;
+    box-sizing: border-box;
+  }
+
+  .qoves-report-a4-page--cover .qoves-report-a4-inner {
+    @apply overflow-hidden;
   }
 
   @media (max-width: 1023px) {

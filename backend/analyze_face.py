@@ -7,7 +7,6 @@ from .opencv_metrics import analyze_image_stats, compute_metrics_from_landmarks,
 from .eye_analysis import analyze_eyes, assemble_eyes_region
 from .cv_report import build_cv_report
 from .multi_view import analyze_all_views
-from .calibration import build_calibration
 from .profile_cephalometrics import build_profile_report, _naso_aural_explanation, _naso_aural_label
 from .quarter_analysis import build_quarter_report
 from .smile_analysis import analyze_smile_photo
@@ -36,17 +35,6 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
     views = multi_view.get("views", {})
     front_lm = multi_view.get("frontLandmarks", [])
 
-    profile_lm = None
-    for pid in ("rightProfile", "leftProfile"):
-        v = views.get(pid, {})
-        if v.get("success") and v.get("landmarks"):
-            profile_lm = v["landmarks"]
-            break
-
-    calibration = build_calibration(answers or {}, front_lm, profile_lm)
-    cv_report["calibration"] = calibration
-    mm_per_unit = calibration.get("mmPerUnit")
-
     cv_report["quarter"] = build_quarter_report(views)
 
     smile_bytes = photos.get("smile")
@@ -66,7 +54,7 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
         cv_report["hair"] = hair_data
 
     # Profile cephalometrics prefer silhouette landmarks at 90° when extractable
-    cv_report["profile"] = build_profile_report(views, mm_per_unit, photos)
+    cv_report["profile"] = build_profile_report(views, photos)
     primary = cv_report.get("profile", {}).get("primary")
     if primary:
         meas = primary.get("measurements", {})
@@ -75,7 +63,7 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
             cv_report["chin"] = {
                 **cv_report["chin"],
                 "projection": cls.get("chinProjection", cv_report["chin"].get("projection")),
-                "chinProjectionMm": meas.get("chinProjectionMm"),
+                "chinProjectionNorm": meas.get("chinProjectionNorm"),
                 "dataSource": "measured",
             }
         if cv_report.get("ears"):
@@ -113,7 +101,7 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
                 "dorsalHumpDeviation": dh,
                 "dorsalHumpLabel": hump_label,
                 "profileGonialAngleDeg": meas.get("profileGonialAngleDeg"),
-                "chinProjectionMm": meas.get("chinProjectionMm"),
+                "chinProjectionNorm": meas.get("chinProjectionNorm"),
                 "profilePoseId": primary.get("poseId"),
                 "profileLandmarkSource": primary.get("landmarkSource"),
                 "dataSource": "measured",

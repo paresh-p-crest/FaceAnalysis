@@ -1,5 +1,15 @@
 import { jsPDF } from 'jspdf'
 import { normalizeToJpegDataUrl } from './aestheticProjection'
+import {
+  buildChinProfileGuides,
+  buildChinProjectionGuides,
+  createProfileSilhouetteSampler,
+  mapNormThroughCover,
+  orientProfileForChinShow,
+  overlayFromProfileLandmarks,
+  resolveChinProjectionOverlay,
+} from './chinProfileGuides'
+import { analyzeWithMediaPipe } from './mediapipeAnalysis'
 import { resolveAllFeatureImages } from './protocolFeatureImages'
 import {
   buildClosingColumns,
@@ -7,7 +17,7 @@ import {
   buildFeaturePages,
   buildProtocolContents,
   DISCLAIMER_PARAGRAPHS,
-  formatProtocolEditionDate,
+  formatProtocolEditionLabel,
   formatProtocolMonth,
   getClientName,
   getFeatureComparisonData,
@@ -31,8 +41,16 @@ const MARGIN = 48
 const CONTENT_W = PAGE_W - MARGIN * 2
 const COL_GAP = 20
 const COL_W = (CONTENT_W - COL_GAP) / 2
+/** Shared nose/jaw PROFILE plate (full column width × tall). */
+const PROFILE_FRAME_H = 300
+/** Chin guide profiles — same column width as nose/jaw, shorter so two + B/A fit one page. */
+const CHIN_PROFILE_FRAME_H = 200
+const SECTION_GAP = 22
+/** Space after an image frame / before-after pair before following text. */
+const IMAGE_TEXT_GAP = 22
+/** Standard minimum height for column summary cards. */
+const SUMMARY_CARD_MIN_H = 110
 const PAGE_BOTTOM = PAGE_H - 56
-const SECTION_GAP = 14
 
 const EVIDENCE_TIER_LABELS = {
   lifestyle: 'Routine / Topical',
@@ -143,9 +161,39 @@ function drawHeader(doc, pageNum) {
   doc.line(MARGIN, 52, PAGE_W - MARGIN, 52)
 }
 
+/**
+ * Helvetica (jsPDF built-in) only covers WinAnsi. LLM closing copy often
+ * includes soft hyphens, en/em dashes, and curly quotes that map to control
+ * glyphs, break splitTextToSize widths, and overflow columns.
+ * Final pass keeps printable ASCII only so wrapping stays reliable.
+ */
+function sanitizePdfText(text) {
+  if (typeof text !== 'string' || !text) return ''
+  let out = text.normalize('NFKC')
+  // Soft / non-breaking / fancy hyphens and dashes → ASCII hyphen
+  out = out.replace(/[\u00AD\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE63\uFF0D]/g, '-')
+  out = out.replace(/[\u2018\u2019\u2032\u0060\u00B4]/g, "'")
+  out = out.replace(/[\u201C\u201D\u2033]/g, '"')
+  out = out.replace(/[\u2022\u2023\u25E6\u00B7]/g, '-')
+  out = out.replace(/\u2026/g, '...')
+  out = out.replace(/[\u00A0\u202F\u2007\u2009\u200A\u2008]/g, ' ')
+  out = out.replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, '')
+  // Drop any remaining non-printable / non-ASCII (fixes DC1/DLE soft-hyphen ghosts)
+  out = out.replace(/[^\t\n\r\x20-\x7E]/g, '')
+  out = out.replace(/(\w)\s+-\s+(\w)/g, '$1-$2')
+  out = out.replace(/[ \t]+\n/g, '\n')
+  out = out.replace(/[ \t]{2,}/g, ' ')
+  return out.trim()
+}
+
 function wrapText(doc, text, x, y, maxWidth, lineHeight = 13) {
-  const lines = doc.splitTextToSize(text || '', maxWidth)
-  lines.forEach((line, i) => doc.text(line, x, y + i * lineHeight))
+  const safe = sanitizePdfText(text || '')
+  if (!safe) return y
+  const lines = doc.splitTextToSize(safe, maxWidth)
+  lines.forEach((line, i) => {
+    // Guard against any residual non-WinAnsi before draw
+    doc.text(sanitizePdfText(line), x, y + i * lineHeight)
+  })
   return y + lines.length * lineHeight
 }
 
@@ -199,6 +247,13 @@ function createCoverCropSession() {
           }
         }),
       )
+    },
+    getImage(dataUrl) {
+      return dataUrl ? imgByUrl.get(dataUrl) || null : null
+    },
+    /** Register an already-decoded (or freshly rotated) image under a data URL key. */
+    putImage(dataUrl, img) {
+      if (dataUrl && img) imgByUrl.set(dataUrl, img)
     },
     crop(dataUrl, maxW, maxH) {
       if (!dataUrl || maxW <= 0 || maxH <= 0) return dataUrl
@@ -297,7 +352,7 @@ function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false) {
   return { w, h, ox, oy }
 }
 
-function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = 10 } = {}) {
+function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IMAGE_TEXT_GAP } = {}) {
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.roundedRect(x, y, w, h, 6, 6, 'F')
   doc.setDrawColor(229, 231, 235)
@@ -330,7 +385,7 @@ function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = 10
  * Before | After split frame. Right side shows after when available; otherwise "Projected image pending"
  * (never falls back to the before photo on the right).
  */
-function drawSplitComparisonFrame(doc, x, y, w, h, beforeSrc, afterSrc, { gap = 10 } = {}) {
+function drawSplitComparisonFrame(doc, x, y, w, h, beforeSrc, afterSrc, { gap = IMAGE_TEXT_GAP } = {}) {
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.roundedRect(x, y, w, h, 6, 6, 'F')
 
@@ -383,24 +438,42 @@ function drawLabeledBody(doc, x, y, title, body, maxW, lineH = 11.5) {
 
 /**
  * Summary card whose height grows with wrapped copy.
- * Clamps to PAGE_BOTTOM so it never runs into the footer.
+ * Column cards stick to PAGE_BOTTOM (without overlapping content above)
+ * and never draw past maxBottom — even when minH cannot fit.
  */
-function drawSummaryCard(doc, x, y, w, title, summary, { minH = 72, pad = 12, lineH = 11.5, maxBottom = PAGE_BOTTOM } = {}) {
+function drawSummaryCard(
+  doc,
+  x,
+  y,
+  w,
+  title,
+  summary,
+  { minH = SUMMARY_CARD_MIN_H, pad = 12, lineH = 11.5, maxBottom = PAGE_BOTTOM, stickToBottom = true } = {},
+) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   const lines = doc.splitTextToSize(summary || '', w - pad * 2)
   const titleBlock = 22
-  let cardH = Math.max(minH, titleBlock + lines.length * lineH + pad)
-  let cardY = y
-  if (cardY + cardH > maxBottom) {
-    const available = maxBottom - cardY
-    if (available < minH) {
-      cardY = Math.max(80, maxBottom - minH)
-      cardH = minH
-    } else {
-      cardH = available
-    }
+  const naturalH = Math.max(minH, titleBlock + lines.length * lineH + pad)
+  const topFloor = Math.max(80, y)
+  const available = Math.max(0, maxBottom - topFloor)
+
+  // Never exceed remaining space — minH is a preference, not a license to overflow
+  let cardH = available > 0 ? Math.min(naturalH, available) : 0
+  if (cardH < 36) {
+    // Almost no room below content: pin to bottom and use whatever fits above footer
+    cardH = Math.min(naturalH, Math.max(36, maxBottom - 80))
   }
+
+  let cardY = stickToBottom ? maxBottom - cardH : topFloor
+  if (cardY < topFloor) {
+    cardH = Math.max(36, maxBottom - topFloor)
+    cardY = maxBottom - cardH
+  }
+  if (cardY + cardH > maxBottom) {
+    cardH = Math.max(36, maxBottom - cardY)
+  }
+
   const maxLines = Math.max(1, Math.floor((cardH - titleBlock - pad / 2) / lineH))
   const visible = lines.slice(0, maxLines)
 
@@ -415,23 +488,45 @@ function drawSummaryCard(doc, x, y, w, title, summary, { minH = 72, pad = 12, li
   visible.forEach((line, i) => {
     doc.text(line, x + pad, cardY + titleBlock + 4 + i * lineH)
   })
-  return cardY + cardH + 8
+  return { cardY, cardH, bottom: cardY + cardH }
 }
 
-function drawCheekMeasurementOverlay(doc, frameX, frameY, frameW, frameH, points = []) {
-  if (!points.length) return
+function drawCheekMeasurementOverlay(
+  doc,
+  frameX,
+  frameY,
+  frameW,
+  frameH,
+  points = [],
+  segments = [],
+  analysisSrc = null
+) {
   const pad = 6
-  const ix = frameX + pad
-  const iy = frameY + pad
-  const iw = frameW - pad * 2
-  const ih = frameH - pad * 2
-  const toX = (p) => ix + p.x * iw
-  const toY = (p) => iy + p.y * ih
+  const box = { x: frameX + pad, y: frameY + pad, w: frameW - pad * 2, h: frameH - pad * 2 }
+  const img = analysisSrc ? coverCropSession?.getImage?.(analysisSrc) : null
+  const map = (nx, ny) => {
+    if (img?.width && img?.height) {
+      return mapNormThroughCover(nx, ny, img.width, img.height, box.x, box.y, box.w, box.h)
+    }
+    return { x: box.x + nx * box.w, y: box.y + ny * box.h }
+  }
 
   doc.setDrawColor(255, 255, 255)
   doc.setLineWidth(0.85)
+  doc.setLineDashPattern([], 0)
   doc.setFillColor(255, 255, 255)
 
+  // Preferred: notebook-style segments from DB MediaPipe landmarks
+  if (segments.length) {
+    for (const s of segments) {
+      const a = map(s.x1, s.y1)
+      const b = map(s.x2, s.y2)
+      doc.line(a.x, a.y, b.x, b.y)
+    }
+    return
+  }
+
+  if (!points.length) return
   const left = points.filter((p) => p.x < 0.48).sort((a, b) => a.y - b.y)
   const right = points.filter((p) => p.x >= 0.52).sort((a, b) => a.y - b.y)
   const midY = points.reduce((sum, p) => sum + p.y, 0) / points.length
@@ -439,21 +534,27 @@ function drawCheekMeasurementOverlay(doc, frameX, frameY, frameW, frameH, points
   if (left.length >= 2) {
     const top = left[0]
     const bottom = left[left.length - 1]
-    doc.line(toX(top), toY(top), toX(bottom), toY(bottom))
-    doc.circle(toX(top), toY(top), 1.6, 'F')
-    doc.circle(toX(bottom), toY(bottom), 1.6, 'F')
+    const a = map(top.x, top.y)
+    const b = map(bottom.x, bottom.y)
+    doc.line(a.x, a.y, b.x, b.y)
+    doc.circle(a.x, a.y, 1.6, 'F')
+    doc.circle(b.x, b.y, 1.6, 'F')
   }
   if (right.length >= 2) {
     const top = right[0]
     const bottom = right[right.length - 1]
-    doc.line(toX(top), toY(top), toX(bottom), toY(bottom))
-    doc.circle(toX(top), toY(top), 1.6, 'F')
-    doc.circle(toX(bottom), toY(bottom), 1.6, 'F')
+    const a = map(top.x, top.y)
+    const b = map(bottom.x, bottom.y)
+    doc.line(a.x, a.y, b.x, b.y)
+    doc.circle(a.x, a.y, 1.6, 'F')
+    doc.circle(b.x, b.y, 1.6, 'F')
   }
 
-  doc.line(ix + iw * 0.18, iy + midY * ih, ix + iw * 0.82, iy + midY * ih)
-  doc.circle(ix + iw * 0.18, iy + midY * ih, 1.6, 'F')
-  doc.circle(ix + iw * 0.82, iy + midY * ih, 1.6, 'F')
+  const m0 = map(0.18, midY)
+  const m1 = map(0.82, midY)
+  doc.line(m0.x, m0.y, m1.x, m1.y)
+  doc.circle(m0.x, m0.y, 1.6, 'F')
+  doc.circle(m1.x, m1.y, 1.6, 'F')
 }
 
 function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 100, horizontal = true, cover = true) {
@@ -464,12 +565,12 @@ function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 10
   if (horizontal) {
     drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE', { cover })
     drawImageFrame(doc, x + frameW + gap, y, frameW, frameH, afterSrc, 'AFTER', { cover })
-    return y + frameH + 10
+    return y + frameH + IMAGE_TEXT_GAP
   }
 
   drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE', { cover })
   drawImageFrame(doc, x, y + frameH + gap, frameW, frameH, afterSrc, 'AFTER', { cover })
-  return y + frameH * 2 + gap + 10
+  return y + frameH * 2 + gap + IMAGE_TEXT_GAP
 }
 
 function drawSummaryBar(doc, y, title, summary) {
@@ -756,7 +857,7 @@ function drawHairFeaturePage(doc, section, pageNum, beforeJpeg, norwoodImages = 
 
   const subs = section.subsections || []
   const rightX = MARGIN + COL_W + COL_GAP
-  const frameH = 80
+  const frameH = 120
   const norwoodStage = section.layoutHints?.norwoodStage ?? section.norwoodStage ?? 1
 
   let leftY = y
@@ -807,7 +908,7 @@ function drawEyesFeaturePage(doc, section, pageNum) {
   if (subs[1]) rightY = drawLabeledBody(doc, rightX, rightY, 'Eyelashes', subs[1].body, COL_W)
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 100, true)
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 130, true)
 
   leftY = y
   rightY = y
@@ -815,8 +916,14 @@ function drawEyesFeaturePage(doc, section, pageNum) {
   if (subs[3]) rightY = drawLabeledBody(doc, rightX, rightY, 'Under eye', subs[3].body, COL_W)
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  drawImageFrame(doc, MARGIN, y, COL_W, 100, eyesPreview, 'EYES', { cover: true })
-  drawSummaryCard(doc, rightX, y, COL_W, 'Eye Region Summary', section.summary, { minH: 100 })
+  // EYES crop + summary share the bottom edge of the page
+  const eyesFrameH = 110
+  const summary = drawSummaryCard(doc, rightX, y, COL_W, 'Eye Region Summary', section.summary)
+  const eyesY = Math.max(y, summary.bottom - eyesFrameH)
+  drawImageFrame(doc, MARGIN, eyesY, COL_W, eyesFrameH, eyesPreview, 'EYES', {
+    cover: false,
+    gap: 0,
+  })
 }
 
 function drawNoseFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal) {
@@ -829,7 +936,9 @@ function drawNoseFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, pro
   let rightY = y
 
   if (profileJpeg && profileIsReal) {
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, 160, profileJpeg, 'PROFILE')
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, PROFILE_FRAME_H, profileJpeg, 'PROFILE', {
+      cover: true,
+    })
   }
   rightY = drawBeforeAfterPair(doc, rightX, rightY, COL_W, beforeJpeg, null, 120, true)
   drawSummaryCard(doc, rightX, rightY, COL_W, 'Nose Summary', section.summary)
@@ -840,6 +949,7 @@ function drawCheeksFeaturePage(doc, section, pageNum) {
   const analysisSrc = slots.analysis || section.beforeJpeg
   const pairBefore = slots.pairBefore || analysisSrc
   const overlayPoints = slots.overlayPoints || []
+  const overlaySegments = slots.overlaySegments || []
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
@@ -850,13 +960,28 @@ function drawCheeksFeaturePage(doc, section, pageNum) {
   let rightY = y
   if (subs[0]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Cheek Structure', subs[0].body, COL_W)
 
-  const analysisH = 170
-  drawImageFrame(doc, rightX, rightY, COL_W, analysisH, analysisSrc, 'ANALYSIS', { cover: true, gap: 0 })
-  drawCheekMeasurementOverlay(doc, rightX, rightY, COL_W, analysisH, overlayPoints)
-  rightY += analysisH + 10
+  // ANALYSIS + BEFORE + AFTER share one box size
+  const cheekFrameW = COL_W
+  const cheekFrameH = 180
+  drawImageFrame(doc, rightX, rightY, cheekFrameW, cheekFrameH, analysisSrc, 'ANALYSIS', {
+    cover: true,
+    gap: 0,
+  })
+  drawCheekMeasurementOverlay(
+    doc,
+    rightX,
+    rightY,
+    cheekFrameW,
+    cheekFrameH,
+    overlayPoints,
+    overlaySegments,
+    analysisSrc
+  )
+  rightY += cheekFrameH + IMAGE_TEXT_GAP
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 150, true)
+  // Pair width so each tile is exactly cheekFrameW (= COL_W)
+  y = drawBeforeAfterPair(doc, MARGIN, y, cheekFrameW * 2 + 8, pairBefore, null, cheekFrameH, true)
   drawSummaryBar(doc, y, 'Cheek Region Summary', section.summary)
 }
 
@@ -872,18 +997,20 @@ function drawJawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, prof
     rightX,
     y,
     COL_W,
-    160,
+    PROFILE_FRAME_H,
     profileJpeg && profileIsReal ? profileJpeg : beforeJpeg,
     'PROFILE',
+    { cover: true },
   )
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, null, 140, true)
+  // BEFORE/AFTER larger than before, but still smaller than the profile plate
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, null, 150, true)
 
   leftY = y
   rightY = y
   if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Further Enhancement', subs[1].body, COL_W)
-  drawSummaryCard(doc, rightX, rightY, COL_W, 'Jaw Region Summary', section.summary, { minH: 110 })
+  drawSummaryCard(doc, rightX, rightY, COL_W, 'Jaw Region Summary', section.summary)
 }
 
 function drawLipsFeaturePage(doc, section, pageNum) {
@@ -899,45 +1026,233 @@ function drawLipsFeaturePage(doc, section, pageNum) {
   let leftY = y
   let rightY = y
   if (subs[0]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Lip', subs[0].body, COL_W)
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 120, previewSrc, 'LIPS', { cover: true })
+  // Square LIPS contour preview — full column width (and equal height)
+  const lipsSquare = COL_W
+  rightY = drawImageFrame(doc, rightX, rightY, lipsSquare, lipsSquare, previewSrc, 'LIPS', {
+    cover: true,
+  })
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 150, true)
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 200, true)
   drawSummaryBar(doc, y, 'Lips Summary', section.summary)
 }
 
-function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal) {
+/** Map 0–1 profile landmark into a center-cover PROFILE frame (inner padded box). */
+function mapChinGuidePoint(
+  profileSrc,
+  frameX,
+  frameY,
+  frameW,
+  frameH,
+  nx,
+  ny,
+  pad = 4,
+  coordSpace = 'image'
+) {
+  const boxX = frameX + pad
+  const boxY = frameY + pad
+  const boxW = frameW - pad * 2
+  const boxH = frameH - pad * 2
+  // Cover-space landmarks were detected on the same crop the plate shows — identity map.
+  if (coordSpace === 'cover') {
+    return { x: boxX + nx * boxW, y: boxY + ny * boxH }
+  }
+  const img = coverCropSession?.getImage?.(profileSrc)
+  if (!img?.width || !img?.height) {
+    return { x: boxX + nx * boxW, y: boxY + ny * boxH }
+  }
+  return mapNormThroughCover(nx, ny, img.width, img.height, boxX, boxY, boxW, boxH)
+}
+
+function clipSegToBox(a, b, box) {
+  const pad = 8
+  const inside = (p) =>
+    p.x >= box.x - pad &&
+    p.x <= box.x + box.w + pad &&
+    p.y >= box.y - pad &&
+    p.y <= box.y + box.h + pad
+  return inside(a) || inside(b)
+}
+
+function guidesForChinFrame(
+  profileSrc,
+  frameW,
+  frameH,
+  rawOverlay,
+  poseId = 'rightProfile',
+  { style = 'thirds' } = {}
+) {
+  const pad = 4
+  const boxW = frameW - pad * 2
+  const boxH = frameH - pad * 2
+  const img = coverCropSession?.getImage?.(profileSrc)
+
+  // Both plates resolve Pn/Sn/Pog on the pitched bitmap (ignore collapsed Mongo).
+  const resolved = img
+    ? resolveChinProjectionOverlay(img, poseId, boxW, boxH)
+    : null
+  if (!resolved) return null
+
+  if (style === 'projection') {
+    return buildChinProjectionGuides(resolved)
+  }
+
+  // Top plate: Image-2 chin-show (one anterior vertical + equal-length rays)
+  const guides = buildChinProfileGuides(resolved)
+  if (guides?.chinShow) {
+    const tipY = guides.chinShow.tipY ?? -Infinity
+    const len = guides.chinShow.rayLength ?? 0.08
+    const vx = guides.chinShow.verticalX
+    const noseRight = guides.chinShow.noseIsRight !== false
+    // Keep equal length; only filter stray above-tip rays (do not silhouette-vary x1)
+    guides.chinShow.rays = (guides.chinShow.rays || [])
+      .filter((ray) => ray.y1 > tipY + 0.02)
+      .map((ray) => ({
+        ...ray,
+        x2: vx,
+        x1: noseRight ? Math.max(0, vx - len) : Math.min(1, vx + len),
+        y2: ray.y1,
+      }))
+  }
+  return guides
+}
+
+function drawChinProfileGuideOverlays(doc, profileSrc, frameX, frameY, frameW, frameH, guides, mode) {
+  if (!guides || !profileSrc) return
+  const pad = 4
+  const box = { x: frameX + pad, y: frameY + pad, w: frameW - pad * 2, h: frameH - pad * 2 }
+  const coordSpace = guides.coordSpace || 'image'
+  const map = (nx, ny) =>
+    mapChinGuidePoint(profileSrc, frameX, frameY, frameW, frameH, nx, ny, pad, coordSpace)
+
+  doc.setDrawColor(255, 255, 255)
+
+  // Top plate: one nose-tip vertical + horizontals from soft-tissue profile → vertical
+  if (mode === 'thirds' && guides.chinShow) {
+    const c = guides.chinShow
+    const v0 = map(c.verticalX, c.y0)
+    const v1 = map(c.verticalX, c.y1)
+    doc.setLineWidth(1.15)
+    doc.setLineDashPattern([], 0)
+    // Always draw vertical (even if endpoints sit near the pad edge)
+    doc.line(v0.x, v0.y, v1.x, v1.y)
+    for (const ray of c.rays || []) {
+      const a = map(ray.x1, ray.y1)
+      const b = map(ray.x2, ray.y2)
+      if (ray.dashed) {
+        doc.setLineDashPattern([2.5, 2], 0)
+        doc.setLineWidth(1.0)
+      } else {
+        doc.setLineDashPattern([], 0)
+        doc.setLineWidth(1.1)
+      }
+      doc.line(a.x, a.y, b.x, b.y)
+    }
+    doc.setLineDashPattern([], 0)
+    return
+  }
+
+  // Bottom plate: verticals only
+  if (mode === 'projection' && guides.projection) {
+    const p = guides.projection
+    doc.setLineWidth(1.05)
+    doc.setLineDashPattern([], 0)
+    for (const v of p.verticals || []) {
+      const a = map(v.x, v.y0)
+      const b = map(v.x, v.y1)
+      doc.line(a.x, a.y, b.x, b.y)
+    }
+  }
+}
+
+async function resolveChinProfileOverlay(cvReport, profileJpeg) {
+  const poseId =
+    cvReport?.profile?.primary?.poseId ||
+    cvReport?.profile?.primaryView ||
+    'rightProfile'
+  const stored =
+    cvReport?.profile?.primary?.overlay ||
+    cvReport?.profile?.rightProfile?.overlay ||
+    null
+  if (profileJpeg) {
+    try {
+      const { landmarks } = await analyzeWithMediaPipe(profileJpeg)
+      const fromMesh = overlayFromProfileLandmarks(landmarks)
+      if (fromMesh) return { overlay: fromMesh, poseId }
+    } catch {
+      /* profile yaw often fails FaceMesh — fall through */
+    }
+  }
+  return { overlay: stored, poseId }
+}
+
+async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal) {
   drawHeader(doc, pageNum)
   let y = drawSplitTitle(doc, MARGIN, 85, 'Chin', 'Recommendations', 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
-  // Stacked analysis frames: right profile only (never fall back to frontal before).
   const profileSrc = profileJpeg && profileIsReal ? profileJpeg : null
+  const rawOverlay = section.profileOverlay
+  const poseId = section.profilePoseId || 'rightProfile'
 
   let leftY = drawLabeledBody(doc, MARGIN, y, 'Chin', subs[0]?.body, COL_W)
   let rightY = y
 
   if (profileSrc) {
-    const topFrameY = rightY
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, 100, profileSrc, null)
-    doc.setDrawColor(255, 255, 255)
-    doc.setLineWidth(1)
-    for (let i = 0; i < 4; i++) {
-      doc.line(rightX + 60, topFrameY + 30 + i * 18, rightX + COL_W - 20, topFrameY + 30 + i * 18)
+    // Pitch chin-down for presentation (Image 2 slant), then resolve Pn/Pog on
+    // that pitched bitmap so the Ricketts E-line locks to nose tip and chin.
+    let showSrc = profileSrc
+    const rawImg = coverCropSession?.getImage?.(profileSrc)
+    const oriented = rawImg ? orientProfileForChinShow(rawImg, poseId) : null
+    if (oriented?.dataUrl) {
+      showSrc = oriented.dataUrl
+      try {
+        const orientedImg = await loadHtmlImage(showSrc)
+        coverCropSession?.putImage?.(showSrc, orientedImg)
+      } catch {
+        showSrc = profileSrc
+      }
     }
-    doc.line(rightX + COL_W - 20, topFrameY + 30, rightX + COL_W - 20, topFrameY + 30 + 3 * 18)
+
+    const thirdsGuides = guidesForChinFrame(showSrc, COL_W, CHIN_PROFILE_FRAME_H, rawOverlay, poseId, {
+      style: 'thirds',
+    })
+    const projectionGuides = guidesForChinFrame(showSrc, COL_W, CHIN_PROFILE_FRAME_H, rawOverlay, poseId, {
+      style: 'projection',
+    })
+
+    const topFrameY = rightY
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, showSrc, 'PROFILE', {
+      cover: true,
+    })
+    drawChinProfileGuideOverlays(
+      doc,
+      showSrc,
+      rightX,
+      topFrameY,
+      COL_W,
+      CHIN_PROFILE_FRAME_H,
+      thirdsGuides,
+      'thirds'
+    )
 
     const botFrameY = rightY
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, 100, profileSrc, null)
-    doc.setDrawColor(255, 255, 255)
-    doc.setLineWidth(1)
-    doc.line(rightX + 110, botFrameY + 20, rightX + 150, botFrameY + 80)
-    doc.line(rightX + 150, botFrameY + 80, rightX + 130, botFrameY + 95)
-    doc.line(rightX + 130, botFrameY + 40, rightX + 130, botFrameY + 95)
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, showSrc, 'PROFILE', {
+      cover: true,
+    })
+    drawChinProfileGuideOverlays(
+      doc,
+      showSrc,
+      rightX,
+      botFrameY,
+      COL_W,
+      CHIN_PROFILE_FRAME_H,
+      projectionGuides,
+      'projection'
+    )
   }
 
   y = Math.max(leftY, rightY) + SECTION_GAP
-  // BEFORE stays frontal mouth/chin crop.
   y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, null, 120, true)
   drawSummaryBar(doc, y, 'Chin Summary', section.summary)
 }
@@ -962,9 +1277,9 @@ function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null
 
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  leftY = drawBeforeAfterPair(doc, MARGIN, y, COL_W, beforeJpeg, afterJpeg, 90, true)
+  leftY = drawBeforeAfterPair(doc, MARGIN, y, COL_W, beforeJpeg, afterJpeg, 150, true)
   if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Further Skin Enhancement', subs[1].body, COL_W)
-  drawSummaryCard(doc, rightX, y, COL_W, 'Skin Summary', section.summary, { minH: 110 })
+  drawSummaryCard(doc, rightX, y, COL_W, 'Skin Summary', section.summary)
 }
 
 function drawNeckFeaturePage(doc, section, pageNum, beforeJpeg) {
@@ -976,13 +1291,10 @@ function drawNeckFeaturePage(doc, section, pageNum, beforeJpeg) {
   let leftY = drawLabeledBody(doc, MARGIN, y, 'Neck Size', subs[0]?.body, COL_W) + 16
   if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Neck Skin', subs[1].body, COL_W)
 
-  let rightY = drawImageFrame(doc, rightX, y, COL_W, 230, beforeJpeg, 'BEFORE', { cover: true })
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 230, null, 'AFTER', { cover: true })
+  let rightY = drawImageFrame(doc, rightX, y, COL_W, 240, beforeJpeg, 'BEFORE', { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 240, null, 'AFTER', { cover: true })
 
-  const summaryY = Math.max(leftY, rightY) + SECTION_GAP
-  // Prefer summary under left column when space allows; otherwise after both columns
-  const cardY = leftY + SECTION_GAP <= PAGE_BOTTOM - 80 ? leftY + SECTION_GAP : summaryY
-  drawSummaryCard(doc, MARGIN, cardY, COL_W, 'Neck Summary', section.summary)
+  drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, 'Neck Summary', section.summary)
 }
 
 function drawEarsFeaturePage(doc, section, pageNum, beforeJpeg) {
@@ -994,11 +1306,10 @@ function drawEarsFeaturePage(doc, section, pageNum, beforeJpeg) {
   let leftY = drawLabeledBody(doc, MARGIN, y, 'Ear Structure', subs[0]?.body, COL_W)
 
   // Front-facing ear crop only — no measurement overlays for now
-  let rightY = drawImageFrame(doc, rightX, y, COL_W, 200, beforeJpeg, 'BEFORE', { cover: true })
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 200, null, 'AFTER', { cover: true })
+  let rightY = drawImageFrame(doc, rightX, y, COL_W, 220, beforeJpeg, 'BEFORE', { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 220, null, 'AFTER', { cover: true })
 
-  const cardY = leftY + SECTION_GAP <= PAGE_BOTTOM - 80 ? leftY + SECTION_GAP : Math.max(leftY, rightY) + SECTION_GAP
-  drawSummaryCard(doc, MARGIN, cardY, COL_W, 'Ear Summary', section.summary)
+  drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, 'Ear Summary', section.summary)
 }
 
 /**
@@ -1010,11 +1321,11 @@ export async function downloadMyFacePdf({
   cvReport,
   metrics,
   landmarks,
-  protocolData,
   protocolNarrative,
   answers,
   eyeAnalysis,
   aiNarrative,
+  user = null,
 }) {
   if (!photo || !cvReport) throw new Error('Photo and analysis data required for PDF export')
 
@@ -1031,6 +1342,7 @@ export async function downloadMyFacePdf({
     cvReport,
     eyeAnalysis,
     photos,
+    lipPreviewMask: 'contour',
   })
 
   const sectionPairs = featurePages.map((page) => ({
@@ -1039,6 +1351,7 @@ export async function downloadMyFacePdf({
     imageSlots: featureImages[page.id]?.slots || {},
     profileJpeg: featureImages[page.id]?.profile || null,
     profileIsReal: featureImages[page.id]?.profileIsReal ?? false,
+    profileOverlay: null,
     afterJpeg: null,
   }))
 
@@ -1054,12 +1367,22 @@ export async function downloadMyFacePdf({
   }
   await coverCropSession.warm(warmUrls)
 
+  const chinSection = sectionPairs.find((p) => p.id === 'chin')
+  if (chinSection) {
+    const resolved = await resolveChinProfileOverlay(
+      cvReport,
+      chinSection.profileIsReal ? chinSection.profileJpeg : null
+    )
+    chinSection.profileOverlay = resolved?.overlay ?? null
+    chinSection.profilePoseId = resolved?.poseId || 'rightProfile'
+  }
+
   const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
   let pageNum = 1
   let y = 0
-  const clientName = getClientName(answers)
+  const clientName = getClientName(answers, user)
   const monthLabel = formatProtocolMonth()
-  const editionLabel = formatProtocolEditionDate()
+  const editionLabel = formatProtocolEditionLabel()
   const closingParagraphs = buildClosingRecommendations(
     aiNarrative,
     cvReport,
@@ -1095,7 +1418,7 @@ export async function downloadMyFacePdf({
   doc.setTextColor(181, 199, 211) // hex #B5C7D3 light slate/grey
   doc.text('Protocol', MARGIN, 415)
   
-  // Metadata Section
+  // Metadata Section — prepared for + edition only (no date)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(180, 190, 200)
@@ -1104,24 +1427,15 @@ export async function downloadMyFacePdf({
   doc.setFontSize(11)
   doc.setTextColor(255, 255, 255)
   doc.text(clientName.toUpperCase(), MARGIN, 498)
-  
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(180, 190, 200)
-  doc.text('DATE', MARGIN + 180, 480)
+  doc.text('EDITION', MARGIN + 220, 480)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   doc.setTextColor(255, 255, 255)
-  doc.text(monthLabel.toUpperCase(), MARGIN + 180, 498)
-  
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(180, 190, 200)
-  doc.text('EDITION', MARGIN + 320, 480)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  doc.setTextColor(255, 255, 255)
-  doc.text(editionLabel.toUpperCase(), MARGIN + 320, 498)
+  doc.text(editionLabel.toUpperCase(), MARGIN + 220, 498)
 
   // Bottom Footer
   doc.setDrawColor(58, 74, 90)
@@ -1295,12 +1609,12 @@ export async function downloadMyFacePdf({
   // ── Page 4: Understanding the Results ──
   doc.addPage()
   drawHeader(doc, 4)
-  y = drawSplitTitle(doc, MARGIN, 85, 'Understanding', 'the Results', 26)
+  y = drawSplitTitle(doc, MARGIN, 85, 'Understanding', 'the Results', 28)
 
   // Horizontal divider below the title
   doc.setDrawColor(236, 236, 236)
   doc.setLineWidth(0.75)
-  doc.line(MARGIN, 135, PAGE_W - MARGIN, 135)
+  doc.line(MARGIN, 138, PAGE_W - MARGIN, 138)
 
   const UNDERSTANDING_RESULTS_RICH = [
     {
@@ -1322,32 +1636,34 @@ export async function downloadMyFacePdf({
   ]
 
   UNDERSTANDING_RESULTS_RICH.forEach((item, idx) => {
-    const blockY = 170 + idx * 135
+    const blockY = 172 + idx * 140
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(44)
     doc.setTextColor(215, 222, 228)
     doc.text(String(idx + 1).padStart(2, '0'), MARGIN, blockY + 32)
 
-    const textX = MARGIN + 48
-    const textW = CONTENT_W - 48
+    // Wider gap between the large number and the copy column
+    const numGap = 78
+    const textX = MARGIN + numGap
+    const textW = CONTENT_W - numGap
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
+    doc.setFontSize(11)
     setInk(doc)
     const boldLines = doc.splitTextToSize(item.bold, textW)
     boldLines.forEach((line, i) => {
-      doc.text(line, textX, blockY + 10 + i * 14)
+      doc.text(line, textX, blockY + 10 + i * 15)
     })
-    
-    let textY = blockY + 10 + boldLines.length * 14 + 4
+
+    let textY = blockY + 10 + boldLines.length * 15 + 5
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
+    doc.setFontSize(9)
     setMuted(doc)
     const normalLines = doc.splitTextToSize(item.normal, textW)
     normalLines.forEach((line, i) => {
-      doc.text(line, textX, textY + i * 11.5)
+      doc.text(line, textX, textY + i * 13)
     })
   })
 
@@ -1358,49 +1674,59 @@ export async function downloadMyFacePdf({
   drawHeader(doc, 5)
   y = drawSplitTitle(doc, MARGIN, 85, `${clientName}'s`, 'Protocol', 26)
 
-  // Draw side-by-side BEFORE / AFTER images (tall portrait aspect ratio)
+  // Tall side-by-side BEFORE / AFTER portraits
   const rightX = MARGIN + COL_W + COL_GAP
-  drawImageFrame(doc, MARGIN, 150, COL_W, 240, photoJpeg, 'BEFORE')
-  drawImageFrame(doc, rightX, 150, COL_W, 240, null, 'AFTER')
+  const protocolPairH = 360
+  const protocolPairY = 140
+  drawImageFrame(doc, MARGIN, protocolPairY, COL_W, protocolPairH, photoJpeg, 'BEFORE', {
+    cover: true,
+  })
+  drawImageFrame(doc, rightX, protocolPairY, COL_W, protocolPairH, null, 'AFTER', {
+    cover: true,
+  })
+
+  const textY = protocolPairY + protocolPairH + IMAGE_TEXT_GAP
 
   // Description text below BEFORE image
   const beforeText = "To help the subject achieve aesthetic potential, this detailed science-based protocol has been developed. Following this evidence-based protocol supports progress toward the subject's full aesthetic potential."
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
-  wrapText(doc, beforeText, MARGIN, 405, COL_W, 11.5)
+  wrapText(doc, beforeText, MARGIN, textY, COL_W, 11)
 
   // Description text below AFTER image
   const afterText = "The analysis is designed to be objective. Instead of comparing the subject to a universal ideal, it highlights strengths and areas for improvement, recognizing that each person's features offer unique possibilities."
-  wrapText(doc, afterText, rightX, 405, COL_W, 11.5)
+  wrapText(doc, afterText, rightX, textY, COL_W, 11)
 
   // Bottom section: Projected potential (left column) and Radar chart (right column)
+  const bottomY = textY + 52
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   setInk(doc)
-  doc.text('Projected potential', MARGIN, 475)
+  doc.text('Projected potential', MARGIN, bottomY)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
+  doc.setFontSize(8)
   setMuted(doc)
-  doc.text('This report is organised around 11 key features for facial aesthetics:', MARGIN, 495)
+  doc.text('This report is organised around 11 key features for facial aesthetics:', MARGIN, bottomY + 16)
 
   const col1Features = ['Hair', 'Eyebrows', 'Eyes', 'Nose', 'Cheeks', 'Jaw']
   const col2Features = ['Lips', 'Chin', 'Skin', 'Neck', 'Ears']
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
+  const listY = bottomY + 32
   col1Features.forEach((label, i) => {
-    doc.text(`•  ${label}`, MARGIN, 515 + i * 14)
+    doc.text(`•  ${label}`, MARGIN, listY + i * 12)
   })
   col2Features.forEach((label, i) => {
-    doc.text(`•  ${label}`, MARGIN + 120, 515 + i * 14)
+    doc.text(`•  ${label}`, MARGIN + 120, listY + i * 12)
   })
 
   // Draw vector radar chart in right column
   const cx = rightX + COL_W / 2
-  const cy = 550
-  const rMax = 50
+  const cy = bottomY + 55
+  const rMax = 42
   drawRadarChart(doc, cx, cy, rMax, chartItems)
 
   pageNum++
@@ -1422,7 +1748,7 @@ export async function downloadMyFacePdf({
     } else if (section.id === 'lips') {
       drawLipsFeaturePage(doc, section, featurePageNum)
     } else if (section.id === 'chin') {
-      drawChinFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.profileJpeg, section.profileIsReal)
+      await drawChinFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.profileJpeg, section.profileIsReal)
     } else if (section.id === 'skin') {
       drawSkinFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.afterJpeg)
     } else if (section.id === 'neck') {

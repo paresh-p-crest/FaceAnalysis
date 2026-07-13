@@ -87,7 +87,6 @@ def build_assistant_tool_index() -> list[str]:
     tools = [
         "get_questionnaire",
         "get_executive_narrative",
-        "get_protocol_cards",
         "get_protocol_overview",
         "get_protocol_closing",
     ]

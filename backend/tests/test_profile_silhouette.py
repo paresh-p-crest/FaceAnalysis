@@ -49,12 +49,12 @@ def test_analyze_profile_prefers_silhouette_when_image_given():
     for idx in (356, 454, 323, 361, 288, 397, 365, 379):
         lms[idx] = {"x": 0.3, "y": 0.35, "z": 0}
 
-    mesh_only = analyze_profile(lms, "rightProfile", mm_per_unit=100)
+    mesh_only = analyze_profile(lms, "rightProfile")
     assert mesh_only is not None
     assert mesh_only["landmarkSource"] == "facemesh"
 
     with_sil = analyze_profile(
-        lms, "rightProfile", mm_per_unit=100, image_bytes=_synthetic_right_profile()
+        lms, "rightProfile", image_bytes=_synthetic_right_profile()
     )
     assert with_sil is not None
     assert with_sil["landmarkSource"] in ("silhouette", "silhouette+facemesh")
@@ -65,7 +65,6 @@ def test_analyze_profile_prefers_silhouette_when_image_given():
 def test_build_profile_report_passes_photos():
     report = build_profile_report(
         views={"rightProfile": {"success": False, "landmarks": []}},
-        mm_per_unit=None,
         photos={"rightProfile": _synthetic_right_profile()},
     )
     assert report["dataSource"] == "measured"

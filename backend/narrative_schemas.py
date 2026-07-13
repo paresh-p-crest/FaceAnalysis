@@ -70,18 +70,6 @@ class ProtocolOverview(BaseModel):
     summary: str = Field(..., min_length=40, max_length=500)
 
 
-class ProtocolRecommendation(BaseModel):
-    title: str = Field(..., min_length=3, max_length=80)
-    description: str = Field(..., min_length=20, max_length=400)
-    priority: Literal["high", "medium", "low"]
-    category: Literal["skincare", "lifestyle", "exercise", "grooming", "nutrition"]
-
-
-class ProtocolActionCards(BaseModel):
-    summary: str = Field(..., min_length=20, max_length=400)
-    recommendations: list[ProtocolRecommendation] = Field(..., min_length=3, max_length=10)
-
-
 class ExecutiveNarrative(BaseModel):
     summary: str = Field(..., min_length=40, max_length=600)
     strengths: list[str] = Field(..., min_length=1, max_length=5)
@@ -170,36 +158,6 @@ def protocol_overview_json_schema() -> dict:
             "summary": {"type": "string", "minLength": 40, "maxLength": 500},
         },
         "required": ["summary"],
-        "additionalProperties": False,
-    }
-
-
-def protocol_action_cards_json_schema() -> dict:
-    return {
-        "type": "object",
-        "properties": {
-            "summary": {"type": "string", "minLength": 20, "maxLength": 400},
-            "recommendations": {
-                "type": "array",
-                "minItems": 3,
-                "maxItems": 10,
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "title": {"type": "string", "minLength": 3, "maxLength": 80},
-                        "description": {"type": "string", "minLength": 20, "maxLength": 400},
-                        "priority": {"type": "string", "enum": ["high", "medium", "low"]},
-                        "category": {
-                            "type": "string",
-                            "enum": ["skincare", "lifestyle", "exercise", "grooming", "nutrition"],
-                        },
-                    },
-                    "required": ["title", "description", "priority", "category"],
-                    "additionalProperties": False,
-                },
-            },
-        },
-        "required": ["summary", "recommendations"],
         "additionalProperties": False,
     }
 

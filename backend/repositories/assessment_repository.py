@@ -247,10 +247,10 @@ async def update_assessment_ai_visuals(assessment_id: str, ai_visuals: dict) -> 
 async def update_assessment_protocol(
     assessment_id: str,
     *,
-    protocol_data: Optional[dict] = None,
     protocol_narrative: Optional[dict] = None,
     protocol_storage: Optional[dict] = None,
     feature_narratives: Optional[dict] = None,
+    unset_protocol_data: bool = False,
 ) -> Optional[dict]:
     db = get_db()
     try:
@@ -258,17 +258,18 @@ async def update_assessment_protocol(
     except Exception:
         return None
     update_fields: dict[str, Any] = {"updatedAt": _utcnow()}
-    if protocol_data is not None:
-        update_fields["protocolData"] = protocol_data
     if protocol_narrative is not None:
         update_fields["protocolNarrative"] = protocol_narrative
     if feature_narratives is not None:
         update_fields["featureNarratives"] = feature_narratives
     if protocol_storage is not None:
         update_fields["protocolStorage"] = protocol_storage
+    update_doc: dict[str, Any] = {"$set": update_fields}
+    if unset_protocol_data:
+        update_doc["$unset"] = {"protocolData": ""}
     doc = await db.assessments.find_one_and_update(
         {"_id": oid},
-        {"$set": update_fields},
+        update_doc,
         return_document=ReturnDocument.AFTER,
     )
     return _serialize_doc(doc) if doc else None

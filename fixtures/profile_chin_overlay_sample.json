@@ -1,0 +1,41 @@
+{
+  "note": "Anonymized right-profile cephalometrics sample for PDF chin guide overlays. Sourced from assessments.analysis.cvReport.profile.primary (id hash only). convexityPoints and eLine are normalized image coords (0–1). nasoAural here is the legacy raw-point shape; current pipeline stores nasoAural as 0–100 percent horizontals/segments via build_naso_aural_proportion_overlay.",
+  "sourceCollection": "assessments",
+  "sourceIdHash": "11654a86",
+  "poseId": "rightProfile",
+  "measurements": {
+    "facialConvexityDeg": 142.8,
+    "nasolabialAngleDeg": 117.4,
+    "nasoAuralRatio": 2.24,
+    "chinProjectionNorm": -0.043,
+    "earProtrusionNorm": 0.133,
+    "eLineUpperLip": 1.34,
+    "eLineLowerLip": 1.5
+  },
+  "classification": {
+    "convexity": "convex",
+    "chinProjection": "recessed",
+    "nasoAural": "Ear > Nose"
+  },
+  "overlay": {
+    "convexityPoints": [
+      { "id": "G", "x": 0.8031, "y": 0.3067 },
+      { "id": "Sn", "x": 0.8765, "y": 0.5124 },
+      { "id": "Pog", "x": 0.8336, "y": 0.6481 }
+    ],
+    "eLine": [
+      { "x": 0.9236, "y": 0.4966 },
+      { "x": 0.8336, "y": 0.6481 }
+    ],
+    "nasoAural": {
+      "earTop": { "x": 0.4727, "y": 0.4682 },
+      "earBottom": { "x": 0.7006, "y": 0.4314 },
+      "noseTop": { "x": 0.9236, "y": 0.4966 },
+      "noseBottom": { "x": 0.8240, "y": 0.5130 }
+    }
+  },
+  "pdfChinGuides": {
+    "topFrame": "One vertical at/just past Pn; four horizontals from soft-tissue Sn / stomion / labiomental / Pog to that vertical (Image-2 chin-show).",
+    "bottomFrame": "Pitched profile (~7° CW for rightProfile); verticals only at Pn + lip plane (slight left nudge). No horizontals / E-line."
+  }
+}

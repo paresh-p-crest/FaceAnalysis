@@ -74,7 +74,7 @@ Text AI was split across `openai_client.py`, `beauty_assistant.py`, and client-s
 ### Decision
 - Consolidate all text LLM usage in `backend/text_ai_service.py` (narrative, protocol, assistant).
 - Gate AI endpoints behind completed payment (`backend/ai_access.py`); admins bypass.
-- Persist `protocolData` / `protocolNarrative` on assessments; compress assistant history via `sessionSummary` on conversations.
+- Persist `protocolNarrative` / `featureNarratives` on assessments; compress assistant history via `sessionSummary` on conversations.
 - Remove legacy markdown report generation (`/api/generate-report`, `utils/openai.js`).
 
 ### Consequences
@@ -323,3 +323,63 @@ Hair segmentation was gated behind `HAIR_SEGMENTATION_ENABLED` and returned `Non
 - Silhouette estimates are coarse; label `landmarkSource` so narratives do not overclaim clinical cephalometrics.
 - Existing assessments keep prior stored `cvReport` until re-analyzed.
 
+---
+
+## ADR-018: Latest-Only Generated Report Text (No protocolData)
+Date: 2026-07-12  
+Status: accepted  
+
+### Context
+Protocol action cards (`protocolData`) were generated and dual-written but unused in the Qoves UI/PDF. Closing text could be synthesized on the client from `aiNarrative` without persistence. File `protocol.json` could shadow richer Mongo fields. Generated report text needed a clear latest-only source of truth across executive narrative, protocol/feature copy, AI visual prompts, and Beauty Assistant chat.
+
+### Decision
+- Remove `protocolData` from generation, Mongo writes, `protocol.json`, APIs, FE props, and the Beauty Assistant `get_protocol_cards` tool.
+- Treat Mongo `aiNarrative`, `protocolNarrative`, `featureNarratives`, and `aiVisuals` as latest-only SOT; `conversations` holds assistant messages linked by `assessmentId`.
+- `protocol.json` mirrors `{ protocolNarrative, featureNarratives }` only; Mongo wins when complete.
+- Always persist `protocolNarrative.closing` (LLM or measured fallback); FE must not invent closing. Admin `aiNarrative` edits refresh stored closing.
+- Completeness helper: `backend/report_content.report_content_status`.
+
+### Consequences
+- One fewer LLM call per protocol enrich; smaller protocol payload.
+- Legacy assessments may still have `protocolData` until the next protocol persist (`$unset`).
+- UI/PDF closing matches stored server text.
+
+---
+
+## ADR-019: Remove Ruler Calibration (No px→mm Scale)
+Date: 2026-07-12  
+Status: accepted  
+
+### Context
+ADR-003 added questionnaire ruler fields (`mouthWidthMm`, `philtrumLengthMm`) and `calibration.py` for physical mm cephalometrics. The FE ruler UI was later removed, so calibration always returned `mmPerUnit: null`. Absolute-mm fields were unused; angles and ratios already drive the product.
+
+### Decision
+- Delete `backend/calibration.py` and `backend/tests/test_calibration.py`.
+- Stop writing `cvReport.calibration` and stop accepting `mm_per_unit` in profile cephalometrics.
+- Profile distances use normalized landmark units only (`chinProjectionNorm`, relative E-line values). No physical mm scale in the pipeline.
+
+### Consequences
+- No true millimetre chin/E-line measurements until a new scale source is introduced.
+- Older assessments may still contain a stored `calibration` block; new analyses will not.
+- Supersedes the ruler-calibration bullet of ADR-003 (multi-view photo storage and other ADR-003 decisions remain).
+
+---
+
+## ADR-020: OpenRouter as Optional Text LLM Provider
+Date: 2026-07-13  
+Status: accepted  
+
+### Context
+Narrative enrichment hits Groq TPM/RPM limits under parallel feature calls. OpenRouter offers an OpenAI-compatible gateway to many models (including `:free` variants) behind one API key, without changing prompt/orchestrator code.
+
+### Decision
+- Extend `llm_client.resolve_llm_provider` / `get_chat_llm` to support `LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` (default `meta-llama/llama-3.3-70b-instruct:free`), and optional `OPENROUTER_HTTP_REFERER` / `OPENROUTER_APP_TITLE` attribution headers.
+- Auto-select OpenRouter when `LLM_PROVIDER` is unset and only `OPENROUTER_API_KEY` is present (Groq still wins if both keys exist).
+- Structured completions use `json_object` (same path as Groq), not OpenAI strict `json_schema`.
+- Vision narrative enrichment remains OpenAI-only (ADR-014); OpenRouter text path is text-only unless a future ADR adds multimodal routing.
+- AI image generation continues to require `OPENAI_API_KEY` regardless of text provider.
+
+### Consequences
+- Operators can switch text LLMs via env without code changes.
+- Free OpenRouter models are still rate-limited (~20 RPM / 50–1000 RPD); they do not remove quota pressure for one-shot multi-feature enrichment.
+- Failed free-tier requests still consume daily quota — retries must stay conservative.

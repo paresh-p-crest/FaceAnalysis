@@ -9,8 +9,8 @@ function tagList(answers) {
   return tags
 }
 
-export function ProtocolSideRail({ photo, answers, assessmentId, onViewProtocol }) {
-  const clientName = getClientName(answers)
+export function ProtocolSideRail({ photo, answers, user = null, assessmentId, onViewProtocol }) {
+  const clientName = getClientName(answers, user)
   const displayId = assessmentId ? `#${String(assessmentId).slice(-5).toUpperCase()}` : '#—'
   const tags = tagList(answers)
 

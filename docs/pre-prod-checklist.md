@@ -23,8 +23,7 @@ Gate items before deploying MyFace to production. Photo storage and biometric da
 - [ ] All 7 pose keys persist when uploaded: `front`, `leftProfile`, `rightProfile`, `left45`, `right45`, `smile`, `topHead`
 - [ ] `assessment.photos` map populated with `publicUrl` per pose
 - [ ] `cvReport.photos` URLs return HTTP 200 when loaded in report
-- [ ] Ruler calibration fields (`mouthWidthMm`, `philtrumLengthMm`) saved on assessment
-- [ ] Profile cephalometrics populate when `rightProfile` or `leftProfile` uploaded
+- [ ] Profile cephalometrics populate when `rightProfile` or `leftProfile` uploaded (angles/ratios; no ruler/mm scale)
 - [ ] Run `python scripts/smoke_test.py` against staging
 
 ## Backup & ops

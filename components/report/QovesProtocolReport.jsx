@@ -8,7 +8,7 @@ import {
   buildFeaturePages,
   buildProtocolContents,
   DISCLAIMER_PARAGRAPHS,
-  formatProtocolEditionDate,
+  formatProtocolEditionLabel,
   formatProtocolMonth,
   getClientName,
   getFeatureComparisonData,
@@ -45,15 +45,17 @@ function SplitTitle({ primary, secondary }) {
 
 function SectionBlock({ title, subtitle, page, children, splitTitle }) {
   return (
-    <section className="qoves-protocol-page rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-6 sm:p-8 shadow-card">
-      {page != null && <PageLabel page={page} />}
-      {splitTitle ? (
-        <SplitTitle primary={splitTitle.primary} secondary={splitTitle.secondary} />
-      ) : (
-        <h2 className="font-display text-2xl font-semibold text-ink mb-1">{title}</h2>
-      )}
-      {subtitle && <p className="text-xs text-ink-muted mb-5 font-sans">{subtitle}</p>}
-      {children}
+    <section className="qoves-protocol-page qoves-report-a4-page">
+      <div className="qoves-report-a4-inner">
+        {page != null && <PageLabel page={page} />}
+        {splitTitle ? (
+          <SplitTitle primary={splitTitle.primary} secondary={splitTitle.secondary} />
+        ) : (
+          <h2 className="font-display text-2xl font-semibold text-ink mb-1">{title}</h2>
+        )}
+        {subtitle && <p className="text-xs text-ink-muted mb-5 font-sans">{subtitle}</p>}
+        {children}
+      </div>
     </section>
   )
 }
@@ -151,15 +153,15 @@ export default function QovesProtocolReport({
   cvReport,
   metrics,
   answers,
+  user = null,
   eyeAnalysis,
-  protocolData,
   protocolNarrative,
   aiNarrative,
   pageIndex = 0,
   paginated = false,
 }) {
-  const clientName = getClientName(answers)
-  const edition = formatProtocolEditionDate()
+  const clientName = getClientName(answers, user)
+  const edition = formatProtocolEditionLabel()
   const month = formatProtocolMonth()
   const featurePages = useMemo(
     () => buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative),
@@ -226,19 +228,21 @@ export default function QovesProtocolReport({
     (
       <section
         key="cover"
-        className="rounded-2xl overflow-hidden border border-ink/10 bg-ink text-white p-6 sm:p-10 min-h-[480px] flex flex-col justify-between"
+        className="qoves-protocol-page qoves-report-a4-page qoves-report-a4-page--cover"
       >
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.25em] text-white/60 mb-10">MyFace</p>
-          <p className="text-sm text-white/80 mb-6">{clientName} · {month}</p>
-          <h1 className="font-display text-4xl sm:text-5xl font-semibold leading-tight">
-            Aesthetic <span className="text-white/50 font-normal">Protocol</span>
-          </h1>
-          <p className="text-xs uppercase tracking-[0.2em] text-white/50 mt-4">
-            Written {edition} · Protocol Edition
-          </p>
+        <div className="qoves-report-a4-inner flex flex-col justify-between h-full text-white">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-white/60 mb-10">MyFace</p>
+            <p className="text-sm text-white/80 mb-6">{clientName}</p>
+            <h1 className="font-display text-4xl sm:text-5xl font-semibold leading-tight">
+              Aesthetic <span className="text-white/50 font-normal">Protocol</span>
+            </h1>
+            <p className="text-xs uppercase tracking-[0.2em] text-white/50 mt-4">
+              Edition · {edition}
+            </p>
+          </div>
+          <p className="text-xs text-white/40">Measurement-guided aesthetic protocol</p>
         </div>
-        <p className="text-xs text-white/40">Measurement-guided aesthetic protocol</p>
       </section>
     ),
     (
@@ -319,7 +323,6 @@ export default function QovesProtocolReport({
         <p className="text-sm text-ink-secondary leading-relaxed font-sans mb-4 mt-2">
           {rewriteToSubjectVoice(
             protocolNarrative?.summary ||
-              protocolData?.summary ||
               "This evidence-based protocol is grounded in the subject's measured facial analysis, organised around 11 key features for facial aesthetics."
           )}
         </p>
@@ -376,7 +379,7 @@ export default function QovesProtocolReport({
   }
 
   return (
-    <div className="space-y-6 pb-8 qoves-protocol-document">
+    <div className="qoves-protocol-document">
       {pages}
 
       {featurePages.map((page) => {

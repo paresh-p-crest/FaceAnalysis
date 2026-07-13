@@ -1,6 +1,5 @@
 """Unit tests for profile_cephalometrics.py"""
 
-import math
 import sys
 from pathlib import Path
 
@@ -29,7 +28,7 @@ def _profile_landmarks():
 
 
 def test_facial_convexity_near_orthognathic():
-    result = analyze_profile(_profile_landmarks(), "rightProfile", mm_per_unit=100)
+    result = analyze_profile(_profile_landmarks(), "rightProfile")
     assert result is not None
     angle = result["measurements"]["facialConvexityDeg"]
     assert 150 < angle < 190
@@ -37,7 +36,7 @@ def test_facial_convexity_near_orthognathic():
 
 
 def test_naso_aural_ear_shorter_than_nose_on_profile():
-    result = analyze_profile(_profile_landmarks(), "rightProfile", mm_per_unit=100)
+    result = analyze_profile(_profile_landmarks(), "rightProfile")
     assert result is not None
     ratio = result["measurements"]["nasoAuralRatio"]
     assert ratio < 0.95
@@ -66,8 +65,8 @@ def test_naso_aural_prefers_silhouette_ear_span_over_facemesh():
     lms[356]["y"] = 0.39
     lms[379]["y"] = 0.41
 
-    mesh_only = analyze_profile(lms, "rightProfile", mm_per_unit=100)
-    with_sil = analyze_profile(lms, "rightProfile", mm_per_unit=100, image_bytes=buf.tobytes())
+    mesh_only = analyze_profile(lms, "rightProfile")
+    with_sil = analyze_profile(lms, "rightProfile", image_bytes=buf.tobytes())
     assert mesh_only is not None and with_sil is not None
     # Silhouette path should report a larger ear/nose ratio than collapsed FaceMesh ears
     assert with_sil["measurements"]["nasoAuralRatio"] > mesh_only["measurements"]["nasoAuralRatio"]
@@ -75,7 +74,7 @@ def test_naso_aural_prefers_silhouette_ear_span_over_facemesh():
 
 
 def test_profile_extended_angles_present():
-    result = analyze_profile(_profile_landmarks(), "rightProfile", mm_per_unit=100)
+    result = analyze_profile(_profile_landmarks(), "rightProfile")
     meas = result["measurements"]
     assert "nasofrontalAngleDeg" in meas
     assert "dorsalHumpDeviation" in meas

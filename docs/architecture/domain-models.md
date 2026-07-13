@@ -33,17 +33,16 @@ Stores raw user inputs, computer vision analysis outputs, AI-generated reports, 
 | `status` | `string` | Flow status: `"draft"` \| `"pending_review"` \| `"approved"` \| `"published"` |
 | `userId` | `string` \| `null` | Reference to user owning the assessment |
 | `scanId` | `string` \| `null` | Client-generated unique scan ID to prevent duplicate submissions |
-| `answers` | `dict` | Questionnaire responses; includes `mouthWidthMm`, `philtrumLengthMm`, `scalingMethod` for ruler calibration |
+| `answers` | `dict` | Questionnaire responses |
 | `provider` | `string` | Core CV engine provider: `"local"` only (legacy `"openai"` requests are normalized to `"local"`) |
 | `photosKeys` | `list[string]` | Pose IDs present (backward compat): `front`, `leftProfile`, `rightProfile`, `left45`, `right45`, `smile`, `topHead` |
 | `photos` | `dict` | Per-pose storage metadata: `{ poseId, relativePath, publicUrl, contentType, byteSize, storedAt }` |
 | `analysis` | `dict` | Nested object containing raw CV calculations (see sub-schema below) |
-| `aiNarrative` | `dict` \| `null` | LLM-generated executive summary JSON (`summary`, `strengths`, `focusAreas`, etc.) |
-| `protocolData` | `dict` \| `null` | LLM-generated protocol recommendations (`summary`, `recommendations[]`) |
-| `protocolNarrative` | `dict` \| `null` | Compat shim: `summary`, `closing[]`, `features{}` for Qoves PDF viewer |
-| `featureNarratives` | `dict` \| `null` | Per-feature structured narratives (`measuredFacts`, `subsections[]`, `limitations`) — source for PDF pages 6–15 |
+| `aiNarrative` | `dict` \| `null` | Latest executive narrative: `{ source, model, generatedAt?, content: { summary, strengths[], focusAreas[], recommendations[], disclaimer } }` |
+| `protocolNarrative` | `dict` \| `null` | Latest protocol copy: `{ summary, closing[], features{}, source?, model? }` — overview + closing + feature shim for Qoves PDF/UI |
+| `featureNarratives` | `dict` \| `null` | Canonical per-feature pages keyed by id (`measuredFacts`, `subsections[]`, `limitations`, …) — source for PDF pages 6–15 |
 | `protocolStorage` | `dict` \| `null` | Protocol file metadata (`relativePath`, `publicUrl`, `storedAt`, `byteSize`) |
-| `aiVisuals` | `dict` \| `null` | Prompts and URLs for visual variants (hairstyles, clothing, aging) |
+| `aiVisuals` | `dict` \| `null` | Latest visual variants: `{ source, model, sourceKind?, generatedAt?, variants: [{ type, title, prompt, imageSrc?, status, error? }] }` — `prompt` required on every variant |
 | `adminNotes` | `string` \| `null` | Notes added by the administrator during review |
 | `reviewedBy` | `dict` | Metadata of the reviewer (`email`, `role`, etc.) |
 | `reviewedAt` | `ISODate` \| `null` | Timestamp of administrative review completion |
@@ -54,8 +53,8 @@ Stores raw user inputs, computer vision analysis outputs, AI-generated reports, 
 ### Analysis Sub-Schema (`analysis`)
 | Nested Field | Type | Description |
 |---|---|---|
-| `cvReport` | `dict` | Calculated facial metrics; includes `profile`, `quarter`, `calibration`, `photos`, `meta.pipelineVersion`; `eyes` has sub-slices `eyebrows`, `eyelashes`, `ocular`, `underEye`; `nose` includes profile angles when measured |
-| `landmarks` | `list[list[float]]` | 478 MediaPipe Face Mesh coordinates `[x, y, z]` |
+| `cvReport` | `dict` | Calculated facial metrics; includes `profile`, `quarter`, `photos`, `meta.pipelineVersion`; `eyes` has sub-slices `eyebrows`, `eyelashes`, `ocular`, `underEye`; `nose` includes profile angles when measured. `profile.primary.overlay` holds chin/profile guides: `convexityPoints` (G/Sn/Pog, 0–1), `eLine` (pronasale→pogonion, 0–1), `nasoAural` (0–100 percent horizontals/segments). PDF chin projection plate pitches the profile (chin-down), then resolves Pn/Sn/Pog on that bitmap via `resolveChinProjectionOverlay` in `utils/chinProfileGuides.js` (collapsed stored silhouettes are not used as absolute coords). Full anonymized sample: `fixtures/assessment_sample_full.json`. |
+| `landmarks` | `list[list[float]]` or `list[{x,y,z}]` | 478 MediaPipe Face Mesh coordinates. Used by PDF cheek ANALYSIS guides (`utils/cheekGuides.js`: 130/359 outer eyes, 102/331 outer nostrils, 61/291 mouth, 234/454 ears + 1.08× extension, 197/2 nose blend) and chin/feature crops. |
 | `imagePreview` | `string` | Base64-encoded image preview or thumbnail |
 | `faceDetails` | `dict` \| `null` | Reserved; always `null` (AWS Rekognition removed) |
 | `protocolWarnings` | `list[string]` | Flagged issue warnings (e.g. head pose off-angle, eyes closed) |
@@ -65,6 +64,20 @@ Stores raw user inputs, computer vision analysis outputs, AI-generated reports, 
 - `status`
 - `userId`
 - `userId + scanId` (Unique compound index)
+
+### Generated text (latest-only source of truth)
+
+All NL / coaching text for a report is stored as the **latest** value only (no generation history). Completeness helper: `backend/report_content.report_content_status`.
+
+| Surface | Location |
+|---------|----------|
+| Executive narrative | `assessments.aiNarrative` |
+| Protocol overview + closing + feature shim | `assessments.protocolNarrative` (+ mirror `protocol.json`) |
+| Per-feature protocol pages | `assessments.featureNarratives` (+ mirror `protocol.json`) |
+| AI visual prompts / images | `assessments.aiVisuals` (`variants[].prompt` always present) |
+| Beauty Assistant chat | `conversations` linked by `assessmentId` + `userId` (not embedded on the assessment) |
+
+`protocol.json` under `public/uploads/assessments/{id}/` mirrors `{ protocolNarrative, featureNarratives }` only. Mongo wins on load when those fields are complete. Legacy `protocolData` (action cards) is removed; new writes `$unset` it.
 
 ---
 
@@ -121,6 +134,8 @@ Maintains conversational history between clients and the report-grounded Beauty 
 ### Indexes
 - `assessmentId + userId` (Unique compound index)
 - `updatedAt`
+
+Beauty Assistant replies for a report live here (not on `assessments`). Seed + tools read assessment narrative/CV fields; message history + `sessionSummary` are the durable chat text.
 
 ---
 

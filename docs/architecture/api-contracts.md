@@ -133,7 +133,6 @@ Main analysis entrypoint: parses image landmarks and saves the results in MongoD
       "front": { "poseId": "front", "publicUrl": "/uploads/assessments/abc/front.jpg" }
     },
     "aiNarrative": { "source": "openai", "model": "...", "content": { "summary": "..." } },
-    "protocolData": { "summary": "...", "recommendations": [] },
     "protocolNarrative": { "summary": "...", "features": {}, "closing": [] },
     "featureNarratives": {},
     "protocolStorage": { "publicUrl": "/uploads/assessments/{id}/protocol.json" },
@@ -145,7 +144,7 @@ Main analysis entrypoint: parses image landmarks and saves the results in MongoD
     }
   }
   ```
-- **Pipeline:** After CV analysis + photo storage, the same request runs one-shot NL enrichment (`aiNarrative` + protocol/feature narratives). When `LLM_PROVIDER=openai`, feature narratives also receive mapped pose photos (OpenAI Vision enrichment; see `FEATURE_VISION_POSES`). Report open only loads stored content; it does not regenerate.
+- **Pipeline:** After CV analysis + photo storage, the same request runs one-shot NL enrichment (`aiNarrative` + protocol/feature narratives). Text LLM is `LLM_PROVIDER=openai|groq|openrouter`. When `LLM_PROVIDER=openai`, feature narratives also receive mapped pose photos (OpenAI Vision enrichment; see `FEATURE_VISION_POSES`). Report open only loads stored content; it does not regenerate.
 
 ### `POST /api/run-analysis`
 Runs quick mathematical analysis without saving to MongoDB database.
@@ -234,7 +233,6 @@ Loads persisted protocol from storage (`public/uploads/assessments/{id}/protocol
 - **Response Shape (200 OK):**
   ```json
   {
-    "protocolData": { "summary": "...", "recommendations": [] },
     "protocolNarrative": { "summary": "...", "features": {}, "closing": [] },
     "featureNarratives": { "hair": { "measuredFacts": [], "subsections": [] } },
     "protocolStorage": { "publicUrl": "/uploads/assessments/{id}/protocol.json" },
@@ -244,7 +242,7 @@ Loads persisted protocol from storage (`public/uploads/assessments/{id}/protocol
 - **404:** Protocol not yet generated.
 
 ### `POST /api/assessments/{assessment_id}/ai-protocol`
-Generates protocol via `narrative_orchestrator` (10 per-feature structured LLM calls + guardrails), writes JSON to protocol storage, and syncs `protocolData`, `featureNarratives`, and `protocolNarrative` to MongoDB.
+Generates protocol via `narrative_orchestrator` (10 per-feature structured LLM calls + overview + closing), writes JSON to protocol storage, and syncs `featureNarratives` and `protocolNarrative` to MongoDB (and `$unset`s legacy `protocolData`).
 - **Auth:** Owner User or Admin
 - **Response Shape (200 OK):** Updated assessment document (idempotent if already stored).
 

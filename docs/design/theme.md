@@ -274,7 +274,7 @@ The in-app report uses a document-style shell separate from the onboarding/dashb
 | Section headings | `ReportSectionHeading` | `font-display` title + muted `accent` span |
 | Metric labels | `.qoves-report-mono-label` | Uppercase, `10px`, tracking-wide — **not** `font-mono` |
 | Metric cards | `.qoves-report-metric-card` | 2×2 grids on assessment/feature pages |
-| Protocol pages | `.qoves-report-a4-page` | A4 aspect ratio; zoom via CSS `transform: scale()` |
+| Protocol pages | `.qoves-report-a4-page` | Fixed A4 aspect (210×297); desk canvas `.qoves-protocol-viewer`; zoom via CSS `transform: scale()` |
 | Right rail | `.qoves-report-rail` | Protocol section only — patient profile + next steps |
 | Brand accents | `bg-brand` / `text-brand` | Never QOVES blue; keep MyFace green |
 

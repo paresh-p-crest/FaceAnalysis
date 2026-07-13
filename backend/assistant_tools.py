@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Optional
 
 from .answer_summary import format_answers_summary
 from .config import PROTOCOL_FEATURE_IDS
@@ -28,7 +28,6 @@ class AssessmentTools:
         self.answers = assessment.get("answers") or {}
         self.metrics = analysis.get("metrics")
         bundle = load_protocol_bundle(assessment.get("id", ""), assessment) or {}
-        self.protocol_data = bundle.get("protocolData") or assessment.get("protocolData")
         self.protocol_narrative = bundle.get("protocolNarrative") or assessment.get("protocolNarrative")
         self.feature_narratives = bundle.get("featureNarratives") or assessment.get("featureNarratives") or {}
 
@@ -40,9 +39,6 @@ class AssessmentTools:
         narrative = self.assessment.get("aiNarrative") or {}
         content = narrative.get("content") if isinstance(narrative, dict) else narrative
         return json.dumps(content or {}, default=str)
-
-    def get_protocol_cards(self) -> str:
-        return json.dumps(self.protocol_data or {}, default=str)[:6000]
 
     def get_protocol_overview(self) -> str:
         pn = self.protocol_narrative or {}
@@ -86,8 +82,6 @@ class AssessmentTools:
             return self.get_questionnaire()
         if name == "get_executive_narrative":
             return self.get_executive_narrative()
-        if name == "get_protocol_cards":
-            return self.get_protocol_cards()
         if name == "get_protocol_overview":
             return self.get_protocol_overview()
         if name == "get_protocol_closing":
@@ -104,7 +98,6 @@ class AssessmentTools:
 OPENAI_TOOL_DEFINITIONS = [
     {"type": "function", "function": {"name": "get_questionnaire", "description": "Full client questionnaire summary", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "get_executive_narrative", "description": "Executive AI narrative (summary, strengths, focus)", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
-    {"type": "function", "function": {"name": "get_protocol_cards", "description": "Protocol action cards and recommendations", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "get_protocol_overview", "description": "Protocol overview summary and feature scores", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "get_protocol_closing", "description": "Closing protocol paragraphs", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
     {

@@ -38,6 +38,8 @@
 - [x] Wire profile silhouette as 90° landmark source for Tier C angles (ADR-015)
 - [x] Surface Tier C nose profile fields in UI/PDF (`CvReportView`, `qovesProtocolModel`)
 - [x] Fix naso-aural ear span (helix→lobe on profile) + chin/jaw right-profile images
+- [x] OpenRouter text LLM provider (`LLM_PROVIDER=openrouter`, ADR-020) (status: completed)
+- [x] Free-model feature JSON normalize + narrative enrichment scoreboard (status: completed)
 - [ ] Run backend compile gates and smoke tests for Milestone 1 (status: planned)
 - [ ] Verify frontend build states for questionnaire and uploads (status: planned)
 - [ ] Optional BiSeNet upgrade for hair mask (future — not env-gated)

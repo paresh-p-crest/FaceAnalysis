@@ -28,6 +28,7 @@ For full database schemas and collection definitions, see [Domain Models](file:/
 ## Quick Links
 - [Design System & Theme](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/design/theme.md)
 - [Industry Practices & Guidelines](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/industry-practices.md)
+- [Backend Module Overview](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/architecture/backend-overview.md)
 - [Architecture Hard Constraints](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/architecture/rules.md)
 - [Architectural Decision Records (ADR)](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/architecture/decisions.md)
 - [Product Requirements](file:///c:/Users/JayRabari/Documents/FacialAnalysis/docs/requirements.md)

@@ -8,10 +8,10 @@ import {
   cropFeatureBeforeForPdf,
   cropDualEyesForPdf,
   createMaskedFeaturePreview,
-  featureOverlayPoints,
   getCropBox,
   normalizeToJpegDataUrl,
 } from './aestheticProjection'
+import { buildCheekAnalysisGuides, getCheekAnalysisBox } from './cheekGuides'
 
 /** Min export px per feature — small regions must not expand into full-face crops. */
 const FEATURE_MIN_PX = {
@@ -30,8 +30,6 @@ const FEATURE_MIN_PX = {
   hair: 400,
   ears: 320,
 }
-
-const CHEEK_OVERLAY_INDICES = [116, 123, 50, 280, 345, 352, 234, 454]
 
 function storedCrop(cvReport, eyeAnalysis, featureId) {
   switch (featureId) {
@@ -200,6 +198,7 @@ export async function resolveFeatureImageSlots({
   cvReport,
   eyeAnalysis,
   photos,
+  lipPreviewMask = 'oval',
 }) {
   switch (featureId) {
     case 'eyes': {
@@ -207,7 +206,7 @@ export async function resolveFeatureImageSlots({
         resolveFeatureBeforeImage({ featureId: 'eyes', cropKey: 'eyebrows', photoJpeg, landmarks, cvReport, eyeAnalysis, photos }),
         resolveFeatureBeforeImage({ featureId: 'eyes', cropKey: 'periorbital', photoJpeg, landmarks, cvReport, eyeAnalysis, photos }),
         resolveFeatureBeforeImage({ featureId: 'eyes', cropKey: 'eyes', photoJpeg, landmarks, cvReport, eyeAnalysis, photos }),
-        photoJpeg && landmarks?.length ? cropDualEyesForPdf(photoJpeg, landmarks, 160) : null,
+        photoJpeg && landmarks?.length ? cropDualEyesForPdf(photoJpeg, landmarks, 220) : null,
       ])
       return {
         before: periorbital || brows || eyes,
@@ -219,18 +218,24 @@ export async function resolveFeatureImageSlots({
     }
     case 'lips': {
       const lips = await resolveFeatureBeforeImage({ featureId: 'lips', photoJpeg, landmarks, cvReport, eyeAnalysis, photos })
+      const maskShape = lipPreviewMask === 'contour' ? 'lipContour' : 'oval'
       const masked = photoJpeg && landmarks?.length
-        ? await createMaskedFeaturePreview(photoJpeg, landmarks, 'lips', 200)
+        ? await createMaskedFeaturePreview(photoJpeg, landmarks, 'lips', 200, { maskShape })
         : lips
       return { before: lips, preview: masked || lips, pairBefore: lips }
     }
     case 'cheeks': {
       const cheeks = await resolveFeatureBeforeImage({ featureId: 'cheeks', photoJpeg, landmarks, cvReport, eyeAnalysis, photos })
-      const box = getCropBox(landmarks, 'cheeks')
-      const overlayPoints = box && landmarks?.length
-        ? featureOverlayPoints(landmarks, box, CHEEK_OVERLAY_INDICES)
-        : []
-      return { before: cheeks, analysis: cheeks, pairBefore: cheeks, overlayPoints }
+      // Same box as live cheek crop (getFeatureBox → getCheekAnalysisBox)
+      const box = getCheekAnalysisBox(landmarks) || getCropBox(landmarks, 'cheeks')
+      const guides = box && landmarks?.length ? buildCheekAnalysisGuides(landmarks, box) : null
+      return {
+        before: cheeks,
+        analysis: cheeks,
+        pairBefore: cheeks,
+        overlayPoints: guides?.points || [],
+        overlaySegments: guides?.segments || [],
+      }
     }
     case 'jaw':
     case 'chin':
@@ -275,6 +280,7 @@ export async function resolveAllFeatureImages({
   cvReport,
   eyeAnalysis,
   photos,
+  lipPreviewMask = 'oval',
 }) {
   const entries = await Promise.all(
     featurePages.map(async (page) => {
@@ -286,6 +292,7 @@ export async function resolveAllFeatureImages({
           cvReport,
           eyeAnalysis,
           photos,
+          lipPreviewMask,
         }),
         page.layoutHints?.profileImage
           ? resolveProfileBeforeImage({ photos, cvReport })

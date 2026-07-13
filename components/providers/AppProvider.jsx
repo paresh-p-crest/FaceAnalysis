@@ -256,7 +256,6 @@ export function AppProvider({ children }) {
       reportStatus: assessment.status || 'pending_review',
       aiNarrative: assessment.aiNarrative || assessment.analysis?.aiNarrative || null,
       aiVisuals: assessment.aiVisuals || assessment.analysis?.aiVisuals || null,
-      protocolData: assessment.protocolData || null,
       protocolNarrative: assessment.protocolNarrative || null,
       protocolStorage: assessment.protocolStorage || null,
     })

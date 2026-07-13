@@ -16,6 +16,7 @@ import {
   bboxEyesRegion,
   mergeBboxes,
 } from './faceCrop'
+import { getCheekAnalysisBox } from './cheekGuides'
 
 const PREVIEW_BG = { r: 232, g: 238, b: 244 }
 import { projectionStrengths } from './anthropometrics'
@@ -175,9 +176,12 @@ function getFeatureBox(landmarks, featureKey) {
       return { x, y: y0, w: Math.max(0.2, x2 - x), h: Math.max(0.18, y1 - y0) }
     }
     case 'cheeks': {
-      const l = bboxFromIndices(landmarks, CHEEK_L, 0.02)
-      const r = bboxFromIndices(landmarks, CHEEK_R, 0.02)
-      return mergeBboxes(l, r, 0.01)
+      // Must match cheekGuides crop so ANALYSIS overlay lands on the photo
+      return getCheekAnalysisBox(landmarks) || bboxFromIndices(
+        landmarks,
+        [130, 263, 102, 331, 61, 291, 234, 454, 197, 2, 116, 345],
+        0.1
+      )
     }
     case 'chin': {
       // Frontal mouth + chin (upper lip through menton), matching protocol BEFORE framing
@@ -699,40 +703,63 @@ export async function cropFeatureBeforeForPdf(imageSrc, landmarks, featureKey, m
   return cropDataUrl(canvas, getFeatureBox(lmArr, featureKey), minPx)
 }
 
-/** Side-by-side left/right eye crops for PDF eye preview panel. */
-export async function cropDualEyesForPdf(imageSrc, landmarks, minPx = 180) {
-  const lmArr = landmarksFromOverlay(landmarks)
-  const base = await normalizeToJpegDataUrl(imageSrc)
-  if (!lmArr?.length) return null
+/**
+ * Ordered eyelid rings (MediaPipe FACEMESH_*_EYE walk) for a clean closed clip path.
+ * Same idea as MOUTH for lips — silhouette only, no rectangular zoom.
+ */
+const RIGHT_EYE_RING = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+const LEFT_EYE_RING = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
 
-  const img = await loadImage(base)
-  const canvas = document.createElement('canvas')
-  canvas.width = img.width
-  canvas.height = img.height
-  canvas.getContext('2d').drawImage(img, 0, 0)
+/**
+ * One eye tile — mirrors lips lipContour: landmark bbox + polygon clip on panel bg.
+ */
+async function cropEyeContourTile(sourceCanvas, lmArr, eyeRing, minPx) {
+  const box = bboxFromIndices(lmArr, eyeRing, 0.012)
+  // Crop tight to landmarks only (no expandBoxToMinSize — that pulls cheek/brow in)
+  let tile = await loadImage(cropDataUrl(sourceCanvas, box, 0))
 
-  const rightOnly = bboxFromIndices(lmArr, RIGHT_EYE, 0.03)
-  const leftOnly = bboxFromIndices(lmArr, LEFT_EYE, 0.03)
+  const short = Math.min(tile.width, tile.height)
+  if (short < minPx) {
+    const scale = minPx / Math.max(short, 1)
+    const up = document.createElement('canvas')
+    up.width = Math.max(1, Math.round(tile.width * scale))
+    up.height = Math.max(1, Math.round(tile.height * scale))
+    const uctx = up.getContext('2d')
+    uctx.imageSmoothingEnabled = true
+    uctx.imageSmoothingQuality = 'high'
+    uctx.drawImage(tile, 0, 0, up.width, up.height)
+    tile = await loadImage(up.toDataURL('image/jpeg', 0.92))
+  }
 
-  const rightCrop = cropDataUrl(canvas, rightOnly, minPx)
-  const leftCrop = cropDataUrl(canvas, leftOnly, minPx)
-
-  const rImg = await loadImage(rightCrop)
-  const lImg = await loadImage(leftCrop)
-  const gap = Math.round(Math.min(rImg.width, lImg.width) * 0.08)
+  const margin = Math.round(Math.min(tile.width, tile.height) * 0.18)
   const out = document.createElement('canvas')
-  out.width = rImg.width + lImg.width + gap
-  out.height = Math.max(rImg.height, lImg.height)
+  out.width = tile.width + margin * 2
+  out.height = tile.height + margin * 2
   const ctx = out.getContext('2d')
-  ctx.fillStyle = '#fafbfc'
+  ctx.fillStyle = `rgb(${PREVIEW_BG.r},${PREVIEW_BG.g},${PREVIEW_BG.b})`
   ctx.fillRect(0, 0, out.width, out.height)
-  ctx.drawImage(rImg, 0, Math.round((out.height - rImg.height) / 2))
-  ctx.drawImage(lImg, rImg.width + gap, Math.round((out.height - lImg.height) / 2))
+
+  const ox = margin
+  const oy = margin
+  ctx.save()
+  ctx.beginPath()
+  eyeRing.forEach((idx, i) => {
+    const p = lm(lmArr, idx)
+    const lx = ((p.x - box.x) / Math.max(box.w, 1e-6)) * tile.width
+    const ly = ((p.y - box.y) / Math.max(box.h, 1e-6)) * tile.height
+    if (i === 0) ctx.moveTo(ox + lx, oy + ly)
+    else ctx.lineTo(ox + lx, oy + ly)
+  })
+  ctx.closePath()
+  ctx.clip()
+  ctx.drawImage(tile, ox, oy, tile.width, tile.height)
+  ctx.restore()
+
   return out.toDataURL('image/jpeg', 0.92)
 }
 
-/** Masked oval preview (lips) on protocol-blue panel background. */
-export async function createMaskedFeaturePreview(imageSrc, landmarks, featureKey, minPx = 220) {
+/** Side-by-side eye-contour crops for PDF (same landmark-clip approach as lips). */
+export async function cropDualEyesForPdf(imageSrc, landmarks, minPx = 220) {
   const lmArr = landmarksFromOverlay(landmarks)
   const base = await normalizeToJpegDataUrl(imageSrc)
   if (!lmArr?.length) return null
@@ -742,7 +769,59 @@ export async function createMaskedFeaturePreview(imageSrc, landmarks, featureKey
   canvas.width = img.width
   canvas.height = img.height
   canvas.getContext('2d').drawImage(img, 0, 0)
-  const featureCrop = await loadImage(cropDataUrl(canvas, getFeatureBox(lmArr, featureKey), minPx))
+
+  const [rightCrop, leftCrop] = await Promise.all([
+    cropEyeContourTile(canvas, lmArr, RIGHT_EYE_RING, minPx),
+    cropEyeContourTile(canvas, lmArr, LEFT_EYE_RING, minPx),
+  ])
+
+  const rImg = await loadImage(rightCrop)
+  const lImg = await loadImage(leftCrop)
+
+  const tileH = Math.max(rImg.height, lImg.height)
+  const rW = Math.round(rImg.width * (tileH / rImg.height))
+  const lW = Math.round(lImg.width * (tileH / lImg.height))
+  const gap = Math.max(8, Math.round(tileH * 0.06))
+
+  const out = document.createElement('canvas')
+  out.width = rW + lW + gap
+  out.height = tileH
+  const ctx = out.getContext('2d')
+  ctx.fillStyle = `rgb(${PREVIEW_BG.r},${PREVIEW_BG.g},${PREVIEW_BG.b})`
+  ctx.fillRect(0, 0, out.width, out.height)
+  ctx.drawImage(rImg, 0, 0, rW, tileH)
+  ctx.drawImage(lImg, rW + gap, 0, lW, tileH)
+  return out.toDataURL('image/jpeg', 0.92)
+}
+
+/** Masked feature preview on protocol-blue panel background.
+ *  @param {'oval'|'lipContour'} [options.maskShape='oval'] — lipContour uses outer MOUTH polygon (PDF).
+ */
+export async function createMaskedFeaturePreview(
+  imageSrc,
+  landmarks,
+  featureKey,
+  minPx = 220,
+  options = {}
+) {
+  const maskShape = options.maskShape === 'lipContour' ? 'lipContour' : 'oval'
+  const lmArr = landmarksFromOverlay(landmarks)
+  const base = await normalizeToJpegDataUrl(imageSrc)
+  if (!lmArr?.length) return null
+
+  const img = await loadImage(base)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+
+  const useLipContour = maskShape === 'lipContour' && featureKey === 'lips'
+  const box = useLipContour
+    ? bboxFromIndices(lmArr, MOUTH, 0.02)
+    : getFeatureBox(lmArr, featureKey)
+  const expanded =
+    minPx > 0 ? expandBoxToMinSize(box, minPx, canvas.width, canvas.height) : box
+  const featureCrop = await loadImage(cropDataUrl(canvas, box, minPx))
 
   const panelW = Math.max(featureCrop.width + 80, 320)
   const panelH = Math.max(featureCrop.height + 100, 220)
@@ -755,17 +834,32 @@ export async function createMaskedFeaturePreview(imageSrc, landmarks, featureKey
 
   const cx = panelW / 2
   const cy = panelH / 2
-  const rx = featureCrop.width * 0.58
-  const ry = featureCrop.height * 0.62
+  const cropX = cx - featureCrop.width / 2
+  const cropY = cy - featureCrop.height / 2
 
   ctx.save()
   ctx.beginPath()
-  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+  if (useLipContour) {
+    MOUTH.forEach((idx, i) => {
+      const p = lm(lmArr, idx)
+      const lx = ((p.x - expanded.x) / Math.max(expanded.w, 1e-6)) * featureCrop.width
+      const ly = ((p.y - expanded.y) / Math.max(expanded.h, 1e-6)) * featureCrop.height
+      const px = cropX + lx
+      const py = cropY + ly
+      if (i === 0) ctx.moveTo(px, py)
+      else ctx.lineTo(px, py)
+    })
+    ctx.closePath()
+  } else {
+    const rx = featureCrop.width * 0.58
+    const ry = featureCrop.height * 0.62
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+  }
   ctx.clip()
   ctx.drawImage(
     featureCrop,
-    cx - featureCrop.width / 2,
-    cy - featureCrop.height / 2,
+    cropX,
+    cropY,
     featureCrop.width,
     featureCrop.height
   )

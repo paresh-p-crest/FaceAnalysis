@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any, Optional
 
 from .answer_summary import format_answers_summary
 from .config import (
@@ -12,9 +13,7 @@ from .config import (
 from .llm_client import chat_json_completion, chat_structured_completion, chat_text_completion
 from .narrative_schemas import (
     ExecutiveNarrative,
-    ProtocolActionCards,
     executive_narrative_json_schema,
-    protocol_action_cards_json_schema,
 )
 
 STRICT_NON_SURGICAL_RULES = (
@@ -233,22 +232,6 @@ def _compact_narrative(content: Optional[dict]) -> str:
     return "\n".join(parts) or "Not available."
 
 
-def _compact_protocol_data(protocol_data: Any) -> str:
-    if not protocol_data or not isinstance(protocol_data, dict):
-        return "Not available."
-    lines = []
-    if protocol_data.get("summary"):
-        lines.append(f"Summary: {protocol_data['summary']}")
-    for rec in (protocol_data.get("recommendations") or [])[:6]:
-        if not isinstance(rec, dict):
-            continue
-        lines.append(
-            f"- [{rec.get('priority', 'medium')}] {rec.get('title', 'Recommendation')}: "
-            f"{(rec.get('description') or '')[:180]}"
-        )
-    return "\n".join(lines) or "Not available."
-
-
 def _compact_protocol_narrative(protocol_narrative: Any) -> str:
     if not protocol_narrative or not isinstance(protocol_narrative, dict):
         return "Not available."
@@ -273,7 +256,6 @@ def build_report_context(
     cv_report: dict,
     metrics: Optional[dict],
     ai_narrative: Any = None,
-    protocol_data: Any = None,
     protocol_narrative: Any = None,
 ) -> str:
     """Full static context for first assistant turn and summary refresh."""
@@ -281,72 +263,9 @@ def build_report_context(
         f"Client profile: {_profile_summary(answers)}",
         f"CV report metrics:\n{cv_report_summary(cv_report, metrics)}",
         f"Executive AI narrative:\n{_compact_narrative(_narrative_content(ai_narrative))}",
-        f"Protocol recommendations:\n{_compact_protocol_data(protocol_data)}",
         f"Protocol narrative:\n{_compact_protocol_narrative(protocol_narrative)}",
     ]
     return "\n\n".join(parts)
-
-
-def template_protocol(cv_report: Optional[dict]) -> dict:
-    """Non-AI protocol fallback grounded in cvReport scores."""
-    recommendations = []
-    report = cv_report or {}
-
-    if (report.get("jawChin") or {}).get("score", 100) < 80:
-        recommendations.append(
-            {
-                "title": "Facial muscle exercises",
-                "description": "Jawline and neck stretches for 10 minutes daily can support lower-face definition alongside posture work.",
-                "priority": "high",
-                "category": "exercise",
-            }
-        )
-    if (report.get("symmetry") or {}).get("score", 100) < 80:
-        recommendations.append(
-            {
-                "title": "Sleep position awareness",
-                "description": "Back sleeping reduces overnight facial pressure that can accentuate asymmetry over time.",
-                "priority": "medium",
-                "category": "lifestyle",
-            }
-        )
-    if (report.get("skin") or {}).get("score", 100) < 85:
-        recommendations.append(
-            {
-                "title": "Skincare routine optimization",
-                "description": "Daily SPF 30+, gentle cleanser, and a consistent evening moisturizer support measurable skin quality gains.",
-                "priority": "high",
-                "category": "skincare",
-            }
-        )
-
-    recommendations.extend(
-        [
-            {
-                "title": "Daily sunscreen",
-                "description": "Broad-spectrum SPF 30+ every morning is the highest-impact non-surgical anti-aging habit.",
-                "priority": "high",
-                "category": "skincare",
-            },
-            {
-                "title": "Hydration and nutrition",
-                "description": "Adequate water, omega-3s, and reduced processed sugar support skin clarity from within.",
-                "priority": "medium",
-                "category": "nutrition",
-            },
-            {
-                "title": "Quality sleep",
-                "description": "Seven to nine hours of consistent sleep supports recovery, under-eye appearance, and skin repair.",
-                "priority": "medium",
-                "category": "lifestyle",
-            },
-        ]
-    )
-
-    return {
-        "summary": "A personalized non-surgical protocol based on the subject's stored facial analysis scores.",
-        "recommendations": recommendations,
-    }
 
 
 def _fallback_assistant_answer(question: str, cv_report: dict, answers: dict) -> str:
@@ -463,72 +382,6 @@ def generate_cv_narrative(
         return {"content": None, "source": None, "error": result["error"]}
     try:
         content = ExecutiveNarrative.model_validate(result["content"]).model_dump()
-    except Exception:
-        content = result["content"]
-    return {
-        "content": content,
-        "source": result["source"],
-        "model": result["model"],
-        "error": None,
-    }
-
-
-def generate_protocol(
-    *,
-    answers: dict,
-    cv_report: dict,
-    metrics: Optional[dict] = None,
-    api_key: Optional[str] = None,
-) -> dict:
-    if not cv_report:
-        return {"content": None, "source": None, "error": "cvReport is required."}
-
-    profile = format_answers_summary(answers or {})
-    cv_summary = cv_report_summary(cv_report, metrics)
-
-    user_content = (
-        "Produce JSON with schema:\n"
-        "{\n"
-        '  "summary": "1-2 sentence overview",\n'
-        '  "recommendations": [\n'
-        '    {"title": "...", "description": "...", "priority": "high|medium|low", '
-        '"category": "skincare|lifestyle|exercise|grooming|nutrition"}\n'
-        "  ]\n"
-        "}\n\n"
-        "Generate 5-8 non-surgical recommendations prioritized by lowest scores.\n\n"
-        f"Goals: {profile['goals']}\n"
-        f"Skin concerns: {profile['concerns']}\n"
-        f"Skin type: {profile['skinType']}\n"
-        f"Age: {profile['age']}\n"
-        f"Gender: {profile['gender']}\n\n"
-        f"CV scores:\n{cv_summary}"
-    )
-
-    result = chat_structured_completion(
-        schema_name="protocol_action_cards",
-        json_schema=protocol_action_cards_json_schema(),
-        messages=[
-            {"role": "system", "content": PROTOCOL_SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
-        ],
-        temperature=0.5,
-        max_tokens=1200,
-        api_key_override=api_key,
-    )
-    if result.get("error") and not result.get("content"):
-        result = chat_json_completion(
-            messages=[
-                {"role": "system", "content": PROTOCOL_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            temperature=0.5,
-            max_tokens=1200,
-            api_key_override=api_key,
-        )
-    if result.get("error"):
-        return {"content": None, "source": None, "error": result["error"]}
-    try:
-        content = ProtocolActionCards.model_validate(result["content"]).model_dump()
     except Exception:
         content = result["content"]
     return {
@@ -665,7 +518,6 @@ def answer_beauty_question(
     metrics: Optional[dict],
     history: Optional[list[dict]] = None,
     ai_narrative: Any = None,
-    protocol_data: Any = None,
     protocol_narrative: Any = None,
     session_summary: Optional[str] = None,
     summary_at_user_count: int = 0,
@@ -680,7 +532,6 @@ def answer_beauty_question(
         cv_report=cv_report,
         metrics=metrics,
         ai_narrative=ai_narrative,
-        protocol_data=protocol_data,
         protocol_narrative=protocol_narrative,
     )
 

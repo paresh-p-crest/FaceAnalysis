@@ -163,7 +163,7 @@ def run_assistant_agent(
         ASSISTANT_SYSTEM_PROMPT
         + "\n\nYou have tools to fetch report sections. "
         "For factual questions (scores, colors, measurements), call get_cv_feature or get_cv_assessment first. "
-        "For routine/protocol coaching, call get_protocol_feature or get_protocol_cards. "
+        "For routine/protocol coaching, call get_protocol_feature, get_protocol_overview, or get_protocol_closing. "
         "Never invent metrics. If not measured, say so clearly."
     )
 

@@ -18,7 +18,6 @@ export function CvReportView({
   activeId,
   cvReport,
   eyeAnalysis,
-  protocolData,
   protocolNarrative,
   protocolLoading,
   aiNarrative,
@@ -36,6 +35,7 @@ export function CvReportView({
   landmarks,
   metrics,
   answers,
+  user = null,
   onDownloadPdf,
   pdfLoading,
   canDownloadPdf,
@@ -501,8 +501,8 @@ export function CvReportView({
         cvReport={cvReport}
         metrics={metrics}
         answers={answers}
+        user={user}
         eyeAnalysis={eyeAnalysis}
-        protocolData={protocolData}
         protocolNarrative={protocolNarrative}
         aiNarrative={aiNarrative}
         protocolLoading={protocolLoading}

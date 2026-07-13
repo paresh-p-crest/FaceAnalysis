@@ -21,6 +21,7 @@ from ..protocol_service import (
     generate_and_store_protocol,
     load_protocol_bundle,
     persist_protocol_bundle,
+    refresh_protocol_closing_for_assessment,
 )
 from ..repositories.assessment_repository import (
     create_assessment,
@@ -224,7 +225,7 @@ def _assessment_pdf_markdown(existing: dict) -> str:
             "## Protocol PDF",
             "",
             "The branded Qoves-style protocol PDF is generated from the stored protocol bundle "
-            "(protocolData, featureNarratives, protocolNarrative). "
+            "(featureNarratives, protocolNarrative). "
             "Use the in-app Protocol viewer or client download when a front photo is available.",
         ]
     )
@@ -324,7 +325,6 @@ async def post_assessment(
         "analysis": analysis,
         "photos": photos_doc,
         "aiNarrative": saved.get("aiNarrative"),
-        "protocolData": saved.get("protocolData"),
         "protocolNarrative": saved.get("protocolNarrative"),
         "featureNarratives": saved.get("featureNarratives"),
         "protocolStorage": saved.get("protocolStorage"),
@@ -501,6 +501,16 @@ async def patch_assessment_admin_review(
         ai_narrative=ai_narrative,
         reviewer=reviewer,
     )
+    if ai_narrative is not None and updated:
+        try:
+            refreshed = await refresh_protocol_closing_for_assessment(updated)
+            if refreshed and refreshed.get("assessment"):
+                updated = refreshed["assessment"]
+            else:
+                updated = await get_assessment_by_id(assessment_id) or updated
+        except Exception:
+            # Admin narrative save succeeded; closing refresh is best-effort
+            pass
     return serialize_assessment(updated)
 
 
@@ -605,13 +615,14 @@ async def get_assessment_protocol(
         raise HTTPException(status_code=403, detail="You do not have access to this assessment")
 
     bundle = load_protocol_bundle(assessment_id, existing)
-    if not bundle or not bundle.get("protocolData"):
+    if not bundle or not (
+        bundle.get("protocolNarrative") or bundle.get("featureNarratives")
+    ):
         raise HTTPException(status_code=404, detail="Protocol not generated for this assessment.")
 
     if bundle.get("source") == "mongodb":
         await persist_protocol_bundle(
             assessment_id,
-            protocol_data=bundle["protocolData"],
             protocol_narrative=bundle.get("protocolNarrative"),
             feature_narratives=bundle.get("featureNarratives"),
         )

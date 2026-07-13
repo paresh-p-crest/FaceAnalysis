@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Optional
 
 from .feature_context import build_feature_context
 from .narrative_schemas import FEATURE_SUBSECTION_TITLES, FeatureNarrative
 from .recommendation_rules import get_deterministic_recommendation_hints, deviation_to_tier, _feature_deviation_magnitude
+
+logger = logging.getLogger(__name__)
 
 # Allow "non-surgical" / "non surgical" while still banning standalone surgery/surgical claims.
 BANNED_TERM_PATTERN = re.compile(
@@ -253,6 +256,33 @@ def validate_feature_narrative(
     return (len(errors) == 0, errors)
 
 
+def sanitize_report_ascii(text: str) -> str:
+    """Normalize fancy Unicode punctuation to Helvetica-safe ASCII for PDF storage."""
+    if not isinstance(text, str) or not text:
+        return text
+    out = text
+    for src, dst in (
+        ("\u00ad", "-"),
+        ("\u2010", "-"),
+        ("\u2011", "-"),
+        ("\u2012", "-"),
+        ("\u2013", "-"),
+        ("\u2014", "-"),
+        ("\u2015", "-"),
+        ("\u2212", "-"),
+        ("\u2018", "'"),
+        ("\u2019", "'"),
+        ("\u201c", '"'),
+        ("\u201d", '"'),
+        ("\u2026", "..."),
+        ("\u00a0", " "),
+    ):
+        out = out.replace(src, dst)
+    out = re.sub(r"[^\t\n\r\x20-\x7E]", "", out)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    return out.strip()
+
+
 def rewrite_to_subject_voice(text: str) -> str:
     """Convert second-person coaching copy to Qoves-style third person."""
     if not isinstance(text, str) or not text.strip():
@@ -283,7 +313,8 @@ def rewrite_to_subject_voice(text: str) -> str:
     ]
     for pattern, repl in pairs:
         out = pattern.sub(repl, out)
-    return re.sub(r"the subject's's", "the subject's", out, flags=re.I)
+    out = re.sub(r"the subject's's", "the subject's", out, flags=re.I)
+    return sanitize_report_ascii(out)
 
 
 def _rewrite_narrative_dict(data: dict) -> dict:
@@ -309,6 +340,216 @@ def _rewrite_narrative_dict(data: dict) -> dict:
     return out
 
 
+def _as_str_list(value, *, max_items: int = 20) -> list[str]:
+    if isinstance(value, list):
+        out = [str(x).strip() for x in value if x is not None and str(x).strip()]
+        return out[:max_items]
+    if isinstance(value, str) and value.strip():
+        return [value.strip()][:max_items]
+    return []
+
+
+def _clip(text: str, max_len: int) -> str:
+    t = (text or "").strip()
+    if len(t) <= max_len:
+        return t
+    return t[: max(0, max_len - 3)].rstrip() + "..."
+
+
+def normalize_feature_narrative_raw(
+    raw: Optional[dict],
+    feature_id: str,
+    ctx: Optional[dict] = None,
+) -> Optional[dict]:
+    """Coerce common free-model JSON shape mistakes into FeatureNarrative fields.
+
+    Handles: ``feature``→``featureId``, string list fields, subsections as a
+    title-keyed object, ``description`` used as subsection body, length caps.
+    """
+    if not isinstance(raw, dict) or not raw:
+        return None
+
+    data: dict = dict(raw)
+    expected = FEATURE_SUBSECTION_TITLES.get(feature_id) or []
+
+    # Unwrap {"Nose": {...}} / {"cheeks": {summary...}} single wrappers
+    if "summary" not in data and "featureId" not in data and "feature" not in data:
+        nested = None
+        for key, val in data.items():
+            if not isinstance(val, dict):
+                continue
+            key_l = str(key).strip().lower().replace(" ", "")
+            if key_l == feature_id or key_l == feature_id.rstrip("s"):
+                nested = val
+                break
+        if nested is None and len(data) == 1:
+            only = next(iter(data.values()))
+            if isinstance(only, dict):
+                nested = only
+        if isinstance(nested, dict):
+            data = dict(nested)
+
+    if isinstance(data.get("feature"), str) and "featureId" not in data:
+        data["featureId"] = data.pop("feature")
+    data["featureId"] = feature_id
+
+    if "summary" not in data or not data.get("summary"):
+        for alt in ("overview", "headline", "title"):
+            if isinstance(data.get(alt), str) and data[alt].strip():
+                data["summary"] = data[alt]
+                break
+    if "description" not in data or not data.get("description"):
+        for alt in ("detail", "details", "analysis"):
+            if isinstance(data.get(alt), str) and data[alt].strip():
+                data["description"] = data[alt]
+                break
+
+    data["measuredFacts"] = _as_str_list(data.get("measuredFacts"), max_items=20)
+    if not data["measuredFacts"] and ctx:
+        data["measuredFacts"] = _as_str_list(ctx.get("measuredFacts"), max_items=20)
+    if not data["measuredFacts"]:
+        data["measuredFacts"] = ["Measured facial metrics available for this feature."]
+
+    data["limitations"] = _as_str_list(data.get("limitations"), max_items=8)
+    if not data["limitations"] and ctx:
+        data["limitations"] = _as_str_list(ctx.get("limitations"), max_items=8)
+
+    data["recommendations"] = _as_str_list(data.get("recommendations"), max_items=8)
+
+    if isinstance(data.get("summary"), str):
+        data["summary"] = _clip(data["summary"], 200)
+    if isinstance(data.get("description"), str):
+        data["description"] = _clip(data["description"], 600)
+
+    subs = data.get("subsections")
+    converted: list[dict] = []
+    if isinstance(subs, dict):
+        for key, val in subs.items():
+            if isinstance(val, dict):
+                body = (
+                    val.get("body")
+                    or val.get("description")
+                    or val.get("text")
+                    or val.get("content")
+                    or ""
+                )
+                converted.append(
+                    {
+                        "title": val.get("title") or key,
+                        "body": body,
+                        "evidenceTier": val.get("evidenceTier")
+                        or val.get("evidence_tier")
+                        or "otc",
+                    }
+                )
+            elif isinstance(val, str):
+                converted.append({"title": key, "body": val, "evidenceTier": "otc"})
+    elif isinstance(subs, list):
+        for item in subs:
+            if not isinstance(item, dict):
+                continue
+            body = (
+                item.get("body")
+                or item.get("description")
+                or item.get("text")
+                or item.get("content")
+                or ""
+            )
+            converted.append(
+                {
+                    "title": item.get("title") or "",
+                    "body": body,
+                    "evidenceTier": item.get("evidenceTier")
+                    or item.get("evidence_tier")
+                    or "otc",
+                }
+            )
+
+    for item in converted:
+        body = item.get("body") if isinstance(item.get("body"), str) else ""
+        item["body"] = _clip(body, 700)
+        tier = item.get("evidenceTier")
+        if tier not in ("lifestyle", "otc", "refer_clinician"):
+            item["evidenceTier"] = "otc"
+
+    aligned: list[dict] = []
+    if expected:
+        by_title = {
+            str(s.get("title") or "").strip(): s
+            for s in converted
+            if str(s.get("title") or "").strip()
+        }
+        if all(t in by_title for t in expected):
+            aligned = [{**by_title[t], "title": t} for t in expected]
+        elif len(converted) == len(expected):
+            aligned = [{**converted[i], "title": expected[i]} for i in range(len(expected))]
+        else:
+            # Best-effort: map known titles, then fill remaining slots by order
+            used: set[int] = set()
+            for t in expected:
+                if t in by_title:
+                    aligned.append({**by_title[t], "title": t})
+                    continue
+                for i, s in enumerate(converted):
+                    if i in used:
+                        continue
+                    used.add(i)
+                    aligned.append({**s, "title": t})
+                    break
+    else:
+        aligned = converted
+
+    data["subsections"] = aligned
+    return data
+
+
+def is_template_feature_narrative(data: Optional[dict]) -> bool:
+    """Detect guardrail template copy (not LLM-authored)."""
+    if not isinstance(data, dict):
+        return False
+    summary = data.get("summary") or ""
+    return summary.startswith("Prioritize the subject's") and "Focus on grooming, topical care" in summary
+
+
+def try_validate_feature_narrative(
+    raw: Optional[dict],
+    feature_id: str,
+    ctx: dict,
+    *,
+    answers: Optional[dict] = None,
+) -> tuple[Optional[dict], bool]:
+    """Return (rewritten narrative, usable).
+
+    Schema-valid LLM copy is kept even when soft clinical checks fail
+    (ungrounded scores, evidence-tier ceiling, etc.). Only banned
+    procedural language forces a hard reject (caller templates/retries).
+    """
+    if not raw:
+        return None, False
+    normalized = normalize_feature_narrative_raw(raw, feature_id, ctx) or raw
+    try:
+        parsed = FeatureNarrative.model_validate(normalized)
+        ok, errs = validate_feature_narrative(parsed, ctx, answers=answers)
+        rewritten = _rewrite_narrative_dict(parsed.model_dump())
+        if ok:
+            return rewritten, True
+        hard = any("banned clinical" in (e or "").lower() for e in errs)
+        if hard:
+            logger.warning("feature %s hard reject: %s", feature_id, errs)
+            return None, False
+        logger.warning("feature %s soft clinical warnings (keeping LLM): %s", feature_id, errs)
+        return rewritten, True
+    except Exception as exc:
+        keys = sorted(normalized.keys()) if isinstance(normalized, dict) else []
+        logger.warning(
+            "feature %s schema reject (keys=%s): %s",
+            feature_id,
+            keys,
+            exc,
+        )
+        return None, False
+
+
 def validate_or_template(
     raw: Optional[dict],
     feature_id: str,
@@ -316,12 +557,7 @@ def validate_or_template(
     *,
     answers: Optional[dict] = None,
 ) -> dict:
-    if raw:
-        try:
-            parsed = FeatureNarrative.model_validate(raw)
-            ok, _errs = validate_feature_narrative(parsed, ctx, answers=answers)
-            if ok:
-                return _rewrite_narrative_dict(parsed.model_dump())
-        except Exception:
-            pass
+    validated, usable = try_validate_feature_narrative(raw, feature_id, ctx, answers=answers)
+    if usable and validated:
+        return validated
     return _rewrite_narrative_dict(template_feature_narrative(feature_id, ctx))

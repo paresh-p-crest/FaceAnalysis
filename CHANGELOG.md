@@ -5,9 +5,56 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Added
+- **Feature narrative shape normalize + enrichment scoreboard** — coerce common free-model JSON mistakes (`feature`→`featureId`, string→list fields, title-keyed subsections, body length clip) before schema validate; log `LLM accepted` / `TEMPLATE` per feature and a end-of-run `llm/total` scoreboard.
+- **OpenRouter LLM provider** — set `LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY` (+ optional `OPENROUTER_MODEL`, default `meta-llama/llama-3.3-70b-instruct:free`). OpenAI-compatible client via `https://openrouter.ai/api/v1` (ADR-020). Free `:free` models remain rate-limited.
+### Fixed
+- **Feature LLM discarded for soft guardrail fails** — schema-valid feature narratives are kept (with a warning) when only soft checks fail (ungrounded scores / evidence tiers); templates only on banned procedural terms or unparseable JSON. Stops PDF from showing guardrail templates after successful Groq generations.
+### Removed
+- **`protocolData` action cards** — dropped from LLM generation, Mongo/`protocol.json` storage, APIs, FE props, and Beauty Assistant `get_protocol_cards`. Protocol completeness uses `protocolNarrative` + `featureNarratives` only (ADR-018).
+- **Ruler calibration** — deleted `calibration.py` / `test_calibration.py`; no `cvReport.calibration`, `mmPerUnit`, or questionnaire `mouthWidthMm`/`philtrumLengthMm` path (ADR-019). Profile cephalometrics keep angles/ratios in normalized units only.
+### Added
+- **Cheek PDF ANALYSIS guides from MediaPipe** — Cheek Recommendations ANALYSIS overlay uses DB `analysis.landmarks` with the midface construction from `test.ipynb` (ear-to-ear @ 1.08×, eyes 130/263, nostrils 102/331, mouth 61/291); see `utils/cheekGuides.js`.
+- **PDF chin profile guides from CV** — Top: facial thirds. Bottom: pitched profile (~7° CW for rightProfile) with Pn + lip-plane verticals and chin ticks only (no dashed E-line). Landmarks resolved on the pitched bitmap via `resolveChinProjectionOverlay`.
+- **`report_content.py`** — latest-only completeness helper (`aiNarrative`, `featureNarratives`, `protocolNarrative`, `aiVisuals`) and envelope shapes for generated report text.
+- **Full facial analysis pipeline** — staged end-to-end doc in `docs/architecture/backend-overview.md` (FE entry → CV → persistence → LLM/guardrails → report/PDF → assistant → admin review).
+### Changed
+- **PDF/web protocol cover** — client name from questionnaire or logged-in user (`firstName`/`lastName`); cover shows PREPARED FOR + EDITION only (no date).
+- **Cheek ANALYSIS crop** — midface box (eyes/ears/nostrils/mouth) so notebook-style guides fit the plate.
+- **PDF Understanding page** — wider gap after numbers (48→78); section headings 10→11pt; body 8→9pt; page title 26→28.
+- **PDF Neck Summary overflow** — `drawSummaryCard` no longer forces `minH` when space is tight (was drawing past the page); neck BEFORE/AFTER **280→240** to leave room for the summary.
+- **PDF column summaries** — `drawSummaryCard` sticks to `PAGE_BOTTOM`; standard `SUMMARY_CARD_MIN_H = 110`; eyes EYES crop bottom-aligns with Eye Region Summary.
+- **PDF image→text gaps** — `SECTION_GAP` and `IMAGE_TEXT_GAP` set to **22** (was 14 / 10); applied to frame returns, before/after pairs, cheek ANALYSIS trailing space, and client protocol portraits.
+- **PDF lips BEFORE/AFTER** — pair height **175→200**.
+- **PDF hair BEFORE/AFTER** — stacked frames **100→120**.
+- **PDF lips LIPS preview** — square frame at full `COL_W`×`COL_W` (was `COL_W`×120).
+- **PDF client protocol page** — BEFORE/AFTER portraits **240→360** tall; text/radar positions shift down to fit.
+- **PDF chin profiles** — two guide frames use full `COL_W` × `CHIN_PROFILE_FRAME_H` (200), same style as nose/jaw but shorter than `PROFILE_FRAME_H` (300) so B/A + summary stay on one page.
+- **PDF feature frame sizes** — hair BEFORE/AFTER 80→100; eyes BEFORE/AFTER pair 100→130; nose/jaw PROFILE shared `COL_W`×300 (`PROFILE_FRAME_H`); cheeks ANALYSIS/BEFORE/AFTER unified at COL_W×180; jaw BEFORE/AFTER 140→150; lips BEFORE/AFTER 150→175; chin guide profiles 100→120; skin half-col BEFORE/AFTER 90→150; neck stacked BEFORE/AFTER 230→280; ear stacked BEFORE/AFTER 200→220.
+- **PDF eyes EYES frame** — landmark eyelid-ring contour clip (same approach as lips); no center-zoom that flattened the tops.
+- **PDF lips LIPS frame** — uses outer-lip (`MOUTH`) contour mask on the protocol panel (`lipPreviewMask: 'contour'`); web protocol UI keeps the oval preview.
+- **Protocol persistence SOT** — Mongo wins when narrative fields are complete; `protocol.json` mirrors narrative/features only; closing always persisted server-side; admin `aiNarrative` edit refreshes closing; FE closing reads stored text only.
+- **Protocol web viewer A4 sheets** — in-app protocol pages use `.qoves-report-a4-page` (210×297 aspect) on a desk canvas so the UI reads like stacked A4 pages, matching the PDF export proportions.
+- **Backend overview doc** — `docs/architecture/backend-overview.md` maps every backend module (routers, CV pipeline, AI, PDF, repos) in plain language with the upload → analyze → store → narrative flow; clarifies FE jsPDF owns the branded protocol PDF vs backend ReportLab fallback.
 ### Changed
 - **Report voice (ADR-017)** — PDF/protocol hard-coded copy and narrative/protocol LLM prompts use Qoves-style third person with **the subject** as grammatical subject (name when provided). Beauty Assistant and image prompts remain second person / unchanged. Supersedes ADR-013 for report narratives. Stored second-person feature/closing narratives are rewritten to subject voice at PDF/protocol render time.
 ### Fixed
+- **Cheek PDF left-eye slant in sclera** — left eye vertex nudged toward ear; ANALYSIS overlay now cover-maps like chin and uses the same crop box as the photo so nudges actually land outside the eye.
+- **Chin PDF top-plate horizontals on nose tip** — rays now start at/ below subnasale (clamped under Pronasale) on the facial plane; vertical still reaches the tip.
+- **Chin PDF top-plate eye/cheek ray** — horizontal Y locked to Pn→Pog fractions only (ignore overlay Sn/G); drop anything at/above the tip; vertical no longer extends to brow.
+- **Chin PDF top-plate unequal ticks** — horizontals use a fixed length from the vertical (no silhouette→vertical span), so all four match; tick length ~8% norm to match Image-2.
+- **Chin PDF bottom verticals** — shifted further left (~2.8% norm); lip-plane (left) just shy of eyes, Pn (right) just shy of forehead.
+- **Chin PDF over-pitch / floating guides** — replaced unstable Frankfort auto-level (~18° tilts) with a fixed ~7° chin-down pitch; tightened Pn/Pog/lip so the outer vertical and E-line stay on the soft-tissue profile instead of gray padding.
+- **Chin PDF top plate invisible** — chin-show builder no longer drops out on soft validation; silhouette snap keeps a visible gap profile→vertical; draw path no longer skips segments via clip.
+- **Chin PDF top PROFILE plate** — replaced cheek facial-thirds grid with Image-2 chin-show: one nose-tip vertical plus four horizontals from soft-tissue profile (Sn / stomion / labiomental / Pog) to that vertical.
+- **Chin PDF projection overlays** — horizontals removed; both verticals nudged slightly left (~1.2% norm) toward the face.
+- **Chin PDF guides shifted left of nose tip** — after clockwise pitch, silhouette X sat slightly posterior; Pn / lip / Pog get a small anterior nudge so verticals sit on the nose tip and lip plane (not through the eye/mouth corner).
+- **Chin PDF guide fine-tune** — Pn/Pog inset onto soft tissue (not the bright halo); chin tip band raised off the throat; verticals end at chin-tick height.
+- **Chin PDF pitch direction + simplify overlays** — right-profile pitch is clockwise (+7°) to match the reference forward tilt; bottom plate draws only verticals + chin horizontals (dashed E-line removed).
+- **Chin PDF pitch + Ricketts lock** — re-enabled chin-down pitch; projection guides resolve Pn/Pog/Sn on the pitched photo (not collapsed Mongo overlay); chin ticks span Pog→lip plane and Pog→Pn vertical in full.
+- **Chin PDF guides misaligned into padding** — template band used the frame’s right edge (empty gray); band is now face-content ∩ cover, then landmark X values snap onto the soft-tissue silhouette so Pn / Pog / verticals sit on the profile.
+- **Closing PDF text corruption** — sanitize LLM Unicode (soft hyphens, en/em dashes, curly quotes, control chars) to Helvetica-safe ASCII before `splitTextToSize`/`text`; stops `` glyphs, blown word spacing, and left/right column overlap on Closing Recommendations.
+- **Feature PDF templates instead of LLM copy** — `validated != raw` was always true after subject-voice rewrite, so every feature forced a retry; 429/failed retries then replaced good narratives with guardrail templates. Retries now run only when the first pass fails validation, and concurrency is capped at 2.
 - **Chin PDF stacked analysis images** — right-column guide frames use the real right-profile photo (not frontal); frontal mouth/chin crop remains on the BEFORE pair only. Chin layout now resolves `profileImage` like nose/jaw.
 - **PDF feature-page overlaps** — Hair/Eyes/Nose/Jaw/Chin/Cheeks/Lips/Skin/Neck/Ears drawers now use cursor-based (`leftY`/`rightY`) layout; summary cards grow with content and clamp above the footer.
 - **PDF image frame overflow** — cover frames are canvas center-cropped to the exact box size before `addImage` (no jsPDF clip); keeps aspect ratio, prevents overflow, and does not blank later images.

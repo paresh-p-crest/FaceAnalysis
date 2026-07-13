@@ -199,7 +199,7 @@ def build_measured_facts(feature_id: str, cv_slice: dict, eye_analysis: Optional
         "dorsalHumpLabel",
         "facialConvexityDeg",
         "profileGonialAngleDeg",
-        "chinProjectionMm",
+        "chinProjectionNorm",
         "profileLandmarkSource",
         "segmentationMethod",
         "crownCoverage",

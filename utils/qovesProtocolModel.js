@@ -173,9 +173,24 @@ function mergeFeaturePage(defaults, narrativeFeature) {
   })
 }
 
-export function getClientName(answers) {
-  if (!answers) return 'Client'
-  return answers.name || answers.fullName || answers.clientName || 'Client'
+export function getClientName(answers, user = null) {
+  const fromAnswers = [answers?.name, answers?.fullName, answers?.clientName]
+    .find((v) => typeof v === 'string' && v.trim())
+  if (fromAnswers) return fromAnswers.trim()
+
+  const fromUser = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+  if (fromUser) return fromUser
+
+  if (typeof user?.email === 'string' && user.email.includes('@')) {
+    return user.email.split('@')[0]
+  }
+
+  return 'Client'
+}
+
+/** Static edition label for cover (no date). */
+export function formatProtocolEditionLabel() {
+  return 'PROTOCOL'
 }
 
 export function formatProtocolEditionDate(date = new Date()) {
@@ -199,62 +214,15 @@ export function buildClosingRecommendations(aiNarrative, cvReport, clientName, p
   const stored = (protocolNarrative?.closing || [])
     .filter((p) => typeof p === 'string' && p.trim() && !isGenericClosingParagraph(p))
     .map(rewriteToSubjectVoice)
-  if (stored.length >= 2) {
+  if (stored.length >= 1) {
     return stored
   }
 
-  const content = aiNarrative?.content || aiNarrative || {}
-  const paragraphs = []
-
-  if (content.summary && !isGenericClosingParagraph(content.summary)) {
-    paragraphs.push(rewriteToSubjectVoice(content.summary))
-  }
-
-  const strengths = Array.isArray(content.strengths) ? content.strengths : []
-  const focusAreas = Array.isArray(content.focusAreas) ? content.focusAreas : []
-  const recommendations = Array.isArray(content.recommendations) ? content.recommendations : []
-
-  if (strengths.length) {
-    paragraphs.push(
-      `The subject's assessment shows existing strengths including ${strengths.slice(0, 3).join('; ')}. Preserve these with consistent grooming, SPF, sleep, and hydration.`
-    )
-  }
-  if (focusAreas.length) {
-    paragraphs.push(
-      `The subject's primary opportunities include ${focusAreas.slice(0, 3).join('; ')}. Address these with conservative topical care and lifestyle consistency for 30 days before reassessing.`
-    )
-  }
-  recommendations.forEach((item) => {
-    if (typeof item === 'string' && item.trim() && !isGenericClosingParagraph(item)) {
-      paragraphs.push(rewriteToSubjectVoice(item.trim()))
-    }
-  })
-
-  if (paragraphs.length < 2) {
-    const overall = cvReport?.overall?.score
-    const hair = cvReport?.hair || {}
-    const hairBit = hair.norwoodStage != null
-      ? ` Hair findings include estimated Norwood stage ${hair.norwoodStage} with ${String(hair.densityEstimate || 'moderate').toLowerCase()} density.`
-      : ''
-    paragraphs.push(
-      overall != null
-        ? `The subject's assessment shows an overall harmony score of ${overall}/100 from facial measurements.${hairBit} Focus on the lowest-scoring feature areas while maintaining grooming, skincare, and lifestyle fundamentals for the next 30 days.`
-        : 'Follow the feature-specific recommendations in this protocol for 30 days, then repeat analysis under consistent lighting and a neutral expression for comparison.'
-    )
-    paragraphs.push(
-      'A practical plan combines daily broad-spectrum SPF 50 outdoors, gentle cleansing, adequate sleep and hydration, and the feature-specific grooming notes on each protocol page. Studies on facial perception suggest that symmetry, clear skin, and proportional feature framing contribute to perceived attractiveness; treat this report as educational guidance, not a medical diagnosis.'
-    )
-  }
-
-  if (content.disclaimer && !isGenericClosingParagraph(content.disclaimer)) {
-    paragraphs.push(rewriteToSubjectVoice(content.disclaimer))
-  } else {
-    paragraphs.push(
-      'This protocol is educational guidance from the subject\'s facial measurements, not medical diagnosis or treatment.'
-    )
-  }
-
-  return paragraphs.filter((p, i, arr) => arr.findIndex((x) => x === p) === i).map(rewriteToSubjectVoice)
+  // Do not synthesize durable closing on the client — server persists closing with the protocol bundle.
+  return [
+    'Closing recommendations for this protocol are being prepared from the subject\'s stored measurements. '
+      + 'Reopen the protocol after generation completes, or contact support if this message persists.',
+  ]
 }
 
 export function buildClosingColumns(paragraphs) {

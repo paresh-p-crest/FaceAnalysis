@@ -32,7 +32,6 @@ class ProtocolStorage(Protocol):
         self,
         assessment_id: str,
         *,
-        protocol_data: dict,
         protocol_narrative: Optional[dict] = None,
         feature_narratives: Optional[dict] = None,
     ) -> StoredProtocol: ...
@@ -56,7 +55,6 @@ class LocalPublicProtocolStorage:
         self,
         assessment_id: str,
         *,
-        protocol_data: dict,
         protocol_narrative: Optional[dict] = None,
         feature_narratives: Optional[dict] = None,
     ) -> StoredProtocol:
@@ -65,7 +63,6 @@ class LocalPublicProtocolStorage:
         payload = {
             "version": PROTOCOL_FILE_VERSION,
             "storedAt": datetime.now(timezone.utc).isoformat(),
-            "protocolData": protocol_data,
             "protocolNarrative": protocol_narrative,
             "featureNarratives": feature_narratives,
         }
@@ -90,8 +87,8 @@ class LocalPublicProtocolStorage:
             return None
         if not isinstance(payload, dict):
             return None
+        # Ignore legacy protocolData key if present
         return {
-            "protocolData": payload.get("protocolData"),
             "protocolNarrative": payload.get("protocolNarrative"),
             "featureNarratives": payload.get("featureNarratives"),
             "storedAt": payload.get("storedAt"),

@@ -95,7 +95,6 @@ export async function runFaceAnalysisViaBackend(photo, answers, photos = {}, pro
       reportStatus: data.status,
       scanId,
       aiNarrative: data.aiNarrative || null,
-      protocolData: data.protocolData || null,
       protocolNarrative: data.protocolNarrative || null,
       featureNarratives: data.featureNarratives || null,
       protocolStorage: data.protocolStorage || null,
@@ -249,7 +248,6 @@ export async function ensureAssessmentProtocol(assessmentId) {
     if (err.status !== 404) throw err
     const assessment = await generateAssessmentProtocol(assessmentId)
     return {
-      protocolData: assessment?.protocolData,
       protocolNarrative: assessment?.protocolNarrative,
       featureNarratives: assessment?.featureNarratives,
       protocolStorage: assessment?.protocolStorage,

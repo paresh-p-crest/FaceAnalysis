@@ -11,8 +11,8 @@ export function ProtocolDocumentViewer({
   cvReport,
   metrics,
   answers,
+  user = null,
   eyeAnalysis,
-  protocolData,
   protocolNarrative,
   aiNarrative,
   protocolLoading,
@@ -26,7 +26,7 @@ export function ProtocolDocumentViewer({
   const zoom = ZOOM_LEVELS[zoomIdx]
 
   const toolbar = (
-    <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-4 border-b border-surface-border sticky top-0 bg-white dark:bg-surface-card z-10">
+    <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-4 border-b border-surface-border sticky top-0 bg-surface-raised z-10 -mx-1 px-1">
       <p className="font-display text-sm font-bold text-ink">Protocol</p>
       <div className="flex items-center gap-2">
         <button
@@ -82,9 +82,15 @@ export function ProtocolDocumentViewer({
   }
 
   return (
-    <div className={fullscreen ? 'fixed inset-0 z-50 bg-surface p-6 overflow-y-auto' : 'qoves-protocol-viewer'}>
+    <div
+      className={
+        fullscreen
+          ? 'fixed inset-0 z-50 bg-surface-raised p-4 sm:p-6 overflow-y-auto'
+          : 'qoves-protocol-viewer'
+      }
+    >
       {toolbar}
-      <div className="qoves-protocol-scroll overflow-y-auto overflow-x-hidden" style={scrollStyle}>
+      <div className="qoves-protocol-scroll" style={scrollStyle}>
         <QovesProtocolReport
           photo={photo}
           photos={photos}
@@ -92,8 +98,8 @@ export function ProtocolDocumentViewer({
           cvReport={cvReport}
           metrics={metrics}
           answers={answers}
+          user={user}
           eyeAnalysis={eyeAnalysis}
-          protocolData={protocolData}
           protocolNarrative={protocolNarrative}
           aiNarrative={aiNarrative}
           paginated={false}

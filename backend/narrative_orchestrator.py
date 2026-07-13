@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import sys
 from typing import Any, Optional
 
-from .clinical_guardrails import rewrite_to_subject_voice, validate_or_template
+from .clinical_guardrails import (
+    is_template_feature_narrative,
+    rewrite_to_subject_voice,
+    sanitize_report_ascii,
+    try_validate_feature_narrative,
+    validate_or_template,
+)
 from .config import PROTOCOL_FEATURE_IDS
 from .feature_context import build_feature_context, feature_context_as_prompt_text
 from .llm_client import chat_structured_completion
@@ -13,11 +21,9 @@ from .narrative_schemas import (
     FEATURE_SUBSECTION_TITLES,
     ClosingSynthesis,
     FeatureNarrative,
-    ProtocolActionCards,
     ProtocolOverview,
     closing_synthesis_json_schema,
     feature_narrative_json_schema,
-    protocol_action_cards_json_schema,
     protocol_overview_json_schema,
 )
 from .recommendation_rules import get_deterministic_recommendation_hints
@@ -26,7 +32,6 @@ from .text_ai_service import (
     NO_TECH_JARGON_RULES,
     STRICT_NON_SURGICAL_RULES,
     cv_report_summary,
-    template_protocol,
 )
 from .vision_context import (
     build_multimodal_user_message,
@@ -34,7 +39,9 @@ from .vision_context import (
     vision_instruction_for_feature,
 )
 
-_FEATURE_SEMAPHORE = asyncio.Semaphore(4)
+_FEATURE_SEMAPHORE = asyncio.Semaphore(2)
+
+logger = logging.getLogger(__name__)
 
 _NL_STYLE_RULES = "\n\n" + NARRATIVE_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES
 
@@ -122,49 +129,63 @@ async def generate_feature_narrative_async(
             json_schema=feature_narrative_json_schema(feature_id),
             messages=messages,
             temperature=0.3,
-            max_tokens=1400,
+            max_tokens=1800,
             api_key_override=api_key,
         )
 
     raw = result.get("content")
     if result.get("error") and not raw:
+        logger.info("feature %s structured: TEMPLATE (LLM error / empty)", feature_id)
         return validate_or_template(None, feature_id, ctx, answers=answers)
 
-    validated = validate_or_template(raw, feature_id, ctx, answers=answers)
-    if raw and validated != raw:
-        try:
-            retry_messages = _build_feature_messages(
-                feature_id,
-                ctx,
-                hints,
-                assessment_id=assessment_id,
-                photos_meta=photos_meta,
-            ) + [
-                {
-                    "role": "user",
-                    "content": (
-                        "Previous output failed clinical validation. Be more conservative and "
-                        "strictly grounded. Prefer the phrase non-surgical. Do not invent procedures."
-                    ),
-                }
-            ]
+    # Keep schema-valid LLM copy (including soft clinical warnings).
+    # Hard reject / retry / template only when unparseable or banned terms.
+    validated, usable = try_validate_feature_narrative(raw, feature_id, ctx, answers=answers)
+    if usable and validated:
+        logger.info("feature %s structured: LLM accepted", feature_id)
+        return validated
+
+    err = (result.get("error") or "").lower()
+    if "rate_limit" in err or "429" in err:
+        logger.info("feature %s structured: TEMPLATE (rate limit)", feature_id)
+        return validate_or_template(None, feature_id, ctx, answers=answers)
+
+    try:
+        retry_messages = messages + [
+            {
+                "role": "user",
+                "content": (
+                    "Previous output failed clinical validation. Be more conservative and "
+                    "strictly grounded. Prefer the phrase non-surgical. Do not invent procedures. "
+                    "Use only ASCII hyphen (-) — no soft hyphens or special dashes. "
+                    "Return the exact JSON keys: featureId, measuredFacts (string array), "
+                    "limitations (string array), summary, description, subsections "
+                    "(array of {title, body, evidenceTier}), recommendations (string array)."
+                ),
+            }
+        ]
+        async with _FEATURE_SEMAPHORE:
             retry = await asyncio.to_thread(
                 chat_structured_completion,
                 schema_name=f"feature_{feature_id}_retry",
                 json_schema=feature_narrative_json_schema(feature_id),
                 messages=retry_messages,
                 temperature=0.2,
-                max_tokens=1400,
+                max_tokens=1800,
                 api_key_override=api_key,
             )
-            if retry.get("content"):
-                validated = validate_or_template(retry["content"], feature_id, ctx, answers=answers)
-        except Exception:
-            pass
+        retry_raw = retry.get("content")
+        retry_validated, retry_ok = try_validate_feature_narrative(
+            retry_raw, feature_id, ctx, answers=answers
+        )
+        if retry_ok and retry_validated:
+            logger.info("feature %s structured: LLM accepted (retry)", feature_id)
+            return retry_validated
+    except Exception:
+        pass
 
-    if isinstance(validated, dict):
-        validated = dict(validated)
-    return validated
+    logger.info("feature %s structured: TEMPLATE (schema/retry fail)", feature_id)
+    return validate_or_template(None, feature_id, ctx, answers=answers)
 
 
 def _is_generic_summary(text: str) -> bool:
@@ -269,7 +290,7 @@ def stitch_closing_paragraphs(
             continue
         seen.add(key)
         out.append(p)
-    return [rewrite_to_subject_voice(p) for p in out[:6]]
+    return [sanitize_report_ascii(rewrite_to_subject_voice(p)) for p in out[:6]]
 
 
 def _feature_narratives_digest(feature_narratives: dict[str, dict]) -> str:
@@ -304,27 +325,30 @@ CLOSING_SYNTHESIS_SYSTEM = (
     "- Close with realistic non-surgical next steps in priority order (SPF, sleep, grooming, topical care)\n"
     "- Do NOT invent measurements or procedures\n"
     "- Do NOT paste generic lines like 'Non-surgical guidance for X based on stored measurements'\n"
-    "- The phrase 'non-surgical' is allowed and preferred"
+    "- The phrase 'non-surgical' is allowed and preferred\n"
+    "- Use only plain ASCII punctuation (hyphen -, apostrophe '). "
+    "Never use soft hyphens, en/em dashes, or curly quotes."
 )
 
 
 async def generate_closing_synthesis_async(
     feature_narratives: dict[str, dict],
     *,
-    protocol_data: Optional[dict] = None,
     cv_report: Optional[dict] = None,
     ai_narrative: Optional[dict] = None,
     answers: Optional[dict] = None,
     client_name: str = "Client",
     api_key: Optional[str] = None,
 ) -> list[str]:
-    """LLM-synthesized closing paragraphs with deterministic fallback."""
+    """LLM-synthesized closing paragraphs with deterministic fallback.
+
+    Always returns a non-empty list suitable for persistence (LLM or measured stitch).
+    """
     from .answer_summary import format_answers_summary
 
     profile = format_answers_summary(answers or {})
     digest = _feature_narratives_digest(feature_narratives)
     cv_summary = cv_report_summary(cv_report or {}, None)
-    action_cards = (protocol_data or {}).get("recommendations") or []
     exec_content = (ai_narrative or {}).get("content") if isinstance(ai_narrative, dict) else None
 
     user = (
@@ -333,8 +357,6 @@ async def generate_closing_synthesis_async(
         f"Measurement summary:\n{cv_summary}\n\n"
         f"Feature narratives:\n{digest}\n\n"
     )
-    if action_cards:
-        user += f"Action cards: {action_cards[:6]}\n"
     if isinstance(exec_content, dict) and exec_content.get("summary"):
         user += f"Executive summary: {exec_content['summary']}\n"
 
@@ -361,7 +383,7 @@ async def generate_closing_synthesis_async(
                     "This protocol is educational guidance from the subject's facial measurements, "
                     "not medical diagnosis or treatment."
                 )
-                return [rewrite_to_subject_voice(p) for p in paragraphs[:6]]
+                return [sanitize_report_ascii(rewrite_to_subject_voice(p)) for p in paragraphs[:6]]
     except Exception:
         pass
 
@@ -451,65 +473,13 @@ async def generate_protocol_overview_async(
     }
 
 
-async def generate_protocol_action_cards_async(
-    *,
-    answers: dict,
-    cv_report: dict,
-    metrics: Optional[dict],
-    api_key: Optional[str] = None,
-) -> dict:
-    from .answer_summary import format_answers_summary
-
-    profile = format_answers_summary(answers or {})
-    cv_summary = cv_report_summary(cv_report, metrics)
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "Generate non-surgical protocol action cards as JSON.\n"
-                + STRICT_NON_SURGICAL_RULES
-                + _NL_STYLE_RULES
-            ),
-        },
-        {
-            "role": "user",
-            "content": (
-                f"Goals: {profile.get('goals')}\n"
-                f"Skin: {profile.get('skinType')}, concerns: {profile.get('concerns')}\n"
-                f"Measurement summary:\n{cv_summary}\n"
-                "Prioritize lowest scores. 5-8 recommendations."
-            ),
-        },
-    ]
-    result = await asyncio.to_thread(
-        chat_structured_completion,
-        schema_name="protocol_action_cards",
-        json_schema=protocol_action_cards_json_schema(),
-        messages=messages,
-        temperature=0.4,
-        max_tokens=900,
-        api_key_override=api_key,
-    )
-    if result.get("content"):
-        try:
-            return {
-                **ProtocolActionCards.model_validate(result["content"]).model_dump(),
-                "source": result.get("source"),
-                "model": result.get("model"),
-            }
-        except Exception:
-            pass
-    tpl = template_protocol(cv_report)
-    return {**tpl, "source": "template", "model": None}
-
-
 async def generate_all_protocol_text(
     assessment: dict,
     *,
     api_key: Optional[str] = None,
     skip_existing: bool = True,
 ) -> dict:
-    """Generate featureNarratives, protocolData, and protocolNarrative compat bundle."""
+    """Generate featureNarratives and protocolNarrative compat bundle (latest-only)."""
     analysis = assessment.get("analysis") or {}
     cv_report = analysis.get("cvReport") or {}
     eye_analysis = analysis.get("eyeAnalysis")
@@ -543,46 +513,67 @@ async def generate_all_protocol_text(
         for fid, narrative in results:
             existing_features[fid] = narrative
 
-    overview_task = generate_protocol_overview_async(
+    overview = await generate_protocol_overview_async(
         answers=answers, cv_report=cv_report, metrics=metrics, api_key=api_key
     )
-    cards_task = generate_protocol_action_cards_async(
-        answers=answers, cv_report=cv_report, metrics=metrics, api_key=api_key
-    )
-    overview, cards = await asyncio.gather(overview_task, cards_task)
 
     client_name = answers.get("name") or answers.get("fullName") or "Client"
-    protocol_data_preview = {
-        "summary": cards.get("summary") or overview.get("summary"),
-        "recommendations": cards.get("recommendations") or [],
-    }
     closing = await generate_closing_synthesis_async(
         existing_features,
-        protocol_data=protocol_data_preview,
         cv_report=cv_report,
         ai_narrative=assessment.get("aiNarrative"),
         answers=answers,
         client_name=client_name,
         api_key=api_key,
     )
+    if not closing:
+        closing = stitch_closing_paragraphs(
+            existing_features,
+            assessment.get("aiNarrative"),
+            client_name,
+            cv_report=cv_report,
+        )
+        closing_source = "stitch"
+    else:
+        closing_source = "llm"
 
     protocol_narrative = build_protocol_narrative_compat(
         feature_narratives=existing_features,
         overview_summary=overview.get("summary", ""),
         closing=closing,
-        source=cards.get("source") or "orchestrator",
-        model=cards.get("model"),
+        source="orchestrator",
+        model=None,
     )
 
-    protocol_data = {
-        "summary": cards.get("summary") or overview.get("summary"),
-        "recommendations": cards.get("recommendations") or [],
-        "source": cards.get("source"),
-        "model": cards.get("model"),
-    }
+    llm_features = [
+        fid
+        for fid in PROTOCOL_FEATURE_IDS
+        if fid in existing_features and not is_template_feature_narrative(existing_features.get(fid))
+    ]
+    template_features = [
+        fid
+        for fid in PROTOCOL_FEATURE_IDS
+        if fid in existing_features and is_template_feature_narrative(existing_features.get(fid))
+    ]
+    scoreboard = [
+        "",
+        "┌─ Narrative enrichment ─────────────────────────────────",
+        f"│  features LLM      : {', '.join(llm_features) or '(none)'}",
+        f"│  features TEMPLATE : {', '.join(template_features) or '(none)'}",
+        f"│  llm / total       : {len(llm_features)}/{len(PROTOCOL_FEATURE_IDS)}",
+        f"│  closing           : {closing_source}",
+        "└────────────────────────────────────────────────────────",
+    ]
+    print("\n".join(scoreboard), file=sys.stderr, flush=True)
+    logger.info(
+        "narrative enrichment llm=%s/%s template=%s closing=%s",
+        len(llm_features),
+        len(PROTOCOL_FEATURE_IDS),
+        template_features,
+        closing_source,
+    )
 
     return {
         "featureNarratives": existing_features,
-        "protocolData": protocol_data,
         "protocolNarrative": protocol_narrative,
     }
