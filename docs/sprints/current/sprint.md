@@ -5,6 +5,10 @@
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, Qoves-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
 ## In-Flight Tasks
+- [x] Face Shape: metric cards right of photo; extras below (status: completed)
+- [x] Prototypicality mesh: nose triangle + outline to eye level; sage stroke (status: completed)
+- [x] Proportions overview: Qoves photo + score/thirds-bar/explanation cards (status: completed)
+- [x] Symmetry panel: notebook 18-point overlay + regional L/R UI + liberal score curve (labels unchanged) (status: completed)
 - [x] Fix symmetry landmark overlay mapping (object-fit content box) + smaller curated dots (status: completed)
 - [x] Fix proportion page overlays (ear/nose/mouth/eye) mapping + Qoves landmark indices (status: completed)
 - [x] Fix naso-oral mouth cheilions + label; fix naso-aural profile ear side/span (status: completed)
@@ -40,6 +44,9 @@
 - [x] Fix naso-aural ear span (helix→lobe on profile) + chin/jaw right-profile images
 - [x] OpenRouter text LLM provider (`LLM_PROVIDER=openrouter`, ADR-020) (status: completed)
 - [x] Free-model feature JSON normalize + narrative enrichment scoreboard (status: completed)
+- [x] Slim feature LLM schema (summary+subsections) + hard no-scores in report prose (ADR-021) (status: completed)
+- [x] Unify backend LLM max_tokens via LLM_MAX_OUTPUT_TOKENS=4000 (status: completed)
+- [x] Interactive report text: dedupe feature-panel prose; wire `featureNarratives`; Qoves-style Facial Assessments templates (no LLM); smile LLM for interactive panel (status: completed)
 - [ ] Run backend compile gates and smoke tests for Milestone 1 (status: planned)
 - [ ] Verify frontend build states for questionnaire and uploads (status: planned)
 - [ ] Optional BiSeNet upgrade for hair mask (future — not env-gated)

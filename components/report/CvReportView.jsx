@@ -1,5 +1,5 @@
 import { EyeReportPanel } from '../EyeReportPanel'
-import { SymmetryOverlay } from './FaceImageFrame'
+import { SymmetryOverlay, FaceShapeOverlay } from './FaceImageFrame'
 import { BrowReportPanel } from './BrowReportPanel'
 import { FeatureReportPanel } from './FeatureReportPanel'
 import { CheekReportPanel } from './CheekReportPanel'
@@ -14,10 +14,17 @@ import { DisclaimerSection } from './DisclaimerSection'
 import { ProtocolDocumentViewer } from './ProtocolDocumentViewer'
 import { ReportSectionHeading, ReportMetricCard, ReportExplanationCard } from './ReportSectionHeading'
 import { AssessmentGridLayout, FeatureAnalysisPage } from './FeatureAnalysisPage'
+import {
+  FeatureProseBlock,
+  resolveEyebrowsNarrative,
+  resolveFeatureNarrative,
+} from './FeatureProseBlock'
+
 export function CvReportView({
   activeId,
   cvReport,
   eyeAnalysis,
+  featureNarratives = null,
   protocolNarrative,
   protocolLoading,
   aiNarrative,
@@ -40,6 +47,9 @@ export function CvReportView({
   pdfLoading,
   canDownloadPdf,
 }) {
+  const narrativeFor = (featureId) =>
+    resolveFeatureNarrative(featureNarratives, protocolNarrative, featureId)
+
   if (activeId === 'intro') {
     return <IntroductionSection />
   }
@@ -57,13 +67,19 @@ export function CvReportView({
 
   if (activeId === 'faceShape' && cvReport?.faceShape) {
     const fs = cvReport.faceShape
-    const faceMetrics = [
-      fs.shape != null && { label: 'Shape', value: fs.shape },
-      fs.widthHeightRatio != null && { label: 'Width / Height', value: fs.widthHeightRatio },
-      fs.jawWidth != null && { label: 'Jaw Width', value: `${fs.jawWidth}%` },
-      fs.cheekWidth != null && { label: 'Cheek Width', value: `${fs.cheekWidth}%` },
+    const primaryMetrics = [
+      fs.midfaceWidth != null && { label: 'Midface Width', value: fs.midfaceWidth },
+      fs.foreheadWidth != null && { label: 'Forehead Width', value: fs.foreheadWidth },
+      fs.lowerThirdWidth != null && { label: 'Lower Third Width', value: fs.lowerThirdWidth },
+      fs.facialLength != null && { label: 'Facial Length', value: fs.facialLength },
+    ].filter(Boolean)
+    const extraMetrics = [
+      fs.lengthToMidfaceRatio != null && { label: 'Length / Midface', value: fs.lengthToMidfaceRatio },
+      fs.widthHeightRatio != null && { label: 'W / H Ratio', value: fs.widthHeightRatio },
     ].filter(Boolean)
 
+    // Prefer front photo + SVG overlay (image-%); fall back to baked imageSrc alone
+    const useSvgOverlay = Boolean(fs.overlay && photo)
     return (
       <div className="space-y-6">
         <ReportSectionHeading
@@ -73,8 +89,32 @@ export function CvReportView({
         />
         <AssessmentGridLayout
           photo={photo || fs.imageSrc}
-          metrics={faceMetrics}
-          explanation={fs.explanation}
+          photoOverlay={useSvgOverlay ? <FaceShapeOverlay overlay={fs.overlay} /> : null}
+          photoFit="contain"
+          rightCards={
+            <>
+              {fs.shape != null && (
+                <div className="qoves-report-metric-card text-center py-5">
+                  <p className="qoves-report-mono-label mb-3">Shape</p>
+                  <p className="text-3xl font-display font-bold text-ink">{fs.shape}</p>
+                </div>
+              )}
+              {primaryMetrics.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {primaryMetrics.map((m) => (
+                    <ReportMetricCard key={m.label} label={m.label} value={m.value} />
+                  ))}
+                </div>
+              )}
+              {fs.explanation && (
+                <div className="qoves-report-metric-card">
+                  <p className="qoves-report-mono-label mb-2">Explanation</p>
+                  <p className="text-sm text-ink-secondary leading-relaxed font-sans">{fs.explanation}</p>
+                </div>
+              )}
+            </>
+          }
+          metrics={extraMetrics}
         />
       </div>
     )
@@ -82,16 +122,21 @@ export function CvReportView({
 
   if (activeId === 'symmetry' && cvReport?.symmetry) {
     const s = cvReport.symmetry
+    const regions = Array.isArray(s.regions) ? s.regions : []
     return (
       <div className="space-y-6">
         <ReportSectionHeading
           title="An overview of your"
           accent="symmetry"
-          subtitle="Left-right balance measured from your facial photos."
+          subtitle="We've assessed your facial symmetry as a whole, taking into account natural deviations and facial pose."
         />
         <AssessmentGridLayout
           photo={s.imageSrc}
-          photoOverlay={s.symmetryDots ? <SymmetryOverlay dots={s.symmetryDots} /> : null}
+          photoOverlay={
+            s.symmetryDots ? (
+              <SymmetryOverlay dots={s.symmetryDots} midline={s.symmetryMidline} />
+            ) : null
+          }
           photoFit="contain"
           rightCards={
             <>
@@ -116,6 +161,30 @@ export function CvReportView({
                   <span>{s.scaleRight}</span>
                 </div>
               </div>
+              {regions.length > 0 && (
+                <div className="qoves-report-metric-card">
+                  <p className="qoves-report-mono-label mb-3">Regional balance</p>
+                  <div className="space-y-3">
+                    {regions.map((r) => (
+                      <div key={r.id}>
+                        <div className="flex items-center justify-between gap-3 mb-1">
+                          <span className="text-sm text-ink">{r.label}</span>
+                          <span className="text-sm font-medium text-ink tabular-nums">{r.score}/100</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-surface-border overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-brand/70"
+                            style={{ width: `${Math.max(8, Math.min(100, r.score))}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-ink-muted mt-3">
+                    Overall score already accounts for natural pose and left–right variation across these regions.
+                  </p>
+                </div>
+              )}
             </>
           }
           explanation={s.explanation}
@@ -158,7 +227,6 @@ export function CvReportView({
     }
     const details = [{
       title: 'Nasal Proportions',
-      body: n.explanation,
       metricLabel: 'Width/Length Ratio',
       metricValue: n.widthLengthRatio,
       markerPct: Math.min(100, Math.max(0, parseFloat(n.widthLengthRatio) * 150)),
@@ -168,17 +236,6 @@ export function CvReportView({
     if (hasProfileAngles) {
       details.push({
         title: 'Profile Angles',
-        body: [
-          n.nasofrontalAngleDeg != null ? `Nasofrontal angle ${n.nasofrontalAngleDeg}° (typical ~115–130°).` : null,
-          n.nasolabialAngleDeg != null
-            ? `Nasolabial angle ${n.nasolabialAngleDeg}°${n.nasolabialNormalRange ? ` (typical ${n.nasolabialNormalRange})` : ''}.`
-            : null,
-          n.dorsalHumpLabel
-            ? `Dorsal hump ${n.dorsalHumpLabel}${n.dorsalHumpDeviation != null ? ` (deviation ${n.dorsalHumpDeviation})` : ''}.`
-            : null,
-          n.facialConvexityDeg != null ? `Facial convexity ${n.facialConvexityDeg}°.` : null,
-          n.profileLandmarkSource ? `Profile landmark source: ${n.profileLandmarkSource}.` : null,
-        ].filter(Boolean).join(' '),
         metricLabel: 'Nasofrontal',
         metricValue: n.nasofrontalAngleDeg != null ? `${n.nasofrontalAngleDeg}°` : '—',
         markerPct: n.nasofrontalAngleDeg != null
@@ -195,7 +252,9 @@ export function CvReportView({
         heroImage={n.imageSrc}
         summaryCards={summaryCards}
         details={details}
-      />
+      >
+        <FeatureProseBlock narrative={narrativeFor('nose')} fallbackExplanation={n.explanation} />
+      </FeatureAnalysisPage>
     )
   }
 
@@ -215,25 +274,31 @@ export function CvReportView({
         ]}
         details={[{
           title: 'Lip Volume',
-          body: l.explanation,
           metricLabel: 'Lip Fullness Index',
           metricValue: l.lipFullness,
           markerPct: Math.min(100, Math.max(0, parseFloat(l.lipFullness) * 200)),
           rangeMin: 35,
           rangeMax: 70,
         }]}
-      />
+      >
+        <FeatureProseBlock narrative={narrativeFor('lips')} fallbackExplanation={l.explanation} />
+      </FeatureAnalysisPage>
     )
   }
 
   // Eyes
   if (activeId === 'eyes' && eyeAnalysis) {
-    return <EyeReportPanel eyeAnalysis={eyeAnalysis} />
+    return <EyeReportPanel eyeAnalysis={eyeAnalysis} narrative={narrativeFor('eyes')} />
   }
 
   // Eyebrows
   if (activeId === 'eyebrows' && cvReport?.eyebrows) {
-    return <BrowReportPanel eyebrows={cvReport.eyebrows} />
+    return (
+      <BrowReportPanel
+        eyebrows={cvReport.eyebrows}
+        narrative={resolveEyebrowsNarrative(featureNarratives, protocolNarrative)}
+      />
+    )
   }
 
   // Jaw
@@ -248,6 +313,7 @@ export function CvReportView({
         title="Jaw Analysis"
         featureName="jaw"
         data={j}
+        narrative={narrativeFor('jaw')}
         imageSrc={jawSrc}
         imageAlt="Your jaw"
         sections={[
@@ -286,6 +352,7 @@ export function CvReportView({
         title="Chin Analysis"
         featureName="chin"
         data={c}
+        narrative={narrativeFor('chin')}
         imageSrc={chinSrc}
         imageAlt="Your chin"
         sections={[
@@ -321,6 +388,7 @@ export function CvReportView({
         title="Hair Analysis"
         featureName="hair"
         data={h}
+        narrative={narrativeFor('hair')}
         imageSrc={h.imageSrc}
         imageAlt="Your hair region"
         sections={[
@@ -365,6 +433,7 @@ export function CvReportView({
         title="Smile Analysis"
         featureName="smile"
         data={s}
+        narrative={narrativeFor('smile')}
         imageSrc={s.imageSrc}
         imageAlt="Your smile"
         sections={[
@@ -408,6 +477,7 @@ export function CvReportView({
         title="Neck Analysis"
         featureName="neck"
         data={n}
+        narrative={narrativeFor('neck')}
         imageSrc={n.imageSrc}
         imageAlt="Your neck"
         sections={[
@@ -456,6 +526,7 @@ export function CvReportView({
         title="Ear Analysis"
         featureName="ears"
         data={e}
+        narrative={narrativeFor('ears')}
         profileImages={profileImages}
         imageSrc={profileImages ? undefined : e.imageSrc}
         imageAlt="Your ears"
@@ -484,12 +555,12 @@ export function CvReportView({
 
   // â”€â”€ Cheeks â”€â”€
   if (activeId === 'cheeks' && cvReport?.cheeks) {
-    return <CheekReportPanel cheeks={cvReport.cheeks} />
+    return <CheekReportPanel cheeks={cvReport.cheeks} narrative={narrativeFor('cheeks')} />
   }
 
   // â”€â”€ Skin Quality â”€â”€
   if (activeId === 'skin' && cvReport?.skin) {
-    return <SkinReportPanel skin={cvReport.skin} />
+    return <SkinReportPanel skin={cvReport.skin} narrative={narrativeFor('skin')} />
   }
 
   if (activeId === 'protocol') {

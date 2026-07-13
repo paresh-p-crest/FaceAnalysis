@@ -31,7 +31,7 @@ End-to-end path from questionnaire + photos to report, protocol PDF, and Beauty 
 | Item | Detail |
 |------|--------|
 | **FE flow** | `AnalysisFlow.jsx`: Welcome → Questionnaire → Confirm → Upload → Scanning |
-| **Kickoff** | `AppProvider.startNewAnalysis` / `startScanning` → `Scanning.jsx` → `utils/analyzeFace.js` |
+| **Kickoff** | `AppProvider.startNewAnalysis` / `startScanning` → `Scanning.jsx` → `utils/analyzeFace.js`. Scan checklist stages (shared with `backend/config.SCAN_STAGES`) are cosmetic timing aligned to CV then NL enrichment — not streamed progress; the last stage completes when the POST returns. |
 | **API** | `utils/apiClient.js` → **`POST /api/assessments`** |
 | **Access** | Paid user (or admin); backend checks completed payment (402 if unpaid) |
 | **Inputs** | Questionnaire `answers`, 7 pose images, client `scanId` (UUID) |

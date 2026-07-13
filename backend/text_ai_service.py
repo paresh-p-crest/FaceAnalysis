@@ -8,6 +8,7 @@ from .answer_summary import format_answers_summary
 from .config import (
     ASSISTANT_RECENT_TURNS,
     ASSISTANT_SUMMARY_REFRESH_EVERY,
+    LLM_MAX_OUTPUT_TOKENS,
     PROTOCOL_FEATURE_IDS,
 )
 from .llm_client import chat_json_completion, chat_structured_completion, chat_text_completion
@@ -26,6 +27,16 @@ STRICT_NON_SURGICAL_RULES = (
     "- Refuse off-topic questions. Redirect to report-grounded routine coaching.\n"
     "- Do not discuss other people, politics, general chat, or unrelated products.\n"
     "- If data is missing, say what is missing and suggest a safe non-surgical next step."
+)
+
+NO_SCORES_IN_REPORT_PROSE = (
+    "SCORES (HARD CONSTRAINT — never violate):\n"
+    "- Do NOT write any numeric scores in report prose: no 'X/100', 'score N', 'out of 100', "
+    "overall/harmony/feature scores, or ranking numbers.\n"
+    "- Do NOT invent scores. CV score numbers may exist in the product UI separately; "
+    "narrative text must stay qualitative only.\n"
+    "- Describe qualities with words from supplied labels/cues "
+    "(e.g. balanced, defined, uneven, thick, soft) — never cite the numeric score itself."
 )
 
 # Beauty Assistant stays second-person; PDF/protocol narratives use Qoves-style third person.
@@ -61,7 +72,12 @@ _ASSISTANT_STYLE_RULES = (
 )
 
 _NARRATIVE_STYLE_RULES = (
-    "\n\n" + NARRATIVE_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES
+    "\n\n"
+    + NARRATIVE_VOICE_RULES
+    + "\n"
+    + NO_TECH_JARGON_RULES
+    + "\n"
+    + NO_SCORES_IN_REPORT_PROSE
 )
 
 # Deprecated alias — narrative modules should use _NARRATIVE_STYLE_RULES / NARRATIVE_VOICE_RULES.
@@ -104,7 +120,7 @@ PROTOCOL_NARRATIVE_SYSTEM_PREFIX = (
 )
 
 
-def _score_line(label: str, data: Optional[dict]) -> Optional[str]:
+def _score_line(label: str, data: Optional[dict], *, include_numeric_score: bool = True) -> Optional[str]:
     if not data:
         return None
     score = data.get("score")
@@ -128,10 +144,12 @@ def _score_line(label: str, data: Optional[dict]) -> Optional[str]:
         if value not in (None, ""):
             details.append(f"{key}: {value}")
     prefix = f"{label}: "
-    if score is not None:
+    if include_numeric_score and score is not None:
         prefix += f"{score}/100"
         if score_label:
             prefix += f" ({score_label})"
+    elif score_label:
+        prefix += str(score_label)
     else:
         prefix += "measured"
     if details:
@@ -139,16 +157,25 @@ def _score_line(label: str, data: Optional[dict]) -> Optional[str]:
     return prefix
 
 
-def cv_report_summary(cv_report: Optional[dict], metrics: Optional[dict]) -> str:
+def cv_report_summary(
+    cv_report: Optional[dict],
+    metrics: Optional[dict],
+    *,
+    include_numeric_scores: bool = True,
+) -> str:
     if not cv_report:
         return "No structured cvReport available."
 
     lines = []
     overall = cv_report.get("overall") or {}
     if overall:
-        lines.append(
-            f"Overall: {overall.get('score', 'N/A')}/100 ({overall.get('scoreLabel', 'N/A')})"
-        )
+        if include_numeric_scores:
+            lines.append(
+                f"Overall: {overall.get('score', 'N/A')}/100 ({overall.get('scoreLabel', 'N/A')})"
+            )
+        else:
+            label = overall.get("scoreLabel") or "measured"
+            lines.append(f"Overall harmony: {label}")
 
     for label, key in (
         ("Face shape", "faceShape"),
@@ -161,11 +188,15 @@ def cv_report_summary(cv_report: Optional[dict], metrics: Optional[dict]) -> str
         ("Dimorphism", "dimorphism"),
         ("Averageness", "averageness"),
     ):
-        line = _score_line(label, cv_report.get(key))
+        line = _score_line(
+            label,
+            cv_report.get(key),
+            include_numeric_score=include_numeric_scores,
+        )
         if line:
             lines.append(line)
 
-    if metrics:
+    if metrics and include_numeric_scores:
         lines.extend(
             [
                 f"Harmony score: {metrics.get('harmonyScore', 'N/A')}/100",
@@ -174,8 +205,18 @@ def cv_report_summary(cv_report: Optional[dict], metrics: Optional[dict]) -> str
                 f"Visual age estimate: {metrics.get('visualAge', 'N/A')}",
             ]
         )
+    elif metrics and not include_numeric_scores:
+        # Qualitative only — skip numeric harmony/% metrics for report prose prompts.
+        pass
 
     return "\n".join(lines)
+
+
+def cv_report_summary_for_narrative(
+    cv_report: Optional[dict], metrics: Optional[dict] = None
+) -> str:
+    """CV summary for PDF/protocol LLM prompts — labels and cues only, no X/100 scores."""
+    return cv_report_summary(cv_report, metrics, include_numeric_scores=False)
 
 
 def _profile_summary(answers: dict) -> str:
@@ -320,7 +361,7 @@ def generate_cv_narrative(
     )
 
     profile = format_answers_summary(answers or {})
-    cv_summary = cv_report_summary(cv_report, metrics)
+    cv_summary = cv_report_summary_for_narrative(cv_report, metrics)
     priorities = ", ".join(_lowest_scoring_features(cv_report)) or "balanced maintenance"
 
     user_content = (
@@ -328,13 +369,14 @@ def generate_cv_narrative(
         "Required JSON schema:\n"
         "{\n"
         '  "summary": "2-3 sentences for the executive summary",\n'
-        '  "strengths": ["3 short bullets grounded in scores"],\n'
+        '  "strengths": ["3 short bullets grounded in qualitative measured cues"],\n'
         '  "focusAreas": ["3 short bullets grounded in the lowest measured areas"],\n'
         '  "recommendations": ["4 practical non-surgical recommendations"],\n'
         '  "disclaimer": "One sentence explaining this is educational and based on facial measurements"\n'
         "}\n\n"
         "Rules:\n"
-        "- Mention numeric scores only if they appear below.\n"
+        "- NEVER mention numeric scores (no X/100, score N, out of 100).\n"
+        "- Use qualitative labels and measured cues only.\n"
         "- Keep every bullet under 22 words.\n\n"
         f"Profile:\n"
         f"- Goals: {profile['goals']}\n"
@@ -344,7 +386,7 @@ def generate_cv_narrative(
         f"- Water intake: {(answers or {}).get('waterIntake', 'N/A')}\n"
         f"- Sun exposure: {(answers or {}).get('sunExposure', 'N/A')}\n\n"
         f"Lowest measured priorities: {priorities}\n\n"
-        f"Stored facial measurement summary:\n{cv_summary}"
+        f"Stored facial measurement summary (qualitative):\n{cv_summary}"
     )
 
     pose_ids, overview_parts = load_poses_as_image_parts(
@@ -365,7 +407,7 @@ def generate_cv_narrative(
             {"role": "user", "content": user_message},
         ],
         temperature=0.35,
-        max_tokens=900,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
         api_key_override=api_key,
     )
     if result.get("error") and not result.get("content"):
@@ -375,8 +417,9 @@ def generate_cv_narrative(
                 {"role": "user", "content": user_content},
             ],
             temperature=0.35,
-            max_tokens=900,
+            max_tokens=LLM_MAX_OUTPUT_TOKENS,
             api_key_override=api_key,
+            label="executive_narrative/fallback",
         )
     if result.get("error"):
         return {"content": None, "source": None, "error": result["error"]}
@@ -384,6 +427,10 @@ def generate_cv_narrative(
         content = ExecutiveNarrative.model_validate(result["content"]).model_dump()
     except Exception:
         content = result["content"]
+    from .clinical_guardrails import strip_score_language_from_narrative_dict
+
+    if isinstance(content, dict):
+        content = strip_score_language_from_narrative_dict(content)
     return {
         "content": content,
         "source": result["source"],
@@ -414,7 +461,7 @@ def generate_protocol_narrative(
         return {"content": None, "source": None, "error": "cvReport is required."}
 
     profile = format_answers_summary(answers or {})
-    cv_summary = cv_report_summary(cv_report, metrics)
+    cv_summary = cv_report_summary_for_narrative(cv_report, metrics)
     feature_list = ", ".join(PROTOCOL_FEATURE_IDS)
 
     system_content = (
@@ -425,7 +472,7 @@ def generate_protocol_narrative(
         "- Each subsection body: 80-120 words, dense narrative (not bullets).\n"
         "- Name OTC actives with frequencies: salicylic acid, vitamin C, retinol, SPF 50.\n"
         "- Eyes feature MUST have 4 subsections: Eyebrows, Eyelashes, Eyes, Under eye.\n"
-        "- Reference actual CV scores only.\n"
+        "- NEVER cite numeric scores (no X/100). Use qualitative labels only.\n"
         "- closing: 4 dense non-surgical paragraphs."
     )
 
@@ -445,8 +492,9 @@ def generate_protocol_narrative(
             {"role": "user", "content": user_content},
         ],
         temperature=0.45,
-        max_tokens=4000,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
         api_key_override=api_key,
+        label="protocol_narrative_legacy",
     )
     if result.get("error"):
         return {"content": None, "source": None, "error": result["error"]}
@@ -504,7 +552,7 @@ def summarize_assistant_session(
             {"role": "user", "content": user_content},
         ],
         temperature=0.2,
-        max_tokens=350,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
         api_key_override=api_key,
     )
     return result
@@ -560,7 +608,7 @@ def answer_beauty_question(
     result = chat_text_completion(
         messages=messages,
         temperature=0.25,
-        max_tokens=550,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
         api_key_override=api_key,
     )
 

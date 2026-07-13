@@ -6,7 +6,7 @@ import json
 from typing import Optional
 
 from .answer_summary import format_answers_summary
-from .config import PROTOCOL_FEATURE_IDS
+from .config import FEATURE_NARRATIVE_IDS, PROTOCOL_FEATURE_IDS
 from .protocol_service import load_protocol_bundle
 from .report_sections import (
     ASSESSMENT_SECTION_IDS,
@@ -70,7 +70,7 @@ class AssessmentTools:
         return text
 
     def get_protocol_feature(self, feature_id: str, subsection: Optional[str] = None) -> str:
-        if feature_id not in PROTOCOL_FEATURE_IDS:
+        if feature_id not in FEATURE_NARRATIVE_IDS:
             return f"Unknown protocol feature: {feature_id}"
         text = format_protocol_feature(feature_id, self.feature_narratives, self.protocol_narrative)
         if subsection:
@@ -137,7 +137,7 @@ OPENAI_TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "feature_id": {"type": "string", "enum": list(PROTOCOL_FEATURE_IDS)},
+                    "feature_id": {"type": "string", "enum": list(FEATURE_NARRATIVE_IDS)},
                     "subsection": {"type": "string"},
                 },
                 "required": ["feature_id"],

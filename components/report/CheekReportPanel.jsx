@@ -1,4 +1,5 @@
 import { FeatureAnalysisPage } from './FeatureAnalysisPage'
+import { FeatureProseBlock } from './FeatureProseBlock'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -51,7 +52,7 @@ function BrightnessBar({ value, max = 200 }) {
   )
 }
 
-export function CheekReportPanel({ cheeks }) {
+export function CheekReportPanel({ cheeks, narrative = null }) {
   if (!cheeks) return null
 
   const c = cheeks
@@ -69,7 +70,6 @@ export function CheekReportPanel({ cheeks }) {
       ]}
       details={[{
         title: 'Cheekbone Structure',
-        body: `Cheekbone height: ${c.cheekboneHeight}% of face height (${c.cheekboneHeightClass}). Projection: ${c.prominence}.`,
         metricLabel: 'Overall Score',
         metricValue: `${c.score}/100`,
         markerPct: c.score,
@@ -105,9 +105,6 @@ export function CheekReportPanel({ cheeks }) {
             tooltip="Forward projection of cheekbones (estimated from z-depth). Prominent cheekbones create shadow play and dimension."
           />
         </div>
-        <p className="text-xs text-ink-secondary leading-relaxed">
-          Cheekbone height: {c.cheekboneHeight}% of face height ({c.cheekboneHeightClass}). Projection: {c.prominence}. {c.cheekboneHeightClass === 'High' ? 'High-set cheekbones create a lifted, youthful appearance.' : c.cheekboneHeightClass === 'Medium' ? 'Medium-set cheekbones provide balanced facial framing.' : 'Lower-set cheekbones contribute to a softer facial contour.'}
-        </p>
       </div>
 
       {/* ── Section 2: Cheek Width & Volume ── */}
@@ -125,9 +122,6 @@ export function CheekReportPanel({ cheeks }) {
             tooltip="Fullness of the cheek apple region. Full apples create a youthful, healthy appearance. Flat apples can appear hollow."
           />
         </div>
-        <p className="text-xs text-ink-secondary leading-relaxed">
-          Cheek width spans {c.cheekWidth}% of face width ({c.cheekWidthClass}). Apple volume: {c.appleVolume}. {c.appleVolume === 'Full' ? 'Full cheek apples add a healthy, youthful roundness.' : c.appleVolume === 'Moderate' ? 'Moderate volume provides balanced facial contours.' : 'Flatter cheek apples may benefit from volumizing treatments.'}
-        </p>
       </div>
 
       {/* ── Section 3: Midface & Transitions ── */}
@@ -145,9 +139,6 @@ export function CheekReportPanel({ cheeks }) {
             tooltip="The transition angle from jawline to cheekbone. Smooth transitions create elegant contours, while angular transitions add definition."
           />
         </div>
-        <p className="text-xs text-ink-secondary leading-relaxed">
-          Midface length: {c.midfaceLength}% of face height ({c.midfaceClass}). Jaw-to-cheek transition: {c.jawCheekTransition} at {c.jawCheekAngle}°. {c.midfaceClass === 'Balanced' ? 'Midface proportions are harmonious with other facial thirds.' : c.midfaceClass === 'Long' ? 'A longer midface can create a more mature, elegant appearance.' : 'A shorter midface contributes to a compact, youthful look.'}
-        </p>
       </div>
 
       {/* ── Section 4: Pixel Analysis ── */}
@@ -174,10 +165,7 @@ export function CheekReportPanel({ cheeks }) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="qoves-report-mono-label mb-2">Full Analysis Summary</p>
-        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{c.explanation}</p>
-      </div>
+      <FeatureProseBlock narrative={narrative} fallbackExplanation={c.explanation} />
     </div>
     </FeatureAnalysisPage>
   )

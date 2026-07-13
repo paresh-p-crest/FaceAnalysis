@@ -8,6 +8,7 @@ import {
   bboxFromIndices,
   mergeBboxes,
   dotsInImage,
+  pointInImage,
   proportionLinesInCrop,
   proportionRatioOverlays,
   mouthCheilions,
@@ -854,36 +855,146 @@ function overallLabel(score) {
   return 'Needs Improvement'
 }
 
-function faceShapeFromLandmarks(landmarks) {
-  const forehead = lm(landmarks, 10)
-  const jawL = lm(landmarks, 234)
-  const jawR = lm(landmarks, 454)
-  const chin = lm(landmarks, 152)
-  const cheekL = lm(landmarks, 127)
-  const cheekR = lm(landmarks, 356)
+function faceShapeFromLandmarks(landmarks, imageSize = null) {
+  if (!landmarks?.length) {
+    return {
+      shape: 'Oval',
+      facialLength: 'Average',
+      foreheadWidth: 'Normal',
+      midfaceWidth: 'Normal',
+      lowerThirdWidth: 'Normal',
+      explanation: 'Face shape could not be measured from landmarks.',
+      overlay: null,
+      overlaySpace: 'image',
+    }
+  }
 
-  const faceW = Math.abs(jawR.x - jawL.x)
-  const faceH = chin.y - forehead.y
-  const jawW = Math.abs(jawR.x - jawL.x)
-  const cheekW = Math.abs(cheekR.x - cheekL.x)
-  const foreheadW = cheekW * 1.02 // approximate
-  const chinW = Math.abs(chin.x - jawL.x) + Math.abs(jawR.x - chin.x)
+  const w = imageSize?.width > 0 ? imageSize.width : 1
+  const h = imageSize?.height > 0 ? imageSize.height : 1
+  const pt = (idx) => {
+    const p = lm(landmarks, idx)
+    return { x: p.x * w, y: p.y * h }
+  }
+  const dist2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
 
-  const ratio = faceW / (faceH || 0.3)
+  let pTop = pt(10)
+  const pChin = pt(152)
+  let pRt = pt(103)
+  let pLt = pt(332)
+  const pRc = pt(234)
+  const pLc = pt(454)
+  const pRj = pt(132)
+  const pLj = pt(361)
+
+  const coreHeight = dist2(pChin, pt(9)) || h * 0.35
+  pTop = { x: pTop.x, y: pTop.y - coreHeight * 0.15 }
+  pRt = { x: pRt.x - coreHeight * 0.015, y: pRt.y - coreHeight * 0.1 }
+  pLt = { x: pLt.x + coreHeight * 0.015, y: pLt.y - coreHeight * 0.1 }
+
+  const facialLength = dist2(pTop, pChin)
+  const midfaceWidth = dist2(pRc, pLc) || 1e-6
+  const foreheadWidth = dist2(pRt, pLt)
+  const jawWidth = dist2(pRj, pLj)
+
+  const ratio = facialLength / midfaceWidth
+  let length = 'Average'
+  if (ratio > 1.45) length = 'Long'
+  else if (ratio < 1.25) length = 'Short'
+
+  const fhRatio = foreheadWidth / midfaceWidth
+  let forehead = 'Normal'
+  if (fhRatio > 0.85) forehead = 'Wide'
+  else if (fhRatio < 0.75) forehead = 'Narrow'
+
+  const jawRatio = jawWidth / midfaceWidth
+  let lowerThird = 'Normal'
+  if (jawRatio > 0.85) lowerThird = 'Wide'
+  else if (jawRatio < 0.75) lowerThird = 'Narrow'
 
   let shape = 'Oval'
-  if (ratio > 0.82) shape = 'Round'
-  else if (ratio > 0.75 && jawW > cheekW * 0.92) shape = 'Square'
-  else if (jawW < cheekW * 0.78) shape = 'Heart'
-  else if (faceH > faceW * 1.55) shape = 'Oblong'
+  if (length === 'Average') {
+    if (lowerThird === 'Wide' && forehead === 'Wide') shape = 'Square'
+    else if (lowerThird === 'Narrow') shape = 'Heart'
+    else if (forehead === 'Narrow' && lowerThird === 'Normal') shape = 'Round'
+    else shape = 'Oval'
+  } else if (length === 'Short') {
+    shape = lowerThird === 'Wide' ? 'Square' : 'Round'
+  } else if (length === 'Long') {
+    shape = forehead === 'Wide' && lowerThird === 'Wide' ? 'Oblong' : 'Oval'
+  }
+
+  const pts = [pTop, pRt, pRc, pRj, pChin, pLj, pLc, pLt]
+  const boxW = dist2(pts[2], pts[6])
+  const boxH = dist2(pts[0], pts[4])
+  const center = {
+    x: (pts[0].x + pts[4].x) / 2,
+    y: (pts[0].y + pts[4].y) / 2,
+  }
+  const toPct = (p) => ({
+    x: Math.round((p.x / w) * 10000) / 100,
+    y: Math.round((p.y / h) * 10000) / 100,
+  })
+
+  // Legacy W/H ratio (kept for Face Shape cards)
+  const foreheadLm = lm(landmarks, 10)
+  const jawL = lm(landmarks, 234)
+  const jawR = lm(landmarks, 454)
+  const chinLm = lm(landmarks, 152)
+  const faceW = Math.abs(jawR.x - jawL.x)
+  const faceH = Math.max(chinLm.y - foreheadLm.y, 1e-3)
+  const whRatio = faceW / faceH
 
   return {
     shape,
-    widthHeightRatio: ratio.toFixed(2),
-    jawWidth: (jawW * 100).toFixed(1),
-    cheekWidth: (cheekW * 100).toFixed(1),
-    explanation: `Based on your facial landmark measurements, your face shape is classified as ${shape.toLowerCase()} with a width-to-height ratio of ${ratio.toFixed(2)}. This shape provides a ${shape === 'Oval' ? 'versatile' : shape === 'Round' ? 'soft' : shape === 'Square' ? 'strong' : 'balanced'} foundation for hairstyle and styling recommendations.`,
+    facialLength: length,
+    foreheadWidth: forehead,
+    midfaceWidth: 'Normal',
+    lowerThirdWidth: lowerThird,
+    lengthToMidfaceRatio: ratio.toFixed(2),
+    widthHeightRatio: whRatio.toFixed(2),
+    explanation:
+      `Your face is classified as ${shape.toLowerCase()} based on an 8-point facial outline ` +
+      `(facial length ${length.toLowerCase()}, forehead ${forehead.toLowerCase()}, midface as the width baseline, ` +
+      `and lower third ${lowerThird.toLowerCase()}; length-to-midface ratio ${ratio.toFixed(2)}). ` +
+      `The outline and ellipse show how temples, cheekbones, and jaw frame that shape.`,
+    overlay: {
+      polygon: pts.map(toPct),
+      ellipse: {
+        cx: Math.round((center.x / w) * 10000) / 100,
+        cy: Math.round((center.y / h) * 10000) / 100,
+        rx: Math.round(((boxW / 2) / w) * 10000) / 100,
+        ry: Math.round(((boxH / 2) / h) * 10000) / 100,
+      },
+      crossV: [toPct(pts[0]), toPct(pts[4])],
+      crossH: [toPct(pts[2]), toPct(pts[6])],
+    },
+    overlaySpace: 'image',
   }
+}
+
+const SYMMETRY_MIRROR_PAIRS = [
+  [33, 263], [133, 362], [61, 291], [105, 334],
+  [159, 386], [145, 374], [234, 454], [127, 356],
+]
+
+const SYMMETRY_REGION_DEFS = [
+  { id: 'eyes', label: 'Eyes', pairs: [[33, 263], [133, 362], [159, 386], [145, 374]] },
+  { id: 'brows', label: 'Brows', pairs: [[105, 334]] },
+  { id: 'mouth', label: 'Mouth', pairs: [[61, 291]] },
+  { id: 'jaw', label: 'Jaw', pairs: [[234, 454], [127, 356]] },
+]
+
+function pairDeviationPct(landmarks, li, ri, nose, faceH) {
+  const l = lm(landmarks, li)
+  const r = lm(landmarks, ri)
+  const xMir = (Math.abs(Math.abs(l.x - nose.x) - Math.abs(r.x - nose.x)) / faceH) * 100
+  const yMir = (Math.abs(l.y - r.y) / faceH) * 100
+  const zMir = Math.abs(Math.abs(l.z || 0) - Math.abs(r.z || 0)) * 100
+  return xMir * 0.55 + yMir * 0.30 + zMir * 0.15
+}
+
+function scoreFromAvgDev(avgDev) {
+  return Math.max(55, Math.min(97, Math.round(92 - avgDev * 7.5)))
 }
 
 function symmetryScore(landmarks, metrics) {
@@ -892,20 +1003,29 @@ function symmetryScore(landmarks, metrics) {
   const forehead = lm(landmarks, 10)
   const chin = lm(landmarks, 152)
   const faceH = Math.max(chin.y - forehead.y, 0.2)
-  const mirrorPairs = [
-    [33, 263], [133, 362], [61, 291], [105, 334],
-    [159, 386], [145, 374], [234, 454], [127, 356],
-  ]
-  const deviations = mirrorPairs.map(([li, ri]) => {
-    const l = lm(landmarks, li)
-    const r = lm(landmarks, ri)
-    const xMir = (Math.abs(Math.abs(l.x - nose.x) - Math.abs(r.x - nose.x)) / faceH) * 100
-    const yMir = (Math.abs(l.y - r.y) / faceH) * 100
-    const zMir = Math.abs(Math.abs(l.z || 0) - Math.abs(r.z || 0)) * 100
-    return xMir * 0.55 + yMir * 0.30 + zMir * 0.15
-  })
+  const deviations = SYMMETRY_MIRROR_PAIRS.map(([li, ri]) =>
+    pairDeviationPct(landmarks, li, ri, nose, faceH)
+  )
   const avgDev = deviations.reduce((s, d) => s + d, 0) / deviations.length
-  return Math.max(55, Math.min(96, Math.round(90 - avgDev * 9)))
+  return scoreFromAvgDev(avgDev)
+}
+
+function symmetryRegions(landmarks) {
+  if (!landmarks?.length) return []
+  const nose = lm(landmarks, 1)
+  const forehead = lm(landmarks, 10)
+  const chin = lm(landmarks, 152)
+  const faceH = Math.max(chin.y - forehead.y, 0.2)
+  return SYMMETRY_REGION_DEFS.map(({ id, label, pairs }) => {
+    const deviations = pairs.map(([li, ri]) => pairDeviationPct(landmarks, li, ri, nose, faceH))
+    const avgDev = deviations.reduce((s, d) => s + d, 0) / deviations.length
+    return {
+      id,
+      label,
+      avgDev: Math.round(avgDev * 100) / 100,
+      score: scoreFromAvgDev(avgDev),
+    }
+  })
 }
 
 function symmetryLabel(score) {
@@ -1857,6 +1977,11 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
   ])
 
   const symmetryDots = dotsInImage(landmarks, SYMMETRY_DOTS)
+  const symmetryMidline = {
+    top: pointInImage(landmarks, 10),
+    bot: pointInImage(landmarks, 152),
+  }
+  const symRegions = symmetryRegions(landmarks)
   const proportionLines = proportionLinesInCrop(landmarks, faceBox)
   const ratioOverlays = proportionRatioOverlays(landmarks)
   const ratios = proportionRatios(landmarks)
@@ -1923,7 +2048,12 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
   try {
     hairData = await hairPixelAnalysis(landmarks, photos.topHead)
   } catch { /* graceful fallback */ }
-  const faceShape = faceShapeFromLandmarks(landmarks)
+  let faceImageSize = null
+  try {
+    const faceImg = await loadImage(imageSrc)
+    faceImageSize = { width: faceImg.naturalWidth || faceImg.width, height: faceImg.naturalHeight || faceImg.height }
+  } catch { /* optional for aspect-correct distances */ }
+  const faceShape = faceShapeFromLandmarks(landmarks, faceImageSize)
 
   // Cheek analysis
   const cheek = cheekMetrics(landmarks)
@@ -1976,6 +2106,8 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
       explanation: symmetryExplanation(symScore, symLabel),
       imageSrc: faceCrop,
       symmetryDots,
+      symmetryMidline,
+      regions: symRegions,
     },
     proportions: {
       score: prop.score,

@@ -1,6 +1,14 @@
 # Domain Models & Database Schemas
 
-All databases collections reside in MongoDB. The repositories located in `backend/repositories/` perform all operations against these collections.
+All database collections reside in MongoDB (Atlas) via the async Motor driver (`backend/database.py`). Most CRUD goes through `backend/repositories/`. Exception: `assistant_rate_limits` is read/incremented directly from `backend/ai_access.py` (no dedicated repository).
+
+### Cascade deletes
+| Trigger | Also deleted |
+|---------|----------------|
+| User delete (`user_repository.delete_user_and_related_data`) | That user's `assessments`, `conversations`, and `payments` |
+| Assessment delete (`assessment_repository.delete_assessment`) | `conversations` with matching `assessmentId` |
+
+Photos and `protocol.json` under `public/uploads/assessments/{id}/` are filesystem mirrors; Mongo holds metadata / narrative fields as source of truth when complete.
 
 ---
 
@@ -12,7 +20,9 @@ Stores account and credentials for users and administrators.
 |---|---|---|
 | `_id` | `ObjectId` | Primary key (represented as `id` string in API) |
 | `email` | `string` | User's unique email address |
-| `passwordHash` | `string` | PBKDF2 + HMAC password hash (never stored in plaintext) |
+| `firstName` | `string` | Given name (required on register; may be empty for bootstrap admin upsert) |
+| `lastName` | `string` | Family name (required on register; may be empty for bootstrap admin upsert) |
+| `passwordHash` | `string` | PBKDF2 + HMAC password hash (never stored in plaintext; stripped from API serialization) |
 | `role` | `string` | Permission role: `"user"` \| `"admin"` |
 | `createdAt` | `ISODate` | Date of account registration |
 | `updatedAt` | `ISODate` | Date of last profile update |
@@ -40,20 +50,29 @@ Stores raw user inputs, computer vision analysis outputs, AI-generated reports, 
 | `analysis` | `dict` | Nested object containing raw CV calculations (see sub-schema below) |
 | `aiNarrative` | `dict` \| `null` | Latest executive narrative: `{ source, model, generatedAt?, content: { summary, strengths[], focusAreas[], recommendations[], disclaimer } }` |
 | `protocolNarrative` | `dict` \| `null` | Latest protocol copy: `{ summary, closing[], features{}, source?, model? }` — overview + closing + feature shim for Qoves PDF/UI |
-| `featureNarratives` | `dict` \| `null` | Canonical per-feature pages keyed by id (`measuredFacts`, `subsections[]`, `limitations`, …) — source for PDF pages 6–15 |
+| `featureNarratives` | `dict` \| `null` | Canonical per-feature narratives keyed by id (`hair`…`ears` for PDF pages 6–15, plus interactive `smile`) |
 | `protocolStorage` | `dict` \| `null` | Protocol file metadata (`relativePath`, `publicUrl`, `storedAt`, `byteSize`) |
 | `aiVisuals` | `dict` \| `null` | Latest visual variants: `{ source, model, sourceKind?, generatedAt?, variants: [{ type, title, prompt, imageSrc?, status, error? }] }` — `prompt` required on every variant |
 | `adminNotes` | `string` \| `null` | Notes added by the administrator during review |
 | `reviewedBy` | `dict` | Metadata of the reviewer (`email`, `role`, etc.) |
 | `reviewedAt` | `ISODate` \| `null` | Timestamp of administrative review completion |
-| `reviewLog` | `list[dict]` | Historical log of status changes and edits made during review |
+| `reviewLog` | `list[dict]` | Historical log of admin review actions (see element shape below) |
 | `createdAt` | `ISODate` | Date of upload / submission |
 | `updatedAt` | `ISODate` | Date of last update |
+
+### Review log element (`reviewLog[]`)
+| Nested Field | Type | Description |
+|---|---|---|
+| `at` | `ISODate` | When the review action was recorded |
+| `reviewer` | `dict` | Reviewer metadata (`email`, `role`, etc.) |
+| `status` | `string` \| `null` | Status written on this action (if changed) |
+| `editedAiNarrative` | `bool` | Whether `aiNarrative` was updated in this action |
+| `hasAdminNotes` | `bool` | Whether admin notes were present on this action |
 
 ### Analysis Sub-Schema (`analysis`)
 | Nested Field | Type | Description |
 |---|---|---|
-| `cvReport` | `dict` | Calculated facial metrics; includes `profile`, `quarter`, `photos`, `meta.pipelineVersion`; `eyes` has sub-slices `eyebrows`, `eyelashes`, `ocular`, `underEye`; `nose` includes profile angles when measured. `profile.primary.overlay` holds chin/profile guides: `convexityPoints` (G/Sn/Pog, 0–1), `eLine` (pronasale→pogonion, 0–1), `nasoAural` (0–100 percent horizontals/segments). PDF chin projection plate pitches the profile (chin-down), then resolves Pn/Sn/Pog on that bitmap via `resolveChinProjectionOverlay` in `utils/chinProfileGuides.js` (collapsed stored silhouettes are not used as absolute coords). Full anonymized sample: `fixtures/assessment_sample_full.json`. |
+| `cvReport` | `dict` | Calculated facial metrics; includes `profile`, `quarter`, `photos`, `meta.pipelineVersion`; `eyes` has sub-slices `eyebrows`, `eyelashes`, `ocular`, `underEye`; `nose` includes profile angles when measured. `faceShape` uses the 8-point facial polygon (landmarks 10/103/234/132/152/361/454/332 + forehead expansion): `shape`, `facialLength`, `foreheadWidth`, `midfaceWidth`, `lowerThirdWidth`, `lengthToMidfaceRatio`, `widthHeightRatio`; `overlay` (polygon/ellipse/crosshairs in 0–100 image %); `imageSrc` (front photo with baked white octagon+ellipse+dashed crosshairs). `profile.primary.overlay` holds chin/profile guides: `convexityPoints` (G/Sn/Pog, 0–1), `eLine` (pronasale→pogonion, 0–1), `nasoAural` (0–100 percent horizontals/segments). PDF chin projection plate pitches the profile (chin-down), then resolves Pn/Sn/Pog on that bitmap via `resolveChinProjectionOverlay` in `utils/chinProfileGuides.js`. Full anonymized sample: `fixtures/assessment_sample_full.json`. |
 | `landmarks` | `list[list[float]]` or `list[{x,y,z}]` | 478 MediaPipe Face Mesh coordinates. Used by PDF cheek ANALYSIS guides (`utils/cheekGuides.js`: 130/359 outer eyes, 102/331 outer nostrils, 61/291 mouth, 234/454 ears + 1.08× extension, 197/2 nose blend) and chin/feature crops. |
 | `imagePreview` | `string` | Base64-encoded image preview or thumbnail |
 | `faceDetails` | `dict` \| `null` | Reserved; always `null` (AWS Rekognition removed) |
@@ -63,7 +82,7 @@ Stores raw user inputs, computer vision analysis outputs, AI-generated reports, 
 - `createdAt`
 - `status`
 - `userId`
-- `userId + scanId` (Unique compound index)
+- `user_scan_unique`: unique compound on `userId + scanId` with partial filter `{ scanId: { $exists: true, $type: "string" } }` (startup may dedupe older duplicates before creating the index)
 
 ### Generated text (latest-only source of truth)
 
@@ -140,7 +159,7 @@ Beauty Assistant replies for a report live here (not on `assessments`). Seed + t
 ---
 
 ## 5. Collection: `app_settings`
-Global application settings and default configuration values.
+Global application settings and default configuration values. Singleton document; upserted by `settings_repository` with `_id: "app"`.
 
 ### Schema Fields
 | Field | Type | Description |
@@ -150,13 +169,14 @@ Global application settings and default configuration values.
 | `premiumCurrency` | `string` | Currency code for payments (e.g. `"usd"`) |
 | `productName` | `string` | Display name on the payment gateway |
 | `productDescription` | `string` | Product line description shown during checkout |
+| `createdAt` | `ISODate` | First upsert insert time (`$setOnInsert`) |
 | `updatedAt` | `ISODate` | Timestamp of last modification |
 | `updatedBy` | `string` \| `null` | Reference to admin who adjusted values |
 
 ---
 
 ## 6. Collection: `assistant_rate_limits`
-Tracks hourly Beauty Assistant message quotas per user.
+Tracks hourly Beauty Assistant message quotas per user. Accessed from `backend/ai_access.py` (not a repository). Upsert key is `userId` + `hourBucket`.
 
 ### Schema Fields
 | Field | Type | Description |
@@ -168,4 +188,4 @@ Tracks hourly Beauty Assistant message quotas per user.
 | `createdAt` | `ISODate` | First message in bucket |
 
 ### Indexes
-- `userId + hourBucket` (Unique compound index)
+- `userId + hourBucket` (Unique compound index; ensured on app startup in `_ensure_indexes`)

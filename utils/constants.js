@@ -31,9 +31,13 @@ export const SCAN_STAGES = [
   'Extracting landmarks',
   'Analyzing facial geometry',
   'Skin analysis',
-  'Generating recommendations',
+  'Writing feature recommendations',
+  'Building protocol narrative',
   'Preparing report',
 ]
+
+/** Index at which NL enrichment stages begin (slower progress cadence). */
+export const SCAN_NL_STAGE_INDEX = 5
 
 export const SCAN_MESSAGES = [
   'Locating 468 facial landmark points…',
@@ -41,8 +45,9 @@ export const SCAN_MESSAGES = [
   'Calculating symmetry indices…',
   'Assessing jawline & chin geometry…',
   'Evaluating periorbital structure…',
-  'Cross-referencing demographic norms…',
-  'Generating personalized protocol…',
+  'Writing feature recommendations…',
+  'Building the subject\'s protocol narrative…',
+  'Finalizing the personalized report…',
 ]
 
 export const INITIAL_ANSWERS = {

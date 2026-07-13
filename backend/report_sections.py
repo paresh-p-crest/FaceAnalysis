@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-from .config import PROTOCOL_FEATURE_IDS
+from .config import FEATURE_NARRATIVE_IDS, PROTOCOL_FEATURE_IDS
 from .feature_context import build_feature_context, feature_context_as_prompt_text
 from .protocol_page_schema import PROTOCOL_PAGE_META, subsection_titles_for_feature
 
@@ -40,7 +40,7 @@ def format_cv_feature_section(
     feature_id: str,
     eye_analysis: Optional[dict] = None,
 ) -> str:
-    if feature_id in PROTOCOL_FEATURE_IDS:
+    if feature_id in FEATURE_NARRATIVE_IDS:
         ctx = build_feature_context(
             feature_id,
             cv_report=cv_report,
@@ -51,8 +51,6 @@ def format_cv_feature_section(
     key = feature_id
     if feature_id == "eyebrows":
         data = cv_report.get("eyebrows")
-    elif feature_id == "smile":
-        data = cv_report.get("smile")
     elif feature_id == "eyes":
         return json.dumps(eye_analysis or {}, default=str)[:4000]
     else:
@@ -94,7 +92,7 @@ def build_assistant_tool_index() -> list[str]:
         tools.append(f"get_cv_assessment:{sid}")
     for fid in INTERACTIVE_FEATURE_IDS:
         tools.append(f"get_cv_feature:{fid}")
-    for fid in PROTOCOL_FEATURE_IDS:
+    for fid in FEATURE_NARRATIVE_IDS:
         tools.append(f"get_protocol_feature:{fid}")
     return tools
 
@@ -107,6 +105,7 @@ def protocol_bundle_summary(assessment: dict) -> dict:
         "pages": PROTOCOL_PAGE_META,
         "overallScore": overall.get("score"),
         "featureIds": list(PROTOCOL_FEATURE_IDS),
-        "subsectionTitles": {fid: subsection_titles_for_feature(fid) for fid in PROTOCOL_FEATURE_IDS},
+        "narrativeFeatureIds": list(FEATURE_NARRATIVE_IDS),
+        "subsectionTitles": {fid: subsection_titles_for_feature(fid) for fid in FEATURE_NARRATIVE_IDS},
         "toolIndex": build_assistant_tool_index(),
     }

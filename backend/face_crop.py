@@ -24,21 +24,18 @@ LEFT_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385
 RIGHT_BROW = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46, 124, 156, 221, 222, 223]
 LEFT_BROW = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276, 353, 383, 441, 442, 443]
 
-# Curated symmetry overlay landmarks (paired + midline) — not full eye/brow contours.
-# Dense mesh contours overlap visually; scoring still uses full MediaPipe mesh elsewhere.
+# Notebook facial-symmetry overlay: 9 bilateral pairs (18 rings). Midline is arrow-only (10/152).
 SYMMETRY_DOTS = [
-    # Right eye (person's right): outer, inner, top, bottom
-    33, 133, 159, 145,
-    # Left eye
-    362, 263, 386, 374,
-    # Right brow: outer, peak, inner
-    70, 105, 107,
-    # Left brow
-    300, 334, 336,
-    # Nose midline + alae
-    1, 2, 4, 5, 6, 98, 327,
-    # Mouth corners, chin, jaw
-    61, 291, 152, 234, 454,
+    # Brow outer / inner
+    70, 300, 107, 336,
+    # Eye outer / inner
+    33, 263, 133, 362,
+    # Nose alae
+    98, 327,
+    # Mouth corners
+    61, 291,
+    # Cheeks / jaw / chin sides
+    234, 454, 172, 397, 176, 400,
 ]
 
 # Feature crop index groups (from cvReport.js)
@@ -207,6 +204,23 @@ def proportion_lines_in_image(landmarks: list) -> dict:
         "brow": brow_y * 100,
         "nose": lm(landmarks, 2)["y"] * 100,
         "chin": lm(landmarks, 152)["y"] * 100,
+    }
+
+
+def proportion_lines_in_crop(landmarks: list, box: dict) -> dict:
+    """Facial third guide lines in face-crop percentage space (matches cropped imageSrc)."""
+    h = max(float(box.get("h") or 0), 1e-6)
+    y0 = float(box.get("y") or 0)
+
+    def to_pct(y: float) -> float:
+        return ((y - y0) / h) * 100
+
+    brow_y = (lm(landmarks, 105)["y"] + lm(landmarks, 334)["y"]) / 2
+    return {
+        "hair": to_pct(lm(landmarks, 10)["y"]),
+        "brow": to_pct(brow_y),
+        "nose": to_pct(lm(landmarks, 2)["y"]),
+        "chin": to_pct(lm(landmarks, 152)["y"]),
     }
 
 

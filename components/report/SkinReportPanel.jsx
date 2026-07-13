@@ -1,5 +1,6 @@
 import { safeDisplay } from '../../utils/safeFormat'
 import { FeatureAnalysisPage } from './FeatureAnalysisPage'
+import { FeatureProseBlock } from './FeatureProseBlock'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -113,7 +114,7 @@ function SymmetryBar({ left, right, leftLabel, rightLabel }) {
   )
 }
 
-export function SkinReportPanel({ skin }) {
+export function SkinReportPanel({ skin, narrative = null }) {
   if (!skin) return null
 
   const s = skin
@@ -142,7 +143,6 @@ export function SkinReportPanel({ skin }) {
       ]}
       details={[{
         title: 'Skin Quality Overview',
-        body: s.explanation,
         metricLabel: 'Overall Score',
         metricValue: `${s.score}/100`,
         markerPct: s.score,
@@ -285,10 +285,7 @@ export function SkinReportPanel({ skin }) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="qoves-report-mono-label mb-2">Full Analysis Summary</p>
-        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{safeDisplay(s.explanation)}</p>
-      </div>
+      <FeatureProseBlock narrative={narrative} fallbackExplanation={safeDisplay(s.explanation)} />
     </div>
     </FeatureAnalysisPage>
   )

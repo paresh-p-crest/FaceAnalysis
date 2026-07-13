@@ -3,16 +3,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getObjectFitContentRect } from '../../utils/objectFitContentRect'
 
-const MIDLINE_IDS = new Set([1, 2, 4, 5, 6, 10, 152, 168])
+const MIDLINE_IDS = new Set([10, 152])
 
-/** Keep overlay sparse even for older reports that stored full eye/brow contours. */
+/** Notebook bilateral overlay rings only (9 pairs). Midline is arrow-only via landmarks 10/152. */
 const SYMMETRY_OVERLAY_IDS = new Set([
-  33, 133, 159, 145,
-  362, 263, 386, 374,
-  70, 105, 107,
-  300, 334, 336,
-  1, 2, 4, 5, 6, 98, 327,
-  61, 291, 152, 234, 454,
+  70, 300, 107, 336,
+  33, 263, 133, 362,
+  98, 327,
+  61, 291,
+  234, 454, 172, 397, 176, 400,
 ])
 
 function useContentBox(imgRef, fit, src) {
@@ -160,37 +159,133 @@ export function PhotoLandmarkFrame({
   )
 }
 
-function midlineXFromDots(dots) {
-  const mid = (dots || []).filter((d) => MIDLINE_IDS.has(d.id))
-  if (!mid.length) return 50
-  return mid.reduce((sum, d) => sum + d.x, 0) / mid.length
+function midlineFromProps(midline, dots) {
+  if (midline?.top && midline?.bot) {
+    return {
+      top: { x: midline.top.x, y: midline.top.y },
+      bot: { x: midline.bot.x, y: midline.bot.y },
+    }
+  }
+  const midDots = (dots || []).filter((d) => MIDLINE_IDS.has(d.id))
+  const mx = midDots.length
+    ? midDots.reduce((sum, d) => sum + d.x, 0) / midDots.length
+    : ((dots || []).reduce((sum, d) => sum + d.x, 0) / Math.max((dots || []).length, 1)) || 50
+  return { top: { x: mx, y: 8 }, bot: { x: mx, y: 92 } }
 }
 
-/** SVG fills the content box; viewBox 0–100 matches MediaPipe image-% from the backend. */
-export function SymmetryOverlay({ dots }) {
+/** SVG fills the content box; viewBox 0–100 matches MediaPipe image-% from the backend.
+ * Circles use aspect-compensated ellipses so they stay round under preserveAspectRatio=none. */
+export function SymmetryOverlay({ dots, midline = null }) {
+  const svgRef = useRef(null)
+  const [boxPx, setBoxPx] = useState({ w: 1, h: 1 })
+
+  useLayoutEffect(() => {
+    const el = svgRef.current
+    if (!el) return undefined
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect()
+      if (width > 0 && height > 0) setBoxPx({ w: width, h: height })
+    }
+    measure()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    ro?.observe(el)
+    return () => ro?.disconnect()
+  }, [])
+
   const visible = (dots || []).filter((d) => SYMMETRY_OVERLAY_IDS.has(d.id))
-  const mx = midlineXFromDots(visible.length ? visible : dots)
+  const { top, bot } = midlineFromProps(midline, dots)
+  const mx = (top.x + bot.x) / 2
+
+  // Desired visual radius ≈ 0.72% of the shorter side → equal pixel rx/ry after stretch
+  const rNorm = 0.72
+  const minSide = Math.min(boxPx.w, boxPx.h)
+  const rPx = (rNorm / 100) * minSide
+  const rx = (rPx / boxPx.w) * 100
+  const ry = (rPx / boxPx.h) * 100
+
+  // Arrowheads: ~equal pixel size on both axes
+  const ahPx = Math.max(6, minSide * 0.016)
+  const awPx = Math.max(5, minSide * 0.0135)
+  const ah = (ahPx / boxPx.h) * 100
+  const aw = (awPx / boxPx.w) * 100
+
+  return (
+    <svg
+      ref={svgRef}
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+    >
+      <line
+        x1={top.x}
+        y1={top.y}
+        x2={bot.x}
+        y2={bot.y}
+        stroke="rgba(255,255,255,0.95)"
+        strokeWidth="0.45"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <polygon
+        points={`${mx},${top.y} ${mx - aw},${top.y + ah} ${mx + aw},${top.y + ah}`}
+        fill="rgba(255,255,255,0.95)"
+      />
+      <polygon
+        points={`${mx},${bot.y} ${mx - aw},${bot.y - ah} ${mx + aw},${bot.y - ah}`}
+        fill="rgba(255,255,255,0.95)"
+      />
+      {visible.map((d) => (
+        <ellipse
+          key={d.id}
+          cx={d.x}
+          cy={d.y}
+          rx={rx}
+          ry={ry}
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth="0.7"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+    </svg>
+  )
+}
+
+/** Notebook-style white octagon + ellipse + dashed V/H crosshairs (image % 0–100). */
+export function FaceShapeOverlay({ overlay }) {
+  if (!overlay?.polygon?.length) return null
+  const poly = overlay.polygon.map((p) => `${p.x},${p.y}`).join(' ')
+  const el = overlay.ellipse
+  const v = overlay.crossV || []
+  const h = overlay.crossH || []
+  const solid = {
+    fill: 'none',
+    stroke: '#ffffff',
+    strokeWidth: 0.55,
+    strokeLinejoin: 'round',
+    vectorEffect: 'non-scaling-stroke',
+  }
+  const dashed = {
+    stroke: '#ffffff',
+    strokeWidth: 0.4,
+    strokeDasharray: '2.2 1.6',
+    strokeLinecap: 'butt',
+    vectorEffect: 'non-scaling-stroke',
+  }
   return (
     <svg
       className="absolute inset-0 w-full h-full pointer-events-none"
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
     >
-      <line
-        x1={mx}
-        y1="3"
-        x2={mx}
-        y2="97"
-        stroke="rgba(255,255,255,0.92)"
-        strokeWidth="0.35"
-        strokeDasharray="1.4 1"
-        vectorEffect="non-scaling-stroke"
-      />
-      <polygon points={`${mx},2 ${mx - 1.4},5.5 ${mx + 1.4},5.5`} fill="rgba(255,255,255,0.92)" />
-      <polygon points={`${mx},98 ${mx - 1.4},94.5 ${mx + 1.4},94.5`} fill="rgba(255,255,255,0.92)" />
-      {visible.map((d) => (
-        <circle key={d.id} cx={d.x} cy={d.y} r="0.22" fill="rgba(255,255,255,0.95)" />
-      ))}
+      <polygon points={poly} {...solid} />
+      {el && <ellipse cx={el.cx} cy={el.cy} rx={el.rx} ry={el.ry} {...solid} />}
+      {v.length >= 2 && (
+        <line x1={v[0].x} y1={v[0].y} x2={v[1].x} y2={v[1].y} {...dashed} />
+      )}
+      {h.length >= 2 && (
+        <line x1={h[0].x} y1={h[0].y} x2={h[1].x} y2={h[1].y} {...dashed} />
+      )}
     </svg>
   )
 }
@@ -198,9 +293,10 @@ export function SymmetryOverlay({ dots }) {
 export function ProportionsOverlay({ lines }) {
   if (!lines) return null
   const lineProps = {
-    stroke: 'rgba(255,255,255,0.88)',
-    strokeWidth: '0.3',
-    strokeDasharray: '2 1.5',
+    stroke: 'rgba(255,255,255,0.92)',
+    strokeWidth: '1.15',
+    strokeDasharray: '1.5 2.2',
+    strokeLinecap: 'round',
     vectorEffect: 'non-scaling-stroke',
   }
   return (
@@ -210,7 +306,7 @@ export function ProportionsOverlay({ lines }) {
       preserveAspectRatio="none"
     >
       {[lines.hair, lines.brow, lines.nose, lines.chin].map((y, i) => (
-        <line key={i} x1="6" y1={y} x2="94" y2={y} {...lineProps} />
+        y != null ? <line key={i} x1="8" y1={y} x2="92" y2={y} {...lineProps} /> : null
       ))}
     </svg>
   )

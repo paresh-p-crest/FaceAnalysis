@@ -1,5 +1,6 @@
 import { FaceImageFrame } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
+import { FeatureProseBlock } from './FeatureProseBlock'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -27,7 +28,17 @@ function MetricCard({ label, value, tooltip }) {
  * @param {string} [props.imageAlt] - Alt text for image
  * @param {Array<{label: string, value: string}>} [props.extraMetrics] - Metrics shown in the overall score card
  */
-export function FeatureReportPanel({ title, featureName, data, sections, imageSrc, profileImages, imageAlt, extraMetrics }) {
+export function FeatureReportPanel({
+  title,
+  featureName,
+  data,
+  sections,
+  imageSrc,
+  profileImages,
+  imageAlt,
+  extraMetrics,
+  narrative = null,
+}) {
   if (!data) return null
 
   const accent = featureName || title.replace(/ Analysis$/i, '').toLowerCase()
@@ -107,7 +118,7 @@ export function FeatureReportPanel({ title, featureName, data, sections, imageSr
         )}
       </div>
 
-      {/* Sub-sections */}
+      {/* Sub-sections — metrics only (no duplicate prose) */}
       {sections?.map((section, idx) => (
         <div key={idx} className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
           <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">{section.title}</p>
@@ -116,17 +127,10 @@ export function FeatureReportPanel({ title, featureName, data, sections, imageSr
               <MetricCard key={i} label={m.label} value={m.value} tooltip={m.tooltip} />
             ))}
           </div>
-          {section.description && (
-            <p className="text-xs text-ink-secondary leading-relaxed mt-3">{section.description}</p>
-          )}
         </div>
       ))}
 
-      {/* Full Explanation */}
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-2">Full Analysis Summary</p>
-        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{data.explanation}</p>
-      </div>
+      <FeatureProseBlock narrative={narrative} fallbackExplanation={data.explanation} />
     </div>
   )
 }

@@ -1,34 +1,55 @@
-import { useEffect, useState } from 'react'
-import { SCAN_MESSAGES, SCAN_STAGES } from '../utils/constants'
+import { useEffect, useRef, useState } from 'react'
+import { SCAN_MESSAGES, SCAN_NL_STAGE_INDEX, SCAN_STAGES } from '../utils/constants'
 import { runFaceAnalysis } from '../utils/analyzeFace'
 import { Check } from 'lucide-react'
+
+/** Faster cadence for CV-ish stages; slower once NL enrichment begins. */
+const CV_STAGE_MS = 1400
+const NL_STAGE_MS = 10000
 
 export default function Scanning({ photo, photos, answers, scanId, onComplete }) {
   const [msgIndex, setMsgIndex] = useState(0)
   const [stageIndex, setStageIndex] = useState(0)
   const [completedStages, setCompletedStages] = useState([])
+  const stageIndexRef = useRef(0)
+
+  useEffect(() => {
+    stageIndexRef.current = stageIndex
+  }, [stageIndex])
 
   useEffect(() => {
     let active = true
-    let stageInterval = null
+    let stageTimer = null
+
+    const scheduleNextStage = () => {
+      const i = stageIndexRef.current
+      // Hold on the last stage until the request finishes — do not auto-complete it.
+      if (i >= SCAN_STAGES.length - 1) return
+      const delay = i >= SCAN_NL_STAGE_INDEX - 1 ? NL_STAGE_MS : CV_STAGE_MS
+      stageTimer = setTimeout(() => {
+        if (!active) return
+        setStageIndex((prev) => {
+          if (prev >= SCAN_STAGES.length - 1) return prev
+          setCompletedStages((done) => (done.includes(prev) ? done : [...done, prev]))
+          const next = prev + 1
+          stageIndexRef.current = next
+          scheduleNextStage()
+          return next
+        })
+      }, delay)
+    }
 
     const run = async () => {
-      stageInterval = setInterval(() => {
-        setStageIndex((i) => {
-          if (i < SCAN_STAGES.length - 1) {
-            setCompletedStages((prev) => [...prev, i])
-            return i + 1
-          }
-          return i
-        })
-      }, 800)
+      scheduleNextStage()
 
       try {
         const result = await runFaceAnalysis(photo, answers, photos, scanId)
         if (!active) return
 
-        clearInterval(stageInterval)
-        stageInterval = null
+        if (stageTimer) {
+          clearTimeout(stageTimer)
+          stageTimer = null
+        }
 
         setCompletedStages(SCAN_STAGES.map((_, i) => i))
         setStageIndex(SCAN_STAGES.length - 1)
@@ -37,7 +58,7 @@ export default function Scanning({ photo, photos, answers, scanId, onComplete })
         if (active) onComplete(result)
       } catch (err) {
         if (!active) return
-        clearInterval(stageInterval)
+        if (stageTimer) clearTimeout(stageTimer)
         onComplete({
           success: false,
           error: err?.message || 'Analysis failed. Please try again.',
@@ -54,10 +75,12 @@ export default function Scanning({ photo, photos, answers, scanId, onComplete })
 
     return () => {
       active = false
-      if (stageInterval) clearInterval(stageInterval)
+      if (stageTimer) clearTimeout(stageTimer)
       clearInterval(msgTimer)
     }
   }, [photo, photos, answers, scanId, onComplete])
+
+  const inNlBand = stageIndex >= SCAN_NL_STAGE_INDEX
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 animate-fade-up bg-surface">
@@ -83,6 +106,11 @@ export default function Scanning({ photo, photos, answers, scanId, onComplete })
           <p className="text-ink font-display text-lg font-semibold mb-2 min-h-[28px] transition-all">
             {SCAN_MESSAGES[msgIndex]}
           </p>
+          {inNlBand ? (
+            <p className="text-ink-muted text-xs mb-2 px-2">
+              Personalized copy can take a few minutes…
+            </p>
+          ) : null}
 
           <div className="space-y-2 mt-6">
             {SCAN_STAGES.map((stage, i) => (
@@ -96,13 +124,15 @@ export default function Scanning({ photo, photos, answers, scanId, onComplete })
                       : 'text-ink-faint'
                 }`}
               >
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                  completedStages.includes(i)
-                    ? 'bg-brand text-white'
-                    : i === stageIndex
-                      ? 'bg-brand/20 text-brand animate-pulse'
-                      : 'bg-surface-border text-ink-faint'
-                }`}>
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    completedStages.includes(i)
+                      ? 'bg-brand text-white'
+                      : i === stageIndex
+                        ? 'bg-brand/20 text-brand animate-pulse'
+                        : 'bg-surface-border text-ink-faint'
+                  }`}
+                >
                   {completedStages.includes(i) ? <Check className="w-3 h-3" /> : i + 1}
                 </div>
                 {stage}

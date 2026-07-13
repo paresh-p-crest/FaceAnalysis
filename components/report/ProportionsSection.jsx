@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { FaceImageFrame, ProportionFeatureOverlay } from './FaceImageFrame'
+import { FaceImageFrame, ProportionFeatureOverlay, ProportionsOverlay } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
+import { AssessmentGridLayout } from './FeatureAnalysisPage'
 import { proportionRatioOverlays, mouthCheilions, noseAlae } from '../../utils/faceCrop'
 
 const RATIO_PARTS = {
@@ -18,6 +19,60 @@ const RATIO_TABS = [
 ]
 
 const BAR_HEIGHT = 148
+
+function parseThird(value, fallback = 0.33) {
+  const n = typeof value === 'number' ? value : parseFloat(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function proportionalityBadge(score) {
+  if (score >= 80) return { label: 'High', className: 'bg-emerald-500/90 text-white' }
+  if (score >= 70) return { label: 'Good', className: 'bg-brand/80 text-white' }
+  return { label: 'Fair', className: 'bg-ink-muted text-white' }
+}
+
+/** Qoves-style horizontal facial thirds stack: Lower [C] → Middle [B] → Upper [A]. */
+function FacialThirdsBar({ upper, middle, lower }) {
+  const u = parseThird(upper, 0.33)
+  const m = parseThird(middle, 0.34)
+  const l = parseThird(lower, 0.33)
+  const total = Math.max(u + m + l, 1e-6)
+  const segments = [
+    { key: 'c', label: 'Lower Third [C]', value: l, pct: (l / total) * 100, color: 'bg-[#4a5d73]' },
+    { key: 'b', label: 'Middle Third [B]', value: m, pct: (m / total) * 100, color: 'bg-[#8a9aab]' },
+    { key: 'a', label: 'Upper Third [A]', value: u, pct: (u / total) * 100, color: 'bg-[#c5ced8]' },
+  ]
+
+  return (
+    <div className="qoves-report-metric-card">
+      <p className="qoves-report-mono-label mb-4">Facial Thirds</p>
+      <div className="grid grid-cols-3 gap-1 mb-2">
+        {segments.map((s) => (
+          <p key={s.key} className="text-[9px] uppercase tracking-wider text-ink-muted text-center leading-tight">
+            {s.label}
+          </p>
+        ))}
+      </div>
+      <div className="flex h-3.5 w-full overflow-hidden rounded-sm">
+        {segments.map((s) => (
+          <div
+            key={s.key}
+            className={`${s.color} h-full`}
+            style={{ width: `${Math.max(s.pct, 2)}%` }}
+            title={`${s.label}: ${s.value.toFixed(2)}`}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-1 mt-2">
+        {segments.map((s) => (
+          <p key={s.key} className="text-sm font-medium text-ink text-center tabular-nums">
+            {s.value.toFixed(2)}
+          </p>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 /** Ratio bar: bottom = first feature (value), top = second feature (1.00). E.g. 1:1 → 50/50 split */
 function RatioStackBar({ value }) {
@@ -135,8 +190,65 @@ export function ProportionsSection({ proportions, landmarks = null }) {
   const displayYourLabel =
     activeTab === 'nasoOral' && liveNasoOral ? liveNasoOral.yourLabel : active?.yourLabel
 
+  const score = proportions.score
+  const badge = score != null ? proportionalityBadge(score) : null
+
   return (
     <div className="pr-2 space-y-6">
+      <ReportSectionHeading
+        title="An overview of your"
+        accent="proportions"
+        subtitle={
+          <>
+            Facial proportions refer to the size of each feature in relation to the rest of the face, which plays a key
+            role in how <span className="font-semibold text-ink">harmonious</span> the face looks.
+          </>
+        }
+      />
+
+      {(proportions.imageSrc || score != null || proportions.explanation) && (
+        <AssessmentGridLayout
+          photo={proportions.imageSrc}
+          photoFit="contain"
+          photoOverlay={
+            proportions.proportionLines ? (
+              <ProportionsOverlay lines={proportions.proportionLines} />
+            ) : null
+          }
+          rightCards={
+            <>
+              {score != null && (
+                <div className="qoves-report-metric-card text-center py-6">
+                  <p className="qoves-report-mono-label mb-4">Proportionality</p>
+                  <p className="text-5xl font-display font-bold text-ink tabular-nums leading-none">{score}</p>
+                  <div className="flex justify-between items-center border-t border-surface-border pt-3 mt-5">
+                    {badge ? (
+                      <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    <span className="text-sm text-ink-muted">/100</span>
+                  </div>
+                </div>
+              )}
+              <FacialThirdsBar
+                upper={proportions.upperThird}
+                middle={proportions.middleThird}
+                lower={proportions.lowerThird}
+              />
+              {proportions.explanation && (
+                <div className="qoves-report-metric-card">
+                  <p className="qoves-report-mono-label mb-2">Explanation</p>
+                  <p className="text-sm text-ink-secondary leading-relaxed font-sans">{proportions.explanation}</p>
+                </div>
+              )}
+            </>
+          }
+        />
+      )}
+
       <ReportSectionHeading
         title="Your proportions per"
         accent="feature"

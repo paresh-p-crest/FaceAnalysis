@@ -383,3 +383,43 @@ Narrative enrichment hits Groq TPM/RPM limits under parallel feature calls. Open
 - Operators can switch text LLMs via env without code changes.
 - Free OpenRouter models are still rate-limited (~20 RPM / 50–1000 RPD); they do not remove quota pressure for one-shot multi-feature enrichment.
 - Failed free-tier requests still consume daily quota — retries must stay conservative.
+
+---
+
+## ADR-021: Slim Feature Narrative Schema + No Scores in Report Prose
+Date: 2026-07-13  
+Status: accepted  
+
+### Context
+Feature LLM JSON required `measuredFacts`, `limitations`, `description`, `recommendations`, and `evidenceTier`. Free/OpenRouter models often fail that shape even when HTTP 200 succeeds, so PDFs fell back to templates. Protocol PDF/UI only render feature `summary` and subsection bodies. Separately, numeric scores in narrative prose are redundant with CV UI and cause invented/`X/100` leakage.
+
+### Decision
+- LLM feature schema asks only for `featureId`, `summary`, and `subsections[{title, body}]`.
+- Server hydrates `measuredFacts`, `limitations`, default `evidenceTier`, and empty `description`/`recommendations` after the LLM response.
+- Hard constraint for executive narrative, feature narratives, and protocol overview/closing: no numeric scores in report prose (`X/100`, `score N`, etc.). Prompts use qualitative CV summaries; `strip_score_language` runs before persist.
+- CV numeric scores remain available to the product UI and Beauty Assistant; they must not appear in PDF/protocol narrative copy.
+
+### Consequences
+- Higher accept rate on weak free models; PDF copy stays qualitative.
+- Stored feature blobs may still include CV `measuredFacts` (including score strings) for tooling — those arrays are not rendered as PDF prose.
+- Older assessments with score-heavy narrative text are unchanged until re-enriched.
+
+---
+
+## ADR-022: Interactive Panel Text Sources (Dedupe + Split)
+Date: 2026-07-13  
+Status: accepted  
+
+### Context
+Interactive Features Analysis panels repeated the same CV `explanation` in multiple UI slots. Protocol LLM `featureNarratives` already existed for the PDF/protocol document but were unused in interactive panels. Facial Assessments (dimorphism, prototypicality, proportions, symmetry, face shape) are metric-driven and should not depend on LLM availability.
+
+### Decision
+- Exactly **one** prose block per interactive feature panel (`FeatureProseBlock`).
+- Features Analysis prose prefers `featureNarratives` (eyebrows ← eyes subsection `"Eyebrows"`); else single CV explanation; else “Narrative pending”.
+- Facial Assessments keep **metric-driven second-person templates** in CV generators — no LLM.
+- **Smile** is included in `FEATURE_NARRATIVE_IDS` (LLM `featureNarratives.smile`) for interactive Features Analysis and assistant tools; it is **not** a protocol PDF page (`PROTOCOL_FEATURE_IDS` / 16-page map unchanged).
+
+### Consequences
+- Interactive report and protocol PDF can share the same feature narrative store without tripling CV copy in the UI.
+- Assessment sections remain available even when NL enrichment is incomplete.
+- Re-enrichment (or first enrichment after this change) generates an 11th narrative key `smile` without expanding the PDF page count.

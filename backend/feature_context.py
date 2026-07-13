@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Optional
 
 from .answer_summary import format_answers_summary
 from .recommendation_rules import magnitude_label
-from .config import PROTOCOL_FEATURE_IDS
+from .config import FEATURE_NARRATIVE_IDS
 
 GLOBAL_LIMITATIONS = [
     "2D photograph analysis only; not a medical diagnosis or radiographic assessment.",
@@ -100,6 +101,7 @@ def _feature_cv_slice(feature_id: str, cv_report: dict, eye_analysis: Optional[d
         "skin": "skin",
         "neck": "neck",
         "ears": "ears",
+        "smile": "smile",
     }
     key = key_map.get(feature_id)
     if not key:
@@ -122,6 +124,9 @@ def _not_measured(feature_id: str, cv_slice: dict, eye_analysis: Optional[dict])
             items.append("Hair density and color require a top-of-head photo for direct measurement.")
     if feature_id == "skin":
         items.append("Dermoscopic or clinical skin exam findings are not available from photos alone.")
+    if feature_id == "smile":
+        if cv_slice.get("teethVisibility") in (None, "", "N/A"):
+            items.append("Teeth visibility, smile arc, and gum exposure need a dedicated smile photo.")
     return items
 
 
@@ -131,6 +136,8 @@ def _limitations(feature_id: str, cv_slice: dict, not_measured: list[str]) -> li
         limits.extend(not_measured)
     if feature_id == "hair" and cv_slice.get("dataSource") == "estimated":
         limits.append("Hair metrics are estimated from facial proportions when top-of-head photo is missing.")
+    if feature_id == "smile" and cv_slice.get("teethVisibility") in (None, "", "N/A"):
+        limits.append("Smile dentofacial cues are limited without a clear smile photo showing teeth.")
     return limits
 
 
@@ -209,6 +216,15 @@ def build_measured_facts(feature_id: str, cv_slice: dict, eye_analysis: Optional
         "lengthBasis",
         "neckWidthClass",
         "neckLengthClass",
+        "mouthWidthClass",
+        "smileWidthClass",
+        "curvature",
+        "lipBalance",
+        "nasolabialFold",
+        "teethVisibility",
+        "teethWhiteness",
+        "smileArc",
+        "gumExposure",
     )
     for key in scalar_keys:
         val = cv_slice.get(key)
@@ -283,6 +299,7 @@ def _build_deviation_facts(feature_id: str, cv_report: dict) -> list[str]:
     cv_key = {
         "nose": "nose", "jaw": "jaw", "chin": "chin", "skin": "skin",
         "hair": "hair", "lips": "lips", "cheeks": "cheeks", "neck": "neck", "ears": "ears",
+        "smile": "smile",
     }.get(feature_id)
     if cv_key:
         section = (cv_report or {}).get(cv_key) or {}
@@ -300,7 +317,7 @@ def build_feature_context(
     eye_analysis: Optional[dict] = None,
     answers: Optional[dict] = None,
 ) -> dict:
-    if feature_id not in PROTOCOL_FEATURE_IDS:
+    if feature_id not in FEATURE_NARRATIVE_IDS:
         raise ValueError(f"Unknown feature_id: {feature_id}")
 
     cv_slice = _feature_cv_slice(feature_id, cv_report or {}, eye_analysis)
@@ -326,10 +343,27 @@ def build_feature_context(
 
 
 def feature_context_as_prompt_text(ctx: dict) -> str:
-    """Compact text block for LLM user messages."""
+    """Compact text block for LLM user messages (qualitative cues — no numeric scores)."""
+    facts = []
+    for fact in ctx.get("measuredFacts") or []:
+        text = str(fact)
+        if re.search(r"\b\d{1,3}\s*/\s*100\b|\bscore\s+\d", text, re.I):
+            m = re.search(r"\(([^)]+)\)", text)
+            if m:
+                facts.append(m.group(1).strip())
+            continue
+        facts.append(text)
+
+    metrics = ctx.get("cvMetrics") or {}
+    qualitative_metrics = {
+        k: v
+        for k, v in metrics.items()
+        if k not in ("score",) and not (isinstance(k, str) and k.endswith("Score"))
+    }
+
     lines = [
         f"Feature: {ctx['featureId']}",
-        f"Measured facts (use only these): {json.dumps(ctx['measuredFacts'])}",
+        f"Measured cues (qualitative — do not invent or cite numeric scores): {json.dumps(facts)}",
         f"Limitations: {json.dumps(ctx['limitations'])}",
     ]
     contra = ctx.get("contraindications") or {}
@@ -339,13 +373,22 @@ def feature_context_as_prompt_text(ctx: dict) -> str:
         lines.append(f"Skin type: {contra['skinType']}")
     if contra.get("goals"):
         lines.append(f"Goals: {contra['goals']}")
+    if metrics.get("scoreLabel"):
+        lines.append(f"Qualitative label: {metrics.get('scoreLabel')}")
     dev_facts = ctx.get("deviationFacts")
     if dev_facts:
-        lines.append(f"Deviation facts (use magnitude language from these only): {json.dumps(dev_facts)}")
+        # Drop lines that embed feature score numbers
+        cleaned_dev = [
+            d for d in dev_facts
+            if not re.search(r"\b\d{1,3}\s*/\s*100\b|\bscore\s+\d", str(d), re.I)
+        ]
+        if cleaned_dev:
+            lines.append(
+                f"Deviation facts (magnitude language only): {json.dumps(cleaned_dev)}"
+            )
     sub_facts = ctx.get("subsectionFacts")
     if sub_facts:
         lines.append(f"Subsection facts (use per subsection): {json.dumps(sub_facts)}")
-    metrics = ctx.get("cvMetrics")
-    if metrics:
-        lines.append(f"CV metrics JSON: {json.dumps(metrics, default=str)[:2500]}")
+    if qualitative_metrics:
+        lines.append(f"CV cues JSON: {json.dumps(qualitative_metrics, default=str)[:2500]}")
     return "\n".join(lines)

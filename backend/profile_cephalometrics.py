@@ -219,15 +219,19 @@ def _naso_aural_label(ratio: float) -> str:
 def _naso_aural_explanation(ratio: float) -> str:
     if ratio > 1.05:
         return (
-            "Your slightly taller ears compared with nose height create a firm vertical frame from the side "
-            "which prevents the nose and chin from overpowering the profile."
+            "Your taller ears compared with nasal height create a large vertical frame beside the midface "
+            "which makes the side view feel more vertically extended and gives the central facial column "
+            "a stronger supporting outline."
         )
     if ratio < 0.95:
         return (
-            "Your ears are shorter relative to nose height on profile, which can make the midface appear more "
-            "prominent from the side. This is common and well within natural variation."
+            "Your shorter ears relative to nasal height keep the lateral frame more compact, "
+            "so the midface column carries more of the vertical emphasis from the side."
         )
-    return "Your ear-to-nose height ratio is close to the population average, creating a balanced lateral profile."
+    return (
+        "Your ear height aligns closely with nasal height, creating a balanced vertical frame "
+        "beside the midface."
+    )
 
 
 def _nasolabial_angle(pts: dict) -> float:

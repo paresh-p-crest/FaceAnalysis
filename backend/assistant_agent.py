@@ -6,7 +6,7 @@ import json
 from typing import Any, Optional
 
 from .assistant_tools import OPENAI_TOOL_DEFINITIONS, AssessmentTools
-from .config import ASSISTANT_RECENT_TURNS, ASSISTANT_SUMMARY_REFRESH_EVERY
+from .config import ASSISTANT_RECENT_TURNS, ASSISTANT_SUMMARY_REFRESH_EVERY, LLM_MAX_OUTPUT_TOKENS
 from .llm_client import chat_text_completion
 from .report_sections import protocol_bundle_summary
 from .text_ai_service import (
@@ -78,7 +78,7 @@ def _run_tool_loop(
         result = chat_text_completion(
             messages=working,
             temperature=0.25,
-            max_tokens=1000,
+            max_tokens=LLM_MAX_OUTPUT_TOKENS,
             tools=OPENAI_TOOL_DEFINITIONS,
             api_key_override=api_key,
             label="beauty_assistant/tools",
@@ -128,7 +128,7 @@ def _run_tool_loop(
     final = chat_text_completion(
         messages=working,
         temperature=0.25,
-        max_tokens=1000,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
         api_key_override=api_key,
         label="beauty_assistant/final",
     )

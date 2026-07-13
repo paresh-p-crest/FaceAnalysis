@@ -1,9 +1,16 @@
 """Port of constants.js — all constants, thresholds, model names."""
 
+import os
+
 OPENAI_REPORT_MODEL = "gpt-4o-mini"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 # OpenRouter model id (use `:free` for $0 token models — still rate-limited)
 OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+
+# Unified max completion tokens for every backend LLM call (narratives, protocol, assistant).
+# Keeps budgets consistent and avoids truncated JSON from smaller per-call caps.
+# Override with LLM_MAX_OUTPUT_TOKENS in .env if needed.
+LLM_MAX_OUTPUT_TOKENS = int(os.environ.get("LLM_MAX_OUTPUT_TOKENS", "4000") or "4000")
 
 # Beauty Assistant — cost controls
 ASSISTANT_HOURLY_MESSAGE_LIMIT = 20
@@ -23,6 +30,9 @@ PROTOCOL_FEATURE_IDS = (
     "ears",
 )
 
+# Features that receive structured LLM narratives (protocol PDF pages + interactive smile).
+FEATURE_NARRATIVE_IDS = PROTOCOL_FEATURE_IDS + ("smile",)
+
 # Dynamic OpenAI Vision pose mapping for feature narratives (only when LLM_PROVIDER=openai).
 # Hair is the exception: front + top-of-head. Other features use the views that match the report.
 FEATURE_VISION_POSES: dict[str, tuple[str, ...]] = {
@@ -36,6 +46,7 @@ FEATURE_VISION_POSES: dict[str, tuple[str, ...]] = {
     "skin": ("front",),
     "neck": ("front",),
     "ears": ("front", "leftProfile", "rightProfile"),
+    "smile": ("smile", "front"),
 }
 
 STAGES = {
@@ -65,7 +76,8 @@ SCAN_STAGES = [
     "Extracting landmarks",
     "Analyzing facial geometry",
     "Skin analysis",
-    "Generating recommendations",
+    "Writing feature recommendations",
+    "Building protocol narrative",
     "Preparing report",
 ]
 
@@ -75,8 +87,9 @@ SCAN_MESSAGES = [
     "Calculating symmetry indices…",
     "Assessing jawline & chin geometry…",
     "Evaluating periorbital structure…",
-    "Cross-referencing demographic norms…",
-    "Generating personalized protocol…",
+    "Writing feature recommendations…",
+    "Building the subject's protocol narrative…",
+    "Finalizing the personalized report…",
 ]
 
 INITIAL_ANSWERS = {

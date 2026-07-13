@@ -72,6 +72,7 @@ function StatusBadge({ status }) {
 
 export default function Report({ photo, photos, answers, analysis, historyId, onRestart, onRetryLocal, user, onClose }) {
   const [protocolNarrative, setProtocolNarrative] = useState(null)
+  const [featureNarratives, setFeatureNarratives] = useState(null)
   const [protocolLoading, setProtocolLoading] = useState(false)
   const [protocolError, setProtocolError] = useState('')
   const [aiNarrative, setAiNarrative] = useState(null)
@@ -155,6 +156,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     setStatusOverride(updated?.status || '')
     if (updated?.aiNarrative) setAiNarrative(updated.aiNarrative)
     if (updated?.protocolNarrative) setProtocolNarrative(updated.protocolNarrative)
+    if (updated?.featureNarratives) setFeatureNarratives(updated.featureNarratives)
   }, [])
 
   const handleDownloadPdf = useCallback(async () => {
@@ -171,6 +173,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
           metrics,
           landmarks,
           protocolNarrative,
+          featureNarratives,
           answers: displayAnswers,
           eyeAnalysis,
           aiNarrative,
@@ -185,7 +188,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     } finally {
       setPdfLoading(false)
     }
-  }, [displayPhoto, photos, cvReport, metrics, landmarks, protocolNarrative, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis, user])
+  }, [displayPhoto, photos, cvReport, metrics, landmarks, protocolNarrative, featureNarratives, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis, user])
 
   const persistHistory = useCallback(
     (content, source, error) => {
@@ -234,6 +237,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         aiNarrative,
         aiVisuals,
         protocolNarrative,
+        featureNarratives,
         label: showQovesReport
           ? `MyFace report · ${cvReport?.overall?.score ?? cvReport?.symmetry?.score ?? '—'} overall`
           : `Analysis · ${metrics?.harmonyScore ?? '—'}/100 harmony`,
@@ -241,7 +245,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         console.warn('[MyFace] Could not persist analysis history:', err)
       })
     },
-    [sessionId, displayPhoto, photos, displayAnswers, displayAnalysis, cvLabel, metrics, eyeAnalysis, cvReport, showQovesReport, reportStatus, assessmentId, aiNarrative, aiVisuals, protocolNarrative]
+    [sessionId, displayPhoto, photos, displayAnswers, displayAnalysis, cvLabel, metrics, eyeAnalysis, cvReport, showQovesReport, reportStatus, assessmentId, aiNarrative, aiVisuals, protocolNarrative, featureNarratives]
   )
 
   useEffect(() => {
@@ -255,13 +259,14 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     setAiVisuals(historyEntry?.aiVisuals || displayAnalysis?.aiVisuals || null)
     setAiVisualsError('')
     setProtocolNarrative(historyEntry?.protocolNarrative || displayAnalysis?.protocolNarrative || null)
+    setFeatureNarratives(historyEntry?.featureNarratives || displayAnalysis?.featureNarratives || null)
     setProtocolError('')
   }, [historyEntry, displayAnalysis])
 
   // Load stored NL content only — never regenerate on report open.
   useEffect(() => {
     if (!showQovesReport || !assessmentId || !isBackendApiEnabled()) return
-    if (aiNarrative && protocolNarrative) {
+    if (aiNarrative && protocolNarrative && featureNarratives) {
       nlHydratedForId.current = assessmentId
       return
     }
@@ -270,7 +275,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     let cancelled = false
     ;(async () => {
       const needsNarrative = !aiNarrative
-      const needsProtocol = !protocolNarrative
+      const needsProtocol = !protocolNarrative || !featureNarratives
       if (needsNarrative) setAiNarrativeLoading(true)
       if (needsProtocol) setProtocolLoading(true)
       setAiNarrativeError('')
@@ -279,15 +284,20 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         const full = await fetchAssessment(assessmentId)
         if (cancelled) return
         if (needsNarrative) setAiNarrative(full?.aiNarrative || null)
-        let loadedProtocol = full?.protocolNarrative || null
-        if (needsProtocol && loadedProtocol) {
-          setProtocolNarrative(loadedProtocol)
+        if (!protocolNarrative && full?.protocolNarrative) {
+          setProtocolNarrative(full.protocolNarrative)
         }
-        if (needsProtocol && !loadedProtocol) {
+        if (!featureNarratives && full?.featureNarratives) {
+          setFeatureNarratives(full.featureNarratives)
+        }
+        const stillNeedsProtocol = !protocolNarrative && !full?.protocolNarrative
+        const stillNeedsFeatures = !featureNarratives && !full?.featureNarratives
+        if (stillNeedsProtocol || stillNeedsFeatures) {
           try {
             const bundle = await fetchAssessmentProtocol(assessmentId)
             if (!cancelled) {
-              setProtocolNarrative(bundle?.protocolNarrative || null)
+              if (stillNeedsProtocol) setProtocolNarrative(bundle?.protocolNarrative || null)
+              if (stillNeedsFeatures) setFeatureNarratives(bundle?.featureNarratives || null)
             }
           } catch (err) {
             if (!cancelled && err.status !== 404) {
@@ -308,7 +318,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
       }
     })()
     return () => { cancelled = true }
-  }, [showQovesReport, assessmentId, aiNarrative, protocolNarrative])
+  }, [showQovesReport, assessmentId, aiNarrative, protocolNarrative, featureNarratives])
 
   const handleGenerateVisuals = useCallback(async () => {
     if (!assessmentId || !isBackendApiEnabled() || aiVisualsLoading) return
@@ -483,6 +493,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
                   cvReport={cvReport}
                   eyeAnalysis={eyeAnalysis}
                   protocolNarrative={protocolNarrative}
+                  featureNarratives={featureNarratives}
                   protocolLoading={protocolLoading}
                   aiNarrative={aiNarrative}
                   photo={displayPhoto}

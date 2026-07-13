@@ -12,7 +12,7 @@ import logging
 import os
 from typing import Any, Optional
 
-from .config import FEATURE_VISION_POSES, PROTOCOL_FEATURE_IDS
+from .config import FEATURE_VISION_POSES, FEATURE_NARRATIVE_IDS, PROTOCOL_FEATURE_IDS
 from .llm_client import resolve_llm_provider
 from .photo_storage import get_photo_storage
 
@@ -47,7 +47,7 @@ def poses_for_feature(feature_id: str) -> list[str]:
     mapped = FEATURE_VISION_POSES.get(feature_id)
     if mapped:
         return list(mapped)
-    if feature_id in PROTOCOL_FEATURE_IDS:
+    if feature_id in FEATURE_NARRATIVE_IDS or feature_id in PROTOCOL_FEATURE_IDS:
         return ["front"]
     return []
 

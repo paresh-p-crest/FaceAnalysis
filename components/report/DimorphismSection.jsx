@@ -94,7 +94,7 @@ export function DimorphismSection({ dimorphism, photo }) {
     <div className="pr-2 space-y-6">
       <div>
         <h3 className="font-display text-2xl font-bold text-ink">
-          An overview of your <span className="text-ink-muted">facial dimorphism</span>
+          An overview of your <span className="text-ink-muted">facial masculinity</span>
         </h3>
         <p className="text-sm text-ink-muted font-sans mt-2">
           We&apos;re exploring how each of your facial features leans more masculine or feminine.

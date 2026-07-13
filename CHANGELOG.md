@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Fixed
+- **Domain models doc ↔ Mongo alignment** — documented `users.firstName`/`lastName`, `app_settings.createdAt`, `reviewLog` element shape, partial `user_scan_unique` index, cascade deletes, and `ai_access` owning `assistant_rate_limits`; startup now creates the unique `(userId, hourBucket)` index on that collection.
+### Added
+- **Symmetry regional balance UI** — interactive Symmetry panel shows Eyes/Brows/Mouth/Jaw L–R balance bars from scoring pairs (`cvReport.symmetry.regions`).
+- **Smile LLM narrative** — `FEATURE_NARRATIVE_IDS` includes `smile` (subsections Smile Shape / Teeth & Gingiva); generated into `featureNarratives.smile` and shown on the interactive Smile panel. Protocol PDF page map stays 10 features (ADR-022).
+### Changed
+- **Face Shape layout** — Shape + Midface/Forehead/Lower-third/Facial-length + Explanation sit in the right column beside the photo; Length/Midface and W/H Ratio wrap below.
+- **Prototypicality mesh topology** — thick closed polygonal brows; nose is bridge-to-tip then tip↔alae triangle; face outline is temple→chin→temple U (near outer-eye height via 162/389), no forehead oval.
+- **Prototypicality shape mesh stroke** — sage `#6B9080`, thinner (~0.75) round-cap lines on a white panel with a faint grid.
+- **Proportions overview UI (Qoves layout)** — left face photo with hair/brow/nose/chin dotted guides; right stack of Proportionality score card (High/Good/Fair badge), Facial Thirds C→B→A bar, and Explanation. Backend `proportionLines` now crop-relative to match `imageSrc`.
+- **Prototypicality shape mesh** — Shape Analysis panel draws a single front x/y MediaPipe feature mesh (lips/eyes/brows/oval/nose) in brand stroke; no photo, no side profile, no You vs Average overlay.
+- **Symmetry overlay (notebook set)** — 18 bilateral hollow rings (brow/eye/alae/mouth/cheek/jaw/chin pairs) plus double-arrow midline from landmarks 10→152; removed midline nose-chain and lid/peak dots from the overlay. Rings match notebook style: thin pure-white hollow circles (stroke ~1.1px), no fill/outline halo; aspect-compensated ellipses so markers stay round under stretched SVG mapping.
+- **Symmetry score curve (liberal)** — mapping softened to `92 − avgDev×7.5` (clamp 55–97); label bands unchanged (85/74/64).
+- **Face Shape assessment (notebook port)** — `face_shape_from_landmarks` uses the 8-point polygon (10/103/234/132/152/361/454/332) with forehead expansion and Oval/Square/Heart/Round/Oblong classification; UI shows notebook metrics plus W/H ratio (jaw%/cheek% removed as static); white octagon+ellipse+dashed crosshairs via `FaceShapeOverlay` on the front photo (also baked into `faceShape.imageSrc`).
+- **Face Shape metrics** — dropped static `jawWidth` / `cheekWidth` % cards from interactive Face Shape (and from `faceShape` payload).
+- **Interactive feature panels — one prose block** — brows/skin/cheeks/eyes/`FeatureReportPanel`/nose/lips no longer repeat the same CV `explanation` in details + section fallbacks + Full Analysis Summary; single `FeatureProseBlock` per panel.
+- **Interactive Features Analysis ← `featureNarratives`** — protocol LLM `summary`/`subsections` wired into that slot (eyebrows from eyes “Eyebrows” subsection); CV explanation or “Narrative pending” when missing.
+- **Facial Assessments copy (no LLM)** — dimorphism / prototypicality / proportions / symmetry / face shape use second-person Qoves-style metric templates; proportions UI shows facial-thirds overview + per-ratio explanations (ADR-022).
+- **Scanning progress UI** — stages mirror one-shot NL enrichment (`Writing feature recommendations` / `Building protocol narrative`); CV stages advance ~1.4s, NL stages ~10s; final stage completes only when `POST /api/assessments` returns; helper copy notes the wait can take a few minutes.
+- **Unified LLM max output tokens** — all backend completions use `LLM_MAX_OUTPUT_TOKENS` (default **4000**, overridable via env) instead of mixed per-call caps; reduces truncated-JSON fallbacks that burned free-tier retries.
+- **Slim feature LLM schema + hard no-scores in report prose (ADR-021)** — feature narratives ask the model only for `summary` + subsection `{title,body}`; `measuredFacts`/`limitations`/etc. are hydrated server-side. Executive, protocol overview/closing, and feature prompts forbid numeric scores (`X/100`); scores are stripped before persist.
 ### Added
 - **Feature narrative shape normalize + enrichment scoreboard** — coerce common free-model JSON mistakes (`feature`→`featureId`, string→list fields, title-keyed subsections, body length clip) before schema validate; log `LLM accepted` / `TEMPLATE` per feature and a end-of-run `llm/total` scoreboard.
 - **OpenRouter LLM provider** — set `LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY` (+ optional `OPENROUTER_MODEL`, default `meta-llama/llama-3.3-70b-instruct:free`). OpenAI-compatible client via `https://openrouter.ai/api/v1` (ADR-020). Free `:free` models remain rate-limited.

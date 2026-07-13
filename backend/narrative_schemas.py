@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .config import PROTOCOL_FEATURE_IDS
+from .config import FEATURE_NARRATIVE_IDS, PROTOCOL_FEATURE_IDS
 
 EvidenceTier = Literal["lifestyle", "otc", "refer_clinician"]
 
@@ -21,13 +21,15 @@ FEATURE_SUBSECTION_TITLES: dict[str, list[str]] = {
     "skin": ["Skincare Protocol", "Further Skin Enhancement"],
     "neck": ["Neck Size", "Neck Skin"],
     "ears": ["Ear Structure"],
+    "smile": ["Smile Shape", "Teeth & Gingiva"],
 }
 
 
 class FeatureSubsection(BaseModel):
     title: str
     body: str = Field(..., min_length=80, max_length=700)
-    evidenceTier: EvidenceTier
+    # Assigned server-side when omitted by the LLM (slim schema).
+    evidenceTier: EvidenceTier = "otc"
 
     @field_validator("body")
     @classmethod
@@ -36,19 +38,21 @@ class FeatureSubsection(BaseModel):
 
 
 class FeatureNarrative(BaseModel):
+    """Stored feature page. LLM is only asked for summary + subsections; other fields are hydrated server-side."""
+
     featureId: str
-    measuredFacts: list[str] = Field(..., min_length=1, max_length=20)
-    limitations: list[str] = Field(default_factory=list, max_length=8)
     summary: str = Field(..., min_length=10, max_length=200)
-    description: str = Field(..., min_length=40, max_length=600)
     subsections: list[FeatureSubsection]
+    measuredFacts: list[str] = Field(default_factory=list, max_length=20)
+    limitations: list[str] = Field(default_factory=list, max_length=8)
+    description: str = Field(default="", max_length=600)
     recommendations: list[str] = Field(default_factory=list, max_length=8)
 
     @field_validator("featureId")
     @classmethod
     def valid_feature_id(cls, v: str) -> str:
-        if v not in PROTOCOL_FEATURE_IDS:
-            raise ValueError(f"featureId must be one of {PROTOCOL_FEATURE_IDS}")
+        if v not in FEATURE_NARRATIVE_IDS:
+            raise ValueError(f"featureId must be one of {FEATURE_NARRATIVE_IDS}")
         return v
 
     @model_validator(mode="after")
@@ -88,12 +92,8 @@ class ClosingSynthesis(BaseModel):
         return [p.strip() for p in v if p and p.strip()]
 
 
-def _evidence_tier_schema() -> dict:
-    return {"type": "string", "enum": ["lifestyle", "otc", "refer_clinician"]}
-
-
 def feature_narrative_json_schema(feature_id: str) -> dict:
-    """OpenAI strict JSON schema for a single protocol feature page."""
+    """Slim LLM JSON schema: summary + subsection bodies only (PDF-used fields)."""
     titles = FEATURE_SUBSECTION_TITLES.get(feature_id)
     if not titles:
         raise ValueError(f"Unknown feature_id: {feature_id}")
@@ -103,9 +103,8 @@ def feature_narrative_json_schema(feature_id: str) -> dict:
         "properties": {
             "title": {"type": "string", "enum": titles},
             "body": {"type": "string", "minLength": 80, "maxLength": 700},
-            "evidenceTier": _evidence_tier_schema(),
         },
-        "required": ["title", "body", "evidenceTier"],
+        "required": ["title", "body"],
         "additionalProperties": False,
     }
 
@@ -113,40 +112,15 @@ def feature_narrative_json_schema(feature_id: str) -> dict:
         "type": "object",
         "properties": {
             "featureId": {"type": "string", "enum": [feature_id]},
-            "measuredFacts": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": 1,
-                "maxItems": 20,
-            },
-            "limitations": {
-                "type": "array",
-                "items": {"type": "string"},
-                "maxItems": 8,
-            },
-            "summary": {"type": "string", "minLength": 10, "maxLength": 200},
-            "description": {"type": "string", "minLength": 40, "maxLength": 600},
+            "summary": {"type": "string", "minLength": 10, "maxLength": 400},
             "subsections": {
                 "type": "array",
                 "minItems": len(titles),
                 "maxItems": len(titles),
                 "items": subsection_item,
             },
-            "recommendations": {
-                "type": "array",
-                "items": {"type": "string"},
-                "maxItems": 8,
-            },
         },
-        "required": [
-            "featureId",
-            "measuredFacts",
-            "limitations",
-            "summary",
-            "description",
-            "subsections",
-            "recommendations",
-        ],
+        "required": ["featureId", "summary", "subsections"],
         "additionalProperties": False,
     }
 

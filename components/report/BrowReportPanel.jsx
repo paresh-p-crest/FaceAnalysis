@@ -1,5 +1,6 @@
 import { SymmetryOverlay } from './FaceImageFrame'
 import { FeatureAnalysisPage } from './FeatureAnalysisPage'
+import { FeatureProseBlock } from './FeatureProseBlock'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -110,7 +111,7 @@ function DensityBar({ pct }) {
   )
 }
 
-export function BrowReportPanel({ eyebrows }) {
+export function BrowReportPanel({ eyebrows, narrative = null }) {
   if (!eyebrows?.metrics) return null
 
   const m = eyebrows.metrics
@@ -135,7 +136,6 @@ export function BrowReportPanel({ eyebrows }) {
       ]}
       details={[{
         title: 'Brow Shape & Impression',
-        body: m.explanation,
         metricLabel: 'Peak Height',
         metricValue: `${m.peakHeight} mm`,
         markerPct: Math.min(100, Math.max(0, ((parseFloat(m.peakHeight) - parseFloat(m.peakMin)) / (parseFloat(m.peakMax) - parseFloat(m.peakMin))) * 100)),
@@ -158,7 +158,6 @@ export function BrowReportPanel({ eyebrows }) {
       </div>
       )}
 
-      {/* ── Section 2: Eyebrow Symmetry ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
         <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Eyebrow Symmetry</p>
         <div className="flex items-center justify-between mb-3">
@@ -176,13 +175,10 @@ export function BrowReportPanel({ eyebrows }) {
         <p className="text-xs text-ink-muted mb-3">Y-axis deviation across 7 landmark pairs (as % of face height)</p>
         <SymmetryDeviationChart data={symmetryData} />
         <p className="text-xs text-ink-secondary mt-3 leading-relaxed">
-          Maximum deviation: {m.symmetryMaxDev}% of face height. {parseFloat(m.symmetryMaxDev) < 1.0
-            ? 'Your brows are well-aligned vertically across all measured points.'
-            : 'There is some vertical asymmetry between left and right brows, particularly in the arch and tail regions.'}
+          Maximum deviation: {m.symmetryMaxDev}% of face height.
         </p>
       </div>
 
-      {/* ── Section 3: Brow Shape & Impression ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
         <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Brow Shape & Impression</p>
         <p className="text-base font-medium text-ink mb-1">{m.shape} · {m.position}</p>
@@ -211,7 +207,6 @@ export function BrowReportPanel({ eyebrows }) {
           />
         </div>
 
-        {/* Peak height slider */}
         <div className="mt-4 rounded-xl border border-surface-border bg-white/50 dark:bg-white/5 p-3">
           <p className="text-[11px] text-ink-muted mb-1">Peak vertical height</p>
           <div className="flex items-baseline gap-2 mb-2">
@@ -236,38 +231,30 @@ export function BrowReportPanel({ eyebrows }) {
         </div>
       </div>
 
-      {/* ── Section 4: Other Visual Features ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
         <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Other Visual Features</p>
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2">
           <MetricCard
             label="Unibrow"
-            value={unibrow}
+            value={unibrow ?? '—'}
             tooltip="Hair density between the inner brow points (glabella region). None is the ideal aesthetic for separated, clean brow styling."
           />
           <MetricCard
             label="Tail Length"
-            value={`${m.tailLengthLabel} (${m.tailLength}%)`}
+            value={m.tailLengthLabel != null ? `${m.tailLengthLabel} (${m.tailLength}%)` : '—'}
             tooltip="Distance from brow peak to tail end, as a percentage of face width. Longer tails frame the eye area more dramatically."
           />
           <MetricCard
             label="Edge Sharpness"
-            value={edgeSharpness}
+            value={edgeSharpness ?? '—'}
             tooltip="Gradient magnitude analysis of brow edges. Defined edges create a polished look, while soft edges appear more natural."
           />
           <MetricCard
             label="Inner Brow Set"
-            value={`${m.innerSetLabel} (${m.innerSet})`}
+            value={m.innerSetLabel != null ? `${m.innerSetLabel} (${m.innerSet})` : '—'}
             tooltip="Ratio of inner brow spacing to interpupillary distance. Parallel brows appear calm; wider-set brows create an open, relaxed expression."
           />
         </div>
-        <p className="text-xs text-ink-secondary leading-relaxed">
-          {unibrow && unibrow !== 'None'
-            ? `Mild unibrow presence detected in the glabella region. Threading or trimming the area between the brows can enhance brow separation and frame.`
-            : edgeSharpness && m.tailLengthLabel
-            ? `Clean glabella region with no connecting hair between the brows. The ${edgeSharpness.toLowerCase()} edge quality and ${m.tailLengthLabel.toLowerCase()} tail create a ${m.shape.toLowerCase()} silhouette.`
-            : m.explanation}
-        </p>
       </div>
 
       {density != null && densityPct != null && (
@@ -276,20 +263,10 @@ export function BrowReportPanel({ eyebrows }) {
         <p className="text-base font-medium text-ink mb-1">{density}</p>
         <p className="text-xs text-ink-muted mb-4">Dark pixel ratio in brow region: {densityPct}%</p>
         <DensityBar pct={densityPct} />
-        <p className="text-xs text-ink-secondary mt-3 leading-relaxed">
-          {density === 'Thick'
-            ? 'Your brows have high hair density, creating a full and defined appearance. This is often associated with strong facial framing and youthful aesthetics.'
-            : density === 'Moderate'
-            ? 'Your brows have balanced density — enough coverage for definition without appearing heavy. This allows for versatile styling options.'
-            : 'Your brows have lighter density. Growth-enhancing serums or tinting can add fullness. Microblading is another option for a more defined look.'}
-        </p>
       </div>
       )}
 
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="qoves-report-mono-label mb-2">Full Analysis Summary</p>
-        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{m.explanation}</p>
-      </div>
+      <FeatureProseBlock narrative={narrative} fallbackExplanation={m.explanation} />
     </div>
     </FeatureAnalysisPage>
   )

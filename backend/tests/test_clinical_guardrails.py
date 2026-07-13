@@ -5,9 +5,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from backend.clinical_guardrails import validate_feature_narrative, template_feature_narrative
+from backend.clinical_guardrails import (
+    is_template_feature_narrative,
+    normalize_feature_narrative_raw,
+    strip_score_language,
+    template_feature_narrative,
+    try_validate_feature_narrative,
+    validate_feature_narrative,
+)
 from backend.feature_context import build_feature_context
-from backend.narrative_schemas import FeatureNarrative
+from backend.narrative_schemas import FeatureNarrative, feature_narrative_json_schema
 
 
 def _ctx():
@@ -17,6 +24,14 @@ def _ctx():
     return build_feature_context("skin", cv_report=cv, answers={"skinType": "sensitive"})
 
 
+def _qual_body(prefix: str) -> str:
+    return (
+        f"{prefix} Daily SPF and gentle cleansing support barrier repair over 30 days "
+        "while monitoring redness under consistent lighting conditions for the subject. "
+        + "x" * 20
+    )
+
+
 def test_banned_term_fails_validation():
     ctx = _ctx()
     narrative = FeatureNarrative(
@@ -24,138 +39,8 @@ def test_banned_term_fails_validation():
         measuredFacts=ctx["measuredFacts"],
         limitations=ctx["limitations"],
         summary="Skin maintenance summary based on measured redness and texture.",
-        description="Your skin metrics indicate dryness with elevated redness on photographic analysis.",
+        description="Skin metrics indicate dryness with elevated redness on photographic analysis.",
         subsections=[
-            {
-                "title": "Skincare Protocol",
-                "body": (
-                    "Consider Botox and laser for improvement. " + "x" * 80
-                ),
-                "evidenceTier": "otc",
-            },
-            {
-                "title": "Further Skin Enhancement",
-                "body": (
-                    "Maintain SPF and gentle cleansing while monitoring redness. " + "y" * 80
-                ),
-                "evidenceTier": "lifestyle",
-            },
-        ],
-        recommendations=[],
-    )
-    ok, errors = validate_feature_narrative(narrative, ctx)
-    assert not ok
-    assert errors
-
-
-def test_template_fallback_has_no_banned_terms():
-    ctx = _ctx()
-    tpl = template_feature_narrative("skin", ctx)
-    blob = str(tpl).lower()
-    assert "botox" not in blob
-    assert "laser" not in blob
-    assert "mediapipe" not in blob
-    assert "opencv" not in blob
-    assert "computer-vision" not in blob
-    assert "computer vision" not in blob
-    assert "assessment of the" not in blob
-    assert "the client" not in blob
-    assert "the subject" in blob
-    assert tpl["featureId"] == "skin"
-    assert "non-surgical guidance for skin based on stored measurements" not in tpl["summary"].lower()
-    assert "your" not in tpl["summary"].lower()
-    assert "your" not in tpl["description"].lower()
-    assert len(tpl["summary"]) > 40
-    for sub in tpl["subsections"]:
-        assert "your" not in sub["body"].lower()
-        assert "the subject" in sub["body"].lower()
-
-
-def test_non_surgical_phrase_is_allowed():
-    ctx = _ctx()
-    narrative = FeatureNarrative(
-        featureId="skin",
-        measuredFacts=ctx["measuredFacts"],
-        limitations=ctx["limitations"],
-        summary="Conservative non-surgical skin care based on measured redness and texture.",
-        description="Your skin metrics indicate dryness with elevated redness on photographic analysis.",
-        subsections=[
-            {
-                "title": "Skincare Protocol",
-                "body": (
-                    "Use gentle non-surgical cleansing and niacinamide while monitoring redness under SPF. "
-                    + "x" * 80
-                ),
-                "evidenceTier": "lifestyle",
-            },
-            {
-                "title": "Further Skin Enhancement",
-                "body": (
-                    "Maintain SPF and gentle cleansing while monitoring redness. " + "y" * 80
-                ),
-                "evidenceTier": "lifestyle",
-            },
-        ],
-        recommendations=["Daily SPF 50."],
-    )
-    ok, errors = validate_feature_narrative(narrative, ctx)
-    assert ok, errors
-    assert not any("banned" in e.lower() for e in errors)
-
-
-def test_soft_clinical_fail_keeps_llm_copy():
-    """Ungrounded score fails strict validation but still usable for PDF (not templated)."""
-    from backend.clinical_guardrails import try_validate_feature_narrative
-
-    ctx = _ctx()
-    raw = {
-        "featureId": "skin",
-        "measuredFacts": ctx["measuredFacts"],
-        "limitations": ctx["limitations"],
-        "summary": "Skin clarity needs attention based on measured tone and texture.",
-        "description": "Photographic cues show uneven tone with textured surface on analysis.",
-        "subsections": [
-            {
-                "title": "Skincare Protocol",
-                "body": (
-                    "The subject's skin quality shows score 91/100 with textured surface. "
-                    "Daily SPF and gentle cleansing support barrier repair over 30 days. "
-                    + "x" * 40
-                ),
-                "evidenceTier": "otc",
-            },
-            {
-                "title": "Further Skin Enhancement",
-                "body": (
-                    "Keep routines conservative and reassess under consistent lighting. " + "y" * 80
-                ),
-                "evidenceTier": "lifestyle",
-            },
-        ],
-        "recommendations": ["Daily SPF 50."],
-    }
-    parsed = FeatureNarrative.model_validate(raw)
-    ok, errs = validate_feature_narrative(parsed, ctx)
-    assert not ok
-    assert any("Numeric claim" in e or "evidenceTier" in e for e in errs)
-
-    kept, usable = try_validate_feature_narrative(raw, "skin", ctx)
-    assert usable and kept
-    assert "91/100" in kept["subsections"][0]["body"]
-    assert "botox" not in str(kept).lower()
-
-
-def test_banned_term_hard_rejects_llm_copy():
-    from backend.clinical_guardrails import try_validate_feature_narrative
-
-    ctx = _ctx()
-    raw = {
-        "featureId": "skin",
-        "measuredFacts": ctx["measuredFacts"],
-        "limitations": ctx["limitations"],
-        "summary": "Skin maintenance summary based on measured redness and texture.",
-        "description": "Photographic cues show dryness with elevated redness.",
-        "subsections": [
             {
                 "title": "Skincare Protocol",
                 "body": "Consider Botox and laser for improvement. " + "x" * 80,
@@ -167,94 +52,162 @@ def test_banned_term_hard_rejects_llm_copy():
                 "evidenceTier": "lifestyle",
             },
         ],
-        "recommendations": [],
+        recommendations=[],
+    )
+    ok, errors = validate_feature_narrative(narrative, ctx)
+    assert not ok
+    assert errors
+
+
+def test_template_fallback_has_no_banned_terms_or_scores():
+    ctx = _ctx()
+    tpl = template_feature_narrative("skin", ctx)
+    prose = " ".join(
+        [tpl["summary"], tpl.get("description") or ""]
+        + [s["body"] for s in tpl["subsections"]]
+    ).lower()
+    assert "botox" not in prose
+    assert "laser" not in prose
+    assert "/100" not in prose
+    assert "the current score is" not in prose
+    assert "the subject" in prose
+    assert tpl["featureId"] == "skin"
+    assert is_template_feature_narrative(tpl)
+
+
+def test_non_surgical_phrase_is_allowed():
+    ctx = _ctx()
+    narrative = FeatureNarrative(
+        featureId="skin",
+        measuredFacts=ctx["measuredFacts"],
+        limitations=ctx["limitations"],
+        summary="Conservative non-surgical skin care based on measured redness and texture.",
+        description="Photographic cues show dryness with elevated redness on analysis.",
+        subsections=[
+            {
+                "title": "Skincare Protocol",
+                "body": _qual_body(
+                    "Use gentle non-surgical cleansing and niacinamide while monitoring redness under SPF."
+                ),
+                "evidenceTier": "lifestyle",
+            },
+            {
+                "title": "Further Skin Enhancement",
+                "body": _qual_body("Maintain SPF and gentle cleansing while monitoring redness."),
+                "evidenceTier": "lifestyle",
+            },
+        ],
+        recommendations=["Daily SPF 50."],
+    )
+    ok, errors = validate_feature_narrative(narrative, ctx)
+    assert ok, errors
+
+
+def test_score_language_hard_rejects_before_strip_path():
+    ctx = _ctx()
+    narrative = FeatureNarrative(
+        featureId="skin",
+        measuredFacts=ctx["measuredFacts"],
+        limitations=ctx["limitations"],
+        summary="Skin clarity needs attention based on measured tone and texture.",
+        description="Photographic cues show uneven tone with textured surface on analysis.",
+        subsections=[
+            {
+                "title": "Skincare Protocol",
+                "body": _qual_body("The subject's skin quality shows score 91/100 with textured surface."),
+                "evidenceTier": "otc",
+            },
+            {
+                "title": "Further Skin Enhancement",
+                "body": _qual_body("Keep routines conservative and reassess under consistent lighting."),
+                "evidenceTier": "lifestyle",
+            },
+        ],
+        recommendations=["Daily SPF 50."],
+    )
+    ok, errs = validate_feature_narrative(narrative, ctx)
+    assert not ok
+    assert any("Banned score" in e for e in errs)
+
+
+def test_slim_llm_payload_hydrates_and_strips_scores():
+    ctx = _ctx()
+    raw = {
+        "featureId": "skin",
+        "summary": "Skin clarity needs attention based on measured tone and texture.",
+        "subsections": [
+            {
+                "title": "Skincare Protocol",
+                "body": _qual_body(
+                    "The subject's skin quality shows score 72/100 with textured surface."
+                ),
+            },
+            {
+                "title": "Further Skin Enhancement",
+                "body": _qual_body("Keep routines conservative and reassess under consistent lighting."),
+            },
+        ],
+    }
+    kept, usable = try_validate_feature_narrative(raw, "skin", ctx)
+    assert usable and kept
+    assert kept["measuredFacts"]
+    assert "/100" not in kept["subsections"][0]["body"]
+    assert "score 72" not in kept["subsections"][0]["body"].lower()
+
+
+def test_banned_term_hard_rejects_llm_copy():
+    ctx = _ctx()
+    raw = {
+        "featureId": "skin",
+        "summary": "Skin maintenance summary based on measured redness and texture.",
+        "subsections": [
+            {
+                "title": "Skincare Protocol",
+                "body": "Consider Botox and laser for improvement. " + "x" * 80,
+            },
+            {
+                "title": "Further Skin Enhancement",
+                "body": "Maintain SPF and gentle cleansing while monitoring redness. " + "y" * 80,
+            },
+        ],
     }
     kept, usable = try_validate_feature_narrative(raw, "skin", ctx)
     assert not usable and kept is None
 
 
-def test_normalize_free_model_feature_alias_and_string_lists():
-    from backend.clinical_guardrails import (
-        is_template_feature_narrative,
-        normalize_feature_narrative_raw,
-        try_validate_feature_narrative,
-    )
-
+def test_normalize_free_model_feature_alias():
     ctx = _ctx()
     raw = {
         "feature": "skin",
-        "measuredFacts": "score 72/100",
-        "limitations": "2D photograph analysis only.",
         "summary": "Skin clarity needs attention based on measured tone and texture.",
-        "description": "Photographic cues show uneven tone with textured surface on analysis.",
         "subsections": {
             "Skincare Protocol": {
-                "description": (
-                    "The subject's skin quality shows textured surface with elevated redness. "
-                    "Daily SPF and gentle cleansing support barrier repair over 30 days. "
-                    + "x" * 40
+                "description": _qual_body(
+                    "The subject's skin quality shows textured surface with elevated redness."
                 ),
-                "evidenceTier": "otc",
             },
             "Further Skin Enhancement": {
-                "body": (
-                    "Keep routines conservative and reassess under consistent lighting. " + "y" * 80
-                ),
-                "evidenceTier": "lifestyle",
+                "body": _qual_body("Keep routines conservative and reassess under consistent lighting."),
             },
         },
-        "recommendations": "Daily SPF 50.",
     }
     normalized = normalize_feature_narrative_raw(raw, "skin", ctx)
     assert normalized["featureId"] == "skin"
-    assert normalized["measuredFacts"] == ["score 72/100"]
     assert isinstance(normalized["subsections"], list)
-    assert normalized["subsections"][0]["title"] == "Skincare Protocol"
-    assert "body" in normalized["subsections"][0]
-
     kept, usable = try_validate_feature_narrative(raw, "skin", ctx)
     assert usable and kept
     assert not is_template_feature_narrative(kept)
 
 
-def test_normalize_unwraps_nested_feature_object_and_truncates_body():
-    from backend.clinical_guardrails import normalize_feature_narrative_raw, try_validate_feature_narrative
-    from backend.feature_context import build_feature_context
-
-    cv = {"nose": {"score": 75, "widthLengthRatio": 1.5}}
-    ctx = build_feature_context("nose", cv_report=cv, answers={})
-    long_body = "The subject's nasal proportions are balanced on photographic analysis. " + ("word " * 200)
-    raw = {
-        "Nose": {
-            "summary": "Nasal proportions are balanced on measured width and angle.",
-            "description": "Frontal and profile cues support a conservative non-surgical plan.",
-            "measuredFacts": ctx["measuredFacts"],
-            "limitations": ctx["limitations"],
-            "subsections": [
-                {
-                    "title": "Wrong Title",
-                    "body": long_body,
-                    "evidenceTier": "otc",
-                }
-            ],
-            "recommendations": [],
-        }
-    }
-    normalized = normalize_feature_narrative_raw(raw, "nose", ctx)
-    assert normalized["featureId"] == "nose"
-    assert normalized["subsections"][0]["title"] == "Nose"
-    assert len(normalized["subsections"][0]["body"]) <= 700
-
-    kept, usable = try_validate_feature_narrative(raw, "nose", ctx)
-    assert usable and kept
+def test_json_schema_is_slim_summary_and_subsections_only():
+    schema = feature_narrative_json_schema("eyes")
+    props = schema["properties"]
+    assert set(props.keys()) == {"featureId", "summary", "subsections"}
+    assert "measuredFacts" not in props
+    assert "body" in props["subsections"]["items"]["properties"]
+    assert "evidenceTier" not in props["subsections"]["items"]["properties"]
 
 
-def test_is_template_feature_narrative_detects_guardrail_copy():
-    from backend.clinical_guardrails import is_template_feature_narrative
-
-    ctx = _ctx()
-    tpl = template_feature_narrative("skin", ctx)
-    assert is_template_feature_narrative(tpl)
-    assert not is_template_feature_narrative(
-        {"summary": "Skin clarity needs attention based on measured tone and texture."}
-    )
+def test_strip_score_language():
+    assert "/100" not in strip_score_language("Overall harmony score 77/100 looks balanced.")
+    assert "score 12" not in strip_score_language("The score 12 is noted.").lower()

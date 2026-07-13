@@ -60,4 +60,4 @@ export function ScoreScalePanel({
   )
 }
 
-export { SymmetryOverlay, ProportionsOverlay }
+export { SymmetryOverlay, ProportionsOverlay, FaceShapeOverlay }

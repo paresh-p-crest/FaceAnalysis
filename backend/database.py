@@ -125,3 +125,8 @@ async def _ensure_indexes() -> None:
     await db.payments.create_index("createdAt")
     await db.conversations.create_index([("assessmentId", 1), ("userId", 1)], unique=True)
     await db.conversations.create_index("updatedAt")
+    await db.assistant_rate_limits.create_index(
+        [("userId", 1), ("hourBucket", 1)],
+        unique=True,
+        name="user_hour_bucket_unique",
+    )

@@ -11,16 +11,16 @@ from .clinical_guardrails import (
     is_template_feature_narrative,
     rewrite_to_subject_voice,
     sanitize_report_ascii,
+    strip_score_language,
     try_validate_feature_narrative,
     validate_or_template,
 )
-from .config import PROTOCOL_FEATURE_IDS
+from .config import FEATURE_NARRATIVE_IDS, PROTOCOL_FEATURE_IDS, LLM_MAX_OUTPUT_TOKENS
 from .feature_context import build_feature_context, feature_context_as_prompt_text
 from .llm_client import chat_structured_completion
 from .narrative_schemas import (
     FEATURE_SUBSECTION_TITLES,
     ClosingSynthesis,
-    FeatureNarrative,
     ProtocolOverview,
     closing_synthesis_json_schema,
     feature_narrative_json_schema,
@@ -29,9 +29,10 @@ from .narrative_schemas import (
 from .recommendation_rules import get_deterministic_recommendation_hints
 from .text_ai_service import (
     NARRATIVE_VOICE_RULES,
+    NO_SCORES_IN_REPORT_PROSE,
     NO_TECH_JARGON_RULES,
     STRICT_NON_SURGICAL_RULES,
-    cv_report_summary,
+    cv_report_summary_for_narrative,
 )
 from .vision_context import (
     build_multimodal_user_message,
@@ -43,21 +44,20 @@ _FEATURE_SEMAPHORE = asyncio.Semaphore(2)
 
 logger = logging.getLogger(__name__)
 
-_NL_STYLE_RULES = "\n\n" + NARRATIVE_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES
+_NL_STYLE_RULES = (
+    "\n\n" + NARRATIVE_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES + "\n" + NO_SCORES_IN_REPORT_PROSE
+)
 
 FEATURE_NARRATIVE_SYSTEM = (
     "You are MyFace's clinical aesthetic protocol writer for ONE facial feature page.\n"
     + STRICT_NON_SURGICAL_RULES
     + _NL_STYLE_RULES
-    + "\n\nWrite conservative, biologically plausible non-surgical guidance grounded ONLY in supplied measurements. "
-    "Acknowledge limitations. Use subsection titles exactly as required by schema. "
-    "Each subsection body: 100-140 words with concrete measured facts woven into the prose. "
-    "Summary: 1-2 sentences naming the measured priorities for this feature (not a generic placeholder). "
-    "Description: 2-4 sentences explaining what was measured and what was not. "
-    "Assign evidenceTier per subsection: lifestyle (routine/topical/skincare-only), "
-    "otc (non-invasive OTC/at-home), refer_clinician (in-office consultation referral only). "
-    "Escalate tier only when supplied deviationFacts warrant it. "
-    "End each subsection body with one clear recommendation sentence matching its evidenceTier. "
+    + "\n\nWrite conservative, biologically plausible non-surgical guidance grounded ONLY in supplied cues. "
+    "Return ONLY: featureId, summary, and subsections (title + body). "
+    "Do NOT return measuredFacts, limitations, description, recommendations, evidenceTier, or scores. "
+    "Use subsection titles exactly as required by schema. "
+    "Each subsection body: 100-140 words with qualitative measured cues woven into the prose — never X/100. "
+    "Summary: 1-2 sentences naming qualitative priorities for this feature (not a generic placeholder). "
     "The phrase 'non-surgical' is allowed and preferred; do not recommend surgery or injectables."
 )
 
@@ -79,8 +79,8 @@ def _build_feature_messages(
     if hints:
         user += f"Clinical hints (follow these):\n" + "\n".join(f"- {h}" for h in hints) + "\n"
     user += (
-        "\nmeasuredFacts must copy or paraphrase ONLY the supplied measured facts. "
-        "limitations must restate supplied limitations, not invent new measurements."
+        "\nReturn JSON with ONLY: featureId, summary, subsections[{title, body}]. "
+        "Never include numeric scores."
     )
 
     pose_ids, image_parts = load_feature_vision_bundle(
@@ -129,7 +129,7 @@ async def generate_feature_narrative_async(
             json_schema=feature_narrative_json_schema(feature_id),
             messages=messages,
             temperature=0.3,
-            max_tokens=1800,
+            max_tokens=LLM_MAX_OUTPUT_TOKENS,
             api_key_override=api_key,
         )
 
@@ -155,12 +155,11 @@ async def generate_feature_narrative_async(
             {
                 "role": "user",
                 "content": (
-                    "Previous output failed clinical validation. Be more conservative and "
+                    "Previous output failed validation. Be more conservative and "
                     "strictly grounded. Prefer the phrase non-surgical. Do not invent procedures. "
                     "Use only ASCII hyphen (-) — no soft hyphens or special dashes. "
-                    "Return the exact JSON keys: featureId, measuredFacts (string array), "
-                    "limitations (string array), summary, description, subsections "
-                    "(array of {title, body, evidenceTier}), recommendations (string array)."
+                    "Return ONLY JSON keys: featureId, summary, subsections "
+                    "(array of {title, body}). Never include numeric scores (no X/100)."
                 ),
             }
         ]
@@ -171,7 +170,7 @@ async def generate_feature_narrative_async(
                 json_schema=feature_narrative_json_schema(feature_id),
                 messages=retry_messages,
                 temperature=0.2,
-                max_tokens=1800,
+                max_tokens=LLM_MAX_OUTPUT_TOKENS,
                 api_key_override=api_key,
             )
         retry_raw = retry.get("content")
@@ -218,12 +217,12 @@ def stitch_closing_paragraphs(
 
     overall = None
     if isinstance(cv_report, dict):
-        overall = (cv_report.get("overall") or {}).get("score")
-    if overall is not None:
+        overall = (cv_report.get("overall") or {}).get("scoreLabel")
+    if overall:
         paragraphs.append(
-            f"{possessive} assessment shows an overall harmony score of {overall}/100 "
-            "from facial measurements. Treat the score as a relative "
-            "baseline under the lighting and pose of this session, not a medical diagnosis."
+            f"{possessive} assessment shows overall facial harmony described as {overall} "
+            "from facial measurements under the lighting and pose of this session, "
+            "not a medical diagnosis."
         )
 
     priorities: list[str] = []
@@ -290,7 +289,10 @@ def stitch_closing_paragraphs(
             continue
         seen.add(key)
         out.append(p)
-    return [sanitize_report_ascii(rewrite_to_subject_voice(p)) for p in out[:6]]
+    return [
+        sanitize_report_ascii(rewrite_to_subject_voice(strip_score_language(p)))
+        for p in out[:6]
+    ]
 
 
 def _feature_narratives_digest(feature_narratives: dict[str, dict]) -> str:
@@ -321,7 +323,7 @@ CLOSING_SYNTHESIS_SYSTEM = (
     + "\n\nWrite 3-5 dense paragraphs (100-160 words each) that:\n"
     "- Tie together priorities across ALL feature sections supplied with concrete measured cues\n"
     "- Reference the subject's stated goals when provided\n"
-    "- Use magnitude language only from supplied summaries and facts\n"
+    "- Use magnitude/qualitative language only — NEVER numeric scores (no X/100)\n"
     "- Close with realistic non-surgical next steps in priority order (SPF, sleep, grooming, topical care)\n"
     "- Do NOT invent measurements or procedures\n"
     "- Do NOT paste generic lines like 'Non-surgical guidance for X based on stored measurements'\n"
@@ -345,16 +347,17 @@ async def generate_closing_synthesis_async(
     Always returns a non-empty list suitable for persistence (LLM or measured stitch).
     """
     from .answer_summary import format_answers_summary
+    from .clinical_guardrails import rewrite_to_subject_voice, sanitize_report_ascii, strip_score_language
 
     profile = format_answers_summary(answers or {})
     digest = _feature_narratives_digest(feature_narratives)
-    cv_summary = cv_report_summary(cv_report or {}, None)
+    cv_summary = cv_report_summary_for_narrative(cv_report or {}, None)
     exec_content = (ai_narrative or {}).get("content") if isinstance(ai_narrative, dict) else None
 
     user = (
         f"Reader name: {client_name}\n"
         f"Goals: {profile.get('goals')}\n"
-        f"Measurement summary:\n{cv_summary}\n\n"
+        f"Measurement summary (qualitative):\n{cv_summary}\n\n"
         f"Feature narratives:\n{digest}\n\n"
     )
     if isinstance(exec_content, dict) and exec_content.get("summary"):
@@ -362,7 +365,7 @@ async def generate_closing_synthesis_async(
 
     messages = [
         {"role": "system", "content": CLOSING_SYNTHESIS_SYSTEM},
-        {"role": "user", "content": user + "\nReturn JSON with paragraphs array (3-5 items)."},
+        {"role": "user", "content": user + "\nReturn JSON with paragraphs array (3-5 items). Never include numeric scores."},
     ]
 
     try:
@@ -372,7 +375,7 @@ async def generate_closing_synthesis_async(
             json_schema=closing_synthesis_json_schema(),
             messages=messages,
             temperature=0.35,
-            max_tokens=1200,
+            max_tokens=LLM_MAX_OUTPUT_TOKENS,
             api_key_override=api_key,
         )
         if result.get("content"):
@@ -383,7 +386,10 @@ async def generate_closing_synthesis_async(
                     "This protocol is educational guidance from the subject's facial measurements, "
                     "not medical diagnosis or treatment."
                 )
-                return [sanitize_report_ascii(rewrite_to_subject_voice(p)) for p in paragraphs[:6]]
+                return [
+                    sanitize_report_ascii(rewrite_to_subject_voice(strip_score_language(p)))
+                    for p in paragraphs[:6]
+                ]
     except Exception:
         pass
 
@@ -430,7 +436,7 @@ async def generate_protocol_overview_async(
     from .answer_summary import format_answers_summary
 
     profile = format_answers_summary(answers or {})
-    cv_summary = cv_report_summary(cv_report, metrics)
+    cv_summary = cv_report_summary_for_narrative(cv_report, metrics)
     messages = [
         {
             "role": "system",
@@ -444,8 +450,8 @@ async def generate_protocol_overview_async(
             "role": "user",
             "content": (
                 f"Goals: {profile.get('goals')}\n"
-                f"Measurement summary:\n{cv_summary}\n\n"
-                "Return JSON with summary only. Ground in scores; no procedural treatments."
+                f"Measurement summary (qualitative):\n{cv_summary}\n\n"
+                "Return JSON with summary only. Never cite numeric scores; no procedural treatments."
             ),
         },
     ]
@@ -455,20 +461,24 @@ async def generate_protocol_overview_async(
         json_schema=protocol_overview_json_schema(),
         messages=messages,
         temperature=0.35,
-        max_tokens=200,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
         api_key_override=api_key,
     )
     if result.get("content"):
         try:
-            return ProtocolOverview.model_validate(result["content"]).model_dump()
+            from .clinical_guardrails import strip_score_language
+
+            data = ProtocolOverview.model_validate(result["content"]).model_dump()
+            data["summary"] = strip_score_language(data["summary"])
+            return data
         except Exception:
             pass
     overall = (cv_report or {}).get("overall") or {}
-    score = overall.get("score", "N/A")
+    label = overall.get("scoreLabel") or "balanced"
     return {
         "summary": (
             f"This evidence-based non-surgical protocol is grounded in the subject's measured facial analysis "
-            f"(overall harmony {score}/100), organised around key aesthetic features."
+            f"(overall harmony described as {label}), organised around key aesthetic features."
         )
     }
 
@@ -488,9 +498,9 @@ async def generate_all_protocol_text(
 
     existing_features = assessment.get("featureNarratives") or {}
     if isinstance(existing_features, dict) and skip_existing:
-        to_generate = [f for f in PROTOCOL_FEATURE_IDS if f not in existing_features]
+        to_generate = [f for f in FEATURE_NARRATIVE_IDS if f not in existing_features]
     else:
-        to_generate = list(PROTOCOL_FEATURE_IDS)
+        to_generate = list(FEATURE_NARRATIVE_IDS)
         existing_features = {}
 
     assessment_id = assessment.get("id")
@@ -538,7 +548,11 @@ async def generate_all_protocol_text(
         closing_source = "llm"
 
     protocol_narrative = build_protocol_narrative_compat(
-        feature_narratives=existing_features,
+        feature_narratives={
+            fid: existing_features[fid]
+            for fid in PROTOCOL_FEATURE_IDS
+            if fid in existing_features
+        },
         overview_summary=overview.get("summary", ""),
         closing=closing,
         source="orchestrator",
@@ -547,12 +561,12 @@ async def generate_all_protocol_text(
 
     llm_features = [
         fid
-        for fid in PROTOCOL_FEATURE_IDS
+        for fid in FEATURE_NARRATIVE_IDS
         if fid in existing_features and not is_template_feature_narrative(existing_features.get(fid))
     ]
     template_features = [
         fid
-        for fid in PROTOCOL_FEATURE_IDS
+        for fid in FEATURE_NARRATIVE_IDS
         if fid in existing_features and is_template_feature_narrative(existing_features.get(fid))
     ]
     scoreboard = [
@@ -560,7 +574,7 @@ async def generate_all_protocol_text(
         "┌─ Narrative enrichment ─────────────────────────────────",
         f"│  features LLM      : {', '.join(llm_features) or '(none)'}",
         f"│  features TEMPLATE : {', '.join(template_features) or '(none)'}",
-        f"│  llm / total       : {len(llm_features)}/{len(PROTOCOL_FEATURE_IDS)}",
+        f"│  llm / total       : {len(llm_features)}/{len(FEATURE_NARRATIVE_IDS)}",
         f"│  closing           : {closing_source}",
         "└────────────────────────────────────────────────────────",
     ]
@@ -568,7 +582,7 @@ async def generate_all_protocol_text(
     logger.info(
         "narrative enrichment llm=%s/%s template=%s closing=%s",
         len(llm_features),
-        len(PROTOCOL_FEATURE_IDS),
+        len(FEATURE_NARRATIVE_IDS),
         template_features,
         closing_source,
     )

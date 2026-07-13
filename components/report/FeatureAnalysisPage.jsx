@@ -73,7 +73,9 @@ export function FeatureAnalysisPage({
               </div>
             )}
           </div>
-          <p className="text-sm text-ink-secondary leading-relaxed mb-4">{activeDetail.body}</p>
+          {activeDetail.body ? (
+            <p className="text-sm text-ink-secondary leading-relaxed mb-4">{activeDetail.body}</p>
+          ) : null}
           {activeDetail.metricLabel && (
             <div className="space-y-2">
               <ReportMonoLabel>{activeDetail.metricLabel}</ReportMonoLabel>

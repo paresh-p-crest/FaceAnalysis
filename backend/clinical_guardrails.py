@@ -28,6 +28,18 @@ SUPERLATIVE_PATTERN = re.compile(
 
 NUMBER_PATTERN = re.compile(r"\b(\d{1,3})\s*/\s*100\b|\bscore\s+(\d{1,3})\b", re.IGNORECASE)
 
+# Any score-like language banned from report PDF prose (hard constraint).
+SCORE_PROSE_PATTERN = re.compile(
+    r"\bscore\s*(?:of\s*)?\d{1,3}\s*/\s*100\b|"
+    r"\b\d{1,3}\s*/\s*100\b|"
+    r"\bscore\s*(?:of\s*)?\d{1,3}\b|"
+    r"\b\d{1,3}\s+out\s+of\s+100\b|"
+    r"\b(?:overall|harmony|feature)\s+score\b|"
+    r"\bthe current score is\b|"
+    r"/\s*100\b",
+    re.IGNORECASE,
+)
+
 FEATURE_DISPLAY = {
     "hair": "hair and scalp",
     "eyes": "periorbital region",
@@ -39,23 +51,24 @@ FEATURE_DISPLAY = {
     "skin": "skin quality",
     "neck": "neck and submental contour",
     "ears": "ear proportions",
+    "smile": "smile and dentofacial display",
 }
 
 
 def _facts_phrase(ctx: dict, limit: int = 120) -> str:
-    """Short human-readable cue list (score + up to 2 labels), not a raw metric dump."""
+    """Short human-readable cue list (qualitative labels only — no X/100 scores)."""
     facts = [f for f in (ctx.get("measuredFacts") or []) if f]
     cv = ctx.get("cvMetrics") or {}
     parts: list[str] = []
-    score = cv.get("score")
-    if isinstance(score, (int, float)):
-        label = cv.get("scoreLabel")
-        parts.append(f"score {int(score)}/100" + (f" ({label})" if label else ""))
-    # Prefer short qualitative facts over long key:value dumps
+    label = cv.get("scoreLabel")
+    if label:
+        parts.append(str(label))
     for fact in facts:
         cleaned = fact.strip()
-        if ":" in cleaned and len(cleaned) > 40:
-            # Take value side of key:value when present
+        if SCORE_PROSE_PATTERN.search(cleaned) or re.search(r"\bscore\b", cleaned, re.I):
+            m = re.search(r"\(([^)]+)\)", cleaned)
+            cleaned = m.group(1).strip() if m else ""
+        elif ":" in cleaned and len(cleaned) > 40:
             cleaned = cleaned.split(":", 1)[-1].strip()
         if cleaned and cleaned.lower() not in {p.lower() for p in parts}:
             parts.append(cleaned)
@@ -121,6 +134,16 @@ def _template_subsection_body(feature_id: str, title: str, ctx: dict) -> str:
             f"Based on the subject's cues ({facts}), caffeine-based OTC eye care, SPF, and lifestyle consistency are appropriate. {hint} "
             "Reassess after 30 days under consistent lighting."
         ),
+        "smile shape": (
+            f"The subject's smile proportions and lip curvature ({facts}) support gentle oral-frame care. "
+            f"Favor soft lip hydration, consistent lighting when reviewing progress, and posture that keeps the smile line even. {hint} "
+            "Reassess after 30 days under consistent lighting."
+        ),
+        "teeth & gingiva": (
+            f"Dentofacial display cues from the smile photo ({facts}) guide conservative hygiene and whitening habits only. "
+            f"Maintain twice-daily brushing, flossing, and routine dental check-ups; avoid aggressive bleaching claims. {hint} "
+            "Discuss persistent gum show or tooth shade concerns with a dental professional."
+        ),
     }
 
     key = title_l.strip()
@@ -138,10 +161,8 @@ def _template_subsection_body(feature_id: str, title: str, ctx: dict) -> str:
 def _template_summary(feature_id: str, ctx: dict) -> str:
     facts = _facts_phrase(ctx, 100)
     label = FEATURE_DISPLAY.get(feature_id, feature_id)
-    score = (ctx.get("cvMetrics") or {}).get("score")
-    score_bit = f" The current score is {int(score)}/100." if isinstance(score, (int, float)) else ""
     return (
-        f"Prioritize the subject's {label} findings ({facts}).{score_bit} "
+        f"Prioritize the subject's {label} findings ({facts}). "
         "Focus on grooming, topical care, SPF, sleep, and hydration for 30 days before reassessing."
     )[:200]
 
@@ -215,12 +236,11 @@ def validate_feature_narrative(
     answers: Optional[dict] = None,
 ) -> tuple[bool, list[str]]:
     errors: list[str] = []
-    allowed_nums = _allowed_numbers(ctx)
 
     text_blob = " ".join(
-        [narrative.summary, narrative.description]
+        [narrative.summary, narrative.description or ""]
         + [s.body for s in narrative.subsections]
-        + list(narrative.recommendations)
+        + list(narrative.recommendations or [])
     )
 
     if BANNED_TERM_PATTERN.search(text_blob):
@@ -229,10 +249,8 @@ def validate_feature_narrative(
     if SUPERLATIVE_PATTERN.search(text_blob):
         errors.append("Contains overstated outcome language")
 
-    for match in NUMBER_PATTERN.finditer(text_blob):
-        for g in match.groups():
-            if g and g not in allowed_nums and int(g) > 15:
-                errors.append(f"Numeric claim {g} not grounded in measured facts")
+    if SCORE_PROSE_PATTERN.search(text_blob):
+        errors.append("Banned score language in report prose")
 
     contra = ctx.get("contraindications") or {}
     if contra.get("flags") and re.search(r"\bretinol\b", text_blob, re.I):
@@ -254,6 +272,43 @@ def validate_feature_narrative(
             errors.append("refer_clinician tier used without notable measured deviation")
 
     return (len(errors) == 0, errors)
+
+
+def strip_score_language(text: str) -> str:
+    """Remove score phrases from narrative prose (PDF hard constraint safety net)."""
+    if not isinstance(text, str) or not text:
+        return text
+    out = SCORE_PROSE_PATTERN.sub("", text)
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"\s+([,.;:])", r"\1", out)
+    return out.strip()
+
+
+def strip_score_language_from_narrative_dict(data: dict) -> dict:
+    """Strip score language from common narrative dict shapes (feature or executive)."""
+    if not isinstance(data, dict):
+        return data
+    out = dict(data)
+    for key in ("summary", "description", "disclaimer"):
+        if isinstance(out.get(key), str):
+            out[key] = strip_score_language(out[key])
+    for list_key in ("strengths", "focusAreas", "recommendations", "paragraphs"):
+        vals = out.get(list_key)
+        if isinstance(vals, list):
+            out[list_key] = [
+                strip_score_language(v) if isinstance(v, str) else v for v in vals
+            ]
+    subs = []
+    for sub in out.get("subsections") or []:
+        if not isinstance(sub, dict):
+            continue
+        item = dict(sub)
+        if isinstance(item.get("body"), str):
+            item["body"] = strip_score_language(item["body"])
+        subs.append(item)
+    if subs:
+        out["subsections"] = subs
+    return out
 
 
 def sanitize_report_ascii(text: str) -> str:
@@ -511,6 +566,30 @@ def is_template_feature_narrative(data: Optional[dict]) -> bool:
     return summary.startswith("Prioritize the subject's") and "Focus on grooming, topical care" in summary
 
 
+def hydrate_feature_narrative_fields(data: dict, feature_id: str, ctx: dict) -> dict:
+    """Attach CV facts server-side; slim LLM payloads only carry summary + subsections."""
+    out = dict(data)
+    out["featureId"] = feature_id
+    out["measuredFacts"] = list(ctx.get("measuredFacts") or [])[:20]
+    if not out["measuredFacts"]:
+        out["measuredFacts"] = ["Measured facial metrics available for this feature."]
+    out["limitations"] = list(ctx.get("limitations") or [])[:8]
+    if not isinstance(out.get("description"), str):
+        out["description"] = ""
+    if not isinstance(out.get("recommendations"), list):
+        out["recommendations"] = []
+    subs = []
+    for sub in out.get("subsections") or []:
+        if not isinstance(sub, dict):
+            continue
+        item = dict(sub)
+        if item.get("evidenceTier") not in ("lifestyle", "otc", "refer_clinician"):
+            item["evidenceTier"] = "otc"
+        subs.append(item)
+    out["subsections"] = subs
+    return strip_score_language_from_narrative_dict(out)
+
+
 def try_validate_feature_narrative(
     raw: Optional[dict],
     feature_id: str,
@@ -520,20 +599,24 @@ def try_validate_feature_narrative(
 ) -> tuple[Optional[dict], bool]:
     """Return (rewritten narrative, usable).
 
-    Schema-valid LLM copy is kept even when soft clinical checks fail
-    (ungrounded scores, evidence-tier ceiling, etc.). Only banned
-    procedural language forces a hard reject (caller templates/retries).
+    LLM slim shape is hydrated with measuredFacts/limitations server-side.
+    Score language is stripped before validate. Banned procedural terms hard-reject.
     """
     if not raw:
         return None, False
-    normalized = normalize_feature_narrative_raw(raw, feature_id, ctx) or raw
+    normalized = normalize_feature_narrative_raw(raw, feature_id, ctx) or dict(raw)
+    normalized = hydrate_feature_narrative_fields(normalized, feature_id, ctx)
     try:
         parsed = FeatureNarrative.model_validate(normalized)
         ok, errs = validate_feature_narrative(parsed, ctx, answers=answers)
         rewritten = _rewrite_narrative_dict(parsed.model_dump())
+        rewritten = strip_score_language_from_narrative_dict(rewritten)
         if ok:
             return rewritten, True
-        hard = any("banned clinical" in (e or "").lower() for e in errs)
+        hard = any(
+            ("banned clinical" in (e or "").lower()) or ("banned score" in (e or "").lower())
+            for e in errs
+        )
         if hard:
             logger.warning("feature %s hard reject: %s", feature_id, errs)
             return None, False

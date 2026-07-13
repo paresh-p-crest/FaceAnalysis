@@ -1,6 +1,7 @@
 import { FaceImageFrame } from './report/FaceImageFrame'
+import { FeatureProseBlock } from './report/FeatureProseBlock'
 
-export function EyeReportPanel({ eyeAnalysis }) {
+export function EyeReportPanel({ eyeAnalysis, narrative = null }) {
   const m = eyeAnalysis?.metrics
   if (!m) return null
 
@@ -20,7 +21,7 @@ export function EyeReportPanel({ eyeAnalysis }) {
     <div className="space-y-5">
       <div>
         <h3 className="font-display text-lg font-semibold text-ink mb-1">An overview of your eyes</h3>
-        <p className="text-[10px] text-ink-muted font-sans mb-4">MediaPipe + OpenCV · no LLM · $0 API cost</p>
+        <p className="text-[10px] text-ink-muted font-sans mb-4">Facial landmark balance from your photos</p>
         {eyeAnalysis.eyesCrop && (
           <FaceImageFrame
             src={eyeAnalysis.eyesCrop}
@@ -67,10 +68,7 @@ export function EyeReportPanel({ eyeAnalysis }) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-2">Explanation</p>
-        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{m.explanation}</p>
-      </div>
+      <FeatureProseBlock narrative={narrative} fallbackExplanation={m.explanation} />
     </div>
   )
 }

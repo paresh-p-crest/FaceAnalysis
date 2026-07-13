@@ -32,7 +32,7 @@ def _asymmetric_landmarks():
 
 def test_symmetry_score_not_inflated_for_mild_asymmetry():
     score = symmetry_score(_asymmetric_landmarks(), {"symmetry": "94"})
-    assert 70 <= score <= 85
+    assert 74 <= score <= 88
     assert score < 90
 
 
@@ -44,3 +44,10 @@ def test_symmetry_label_quite_symmetric_band():
 def test_symmetry_ignores_legacy_metrics_symmetry():
     inflated = symmetry_score(_asymmetric_landmarks(), {"symmetry": "97"})
     assert inflated < 90
+
+
+def test_symmetry_regions_shape():
+    from backend.cv_report import symmetry_regions
+    regions = symmetry_regions(_asymmetric_landmarks())
+    assert [r["id"] for r in regions] == ["eyes", "brows", "mouth", "jaw"]
+    assert all("score" in r and "avgDev" in r for r in regions)

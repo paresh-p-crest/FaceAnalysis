@@ -17,20 +17,18 @@ export const LEFT_BROW = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276, 353,
 /** Outer lip contour — used for true cheilion (mouth-corner) extremes */
 export const MOUTH = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146]
 
-/** Curated symmetry overlay landmarks (paired + midline). Scoring uses full mesh elsewhere. */
+/** Notebook facial-symmetry overlay: 9 bilateral pairs (18 rings). Midline is arrow-only (10/152). */
 export const SYMMETRY_DOTS = [
-  // Right eye: outer, inner, top, bottom
-  33, 133, 159, 145,
-  // Left eye
-  362, 263, 386, 374,
-  // Right brow: outer, peak, inner
-  70, 105, 107,
-  // Left brow
-  300, 334, 336,
-  // Nose midline + alae
-  1, 2, 4, 5, 6, 98, 327,
-  // Mouth corners, chin, jaw
-  61, 291, 152, 234, 454,
+  // Brow outer / inner
+  70, 300, 107, 336,
+  // Eye outer / inner
+  33, 263, 133, 362,
+  // Nose alae
+  98, 327,
+  // Mouth corners
+  61, 291,
+  // Cheeks / jaw / chin sides
+  234, 454, 172, 397, 176, 400,
 ]
 
 export function lm(landmarks, idx) {
