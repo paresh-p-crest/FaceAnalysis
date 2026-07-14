@@ -1,0 +1,5 @@
+# Optional face-parsing dependencies (SegFormer via HuggingFace)
+# Install: pip install -r backend/requirements-face-parsing.txt
+torch>=2.0.0
+transformers>=4.40.0
+accelerate>=0.30.0

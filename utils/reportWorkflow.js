@@ -12,7 +12,23 @@ export function normalizeReportStatus(status) {
 }
 
 export function formatReportStatusLabel(status) {
+  const normalized = String(status || '').trim().toLowerCase().replace(/\s+/g, '_')
+  if (normalized === 'processing') return 'Processing'
+  if (normalized === 'failed') return 'Failed'
   return normalizeReportStatus(status) === 'approved' ? 'Approved' : 'Pending Review'
+}
+
+export function isAssessmentProcessing(assessment) {
+  if (!assessment) return false
+  if (assessment.processing) return true
+  const pipeline = assessment.pipeline
+  return pipeline?.status === 'queued' || pipeline?.status === 'running'
+}
+
+export function displayStatusForAssessment(assessment) {
+  if (isAssessmentProcessing(assessment)) return 'processing'
+  if (assessment?.pipeline?.status === 'failed') return 'failed'
+  return normalizeReportStatus(assessment?.status)
 }
 
 export function isReportApproved(status) {

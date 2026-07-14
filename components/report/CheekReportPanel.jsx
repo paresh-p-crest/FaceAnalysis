@@ -52,7 +52,9 @@ function BrightnessBar({ value, max = 200 }) {
   )
 }
 
-export function CheekReportPanel({ cheeks, narrative = null }) {
+import { resolveFeatureHero } from '../../utils/featureParsing'
+
+export function CheekReportPanel({ cheeks, narrative = null, featureParsing = null }) {
   if (!cheeks) return null
 
   const c = cheeks
@@ -61,7 +63,7 @@ export function CheekReportPanel({ cheeks, narrative = null }) {
     <FeatureAnalysisPage
       featureName="cheeks"
       subtitle="Facial landmark balance from your photos"
-      heroImage={c.imageSrc}
+      heroImage={resolveFeatureHero('cheeks', c, featureParsing) || c.imageSrc}
       summaryCards={[
         { label: 'Structure', value: c.scoreLabel },
         { label: 'Cheekbone Height', value: c.cheekboneHeightClass },

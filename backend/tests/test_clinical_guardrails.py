@@ -242,9 +242,36 @@ def test_json_schema_is_slim_summary_and_subsections_only():
     assert set(props.keys()) == {"featureId", "summary", "subsections"}
     assert "measuredFacts" not in props
     assert "body" in props["subsections"]["items"]["properties"]
-    assert props["subsections"]["items"]["properties"]["body"]["maxLength"] == 1500
+    # Eyes ceiling is Eyes (long=2000)
+    assert props["subsections"]["items"]["properties"]["body"]["maxLength"] == 2000
     assert props["summary"]["maxLength"] == 500
     assert "evidenceTier" not in props["subsections"]["items"]["properties"]
+    assert len(props["subsections"]["prefixItems"]) == 4
+
+
+def test_hair_json_schema_per_title_body_limits():
+    schema = feature_narrative_json_schema("hair")
+    prefixes = schema["properties"]["subsections"]["prefixItems"]
+    by_title = {p["properties"]["title"]["enum"][0]: p["properties"]["body"]["maxLength"] for p in prefixes}
+    assert by_title["Hair Style"] == 2000
+    assert by_title["Hair Loss"] == 1500
+    assert by_title["Hair Health"] == 1000
+    assert schema["properties"]["subsections"]["items"]["properties"]["body"]["maxLength"] == 2000
+
+
+def test_all_features_have_per_title_schema_limits():
+    from backend.narrative_schemas import FEATURE_SUBSECTION_TITLES, FEATURE_SUBSECTION_BODY_LIMITS
+
+    for feature_id, titles in FEATURE_SUBSECTION_TITLES.items():
+        assert feature_id in FEATURE_SUBSECTION_BODY_LIMITS
+        schema = feature_narrative_json_schema(feature_id)
+        prefixes = schema["properties"]["subsections"]["prefixItems"]
+        assert len(prefixes) == len(titles)
+        for title, pref in zip(titles, prefixes):
+            assert pref["properties"]["title"]["enum"] == [title]
+            assert title in FEATURE_SUBSECTION_BODY_LIMITS[feature_id]
+            expected_max = FEATURE_SUBSECTION_BODY_LIMITS[feature_id][title][1]
+            assert pref["properties"]["body"]["maxLength"] == expected_max
 
 
 def test_strip_score_language():

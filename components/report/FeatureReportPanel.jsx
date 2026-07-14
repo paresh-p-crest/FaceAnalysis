@@ -1,6 +1,7 @@
 import { FaceImageFrame } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { FeatureProseBlock } from './FeatureProseBlock'
+import { mergeMetricSections, resolveFeatureHero } from '../../utils/featureParsing'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -38,11 +39,18 @@ export function FeatureReportPanel({
   imageAlt,
   extraMetrics,
   narrative = null,
+  featureId = null,
+  featureParsing = null,
 }) {
   if (!data) return null
 
+  const resolvedImage = resolveFeatureHero(featureId, data, featureParsing) || imageSrc
+  const resolvedSections = featureId
+    ? mergeMetricSections(sections, featureId, featureParsing)
+    : sections
+
   const accent = featureName || title.replace(/ Analysis$/i, '').toLowerCase()
-  const summaryCards = (sections?.[0]?.metrics || []).slice(0, 4).map((m) => ({
+  const summaryCards = (resolvedSections?.[0]?.metrics || []).slice(0, 4).map((m) => ({
     label: m.label,
     value: m.value,
   }))
@@ -74,9 +82,9 @@ export function FeatureReportPanel({
             </div>
           )}
         </div>
-      ) : imageSrc ? (
+      ) : resolvedImage ? (
         <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-6 flex items-center justify-center">
-          <FaceImageFrame src={imageSrc} alt={imageAlt || title} aspect="auto" maxW="380px" />
+          <FaceImageFrame src={resolvedImage} alt={imageAlt || title} aspect="auto" maxW="380px" />
         </div>
       ) : null}
       {summaryCards.length > 0 && (
@@ -119,7 +127,7 @@ export function FeatureReportPanel({
       </div>
 
       {/* Sub-sections — metrics only (no duplicate prose) */}
-      {sections?.map((section, idx) => (
+      {resolvedSections?.map((section, idx) => (
         <div key={idx} className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
           <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">{section.title}</p>
           <div className={`grid gap-2 ${section.cols === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>

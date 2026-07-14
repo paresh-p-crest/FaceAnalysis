@@ -4,6 +4,7 @@ import QuestionnaireWelcome from '../QuestionnaireWelcome'
 import Questionnaire from '../Questionnaire'
 import PhotoUpload from '../PhotoUpload'
 import Scanning from '../Scanning'
+import AnalysisPreparing from './AnalysisPreparing'
 import { useApp } from '../providers/AppProvider'
 import { ANALYSIS_STEPS } from '../../utils/routes'
 
@@ -28,6 +29,9 @@ export function AnalysisFlow() {
     goToWelcome,
     startScanning,
     handleScanComplete,
+    preparingAssessmentId,
+    handlePreparingReady,
+    handlePreparingDashboard,
   } = useApp()
 
   if (user?.role === 'admin') return null
@@ -82,6 +86,15 @@ export function AnalysisFlow() {
           answers={answers}
           scanId={activeScanIdRef.current || scanId}
           onComplete={handleScanComplete}
+        />
+      )
+    case ANALYSIS_STEPS.PREPARING:
+      return (
+        <AnalysisPreparing
+          assessmentId={preparingAssessmentId}
+          photo={primaryPhoto}
+          onGoToDashboard={handlePreparingDashboard}
+          onReady={handlePreparingReady}
         />
       )
     default:

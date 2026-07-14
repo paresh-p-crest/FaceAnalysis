@@ -46,7 +46,11 @@ async def lifespan(app: FastAPI):
     configure_backend_logging()
     await connect_db()
     await ensure_bootstrap_admin()
+    from .pipeline_worker import start_pipeline_worker, stop_pipeline_worker
+
+    start_pipeline_worker()
     yield
+    await stop_pipeline_worker()
     await close_db()
 
 

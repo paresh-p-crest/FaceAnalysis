@@ -446,3 +446,41 @@ MongoDB fit nested `cvReport` / landmarks well, but the team preferred SQL tooli
 - Nested CV documents stay flexible without metric-table explosion.
 - Cascading deletes and partial unique `(user_id, scan_id)` are native SQL.
 - Operators need a Postgres instance; Motor/pymongo are removed from dependencies.
+
+---
+
+## ADR-024: Assumed-Scale mm for Interactive Parsing Metrics
+Date: 2026-07-14  
+Status: accepted  
+
+### Context
+The SegFormer + MediaPipe notebook exports mm distances using assumed IPD = 63.5 mm to align with Qoves-style reference bands. ADR-019 forbids clinical px→mm rulers in the core CV pipeline, but interactive Features Analysis needs comparable numeric cards.
+
+### Decision
+- Face-parsing metrics may emit **mm** values with metadata `scale: "assumed_ipd_63.5"` and `scaleNote` on `featureParsing`.
+- Metrics live in **`featureParsing` JSONB only** — not in immutable `analysis.cvReport` scores.
+- Interactive Features Analysis panels may show parsing crops/metrics; **protocol PDF and Facial Assessments sections do not consume parsing output**.
+
+### Consequences
+- UI must label estimated mm as non-clinical (tooltips).
+- Future R&D may add calibration or score-band mapping without rewriting CV measurements.
+
+---
+
+## ADR-025: Async Postgres-Tracked Assessment Pipeline
+Date: 2026-07-14  
+Status: accepted  
+
+### Context
+`POST /api/assessments` blocked for minutes running CV + NL + (planned) parsing inline. Users need a Qoves-style preparation screen and the ability to close the tab while work continues.
+
+### Decision
+- Fast **POST** validates poses, persists JPGs, creates assessment with `pipeline.status = queued`, returns `assessmentId` + `processing: true`.
+- In-process **worker loop** on FastAPI startup claims rows (`FOR UPDATE SKIP LOCKED`) and runs stages: `cv` → `narratives` → `parsing` with per-stage retries.
+- `pipeline` and `featureParsing` JSONB on `assessments`; workflow `status` flips to `pending_review` (or dev auto-approve) when `pipeline.status = ready`.
+- Frontend **AnalysisPreparing** polls `GET /api/assessments/{id}`; Dashboard shows Processing/Failed badges.
+
+### Consequences
+- Report is not immediately available after upload; Dashboard is the recovery path.
+- Worker is single-process (no Redis/Celery v1); multi-worker deploys should run one worker instance or add a dedicated job runner later.
+- Email on ready is deferred until SMTP product hooks land.

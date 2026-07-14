@@ -1,6 +1,6 @@
 # Backend Overview
 
-Python FastAPI service for MyFace. It runs computer vision on uploaded photos, stores results in MongoDB, then (optionally) adds AI narrative and PDF/protocol output.
+Python FastAPI service for MyFace. It runs computer vision on uploaded photos, stores results in PostgreSQL, then adds AI narrative and optional SegFormer parsing via a **background worker**.
 
 **Run:** `uvicorn backend.main:app --reload --port 8000`
 
@@ -10,10 +10,8 @@ Python FastAPI service for MyFace. It runs computer vision on uploaded photos, s
 
 ```
 Photos + questionnaire
-  → validate poses
-  → analyze_face (MediaPipe + OpenCV metrics)
-  → save assessment + photos (MongoDB + disk)
-  → AI narrative / protocol (LLM + guardrails)
+  → POST /api/assessments (validate + persist + enqueue)
+  → pipeline worker: analyze_face → NL enrichment → face parsing
   → Report UI / browser PDF / Beauty Assistant
   → Admin approve → PDF download gate opens
 ```
@@ -24,15 +22,15 @@ Photos + questionnaire
 
 ## Full facial analysis pipeline
 
-End-to-end path from questionnaire + photos to report, protocol PDF, and Beauty Assistant. There is **no separate job queue**: CV and LLM work run inside the `POST /api/assessments` request (CPU work via `asyncio.to_thread`, feature narratives in parallel with a semaphore).
+End-to-end path from questionnaire + photos to report, protocol PDF, and Beauty Assistant. **`POST /api/assessments` returns quickly**; CV, NL, and SegFormer parsing run in `pipeline_worker.py` (Postgres `pipeline` JSONB, `FOR UPDATE SKIP LOCKED`, per-stage retries). See ADR-025.
 
 ### Stage 0 — Entry & access
 
 | Item | Detail |
 |------|--------|
-| **FE flow** | `AnalysisFlow.jsx`: Welcome → Questionnaire → Confirm → Upload → Scanning |
-| **Kickoff** | `AppProvider.startNewAnalysis` / `startScanning` → `Scanning.jsx` → `utils/analyzeFace.js`. Scan checklist stages (shared with `backend/config.SCAN_STAGES`) are cosmetic timing aligned to CV then NL enrichment — not streamed progress; the last stage completes when the POST returns. |
-| **API** | `utils/apiClient.js` → **`POST /api/assessments`** |
+| **FE flow** | `AnalysisFlow.jsx`: Welcome → Questionnaire → Confirm → Upload → Scanning (fast submit) → **AnalysisPreparing** (poll) |
+| **Kickoff** | `Scanning.jsx` → `utils/analyzeFace.js` → **`POST /api/assessments`** (~seconds). `AnalysisPreparing.jsx` polls `GET /api/assessments/{id}` every 5s. |
+| **API** | `utils/apiClient.js` |
 | **Access** | Paid user (or admin); backend checks completed payment (402 if unpaid) |
 | **Inputs** | Questionnaire `answers`, 7 pose images, client `scanId` (UUID) |
 
@@ -48,16 +46,17 @@ If the backend API is disabled, the FE can run a browser-local MediaPipe path (`
 2. Require `scanId` (idempotency key with `userId`)  
 3. Decode images (`image_utils`)  
 4. Validate poses (`photo_validation.validate_required_poses`)  
-5. Run CV in a thread: `analyze_face.run_face_analysis`  
-6. On CV failure → **422** (nothing useful saved for a new scan)  
-7. Sanitize with `serialization.to_json_safe`  
-8. Create Mongo doc (`assessment_repository.create_assessment`)  
-   - Status: `pending_review`, or `approved` if `DEV_AUTO_APPROVE_REPORTS`  
-   - Duplicate `userId` + `scanId` returns the existing assessment (no re-analysis)  
-9. Save pose JPGs to disk (`photo_storage.save_all_poses`)  
-10. Rewrite `cvReport` image refs from base64 → `/uploads/...` URLs  
-11. Update analysis + photos on the assessment  
-12. **Same request:** `protocol_service.enrich_assessment_nl_content` (NL failures are logged; CV result is still returned)
+5. Create Postgres row with `pipeline.status = queued`, `status = draft`  
+6. Save pose JPGs to disk (`photo_storage.save_all_poses`)  
+7. Return `{ assessmentId, processing: true, pipeline }` — **no CV/NL in request**
+
+### Stage 1b — Background worker (`pipeline_worker.py`)
+
+1. Claim queued row (`claim_next_queued_assessment`, `FOR UPDATE SKIP LOCKED`)  
+2. **cv** — `pipeline_stages.run_cv_stage` → `analyze_face.run_face_analysis` in thread  
+3. **narratives** — `enrich_assessment_nl_content`  
+4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg`  
+5. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
 
 ### Stage 2 — Computer vision (`analyze_face.py`)
 
@@ -152,7 +151,7 @@ Triggered by `enrich_assessment_nl_content` on create (not on report open). Idem
 5. Rewrite to third-person “the subject” voice; **`strip_score_language` last-pass** after accept  
 6. ASCII sanitize for PDF-safe punctuation  
 
-**No mid-sentence clipping:** normalize does not ellipsis-truncate bodies/summaries. Schema caps are raised for 100–140 word bodies (`body` ≤1500, `summary` ≤500); over-length fails validation and retries.
+**No mid-sentence clipping:** normalize does not ellipsis-truncate bodies/summaries. Every feature subsection has an explicit body band — **short 1000** / **standard 1500** / **long 2000** chars — via `FEATURE_SUBSECTION_BODY_LIMITS` + JSON `prefixItems`; over-length fails validation and retries. Summary ≤500.
 
 **Qualitative-only LLM context:** `feature_context` maps scores/decimals to bands/labels (no `N/100` in `measuredFacts`). Vision instructions forbid inventing or quoting numeric measurements. Product UI still shows real CV numbers.
 

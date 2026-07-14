@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from './apiClient'
+import { apiFetch, getApiBaseUrl } from './apiClient'
 
 const TOKEN_KEY = 'myface_auth_token'
 const USER_KEY = 'myface_auth_user'
@@ -29,7 +29,7 @@ async function authRequest(path, body) {
   const base = getApiBaseUrl()
   if (!base) throw new Error('Backend API is not configured.')
 
-  const res = await fetch(`${base}${path}`, {
+  const res = await apiFetch(`${base}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -53,7 +53,7 @@ export async function fetchCurrentUser() {
   const token = getAuthToken()
   if (!base || !token) return null
 
-  const res = await fetch(`${base}/api/auth/me`, {
+  const res = await apiFetch(`${base}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) {

@@ -30,10 +30,17 @@ from ..repositories.assessment_repository import (
     get_assessment_by_id,
     list_assessments_for_user,
     list_assessments,
+    requeue_failed_pipeline,
     update_assessment_status,
     update_assessment_admin_review,
     update_assessment_ai_visuals,
     update_assessment_analysis,
+)
+from ..pipeline_status import (
+    format_pipeline_for_api,
+    new_feature_parsing_pending,
+    new_queued_pipeline,
+    pipeline_is_processing,
 )
 from ..photo_storage import (
     apply_photo_urls_to_cv_report,
@@ -245,7 +252,7 @@ async def post_assessment(
     req: AssessmentCreateRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Run MediaPipe analysis and save full result to Database."""
+    """Validate photos, persist upload, enqueue async pipeline (CV → NL → parsing)."""
     if not is_db_configured():
         raise HTTPException(
             status_code=503,
@@ -267,7 +274,6 @@ async def post_assessment(
         raise HTTPException(status_code=400, detail=f"Invalid image data: {exc}") from exc
 
     photos = decode_photo_dict(req.photos)
-    # Front is often sent only via imageBase64; count it for pose validation.
     photos_with_front = {**photos, "front": photo_bytes}
     missing = validate_required_poses(photos_with_front)
     if missing:
@@ -277,57 +283,58 @@ async def post_assessment(
         )
     provider = _normalize_cv_provider(req.provider)
 
-    analysis = await asyncio.to_thread(
-        run_face_analysis,
-        photo_bytes,
-        req.answers,
-        photos_with_front,
-        provider,
-    )
+    # Idempotent: return existing assessment for same user + scanId
+    from ..repositories.assessment_repository import create_assessment as _create
 
-    if not analysis.get("success"):
-        raise HTTPException(status_code=422, detail=analysis.get("error") or "Analysis failed")
-
-    analysis = to_json_safe(analysis)
-
-    saved = await create_assessment(
+    saved = await _create(
         answers=to_json_safe(req.answers or {}),
         provider=provider,
-        analysis=analysis,
+        analysis={},
         user_id=current_user["id"],
         photos_keys=list(photos_with_front.keys()),
-        status="approved" if dev_auto_approve_reports() else "pending_review",
+        status="draft",
         scan_id=req.scanId,
+        pipeline=new_queued_pipeline(),
+        feature_parsing=new_feature_parsing_pending(),
     )
 
     assessment_id = saved["id"]
+
+    # If duplicate returned and already past upload, skip re-save
+    if not pipeline_is_processing(saved.get("pipeline")) and saved.get("analysis", {}).get("cvReport"):
+        return {
+            "assessmentId": assessment_id,
+            "scanId": req.scanId,
+            "status": format_report_status(saved["status"]),
+            "pipeline": format_pipeline_for_api(saved.get("pipeline")),
+            "featureParsing": saved.get("featureParsing"),
+            "processing": False,
+            "analysis": saved.get("analysis"),
+            "photos": saved.get("photos"),
+            "aiNarrative": saved.get("aiNarrative"),
+            "protocolNarrative": saved.get("protocolNarrative"),
+            "featureNarratives": saved.get("featureNarratives"),
+            "protocolStorage": saved.get("protocolStorage"),
+            "createdAt": saved["createdAt"],
+        }
+
     all_photo_bytes = {**photos_with_front}
     stored = await asyncio.to_thread(save_all_poses, assessment_id, all_photo_bytes, photo_bytes)
     photos_doc = {pose_id: s.to_dict() for pose_id, s in stored.items()}
-    photo_urls = photos_map_to_urls(stored)
 
-    if analysis.get("cvReport") and photo_urls:
-        analysis["cvReport"] = apply_photo_urls_to_cv_report(analysis["cvReport"], photo_urls)
-        if analysis["cvReport"].get("meta"):
-            analysis["cvReport"]["meta"]["posesStored"] = list(photo_urls.keys())
+    await update_assessment_analysis(assessment_id, {}, photos_doc)
 
-    await update_assessment_analysis(assessment_id, analysis, photos_doc)
-    saved["photos"] = photos_doc
-    saved["analysis"] = analysis
-
-    # One-shot NL enrichment in the upload pipeline (not on report open).
-    saved = await enrich_assessment_nl_content(saved)
+    pipeline = format_pipeline_for_api(saved.get("pipeline") or new_queued_pipeline())
 
     return {
         "assessmentId": assessment_id,
-        "status": format_report_status(saved["status"]),
-        "createdAt": saved["createdAt"],
-        "analysis": analysis,
+        "scanId": req.scanId,
+        "status": "Processing",
+        "pipeline": pipeline,
+        "featureParsing": saved.get("featureParsing") or new_feature_parsing_pending(),
+        "processing": True,
         "photos": photos_doc,
-        "aiNarrative": saved.get("aiNarrative"),
-        "protocolNarrative": saved.get("protocolNarrative"),
-        "featureNarratives": saved.get("featureNarratives"),
-        "protocolStorage": saved.get("protocolStorage"),
+        "createdAt": saved["createdAt"],
     }
 
 
@@ -653,4 +660,33 @@ async def post_assessment_ai_protocol(
 
     bundle = await generate_and_store_protocol(existing)
     updated = bundle.get("assessment") or existing
+    return serialize_assessment(updated)
+
+
+@router.post("/assessments/{assessment_id}/retry-pipeline")
+async def post_retry_pipeline(
+    assessment_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Re-enqueue a failed pipeline job (admin or owner)."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
+
+    existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not _can_access_assessment(existing, current_user):
+        raise HTTPException(status_code=403, detail="You do not have access to this assessment")
+
+    pipeline = existing.get("pipeline") or {}
+    if pipeline.get("status") in ("queued", "running"):
+        return serialize_assessment(existing)
+    if pipeline.get("status") == "ready":
+        raise HTTPException(status_code=400, detail="Pipeline already completed")
+    if pipeline.get("status") != "failed" and pipeline.get("status") is not None:
+        raise HTTPException(status_code=400, detail="Pipeline is not in a failed state")
+
+    updated = await requeue_failed_pipeline(assessment_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Assessment not found")
     return serialize_assessment(updated)

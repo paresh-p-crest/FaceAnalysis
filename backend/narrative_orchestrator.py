@@ -31,6 +31,7 @@ from .narrative_schemas import (
     ProtocolOverview,
     closing_synthesis_json_schema,
     feature_narrative_json_schema,
+    feature_subsection_length_prompt,
     protocol_overview_json_schema,
 )
 from .recommendation_rules import get_deterministic_recommendation_hints
@@ -73,7 +74,7 @@ FEATURE_NARRATIVE_SYSTEM = (
     "Return ONLY: featureId, summary, and subsections (title + body). "
     "Do NOT return measuredFacts, limitations, description, recommendations, evidenceTier, or scores. "
     "Use subsection titles exactly as required by schema. "
-    "Each subsection body: 100-140 words with qualitative measured cues woven into the prose — never X/100. "
+    "Honor each subsection's length target from the user message — never X/100. "
     "Summary: 1-2 sentences naming qualitative priorities for this feature (not a generic placeholder). "
     "The phrase 'non-surgical' is allowed and preferred; do not recommend surgery or injectables.\n"
     "Example — Bad: 'The subject's skin quality shows score 72/100 with textured surface.' "
@@ -99,7 +100,8 @@ def _build_feature_messages(
         user += f"Clinical hints (follow these):\n" + "\n".join(f"- {h}" for h in hints) + "\n"
     user += (
         "\nReturn JSON with ONLY: featureId, summary, subsections[{title, body}]. "
-        "Never include numeric scores."
+        "Never include numeric scores.\n"
+        + feature_subsection_length_prompt(feature_id)
     )
 
     pose_ids, image_parts = load_feature_vision_bundle(

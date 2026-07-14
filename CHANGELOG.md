@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Added
+- **Async full assessment pipeline** — `POST /api/assessments` validates photos, persists uploads, and enqueues CV → narratives → SegFormer parsing via Postgres-tracked `pipeline` JSONB + in-process worker (`PIPELINE_WORKER_ENABLED`, `FOR UPDATE SKIP LOCKED`).
+- **AnalysisPreparing UI** — Qoves-style “your analysis is being prepared” screen with live stage list; users can close the tab and track progress from Dashboard/History.
+- **Feature parsing enrichment** — `featureParsing` JSONB + `parsing/{featureId}.jpg` crops; assumed-scale mm metrics (`scale: assumed_ipd_63.5`) for interactive Features Analysis panels only (ADR-024).
+- **Pipeline retry endpoint** — `POST /api/assessments/{id}/retry-pipeline` for failed jobs.
+### Changed
+- **Upload flow** — Scanning step is a fast submit only; report opens after pipeline `ready` (not inline in POST).
+- **Per-subsection narrative body caps (all features)** — explicit short/standard/long bands (1000 / 1500 / 2000 chars) for every feature title; Ear Structure / Neck Skin / Eyebrows / Under eye = long; Further Enhancement = standard.
+### Added
+- **ngrok API tunneling** — `apiFetch` in `apiClient.js` / `authClient.js` sends `ngrok-skip-browser-warning` when `NEXT_PUBLIC_API_URL` hosts ngrok (or `NEXT_PUBLIC_NGROK_SKIP_WARNING=true`); inert once API URL is back to localhost.
 ### Fixed
+- **Pipeline worker poll loop (Python 3.12)** — idle polling uses `asyncio.wait_for` instead of passing a coroutine to `asyncio.wait`, which raised `TypeError: Passing coroutines is forbidden`.
+- **AnalysisFlow build** — removed duplicate `openDashboard` destructure from `useApp()` that broke Next.js compile.
 - **Proportions overview guides** — lines were crop-% drawn on the full front photo (spread above the head / into the neck). Guides are now full-image % (hairline/brow/subnasale/chin); UI recomputes from landmarks at display time and prefers the front photo so existing assessments fix without a re-scan.
 ### Changed
 - **Report prose: no hard clip + numeric ban** — removed mid-sentence `_clip` ellipsis; raised feature narrative caps (`body` 1500, `summary` 500); LLM `measuredFacts` use qualitative score bands (no `N/100`); expanded NUMERIC BAN prompts + `SCORE_PROSE_PATTERN`; score language hard-rejects then retries (strip only after accept).

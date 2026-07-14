@@ -8,6 +8,8 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -17,6 +19,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+# Match backend/main.py — load root .env then backend/.env
+load_dotenv(ROOT / "backend" / ".env")
+load_dotenv(ROOT / ".env")
 
 from backend.database import get_database_url  # noqa: E402
 from backend.models import Base  # noqa: E402

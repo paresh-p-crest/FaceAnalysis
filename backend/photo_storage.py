@@ -240,3 +240,22 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
     meta["posesStored"] = list(photo_urls.keys())
     cv_report["meta"] = meta
     return cv_report
+
+
+def save_parsing_crop(assessment_id: str, feature_id: str, image_bytes: bytes) -> StoredPhoto:
+    """Persist a SegFormer feature crop under parsing/{featureId}.jpg."""
+    storage = get_photo_storage()
+    dest_dir = storage.upload_root / assessment_id / "parsing"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{feature_id}.jpg"
+    dest_path = dest_dir / filename
+    dest_path.write_bytes(image_bytes)
+    rel = f"uploads/assessments/{assessment_id}/parsing/{filename}"
+    return StoredPhoto(
+        poseId=feature_id,
+        relativePath=rel,
+        publicUrl=f"{storage.public_url_prefix}/{assessment_id}/parsing/{filename}",
+        contentType="image/jpeg",
+        byteSize=len(image_bytes),
+        storedAt=datetime.now(timezone.utc).isoformat(),
+    )

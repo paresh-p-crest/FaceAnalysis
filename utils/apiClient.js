@@ -32,6 +32,25 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/**
+ * Backend fetch — when NEXT_PUBLIC_API_URL is an ngrok host (or
+ * NEXT_PUBLIC_NGROK_SKIP_WARNING=true), adds ngrok-skip-browser-warning so
+ * free-tier interstitials do not break CORS.
+ * EOD: set NEXT_PUBLIC_API_URL back to http://localhost:8000 and restart Next
+ * (header becomes a no-op). To remove the code: delete this helper and rename
+ * apiFetch → fetch in this file + authClient.js.
+ */
+export function apiFetch(url, options = {}) {
+  const base = getApiBaseUrl()
+  const forceSkip = process.env.NEXT_PUBLIC_NGROK_SKIP_WARNING === 'true'
+  const isNgrok = /ngrok/i.test(base) || /ngrok/i.test(String(url))
+  const headers = { ...(options.headers || {}) }
+  if (forceSkip || isNgrok) {
+    headers['ngrok-skip-browser-warning'] = 'true'
+  }
+  return fetch(url, { ...options, headers })
+}
+
 async function toBackendImagePayload(src) {
   return prepareImageForBackend(src)
 }
@@ -74,7 +93,7 @@ export async function runFaceAnalysisViaBackend(photo, answers, photos = {}, pro
       }
     }
 
-    const res = await fetch(`${base}/api/assessments`, {
+    const res = await apiFetch(`${base}/api/assessments`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -89,11 +108,16 @@ export async function runFaceAnalysisViaBackend(photo, answers, photos = {}, pro
     }
 
     return {
-      ...data.analysis,
+      success: true,
       assessmentId: data.assessmentId,
       savedToDb: true,
+      processing: Boolean(data.processing),
+      pipeline: data.pipeline || null,
+      featureParsing: data.featureParsing || null,
       reportStatus: data.status,
       scanId,
+      photos: data.photos,
+      ...(data.analysis ? { ...data.analysis } : {}),
       aiNarrative: data.aiNarrative || null,
       protocolNarrative: data.protocolNarrative || null,
       featureNarratives: data.featureNarratives || null,
@@ -112,7 +136,7 @@ export async function runFaceAnalysisViaBackend(photo, answers, photos = {}, pro
 
 export async function fetchAssessment(assessmentId) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -122,7 +146,7 @@ export async function fetchAssessment(assessmentId) {
 
 export async function fetchMyAssessments(limit = 20) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/my/assessments?limit=${limit}`, {
+  const res = await apiFetch(`${base}/api/my/assessments?limit=${limit}`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -132,7 +156,7 @@ export async function fetchMyAssessments(limit = 20) {
 
 export async function fetchAdminAssessments(limit = 50) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments?limit=${limit}`, {
+  const res = await apiFetch(`${base}/api/assessments?limit=${limit}`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -142,7 +166,7 @@ export async function fetchAdminAssessments(limit = 50) {
 
 export async function updateAssessmentStatus(assessmentId, status) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/status`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}/status`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -157,7 +181,7 @@ export async function updateAssessmentStatus(assessmentId, status) {
 
 export async function updateAssessmentAdminReview(assessmentId, payload) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/admin-review`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}/admin-review`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -172,7 +196,7 @@ export async function updateAssessmentAdminReview(assessmentId, payload) {
 
 export async function deleteAssessment(assessmentId) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}`, {
     method: 'DELETE',
     headers: authHeaders(),
   })
@@ -183,7 +207,7 @@ export async function deleteAssessment(assessmentId) {
 
 export async function deleteAllAssessments() {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments`, {
+  const res = await apiFetch(`${base}/api/assessments`, {
     method: 'DELETE',
     headers: authHeaders(),
   })
@@ -194,7 +218,7 @@ export async function deleteAllAssessments() {
 
 export async function deleteAllPayments() {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments`, {
+  const res = await apiFetch(`${base}/api/payments`, {
     method: 'DELETE',
     headers: authHeaders(),
   })
@@ -206,7 +230,7 @@ export async function deleteAllPayments() {
 export async function generateAssessmentNarrative(assessmentId, { force = false } = {}) {
   const base = getApiBaseUrl()
   const qs = force ? '?force=true' : ''
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/ai-narrative${qs}`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}/ai-narrative${qs}`, {
     method: 'POST',
     headers: authHeaders(),
   })
@@ -217,7 +241,7 @@ export async function generateAssessmentNarrative(assessmentId, { force = false 
 
 export async function fetchAssessmentProtocol(assessmentId) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/protocol`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}/protocol`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -231,7 +255,7 @@ export async function fetchAssessmentProtocol(assessmentId) {
 
 export async function generateAssessmentProtocol(assessmentId) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/ai-protocol`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}/ai-protocol`, {
     method: 'POST',
     headers: authHeaders(),
   })
@@ -258,7 +282,7 @@ export async function ensureAssessmentProtocol(assessmentId) {
 
 export async function generateAssessmentVisuals(assessmentId, variants = ['hair', 'outfit', 'aging']) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/ai-visuals`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}/ai-visuals`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -273,7 +297,7 @@ export async function generateAssessmentVisuals(assessmentId, variants = ['hair'
 
 export async function fetchAssistantConversation(assessmentId) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/assistant`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}/assistant`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -283,7 +307,7 @@ export async function fetchAssistantConversation(assessmentId) {
 
 export async function sendAssistantMessage(assessmentId, message) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/assistant`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}/assistant`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -307,7 +331,7 @@ export async function sendAssistantMessage(assessmentId, message) {
 
 export async function downloadAssessmentPdf(assessmentId) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/pdf`, {
+  const res = await apiFetch(`${base}/api/assessments/${assessmentId}/pdf`, {
     headers: authHeaders(),
   })
   if (!res.ok) {
@@ -329,13 +353,13 @@ export async function downloadAssessmentPdf(assessmentId) {
 export async function checkBackendHealth() {
   const base = getApiBaseUrl()
   if (!base) return { ok: false, database: 'not_configured' }
-  const res = await fetch(`${base}/api/health`)
+  const res = await apiFetch(`${base}/api/health`)
   return res.json()
 }
 
 export async function fetchPaymentConfig() {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/config`)
+  const res = await apiFetch(`${base}/api/payments/config`)
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.detail || 'Failed to load payment configuration')
   return data
@@ -343,7 +367,7 @@ export async function fetchPaymentConfig() {
 
 export async function fetchMyPayments(limit = 20) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/my?limit=${limit}`, {
+  const res = await apiFetch(`${base}/api/payments/my?limit=${limit}`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -353,7 +377,7 @@ export async function fetchMyPayments(limit = 20) {
 
 export async function fetchAdminPayments(limit = 50) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments?limit=${limit}`, {
+  const res = await apiFetch(`${base}/api/payments?limit=${limit}`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -363,7 +387,7 @@ export async function fetchAdminPayments(limit = 50) {
 
 export async function fetchAdminUsers(limit = 100) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/auth/users?limit=${limit}`, {
+  const res = await apiFetch(`${base}/api/auth/users?limit=${limit}`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -373,7 +397,7 @@ export async function fetchAdminUsers(limit = 100) {
 
 export async function createStripeCheckout(payload = {}) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/stripe/checkout`, {
+  const res = await apiFetch(`${base}/api/payments/stripe/checkout`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -388,7 +412,7 @@ export async function createStripeCheckout(payload = {}) {
 
 export async function confirmStripeCheckout(sessionId) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/stripe/confirm`, {
+  const res = await apiFetch(`${base}/api/payments/stripe/confirm`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -403,7 +427,7 @@ export async function confirmStripeCheckout(sessionId) {
 
 export async function createPayPalOrder(payload = {}) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/paypal/orders`, {
+  const res = await apiFetch(`${base}/api/payments/paypal/orders`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -418,7 +442,7 @@ export async function createPayPalOrder(payload = {}) {
 
 export async function capturePayPalOrder(orderId) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/paypal/capture`, {
+  const res = await apiFetch(`${base}/api/payments/paypal/capture`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -433,7 +457,7 @@ export async function capturePayPalOrder(orderId) {
 
 export async function fetchAdminPricing() {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/admin/pricing`, {
+  const res = await apiFetch(`${base}/api/admin/pricing`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -443,7 +467,7 @@ export async function fetchAdminPricing() {
 
 export async function updateAdminPricing(payload) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/admin/pricing`, {
+  const res = await apiFetch(`${base}/api/admin/pricing`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -458,7 +482,7 @@ export async function updateAdminPricing(payload) {
 
 export async function deleteAdminUser(userId) {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/auth/users/${userId}`, {
+  const res = await apiFetch(`${base}/api/auth/users/${userId}`, {
     method: 'DELETE',
     headers: authHeaders(),
   })

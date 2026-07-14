@@ -103,48 +103,34 @@ Deletes a user account.
 ## Assessments & Face Analysis Domain
 
 ### `POST /api/assessments`
-Main analysis entrypoint: parses image landmarks and saves the results in MongoDB.
+Fast upload + enqueue: validates 7 poses, persists photos, creates assessment with `pipeline.status = queued`. **Does not** run CV/NL inline.
 - **Auth:** Private (paid user or admin)
-- **Required photos:** All 7 poses must be present in `photos` (base64 map): `front`, `leftProfile`, `rightProfile`, `left45`, `right45`, `smile`, `topHead`. Returns **400** with `Missing required photo poses: ...` if any are absent.
-- **Request Body:**
+- **Required photos:** All 7 poses (`front`, profiles, 45°, `smile`, `topHead`). **400** if missing.
+- **Idempotency:** `(userId, scanId)` returns existing row (processing or complete).
+- **Response (200 OK):**
   ```json
   {
-    "imageBase64": "data:image/jpeg;base64,...",
-    "answers": {
-      "gender": "male",
-      "age": 28
+    "assessmentId": "uuid",
+    "scanId": "client-uuid",
+    "status": "Processing",
+    "processing": true,
+    "pipeline": {
+      "status": "queued",
+      "stage": "queued",
+      "stageLabel": "queued"
     },
-    "photos": {},
-    "photos": {
-      "front": { "poseId": "front", "publicUrl": "/uploads/assessments/abc/front.jpg", "byteSize": 245000 }
-    },
-    "provider": "local",
-    "scanId": "unique-uuid-here"
+    "featureParsing": { "status": "pending" },
+    "photos": { "front": { "publicUrl": "/uploads/assessments/{id}/front.jpg" } },
+    "createdAt": "2026-07-14T12:00:00Z"
   }
   ```
-- **`provider`:** Must be `"local"` for full MediaPipe + OpenCV analysis (`cvReport` + `eyeAnalysis`). Legacy `"openai"` values are accepted but normalized to `"local"`. `"aws"` is rejected by the backend.
-- **Response Shape (200 OK):**
-  ```json
-  {
-    "assessmentId": "60c72b2f9b1d8e2568cf2002",
-    "status": "Pending Review",
-    "createdAt": "2026-07-08T12:00:00Z",
-    "photos": {
-      "front": { "poseId": "front", "publicUrl": "/uploads/assessments/abc/front.jpg" }
-    },
-    "aiNarrative": { "source": "openai", "model": "...", "content": { "summary": "..." } },
-    "protocolNarrative": { "summary": "...", "features": {}, "closing": [] },
-    "featureNarratives": {},
-    "protocolStorage": { "publicUrl": "/uploads/assessments/{id}/protocol.json" },
-    "analysis": {
-      "cvReport": {
-        "photos": { "front": "/uploads/assessments/abc/front.jpg" },
-        "meta": { "pipelineVersion": "2.0.0", "posesAnalyzed": ["front"], "posesStored": ["front"] }
-      }
-    }
-  }
-  ```
-- **Pipeline:** After CV analysis + photo storage, the same request runs one-shot NL enrichment (`aiNarrative` + protocol/feature narratives). Text LLM is `LLM_PROVIDER=openai|groq|openrouter`. When `LLM_PROVIDER=openai`, feature narratives also receive mapped pose photos (OpenAI Vision enrichment; see `FEATURE_VISION_POSES`). Report open only loads stored content; it does not regenerate.
+- **Worker:** Background loop runs `cv` → `narratives` → `parsing` (SegFormer). On success: `pipeline.status = ready`, workflow `status = pending_review` (or `approved` if `DEV_AUTO_APPROVE_REPORTS`).
+
+### `POST /api/assessments/{assessment_id}/retry-pipeline`
+Re-enqueue a **failed** pipeline (owner or admin).
+
+### `POST /api/assessments` (legacy note)
+Older docs described synchronous CV+NL in one request — superseded by ADR-025.
 
 ### `POST /api/run-analysis`
 Runs quick mathematical analysis without saving to MongoDB database.

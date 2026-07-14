@@ -1,6 +1,7 @@
 import { SymmetryOverlay } from './FaceImageFrame'
 import { FeatureAnalysisPage } from './FeatureAnalysisPage'
 import { FeatureProseBlock } from './FeatureProseBlock'
+import { resolveFeatureHero } from '../../utils/featureParsing'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -111,7 +112,7 @@ function DensityBar({ pct }) {
   )
 }
 
-export function BrowReportPanel({ eyebrows, narrative = null }) {
+export function BrowReportPanel({ eyebrows, narrative = null, featureParsing = null }) {
   if (!eyebrows?.metrics) return null
 
   const m = eyebrows.metrics
@@ -127,7 +128,7 @@ export function BrowReportPanel({ eyebrows, narrative = null }) {
     <FeatureAnalysisPage
       featureName="eyebrows"
       subtitle="Facial landmark balance from your photos"
-      heroImage={eyebrows.crop}
+      heroImage={resolveFeatureHero('eyebrows', eyebrows, featureParsing) || eyebrows.crop}
       summaryCards={[
         { label: 'Shape', value: m.shape },
         { label: 'Symmetry', value: `${m.symmetryScore}/100` },

@@ -8,16 +8,18 @@ import {
   fetchMyAssessments,
   isBackendApiEnabled,
 } from '../utils/apiClient'
-import { isReportApproved, normalizeReportStatus, formatReportStatusLabel, clientAwaitingReviewMessage } from '../utils/reportWorkflow'
+import { isReportApproved, normalizeReportStatus, formatReportStatusLabel, clientAwaitingReviewMessage, displayStatusForAssessment, isAssessmentProcessing } from '../utils/reportWorkflow'
 
 const STATUS_STYLE = {
   pending_review: 'bg-amber-50 text-amber-700 border-amber-200',
   approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  processing: 'bg-sky-50 text-sky-700 border-sky-200',
+  failed: 'bg-red-50 text-red-700 border-red-200',
 }
 
-function StatusBadge({ status }) {
-  const display = normalizeReportStatus(status)
-  const label = formatReportStatusLabel(status)
+function StatusBadge({ status, item }) {
+  const display = item ? displayStatusForAssessment(item) : normalizeReportStatus(status)
+  const label = formatReportStatusLabel(display)
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold ${STATUS_STYLE[display] || STATUS_STYLE.pending_review}`}>
       {label}
@@ -199,6 +201,7 @@ export default function HistoryPage({ onViewItem, onViewCloudItem, onOpenAdmin, 
               <div className="space-y-3">
                 {cloudItems.map((item) => {
                   const approved = isReportApproved(item.status)
+                  const processing = isAssessmentProcessing(item)
                   const score = approved
                     ? (item.analysis?.cvReport?.overall?.score ?? item.analysis?.metrics?.harmonyScore ?? '—')
                     : '—'
@@ -210,7 +213,7 @@ export default function HistoryPage({ onViewItem, onViewCloudItem, onOpenAdmin, 
                             <p className="font-display text-sm font-semibold text-ink">
                               Assessment {item.id.slice(-6)}
                             </p>
-                            <StatusBadge status={item.status} />
+                            <StatusBadge status={item.status} item={item} />
                           </div>
                           <p className="text-xs text-ink-muted">
                             {formatHistoryDate(item.createdAt)} · {item.provider || 'local'}
@@ -228,7 +231,7 @@ export default function HistoryPage({ onViewItem, onViewCloudItem, onOpenAdmin, 
                           <button
                             type="button"
                             onClick={() => onViewCloudItem?.(item)}
-                            disabled={openingReportId === item.id}
+                            disabled={openingReportId === item.id || processing}
                             className="flex-1 sm:flex-none px-3 py-2.5 rounded-lg border border-surface-border bg-white dark:bg-surface-card text-xs font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-60"
                           >
                             {openingReportId === item.id ? (
@@ -236,6 +239,8 @@ export default function HistoryPage({ onViewItem, onViewCloudItem, onOpenAdmin, 
                                 <Loader2 className="w-3 h-3 animate-spin" />
                                 Opening…
                               </span>
+                            ) : processing ? (
+                              'Processing…'
                             ) : (
                               'View report'
                             )}

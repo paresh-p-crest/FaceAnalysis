@@ -41,6 +41,7 @@ Indexes: unique `email`, `role`.
 | `reviewed_by` | `JSONB` | |
 | `answers`, `photos`, `photos_keys`, `analysis` | `JSONB` | |
 | `ai_narrative`, `protocol_narrative`, `feature_narratives`, `protocol_storage`, `ai_visuals` | `JSONB` nullable | |
+| `pipeline`, `feature_parsing` | `JSONB` nullable | async job progress + SegFormer crops/metrics |
 | `review_log` | `JSONB` array | |
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | |
 
@@ -56,6 +57,8 @@ Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolW
 | Protocol overview + closing | `protocol_narrative` (+ disk `protocol.json`) |
 | Per-feature narratives | `feature_narratives` |
 | AI visuals | `ai_visuals` |
+| Async pipeline state | `pipeline` (`status`, `stage`, `attempts`, timestamps) |
+| SegFormer parsing (interactive only) | `feature_parsing` (`crops`, `metrics`, `scaleNote`) |
 | Beauty Assistant | `conversations` + `conversation_messages` |
 
 ---

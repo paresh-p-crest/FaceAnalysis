@@ -22,6 +22,7 @@ import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
 import { dedupeAssessments } from '../../utils/assessmentDedupe'
+import { isAssessmentProcessing } from '../../utils/reportWorkflow'
 import { createHistoryId } from '../../utils/historyStorage'
 import { userHasAnalysisAccess } from '../../utils/paymentAccess'
 import { DEV_SAMPLE_QUESTIONNAIRE_ANSWERS } from '../../utils/devSampleAnswers'
@@ -218,6 +219,9 @@ export function AppProvider({ children }) {
   const goToConfirm = useCallback(() => setAnalysisStep(ANALYSIS_STEPS.CONFIRM), [])
   const goToUpload = useCallback(() => setAnalysisStep(ANALYSIS_STEPS.UPLOAD), [])
   const goToScanning = useCallback(() => setAnalysisStep(ANALYSIS_STEPS.SCANNING), [])
+  const goToPreparing = useCallback(() => setAnalysisStep(ANALYSIS_STEPS.PREPARING), [])
+
+  const [preparingAssessmentId, setPreparingAssessmentId] = useState(null)
 
   const getCloudAssessmentPhoto = (assessment) => {
     const report = assessment?.analysis?.cvReport
@@ -254,9 +258,13 @@ export function AppProvider({ children }) {
       assessmentId: assessment.id,
       savedToDb: true,
       reportStatus: assessment.status || 'pending_review',
+      pipeline: assessment.pipeline || null,
+      featureParsing: assessment.featureParsing || null,
+      processing: assessment.processing ?? false,
       aiNarrative: assessment.aiNarrative || assessment.analysis?.aiNarrative || null,
       aiVisuals: assessment.aiVisuals || assessment.analysis?.aiVisuals || null,
       protocolNarrative: assessment.protocolNarrative || null,
+      featureNarratives: assessment.featureNarratives || null,
       protocolStorage: assessment.protocolStorage || null,
     })
     setHistoryId(null)
@@ -433,6 +441,16 @@ export function AppProvider({ children }) {
   }, [user, startNewAnalysis])
 
   const handleScanComplete = useCallback((result) => {
+    if (result?.processing && result?.assessmentId) {
+      setPreparingAssessmentId(result.assessmentId)
+      setAnalysis(result)
+      goToPreparing()
+      trackEvent('assessment_submitted', {
+        assessmentId: result.assessmentId,
+        provider: result?.activeProvider || 'backend',
+      })
+      return
+    }
     setAnalysis(result)
     setHistoryId(null)
     resetAnalysisFlow()
@@ -443,7 +461,25 @@ export function AppProvider({ children }) {
       provider: result?.activeProvider || result?.cvEngine || 'unknown',
       savedToDb: !!result?.savedToDb,
     })
-  }, [openReportModal, resetAnalysisFlow, goTo])
+  }, [openReportModal, resetAnalysisFlow, goTo, goToPreparing])
+
+  const handlePreparingReady = useCallback((assessment) => {
+    hydrateFromCloudAssessment(assessment)
+    setPreparingAssessmentId(null)
+    resetAnalysisFlow()
+    openReportModal()
+    goTo(ROUTES.history)
+    trackEvent('assessment_complete', {
+      success: true,
+      provider: 'backend',
+      savedToDb: true,
+    })
+  }, [hydrateFromCloudAssessment, openReportModal, resetAnalysisFlow, goTo])
+
+  const handlePreparingDashboard = useCallback(() => {
+    resetAnalysisFlow()
+    goTo(ROUTES.dashboard)
+  }, [resetAnalysisFlow, goTo])
 
   const handleRetryLocal = useCallback(async (retryPhoto, retryPhotos, retryAnswers) => {
     const prevProvider = setActiveProvider('local')
@@ -514,6 +550,10 @@ export function AppProvider({ children }) {
   }, [openReportModal])
 
   const viewCloudAssessment = useCallback(async (assessment) => {
+    if (isAssessmentProcessing(assessment)) {
+      alert('This analysis is still being prepared. Check back shortly from your dashboard.')
+      return
+    }
     if (!assessment?.id || !isBackendApiEnabled()) {
       hydrateFromCloudAssessment(assessment)
       openReportModal()
@@ -608,19 +648,25 @@ export function AppProvider({ children }) {
     goToConfirm,
     goToUpload,
     goToScanning,
+    goToPreparing,
+    preparingAssessmentId,
+    handlePreparingReady,
+    handlePreparingDashboard,
     resetAnalysisFlow,
   }), [
     user, authReady, answers, photos, analysis, historyId, settingsOpen, authOpen, returnPath,
     billingMessage, paymentReturn, logoutConfirmOpen, scanId,
     adminWorkspace,
     questionnaireStartAtEnd, analysisStep, reportModalOpen, openingReportId, primaryPhoto, pathname,
+    preparingAssessmentId,
     goTo, goToStage, openDashboard, openHistory, openBilling, startNewAnalysis,
     startAnalysisAfterPayment, handleScanComplete, handleRetryLocal, logout,
     handleAuthenticated, viewHistoryItem, viewCloudAssessment,
     adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace,
     skipQuestionnaireWithSampleData, startScanning, handleLogo,
     openReportModal, closeReportModal, goToWelcome, goToQuestionnaire,
-    goToConfirm, goToUpload, goToScanning, resetAnalysisFlow,
+    goToConfirm, goToUpload, goToScanning, goToPreparing,
+    handlePreparingReady, handlePreparingDashboard, resetAnalysisFlow,
   ])
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

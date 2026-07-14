@@ -79,6 +79,12 @@ Expected output from the smoke test script:
 
 ---
 
+## 4a. Local tunnel via ngrok (optional)
+
+Expose FastAPI with `ngrok http 8000`, set `NEXT_PUBLIC_API_URL` to the `https://….ngrok-free.app` URL, keep `PUBLIC_APP_URL` / page origin in `CORS_ORIGINS` (e.g. `http://localhost:3000`). Restart `npm run dev` after changing `NEXT_PUBLIC_*`. Free ngrok interstitials are skipped automatically by `apiFetch` when the API host contains `ngrok`.
+
+**End of day:** set `NEXT_PUBLIC_API_URL=http://localhost:8000`, restart Next — no code revert required.
+
 ## 4. Replit Deployment Guide
 
 1. **GitHub Setup:** Push the verified code to your repository.

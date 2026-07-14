@@ -26,6 +26,7 @@ export function CvReportView({
   cvReport,
   eyeAnalysis,
   featureNarratives = null,
+  featureParsing = null,
   protocolNarrative,
   protocolLoading,
   aiNarrative,
@@ -302,6 +303,7 @@ export function CvReportView({
     return (
       <BrowReportPanel
         eyebrows={cvReport.eyebrows}
+        featureParsing={featureParsing}
         narrative={resolveEyebrowsNarrative(featureNarratives, protocolNarrative)}
       />
     )
@@ -320,6 +322,8 @@ export function CvReportView({
         featureName="jaw"
         data={j}
         narrative={narrativeFor('jaw')}
+        featureId="jaw"
+        featureParsing={featureParsing}
         imageSrc={jawSrc}
         imageAlt="Your jaw"
         sections={[
@@ -359,6 +363,8 @@ export function CvReportView({
         featureName="chin"
         data={c}
         narrative={narrativeFor('chin')}
+        featureId="chin"
+        featureParsing={featureParsing}
         imageSrc={chinSrc}
         imageAlt="Your chin"
         sections={[
@@ -395,6 +401,8 @@ export function CvReportView({
         featureName="hair"
         data={h}
         narrative={narrativeFor('hair')}
+        featureId="hair"
+        featureParsing={featureParsing}
         imageSrc={h.imageSrc}
         imageAlt="Your hair region"
         sections={[
@@ -440,6 +448,8 @@ export function CvReportView({
         featureName="smile"
         data={s}
         narrative={narrativeFor('smile')}
+        featureId="smile"
+        featureParsing={featureParsing}
         imageSrc={s.imageSrc}
         imageAlt="Your smile"
         sections={[
@@ -484,6 +494,8 @@ export function CvReportView({
         featureName="neck"
         data={n}
         narrative={narrativeFor('neck')}
+        featureId="neck"
+        featureParsing={featureParsing}
         imageSrc={n.imageSrc}
         imageAlt="Your neck"
         sections={[
@@ -533,6 +545,8 @@ export function CvReportView({
         featureName="ears"
         data={e}
         narrative={narrativeFor('ears')}
+        featureId="ears"
+        featureParsing={featureParsing}
         profileImages={profileImages}
         imageSrc={profileImages ? undefined : e.imageSrc}
         imageAlt="Your ears"
@@ -561,7 +575,7 @@ export function CvReportView({
 
   // â”€â”€ Cheeks â”€â”€
   if (activeId === 'cheeks' && cvReport?.cheeks) {
-    return <CheekReportPanel cheeks={cvReport.cheeks} narrative={narrativeFor('cheeks')} />
+    return <CheekReportPanel cheeks={cvReport.cheeks} featureParsing={featureParsing} narrative={narrativeFor('cheeks')} />
   }
 
   // â”€â”€ Skin Quality â”€â”€

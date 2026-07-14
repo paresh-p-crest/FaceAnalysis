@@ -35,6 +35,8 @@ def _assessment_to_dict(row: Assessment) -> dict:
         "featureNarratives": row.feature_narratives,
         "protocolStorage": row.protocol_storage,
         "aiVisuals": row.ai_visuals,
+        "pipeline": row.pipeline,
+        "featureParsing": row.feature_parsing,
         "adminNotes": row.admin_notes,
         "reviewedBy": row.reviewed_by or {},
         "reviewedAt": iso(row.reviewed_at),
@@ -68,6 +70,7 @@ def _summary_dict(row: Assessment) -> dict:
         "scanId": full["scanId"],
         "createdAt": full["createdAt"],
         "updatedAt": full["updatedAt"],
+        "pipeline": full.get("pipeline"),
         "analysis": slim_analysis,
     }
 
@@ -82,6 +85,8 @@ async def create_assessment(
     photos: Optional[dict] = None,
     status: str = "draft",
     scan_id: Optional[str] = None,
+    pipeline: Optional[dict] = None,
+    feature_parsing: Optional[dict] = None,
 ) -> dict:
     uid = parse_uuid(user_id) if user_id else None
     if scan_id and uid:
@@ -108,6 +113,8 @@ async def create_assessment(
         photos=photos or {},
         photos_keys=photos_keys or [],
         analysis=analysis or {},
+        pipeline=pipeline,
+        feature_parsing=feature_parsing,
         created_at=now,
         updated_at=now,
     )
@@ -328,5 +335,97 @@ async def update_assessment_protocol(
             flag_modified(row, "protocol_storage")
         # protocolData legacy field no longer stored
         _ = unset_protocol_data
+        await session.flush()
+        return _assessment_to_dict(row)
+
+
+async def update_assessment_pipeline(
+    assessment_id: str,
+    pipeline: dict,
+    *,
+    status: Optional[str] = None,
+) -> Optional[dict]:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.pipeline = pipeline
+        row.updated_at = _utcnow()
+        if status is not None:
+            try:
+                row.status = AssessmentStatus(status)
+            except ValueError:
+                pass
+        flag_modified(row, "pipeline")
+        await session.flush()
+        return _assessment_to_dict(row)
+
+
+async def update_assessment_feature_parsing(
+    assessment_id: str,
+    feature_parsing: dict,
+) -> Optional[dict]:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.feature_parsing = feature_parsing
+        row.updated_at = _utcnow()
+        flag_modified(row, "feature_parsing")
+        await session.flush()
+        return _assessment_to_dict(row)
+
+
+async def claim_next_queued_assessment() -> Optional[dict]:
+    """Claim one queued pipeline job (FOR UPDATE SKIP LOCKED)."""
+    async with session_scope() as session:
+        stmt = (
+            select(Assessment)
+            .where(Assessment.pipeline["status"].astext == "queued")
+            .order_by(Assessment.created_at.asc())
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        result = await session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if not row:
+            return None
+        pipeline = dict(row.pipeline or {})
+        from ..pipeline_status import _utcnow_iso, merge_pipeline_update
+
+        pipeline = merge_pipeline_update(
+            pipeline,
+            status="running",
+            stage="cv",
+            startedAt=pipeline.get("startedAt") or _utcnow_iso(),
+            stageStartedAt=_utcnow_iso(),
+        )
+        row.pipeline = pipeline
+        row.updated_at = _utcnow()
+        flag_modified(row, "pipeline")
+        await session.flush()
+        return _assessment_to_dict(row)
+
+
+async def requeue_failed_pipeline(assessment_id: str) -> Optional[dict]:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None
+    from ..pipeline_status import new_queued_pipeline
+
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.pipeline = new_queued_pipeline()
+        row.status = AssessmentStatus.draft
+        row.updated_at = _utcnow()
+        flag_modified(row, "pipeline")
         await session.flush()
         return _assessment_to_dict(row)

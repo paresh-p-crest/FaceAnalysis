@@ -11,6 +11,7 @@ from backend.narrative_schemas import (
     FEATURE_SUBSECTION_TITLES,
     FeatureNarrative,
     feature_narrative_json_schema,
+    subsection_body_limits,
 )
 
 
@@ -54,3 +55,41 @@ def test_json_schema_eyes_has_four_subsections():
     assert subs["minItems"] == 4
     assert subs["maxItems"] == 4
     assert set(schema["required"]) == {"featureId", "summary", "subsections"}
+
+
+def test_hair_subsection_body_limits():
+    assert subsection_body_limits("hair", "Hair Style") == (80, 2000)
+    assert subsection_body_limits("hair", "Hair Health") == (80, 1000)
+    assert subsection_body_limits("skin", "Skincare Protocol") == (80, 2000)
+    assert subsection_body_limits("skin", "Further Skin Enhancement") == (80, 1000)
+    assert subsection_body_limits("jaw", "Further Enhancement") == (80, 1500)
+    assert subsection_body_limits("eyes", "Eyebrows") == (80, 2000)
+    assert subsection_body_limits("eyes", "Under eye") == (80, 2000)
+    assert subsection_body_limits("neck", "Neck Skin") == (80, 2000)
+    assert subsection_body_limits("ears", "Ear Structure") == (80, 2000)
+
+
+def test_every_feature_title_has_explicit_limits():
+    from backend.narrative_schemas import FEATURE_SUBSECTION_BODY_LIMITS
+
+    for feature_id, titles in FEATURE_SUBSECTION_TITLES.items():
+        assert feature_id in FEATURE_SUBSECTION_BODY_LIMITS
+        for title in titles:
+            assert title in FEATURE_SUBSECTION_BODY_LIMITS[feature_id]
+            lo, hi = subsection_body_limits(feature_id, title)
+            assert lo == 80 and hi in (1000, 1500, 2000)
+
+
+def test_hair_narrative_rejects_overlong_health_body():
+    from pydantic import ValidationError
+
+    subs = _sample_subsections("hair")
+    # Over Hair Health max (1000) but under FeatureSubsection shared ceiling (2000).
+    subs[2]["body"] = "x" * 1001
+    assert len(subs[2]["body"]) > 1000
+    with pytest.raises(ValidationError):
+        FeatureNarrative(
+            featureId="hair",
+            summary="Hair priorities focused on framing and scalp care for 30 days.",
+            subsections=subs,
+        )

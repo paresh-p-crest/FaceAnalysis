@@ -48,6 +48,7 @@ export const ANALYSIS_STEPS = {
   CONFIRM: 'confirm',
   UPLOAD: 'upload',
   SCANNING: 'scanning',
+  PREPARING: 'preparing',
 }
 
 const LEGACY_REDIRECTS = {

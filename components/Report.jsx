@@ -17,6 +17,7 @@ import {
   clientAwaitingReviewMessage,
   isDevAutoApproveEnabled,
   isReportApproved,
+  isAssessmentProcessing,
   normalizeReportStatus,
 } from '../utils/reportWorkflow'
 import { ReportDocumentLayout } from './report/ReportDocumentLayout'
@@ -73,6 +74,7 @@ function StatusBadge({ status }) {
 export default function Report({ photo, photos, answers, analysis, historyId, onRestart, onRetryLocal, user, onClose }) {
   const [protocolNarrative, setProtocolNarrative] = useState(null)
   const [featureNarratives, setFeatureNarratives] = useState(null)
+  const [featureParsing, setFeatureParsing] = useState(null)
   const [protocolLoading, setProtocolLoading] = useState(false)
   const [protocolError, setProtocolError] = useState('')
   const [aiNarrative, setAiNarrative] = useState(null)
@@ -111,7 +113,8 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     || cvReport?.symmetry?.summary
     || cvReport?.proportions?.summary
   )
-  const cvPending = !isFromHistory && !hasRenderableCvReport && !cvFailed && !!displayAnalysis
+  const isProcessing = isAssessmentProcessing(displayAnalysis) || displayAnalysis?.pipeline?.status === 'queued' || displayAnalysis?.pipeline?.status === 'running'
+  const cvPending = !isFromHistory && !hasRenderableCvReport && !cvFailed && !!displayAnalysis && !isProcessing
   const metrics = displayAnalysis?.metrics
   const landmarks = displayAnalysis?.landmarks
   const eyeAnalysis = historyEntry?.eyeAnalysis ?? displayAnalysis?.eyeAnalysis ?? null
@@ -260,6 +263,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     setAiVisualsError('')
     setProtocolNarrative(historyEntry?.protocolNarrative || displayAnalysis?.protocolNarrative || null)
     setFeatureNarratives(historyEntry?.featureNarratives || displayAnalysis?.featureNarratives || null)
+    setFeatureParsing(historyEntry?.featureParsing || displayAnalysis?.featureParsing || null)
     setProtocolError('')
   }, [historyEntry, displayAnalysis])
 
@@ -290,6 +294,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         if (!featureNarratives && full?.featureNarratives) {
           setFeatureNarratives(full.featureNarratives)
         }
+        if (full?.featureParsing) setFeatureParsing(full.featureParsing)
         const stillNeedsProtocol = !protocolNarrative && !full?.protocolNarrative
         const stillNeedsFeatures = !featureNarratives && !full?.featureNarratives
         if (stillNeedsProtocol || stillNeedsFeatures) {
@@ -494,6 +499,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
                   eyeAnalysis={eyeAnalysis}
                   protocolNarrative={protocolNarrative}
                   featureNarratives={featureNarratives}
+                  featureParsing={featureParsing}
                   protocolLoading={protocolLoading}
                   aiNarrative={aiNarrative}
                   photo={displayPhoto}
@@ -517,6 +523,14 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
                 />
               </LockedSectionGate>
             </ReportDocumentLayout>
+          </div>
+        ) : isProcessing ? (
+          <div className="max-w-lg mx-auto px-4">
+            <div className="bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border text-center">
+              <Loader2 className="w-8 h-8 text-brand animate-spin mx-auto mb-4" />
+              <p className="font-display text-base font-semibold text-ink mb-2">Your analysis is being prepared</p>
+              <p className="text-sm text-ink-muted">Check your dashboard for live progress.</p>
+            </div>
           </div>
         ) : cvPending ? (
           <div className="max-w-lg mx-auto px-4">

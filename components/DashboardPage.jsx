@@ -5,6 +5,8 @@ import {
   normalizeReportStatus,
   formatReportStatusLabel,
   clientAwaitingReviewMessage,
+  displayStatusForAssessment,
+  isAssessmentProcessing,
 } from '../utils/reportWorkflow'
 import {
   BarChart3,
@@ -30,16 +32,18 @@ const STATUS_STYLE = {
   paid: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30',
   completed: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30',
   pending: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30',
+  processing: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/20 dark:text-sky-400 dark:border-sky-900/30',
+  failed: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30',
   created: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
 }
 
-function StatusBadge({ status }) {
-  const normalized = normalizeReportStatus(status)
+function StatusBadge({ status, assessment }) {
+  const display = assessment ? displayStatusForAssessment(assessment) : normalizeReportStatus(status)
   return (
     <span
-      className={`inline-flex px-2 py-0.5 rounded-full border text-[10px] font-medium tracking-wide ${STATUS_STYLE[normalized] || STATUS_STYLE.created}`}
+      className={`inline-flex px-2 py-0.5 rounded-full border text-[10px] font-medium tracking-wide ${STATUS_STYLE[display] || STATUS_STYLE.created}`}
     >
-      {formatReportStatusLabel(status)}
+      {formatReportStatusLabel(display)}
     </span>
   )
 }
@@ -398,6 +402,7 @@ export default function DashboardPage({
                           <tbody className="divide-y divide-surface-border">
                             {assessments.map((assessment) => {
                               const approved = isReportApproved(assessment.status)
+                          const processing = isAssessmentProcessing(assessment)
                               const score = approved
                                 ? (assessment.analysis?.cvReport?.overall?.score ??
                                   assessment.analysis?.metrics?.harmonyScore ??
@@ -428,16 +433,18 @@ export default function DashboardPage({
                                     </span>
                                   </td>
                                   <td className="px-4 py-3">
-                                    <StatusBadge status={assessment.status} />
+                                    <StatusBadge status={assessment.status} assessment={assessment} />
                                   </td>
                                   <td className="px-6 py-3 text-right">
                                     <button
                                       type="button"
                                       onClick={() => onViewCloudItem?.(assessment)}
-                                      disabled={openingReportId === assessment.id}
+                                      disabled={openingReportId === assessment.id || processing}
                                       className="btn-ghost text-xs px-3.5 py-1.5 opacity-80 group-hover:opacity-100 disabled:opacity-60"
                                     >
-                                      {openingReportId === assessment.id ? (
+                                      {processing ? (
+                                        'Processing…'
+                                      ) : openingReportId === assessment.id ? (
                                         <span className="inline-flex items-center gap-1.5">
                                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                           Opening…
@@ -457,6 +464,7 @@ export default function DashboardPage({
                       <div className="md:hidden divide-y divide-surface-border">
                         {assessments.map((assessment) => {
                           const approved = isReportApproved(assessment.status)
+                          const processing = isAssessmentProcessing(assessment)
                           const score = approved
                             ? (assessment.analysis?.cvReport?.overall?.score ??
                               assessment.analysis?.metrics?.harmonyScore ??
@@ -473,7 +481,7 @@ export default function DashboardPage({
                                     {formatHistoryDate(assessment.createdAt)}
                                   </p>
                                 </div>
-                                <StatusBadge status={assessment.status} />
+                                <StatusBadge status={assessment.status} assessment={assessment} />
                               </div>
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-sm text-ink-secondary">
@@ -486,10 +494,10 @@ export default function DashboardPage({
                                 <button
                                   type="button"
                                   onClick={() => onViewCloudItem?.(assessment)}
-                                  disabled={openingReportId === assessment.id}
+                                  disabled={openingReportId === assessment.id || processing}
                                   className="btn-ghost text-xs px-3.5 py-1.5 disabled:opacity-60"
                                 >
-                                  {openingReportId === assessment.id ? 'Opening…' : 'Open Report'}
+                                  {processing ? 'Processing…' : openingReportId === assessment.id ? 'Opening…' : 'Open Report'}
                                 </button>
                               </div>
                             </div>

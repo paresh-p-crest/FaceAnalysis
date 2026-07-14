@@ -49,10 +49,18 @@ def serialize_assessment(doc: Optional[dict]) -> Optional[dict]:
     if not doc:
         return doc
     from .serialization import to_json_safe
+    from .pipeline_status import format_pipeline_for_api
 
     safe = to_json_safe(doc)
     if isinstance(safe, dict) and "status" in safe:
         safe["status"] = format_report_status(safe["status"])
+    if isinstance(safe, dict) and safe.get("pipeline"):
+        safe["pipeline"] = format_pipeline_for_api(safe["pipeline"])
+    if isinstance(safe, dict):
+        pipeline = doc.get("pipeline") if doc else None
+        safe["processing"] = (
+            isinstance(pipeline, dict) and pipeline.get("status") in ("queued", "running")
+        )
     return safe
 
 
@@ -86,6 +94,7 @@ def serialize_assessment_summary(doc: Optional[dict]) -> Optional[dict]:
     if not doc:
         return doc
     from .serialization import to_json_safe
+    from .pipeline_status import format_pipeline_for_api
 
     safe = to_json_safe(doc)
     if not isinstance(safe, dict):
@@ -99,6 +108,11 @@ def serialize_assessment_summary(doc: Optional[dict]) -> Optional[dict]:
         "scanId": safe.get("scanId"),
         "createdAt": safe.get("createdAt"),
         "updatedAt": safe.get("updatedAt"),
+        "pipeline": format_pipeline_for_api(safe.get("pipeline")) if safe.get("pipeline") else None,
+        "processing": (
+            isinstance(safe.get("pipeline"), dict)
+            and safe.get("pipeline", {}).get("status") in ("queued", "running")
+        ),
         "analysis": analysis,
     }
 
