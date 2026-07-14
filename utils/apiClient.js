@@ -1,6 +1,6 @@
 /**
  * Backend API client — used when NEXT_PUBLIC_API_URL is set.
- * Analysis runs on Python FastAPI + saves to MongoDB.
+ * Analysis runs on Python FastAPI + PostgreSQL.
  */
 
 import { getAwsCredentials } from './settings'
@@ -328,7 +328,7 @@ export async function downloadAssessmentPdf(assessmentId) {
 
 export async function checkBackendHealth() {
   const base = getApiBaseUrl()
-  if (!base) return { ok: false, mongodb: 'not_configured' }
+  if (!base) return { ok: false, database: 'not_configured' }
   const res = await fetch(`${base}/api/health`)
   return res.json()
 }

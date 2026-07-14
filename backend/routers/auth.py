@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..auth import create_access_token, get_current_user, hash_password, require_admin, verify_password
-from ..database import is_mongodb_configured
+from ..database import is_db_configured
 from ..repositories.user_repository import (
     create_user,
     delete_user_and_related_data,
@@ -50,8 +50,8 @@ def _validate_auth_request(req: AuthRequest) -> tuple[str, str]:
 
 @router.post("/register", response_model=AuthResponse)
 async def register(req: RegisterRequest):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
     email, password = _validate_auth_request(req)
     first_name = req.firstName.strip()
     last_name = req.lastName.strip()
@@ -72,8 +72,8 @@ async def register(req: RegisterRequest):
 
 @router.post("/login", response_model=AuthResponse)
 async def login(req: AuthRequest):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
     email, password = _validate_auth_request(req)
     doc = await get_user_with_password_by_email(email)
     if not doc or not verify_password(password, doc.get("passwordHash", "")):
@@ -94,16 +94,16 @@ async def admin_check(current_user: dict = Depends(require_admin)):
 
 @router.get("/users")
 async def get_users(limit: int = 100, current_user: dict = Depends(require_admin)):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
     limit = min(max(1, limit), 250)
     return {"items": await list_users(limit=limit)}
 
 
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(require_admin)):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
     if user_id == current_user.get("id"):
         raise HTTPException(status_code=400, detail="You cannot delete your own admin account.")
     try:

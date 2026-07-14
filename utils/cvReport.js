@@ -9,7 +9,7 @@ import {
   mergeBboxes,
   dotsInImage,
   pointInImage,
-  proportionLinesInCrop,
+  proportionLinesInImage,
   proportionRatioOverlays,
   mouthCheilions,
   noseAlae,
@@ -794,24 +794,91 @@ function dimorphismMetrics(landmarks, metrics) {
   const overallScore = Math.round(weightedSum / weightTotal)
   const overallLabel = overallScore >= 80 ? 'Very Masculine' : overallScore >= 60 ? 'Masculine' : overallScore >= 40 ? 'Moderate' : overallScore >= 20 ? 'Feminine' : 'Very Feminine'
 
+  const browSet =
+    browEyeGap < 0.1 ? 'low-set' : browEyeGap > 0.16 ? 'higher-set' : 'moderately set'
+  const browForm =
+    Math.abs(browArch) < 0.005 ? 'straighter' : 'more arched'
   const features = [
-    { name: 'Eyebrows', ...eyebrows, explanation: `Your brows are ${eyebrows.label.toLowerCase()} — ${browEyeGap < 0.12 ? 'low-set with thick, straight form' : browEyeGap > 0.15 ? 'higher-set with arched shape' : 'moderately positioned'} contributing to your ${eyebrows.label.toLowerCase()} dimorphism.` },
-    { name: 'Eyes', ...eyes, explanation: `Eye proportions show a ${eyes.label.toLowerCase()} pattern — ${eyeOpenRatio > 0.18 ? 'larger, more open-set eyes typical of feminine features' : 'smaller, deeper-set eyes typical of masculine features'}.` },
-    { name: 'Nose', ...nose, explanation: `Nasal structure is ${nose.label.toLowerCase()} — ${noseFaceRatio > 0.4 ? 'a broader bridge and larger overall size' : 'a narrower bridge and more refined proportions'} aligning with ${nose.label.toLowerCase()} dimorphism.` },
-    { name: 'Cheeks', ...cheeks, explanation: `Cheek anatomy shows ${cheeks.label.toLowerCase()} characteristics — ${cheekProminence > 0.01 ? 'prominent cheekbones' : cheekProminence < -0.01 ? 'flatter midface contour' : 'moderate cheek projection'} typical of ${cheeks.label.toLowerCase()} facial structure.` },
-    { name: 'Lips', ...lips, explanation: `Lip dimensions are ${lips.label.toLowerCase()} — ${lipFullnessRatio > 0.15 ? 'fuller lips with balanced volume' : 'thinner lips with a longer philtrum'} contributing to ${lips.label.toLowerCase()} perioral aesthetics.` },
-    { name: 'Jaw', ...jaw, explanation: `Mandibular structure is ${jaw.label.toLowerCase()} — ${jawWidthRatio > 0.88 ? 'a wide, angular jaw with defined gonial angles' : 'a narrower, softer jawline'} driving ${jaw.label.toLowerCase()} dimorphism.` },
-    { name: 'Chin', ...chinFeature, explanation: `Chin morphology is ${chinFeature.label.toLowerCase()} — ${chinWidthRatio > 0.5 ? 'a broad, square chin projection' : 'a narrower, more pointed chin'} consistent with ${chinFeature.label.toLowerCase()} facial character.` },
-    { name: 'Neck', ...neck, explanation: `Neck proportions are ${neck.label.toLowerCase()} — ${neckWidthRatio > 2.8 ? 'a thick, muscular neck supporting strong jaw-to-shoulder transition' : 'a more slender neck with refined proportions'}.` },
-    { name: 'Ears', ...ears, explanation: `Ear dimensions are ${ears.label.toLowerCase()} — ${earSize > 1.1 ? 'larger ears with moderate protrusion' : 'smaller, closer-set ears'} reflecting ${ears.label.toLowerCase()} dimorphic patterns.` },
+    {
+      name: 'Eyebrows',
+      ...eyebrows,
+      explanation:
+        `Your brows score ${eyebrows.score} (${eyebrows.label.toLowerCase()}): ` +
+        `${browSet}, ${browForm}, relative thickness ${(browThickness * 100).toFixed(1)}% of face height.`,
+    },
+    {
+      name: 'Eyes',
+      ...eyes,
+      explanation:
+        `Your eyes score ${eyes.score} (${eyes.label.toLowerCase()}): ` +
+        `aperture ${(eyeOpenRatio * 100).toFixed(1)}% of IPD, span ${(eyeSpan * 100).toFixed(1)}% of face width.`,
+    },
+    {
+      name: 'Nose',
+      ...nose,
+      explanation:
+        `Your nose scores ${nose.score} (${nose.label.toLowerCase()}): ` +
+        `alar width ${(noseFaceRatio * 100).toFixed(1)}% of IPD, width-to-length ${noseRatio.toFixed(2)}.`,
+    },
+    {
+      name: 'Cheeks',
+      ...cheeks,
+      explanation:
+        `Your cheeks score ${cheeks.score} (${cheeks.label.toLowerCase()}): ` +
+        `cheek width ${(cheekWidthRatio * 100).toFixed(1)}% of face width` +
+        `${cheekProminence > 0.01 ? ', more projected cheekbones' : cheekProminence < -0.01 ? ', flatter midface depth' : ''}.`,
+    },
+    {
+      name: 'Lips',
+      ...lips,
+      explanation:
+        `Your lips score ${lips.score} (${lips.label.toLowerCase()}): ` +
+        `fullness ${(lipFullnessRatio * 100).toFixed(1)}% of IPD, philtrum-to-lip ${philtrumRatio.toFixed(2)}.`,
+    },
+    {
+      name: 'Jaw',
+      ...jaw,
+      explanation:
+        `Your jaw scores ${jaw.score} (${jaw.label.toLowerCase()}): ` +
+        `width ${(jawWidthRatio * 100).toFixed(1)}% of face width, mean mandibular angle ${jawAngle.toFixed(0)}°.`,
+    },
+    {
+      name: 'Chin',
+      ...chinFeature,
+      explanation:
+        `Your chin scores ${chinFeature.score} (${chinFeature.label.toLowerCase()}): ` +
+        `width ${(chinWidthRatio * 100).toFixed(1)}% of face width, height ${(chinHeightRatio * 100).toFixed(1)}% of face height.`,
+    },
+    {
+      name: 'Neck',
+      ...neck,
+      explanation:
+        `Your neck scores ${neck.score} (${neck.label.toLowerCase()}): ` +
+        `breadth ${neckWidthRatio.toFixed(2)}× IPD from the jaw landmarks.`,
+    },
+    {
+      name: 'Ears',
+      ...ears,
+      explanation:
+        `Your ears score ${ears.score} (${ears.label.toLowerCase()}): ` +
+        `relative size ${earSize.toFixed(2)}× IPD` +
+        `${earProtrusion > 0.06 ? ', with more lateral protrusion' : ''}.`,
+    },
   ]
+
+  const topDrivers = [...features]
+    .sort((a, b) => Math.abs(b.score - 50) - Math.abs(a.score - 50))
+    .slice(0, 3)
+    .map((f) => `${f.name.toLowerCase()} (${f.label.toLowerCase()}, ${f.score})`)
 
   return {
     overallScore,
     overallLabel,
     scaleLeft: 'Hyper Feminine',
     scaleRight: 'Hyper Masculine',
-    explanation: `Your face sits ${overallLabel.toLowerCase().replace('very ', 'strongly on the ')} side, driven by ${features.sort((a, b) => Math.abs(a.score - 50) > Math.abs(b.score - 50) ? -1 : 1).slice(0, 3).map(f => f.name.toLowerCase()).join(', ')} — the features with the strongest dimorphic markers in your facial structure.`,
+    explanation:
+      `Your overall dimorphism reads as ${overallLabel.toLowerCase()} (${overallScore}/100). ` +
+      `The strongest measured drivers are ${topDrivers.join(', ')}.`,
     features,
   }
 }
@@ -911,6 +978,12 @@ function faceShapeFromLandmarks(landmarks, imageSize = null) {
   if (jawRatio > 0.85) lowerThird = 'Wide'
   else if (jawRatio < 0.75) lowerThird = 'Narrow'
 
+  // Midface vs mean of forehead + jaw (independent of length-to-midface).
+  const midRelative = midfaceWidth / (((foreheadWidth + jawWidth) / 2) || 1e-6)
+  let midface = 'Normal'
+  if (midRelative > 1.1) midface = 'Wide'
+  else if (midRelative < 0.92) midface = 'Narrow'
+
   let shape = 'Oval'
   if (length === 'Average') {
     if (lowerThird === 'Wide' && forehead === 'Wide') shape = 'Square'
@@ -948,13 +1021,14 @@ function faceShapeFromLandmarks(landmarks, imageSize = null) {
     shape,
     facialLength: length,
     foreheadWidth: forehead,
-    midfaceWidth: 'Normal',
+    midfaceWidth: midface,
     lowerThirdWidth: lowerThird,
     lengthToMidfaceRatio: ratio.toFixed(2),
     widthHeightRatio: whRatio.toFixed(2),
     explanation:
       `Your face is classified as ${shape.toLowerCase()} based on an 8-point facial outline ` +
-      `(facial length ${length.toLowerCase()}, forehead ${forehead.toLowerCase()}, midface as the width baseline, ` +
+      `(facial length ${length.toLowerCase()}, forehead ${forehead.toLowerCase()}, ` +
+      `midface ${midface.toLowerCase()} relative to brow/jaw width, ` +
       `and lower third ${lowerThird.toLowerCase()}; length-to-midface ratio ${ratio.toFixed(2)}). ` +
       `The outline and ellipse show how temples, cheekbones, and jaw frame that shape.`,
     overlay: {
@@ -1035,34 +1109,104 @@ function symmetryLabel(score) {
   return 'Noticeable asymmetry'
 }
 
-function symmetryExplanation(score, label) {
-  if (score >= 74) {
-    return 'Your facial symmetry is notably above average, with balanced left-right features and only minor asymmetries that are common in natural faces. Overall, your face appears harmonious and proportionate from most viewing angles.'
+function symmetryExplanation(score, label, regions = []) {
+  const sorted = [...regions].sort((a, b) => a.score - b.score)
+  const weakest = sorted[0]
+  const strongest = sorted[sorted.length - 1]
+  let regionClause = ''
+  if (weakest && strongest) {
+    if (weakest.score < 74) {
+      regionClause =
+        ` The largest measured left–right difference is in the ${weakest.label.toLowerCase()} ` +
+        `(${weakest.score}), while ${strongest.label.toLowerCase()} is more even (${strongest.score}).`
+    } else {
+      regionClause =
+        ` Regional balance is fairly even across ${regions.map((r) => r.label.toLowerCase()).join(', ')} ` +
+        `(lowest ${weakest.label.toLowerCase()} at ${weakest.score}).`
+    }
   }
-  if (score >= 72) {
-    return 'Your facial symmetry is above average with generally balanced features. Minor left-right differences in the periorbital and jaw regions are typical and do not detract from overall harmony.'
+  return (
+    `Your facial symmetry score is ${score} (${label.toLowerCase()}).` +
+    regionClause +
+    ' Natural faces almost always show some left–right variation.'
+  )
+}
+
+function facialThirdsFromLandmarks(landmarks) {
+  if (!landmarks?.length) return null
+  const forehead = lm(landmarks, 10)
+  const chin = lm(landmarks, 152)
+  const subnasale = lm(landmarks, 2)
+  const browY = (lm(landmarks, 105).y + lm(landmarks, 334).y) / 2
+  const faceH = chin.y - forehead.y
+  if (!(faceH > 0.05)) return null
+  let upper = (browY - forehead.y) / faceH
+  let middle = (subnasale.y - browY) / faceH
+  let lower = (chin.y - subnasale.y) / faceH
+  const sum = upper + middle + lower
+  if (sum > 0.01) {
+    upper /= sum
+    middle /= sum
+    lower /= sum
   }
-  if (score >= 62) {
-    return `Your facial symmetry score of ${score} indicates ${label.toLowerCase()} proportions. Some feature pairs show mild asymmetry, which is common in natural faces.`
+  return { upper, middle, lower }
+}
+
+function thirdsExplanation(upper, middle, lower) {
+  if (upper < 0.28 && lower > 0.36) {
+    return (
+      `Your shorter forehead with a taller midface and longer mouth-to-chin area ` +
+      `(upper ${upper.toFixed(2)}, middle ${middle.toFixed(2)}, lower ${lower.toFixed(2)}) ` +
+      `shifts visual weight downward compared with evenly split thirds.`
+    )
   }
-  return `Your facial symmetry score of ${score} reflects noticeable left-right variation in several feature pairs. This is still within the range seen in everyday faces.`
+  if (upper > 0.36 && lower < 0.3) {
+    return (
+      `Your taller forehead with a shorter lower third ` +
+      `(upper ${upper.toFixed(2)}, middle ${middle.toFixed(2)}, lower ${lower.toFixed(2)}) ` +
+      `shifts visual weight upward compared with evenly split thirds.`
+    )
+  }
+  if (Math.abs(upper - middle) < 0.04 && Math.abs(middle - lower) < 0.04) {
+    return (
+      `Your facial thirds are closely balanced ` +
+      `(upper ${upper.toFixed(2)}, middle ${middle.toFixed(2)}, lower ${lower.toFixed(2)}), ` +
+      `so visual weight is distributed evenly from forehead through chin.`
+    )
+  }
+  const focus = upper >= middle && upper >= lower ? 'upper' : middle >= lower ? 'middle' : 'lower'
+  return (
+    `Your facial thirds measure upper ${upper.toFixed(2)}, middle ${middle.toFixed(2)}, and lower ${lower.toFixed(2)}, ` +
+    `so visual weight leans toward the ${focus} third compared with evenly split references.`
+  )
 }
 
 function proportionsFromLandmarks(landmarks, metrics) {
-  const upper = parseFloat(metrics?.upperThird || '0.33')
-  const middle = parseFloat(metrics?.middleThird || '0.34')
-  const lower = parseFloat(metrics?.lowerThird || '0.33')
+  // Always measure thirds from the same landmarks as the proportion overlay
+  // (10 → brow 105/334 → subnasale 2 → chin 152). Ignore legacy mouth-based metrics.
+  const fromLm = facialThirdsFromLandmarks(landmarks)
+  if (!fromLm) {
+    return {
+      score: null,
+      upperThird: null,
+      middleThird: null,
+      lowerThird: null,
+      label: null,
+      explanation: 'Facial thirds could not be measured from landmarks.',
+    }
+  }
+
+  const { upper, middle, lower } = fromLm
   const idealDev = Math.abs(upper - 0.33) + Math.abs(middle - 0.34) + Math.abs(lower - 0.33)
-  const score = Math.min(
-    99,
-    Math.max(60, Math.round(parseFloat(metrics?.proportionality || 82) - idealDev * 25))
-  )
+  const finalScore = Math.min(99, Math.max(40, Math.round(100 - idealDev * 120)))
+
   return {
-    score,
+    score: finalScore,
     upperThird: upper.toFixed(2),
     middleThird: middle.toFixed(2),
     lowerThird: lower.toFixed(2),
-    label: score >= 80 ? 'Well balanced' : score >= 70 ? 'Good balance' : 'Slight variation',
+    label: finalScore >= 80 ? 'Well balanced' : finalScore >= 70 ? 'Good balance' : 'Slight variation',
+    explanation: thirdsExplanation(upper, middle, lower),
   }
 }
 
@@ -1134,7 +1278,13 @@ function proportionRatios(landmarks) {
       yourLabel: orbitoNasalYourLabel,
       idealLabel: 'Nose = Eye',
       expectation: 'Generally, the outer edges of the nostrils are expected to align with the inner corners of the eyes.',
-      explanation: `${orbitoNasalYour > 1.1 ? 'Your broader nasal base relative to inner eye spacing gives the center of your face a strong vertical column which pulls attention to the nose and midface and is typical for a robust masculine pattern.' : orbitoNasalYour < 0.9 ? 'Your narrower nose relative to inner eye spacing creates a refined central facial column, drawing attention outward toward the eyes.' : 'Your nose width aligns closely with inner eye spacing, creating a harmonious central facial proportion.'}`,
+      explanation:
+        `Your orbito-nasal ratio is ${orbitoNasalYour.toFixed(2)} (reference ≈ ${orbitoNasalIdeal.toFixed(2)}). ` +
+        (orbitoNasalYour > 1.1
+          ? 'The nasal base is wider than inner-eye spacing, so the central column reads broader.'
+          : orbitoNasalYour < 0.9
+            ? 'The nasal base is narrower than inner-eye spacing, so the central column reads more refined.'
+            : 'Nose width aligns closely with inner-eye spacing.'),
     },
     nasoOral: {
       ratioLabel: 'NASO-ORAL PROPORTION',
@@ -1143,7 +1293,13 @@ function proportionRatios(landmarks) {
       yourLabel: nasoOralYourLabel,
       idealLabel: 'Mouth > Nose',
       expectation: 'Generally, the width of the mouth is expected to be about 50–60% wider than the width of the nasal base.',
-      explanation: `${nasoOralYour < 1.3 ? 'Your comparatively wide nasal base with a more contained mouth width places structural emphasis on the nose so the mouth sits clearly underneath it without dominating horizontally which strengthens the central column from brow to chin.' : nasoOralYour > 1.8 ? 'Your wider mouth relative to nose width creates a prominent oral zone. This is common in many facial patterns and can convey expressiveness.' : 'Your mouth-to-nose ratio is close to the ideal range, creating a balanced perioral appearance.'}`,
+      explanation:
+        `Your mouth-to-nose ratio is ${nasoOralYour.toFixed(2)} (reference ≈ ${nasoOralIdeal.toFixed(2)}). ` +
+        (nasoOralYour < 1.3
+          ? 'Mouth width is relatively contained versus the nasal base, so emphasis stays on the nose.'
+          : nasoOralYour > 1.8
+            ? 'Mouth width is relatively wide versus the nasal base, so the oral zone reads more prominent.'
+            : 'Mouth width sits near the expected range relative to the nasal base.'),
     },
     orbital: {
       ratioLabel: 'ORBITAL PROPORTION',
@@ -1152,7 +1308,15 @@ function proportionRatios(landmarks) {
       yourLabel: orbitalYourLabel,
       idealLabel: 'Spacing = Eye',
       expectation: 'Generally, the space between the eyes is expected to be equal to the width of one eye.',
-      explanation: `Your eye size ${orbitalYour >= 0.95 && orbitalYour <= 1.05 ? 'closely matches' : orbitalYour < 0.95 ? 'is slightly narrower than' : 'is slightly wider than'} the gap between them so your eyes read as ${orbitalYour >= 0.95 && orbitalYour <= 1.05 ? 'evenly spaced' : orbitalYour < 0.95 ? 'somewhat close-set' : 'somewhat wide-set'}, providing a regular reference for judging the size of your nose and mouth.`,
+      explanation:
+        `Your inter-eye spacing to eye-width ratio is ${orbitalYour.toFixed(2)} (reference ≈ ${orbitalIdeal.toFixed(2)}), ` +
+        `so the eyes read as ${
+          orbitalYour >= 0.95 && orbitalYour <= 1.05
+            ? 'evenly spaced'
+            : orbitalYour < 0.95
+              ? 'somewhat close-set'
+              : 'somewhat wide-set'
+        }.`,
     },
   }
 }
@@ -1982,7 +2146,7 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
     bot: pointInImage(landmarks, 152),
   }
   const symRegions = symmetryRegions(landmarks)
-  const proportionLines = proportionLinesInCrop(landmarks, faceBox)
+  const proportionLines = proportionLinesInImage(landmarks)
   const ratioOverlays = proportionRatioOverlays(landmarks)
   const ratios = proportionRatios(landmarks)
   Object.keys(ratios).forEach((key) => {
@@ -2103,7 +2267,7 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
       scaleRight: 'Symmetric',
       scaleMarkerPct: symScore,
       rangeHighlight: { left: 70, width: 28 },
-      explanation: symmetryExplanation(symScore, symLabel),
+      explanation: symmetryExplanation(symScore, symLabel, symRegions),
       imageSrc: faceCrop,
       symmetryDots,
       symmetryMidline,
@@ -2119,10 +2283,12 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
       upperThird: prop.upperThird,
       middleThird: prop.middleThird,
       lowerThird: prop.lowerThird,
-      explanation: `Vertical facial thirds — upper ${prop.upperThird}, middle ${prop.middleThird}, lower ${prop.lowerThird}. Your proportionality score of ${prop.score} reflects ${prop.label.toLowerCase()} distribution across facial height.`,
+      explanation: prop.explanation,
       imageSrc: faceCrop,
       proportionLines,
       ratios,
+      faceBox,
+      overlaySpace: 'image',
     },
     nose: {
       ...nose,

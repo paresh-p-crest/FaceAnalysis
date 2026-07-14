@@ -30,13 +30,16 @@ STRICT_NON_SURGICAL_RULES = (
 )
 
 NO_SCORES_IN_REPORT_PROSE = (
-    "SCORES (HARD CONSTRAINT — never violate):\n"
-    "- Do NOT write any numeric scores in report prose: no 'X/100', 'score N', 'out of 100', "
-    "overall/harmony/feature scores, or ranking numbers.\n"
-    "- Do NOT invent scores. CV score numbers may exist in the product UI separately; "
-    "narrative text must stay qualitative only.\n"
-    "- Describe qualities with words from supplied labels/cues "
-    "(e.g. balanced, defined, uneven, thick, soft) — never cite the numeric score itself."
+    "NUMERIC BAN (HARD CONSTRAINT — never violate):\n"
+    "- Do NOT write CV measurement numbers in report prose: no 'X/100', 'score N', 'out of 100', "
+    "overall/harmony/feature scores, percentages as facial measurements, decimal ratios (e.g. 0.33), "
+    "or cited degrees/mm from analysis.\n"
+    "- Do NOT invent ages, counts, scores, or measurements.\n"
+    "- Use qualitative labels from supplied cues only "
+    "(e.g. Elevated, Dry, Balanced, Wide, mild/moderate/notable, strong/soft relative to peers).\n"
+    "- Allowed exceptions: product standards that are not CV metrics (e.g. SPF 30+, SPF 50) "
+    "and plain-English routine quantities that are not facial measurements (e.g. 30 days, twice daily).\n"
+    "- CV score numbers may exist in the product UI separately; narrative text must stay qualitative only."
 )
 
 # Beauty Assistant stays second-person; PDF/protocol narratives use Qoves-style third person.

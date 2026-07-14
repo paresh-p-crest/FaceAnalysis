@@ -63,7 +63,7 @@ export default function HistoryPage({ onViewItem, onViewCloudItem, onOpenAdmin, 
   }
 
   const handleDeleteCloudItem = async (assessmentId) => {
-    if (!window.confirm('Delete this cloud report from MongoDB?')) return
+    if (!window.confirm('Delete this cloud report from the database?')) return
     setDeletingId(assessmentId)
     setCloudError('')
     try {

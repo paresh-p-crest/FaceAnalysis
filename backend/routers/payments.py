@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ..auth import get_current_user, require_admin
-from ..database import is_mongodb_configured
+from ..database import is_db_configured
 from ..repositories.payment_repository import (
     create_payment,
     delete_all_payments,
@@ -97,8 +97,8 @@ async def _payment_config_async() -> dict:
 
 
 def _require_db() -> None:
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
 
 
 def _verify_stripe_signature(payload: bytes, signature_header: str, secret: str) -> bool:
@@ -123,7 +123,7 @@ def _verify_stripe_signature(payload: bytes, signature_header: str, secret: str)
 
 @router.get("/config")
 async def get_payment_config():
-    if is_mongodb_configured():
+    if is_db_configured():
         return await _payment_config_async()
     return _payment_config()
 

@@ -18,6 +18,7 @@ import {
   FeatureProseBlock,
   resolveEyebrowsNarrative,
   resolveFeatureNarrative,
+  eyesNarrativeWithoutBrows,
 } from './FeatureProseBlock'
 
 export function CvReportView({
@@ -195,7 +196,7 @@ export function CvReportView({
 
   // Proportions (Qoves-style tabbed ratio view)
   if (activeId === 'proportions' && cvReport?.proportions?.ratios) {
-    return <ProportionsSection proportions={cvReport.proportions} landmarks={landmarks} />
+    return <ProportionsSection proportions={cvReport.proportions} landmarks={landmarks} photo={photo} photos={photos} />
   }
 
   // Nose
@@ -286,9 +287,14 @@ export function CvReportView({
     )
   }
 
-  // Eyes
+  // Eyes (brows live on the separate Eyebrows tab — do not repeat here)
   if (activeId === 'eyes' && eyeAnalysis) {
-    return <EyeReportPanel eyeAnalysis={eyeAnalysis} narrative={narrativeFor('eyes')} />
+    return (
+      <EyeReportPanel
+        eyeAnalysis={eyeAnalysis}
+        narrative={eyesNarrativeWithoutBrows(narrativeFor('eyes'))}
+      />
+    )
   }
 
   // Eyebrows

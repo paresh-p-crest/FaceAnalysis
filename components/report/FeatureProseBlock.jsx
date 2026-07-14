@@ -25,6 +25,16 @@ export function resolveEyebrowsNarrative(featureNarratives, protocolNarrative) {
   }
 }
 
+/** Eyes interactive panel: omit the Eyebrows subsection (shown on its own nav tab). */
+export function eyesNarrativeWithoutBrows(narrative) {
+  if (!narrative) return null
+  const subsections = (narrative.subsections || []).filter(
+    (s) => typeof s?.title !== 'string' || s.title.toLowerCase() !== 'eyebrows',
+  )
+  if (!narrative.summary?.trim() && !subsections.some((s) => s?.body)) return null
+  return { ...narrative, subsections }
+}
+
 export function FeatureProseBlock({
   narrative = null,
   fallbackExplanation = '',

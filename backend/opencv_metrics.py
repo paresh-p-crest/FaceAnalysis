@@ -117,23 +117,32 @@ def compute_metrics_from_landmarks(landmarks: list, answers: Optional[dict] = No
 
     face_h = chin["y"] - forehead["y"]
     brow_y = (lb["y"] + rb["y"]) / 2
-    mouth_y = (ml["y"] + mr["y"]) / 2
+    subnasale_y = lm(landmarks, 2)["y"]
 
     upper_third = "0.33"
     middle_third = "0.34"
     lower_third = "0.33"
+    proportionality = "82.0"
 
     if face_h > 0.01:
+        # Classical facial thirds (matches proportion overlay): 10 → brow → subnasale → chin.
+        # Mouth must not be the middle/lower boundary — that disagrees with the guide lines.
         upper = (brow_y - forehead["y"]) / face_h
-        middle = (mouth_y - brow_y) / face_h
-        lower = (chin["y"] - mouth_y) / face_h
-        upper_third = f"{max(0.15, upper):.2f}"
-        middle_third = f"{max(0.15, middle):.2f}"
-        lower_third = f"{max(0.15, lower):.2f}"
+        middle = (subnasale_y - brow_y) / face_h
+        lower = (chin["y"] - subnasale_y) / face_h
+        total = upper + middle + lower
+        if total > 0.01:
+            upper /= total
+            middle /= total
+            lower /= total
+        upper_third = f"{max(0.05, upper):.2f}"
+        middle_third = f"{max(0.05, middle):.2f}"
+        lower_third = f"{max(0.05, lower):.2f}"
+        ideal_dev = abs(upper - 0.33) + abs(middle - 0.34) + abs(lower - 0.33)
+        proportionality = str(min(99, max(40, round(100 - ideal_dev * 120))))
 
     interocular = dist(LI, RI)
     face_w = dist(ml, mr) * 2.2
-    proportionality = str(min(99, max(60, 70 + (interocular / face_w) * 80)))
 
     canthal_tilt = round(((LE["y"] - LI["y"]) - (RE["y"] - RI["y"])) * 200 + 5, 1)
     eyebrow_tilt = round(abs(lb["y"] - rb["y"]) * 180, 1)

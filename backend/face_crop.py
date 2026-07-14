@@ -173,18 +173,6 @@ def dots_in_crop(landmarks: list, indices: list, box: dict) -> list:
     return [{"id": i, **point_in_crop(landmarks, i, box)} for i in indices]
 
 
-def proportion_lines_in_crop(landmarks: list, box: dict) -> dict:
-    """Compute facial proportion lines in crop-relative percentage space."""
-    brow_y = (lm(landmarks, 105)["y"] + lm(landmarks, 334)["y"]) / 2
-    to_pct = lambda y: ((y - box["y"]) / box["h"]) * 100
-    return {
-        "hair": to_pct(lm(landmarks, 10)["y"]),
-        "brow": to_pct(brow_y),
-        "nose": to_pct(lm(landmarks, 2)["y"]),
-        "chin": to_pct(lm(landmarks, 152)["y"]),
-    }
-
-
 def point_in_image(landmarks: list, idx: int) -> dict:
     """Landmark position in full-image percentage space (0–100)."""
     p = lm(landmarks, idx)
@@ -197,7 +185,12 @@ def dots_in_image(landmarks: list, indices: list) -> list:
 
 
 def proportion_lines_in_image(landmarks: list) -> dict:
-    """Facial third guide lines in full-image percentage space."""
+    """Facial third guide lines in full-image percentage space.
+
+    Used for the proportions overview: ``apply_photo_urls_to_cv_report`` replaces
+    ``proportions.imageSrc`` with the full front photo, so guides must be image-space
+    (not face-crop relative).
+    """
     brow_y = (lm(landmarks, 105)["y"] + lm(landmarks, 334)["y"]) / 2
     return {
         "hair": lm(landmarks, 10)["y"] * 100,

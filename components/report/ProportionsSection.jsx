@@ -2,7 +2,12 @@ import { useMemo, useState } from 'react'
 import { FaceImageFrame, ProportionFeatureOverlay, ProportionsOverlay } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { AssessmentGridLayout } from './FeatureAnalysisPage'
-import { proportionRatioOverlays, mouthCheilions, noseAlae } from '../../utils/faceCrop'
+import {
+  proportionRatioOverlays,
+  proportionLinesInImage,
+  mouthCheilions,
+  noseAlae,
+} from '../../utils/faceCrop'
 
 const RATIO_PARTS = {
   nasoAural: { primary: 'Ear', secondary: 'Nose' },
@@ -151,13 +156,27 @@ function nasoOralLabel(ratio) {
   return 'Mouth ≈ Nose'
 }
 
-export function ProportionsSection({ proportions, landmarks = null }) {
+export function ProportionsSection({
+  proportions,
+  landmarks = null,
+  photo = null,
+  photos = null,
+}) {
   const [activeTab, setActiveTab] = useState('nasoAural')
 
   const liveOverlays = useMemo(() => {
     if (!landmarks?.length) return null
     try {
       return proportionRatioOverlays(landmarks)
+    } catch {
+      return null
+    }
+  }, [landmarks])
+
+  const liveThirdLines = useMemo(() => {
+    if (!landmarks?.length) return null
+    try {
+      return proportionLinesInImage(landmarks)
     } catch {
       return null
     }
@@ -185,6 +204,22 @@ export function ProportionsSection({ proportions, landmarks = null }) {
   const activeImageSrc = active?.imageSrc || proportions.imageSrc
   const overlay = resolveOverlay(activeTab, active, liveOverlays)
 
+  // Full front photo + image-% guides. Crop-relative lines on a front photo look "far apart".
+  const overviewPhoto =
+    photos?.front ||
+    photo ||
+    (typeof proportions.imageSrc === 'string' && proportions.overlaySpace === 'image'
+      ? proportions.imageSrc
+      : null) ||
+    (typeof proportions.imageSrc === 'string' && /\/front(\.|$|\?)/.test(proportions.imageSrc)
+      ? proportions.imageSrc
+      : null) ||
+    proportions.imageSrc
+
+  const overviewLines =
+    liveThirdLines ||
+    (proportions.overlaySpace === 'image' ? proportions.proportionLines : null)
+
   const displayYourValue =
     activeTab === 'nasoOral' && liveNasoOral ? liveNasoOral.yourValue : active?.yourValue
   const displayYourLabel =
@@ -206,13 +241,13 @@ export function ProportionsSection({ proportions, landmarks = null }) {
         }
       />
 
-      {(proportions.imageSrc || score != null || proportions.explanation) && (
+      {(overviewPhoto || score != null || proportions.explanation) && (
         <AssessmentGridLayout
-          photo={proportions.imageSrc}
+          photo={overviewPhoto}
           photoFit="contain"
           photoOverlay={
-            proportions.proportionLines ? (
-              <ProportionsOverlay lines={proportions.proportionLines} />
+            overviewLines ? (
+              <ProportionsOverlay lines={overviewLines} />
             ) : null
           }
           rightCards={

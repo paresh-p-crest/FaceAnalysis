@@ -28,7 +28,8 @@ SUPERLATIVE_PATTERN = re.compile(
 
 NUMBER_PATTERN = re.compile(r"\b(\d{1,3})\s*/\s*100\b|\bscore\s+(\d{1,3})\b", re.IGNORECASE)
 
-# Any score-like language banned from report PDF prose (hard constraint).
+# Any score-like / CV-measurement language banned from report PDF prose (hard constraint).
+# Prefer hard reject (triggers narrative retry) over silent strip-only.
 SCORE_PROSE_PATTERN = re.compile(
     r"\bscore\s*(?:of\s*)?\d{1,3}\s*/\s*100\b|"
     r"\b\d{1,3}\s*/\s*100\b|"
@@ -36,7 +37,13 @@ SCORE_PROSE_PATTERN = re.compile(
     r"\b\d{1,3}\s+out\s+of\s+100\b|"
     r"\b(?:overall|harmony|feature)\s+score\b|"
     r"\bthe current score is\b|"
-    r"/\s*100\b",
+    r"/\s*100\b|"
+    r"\b(?:ratio|third|thirds|proportion)\s+(?:of\s+|is\s+|at\s+)?0\.\d{2,}\b|"
+    r"\b0\.\d{2,}\s+(?:ratio|third|thirds|proportion)\b|"
+    r"\b(?:measured|facial|cv)\s+(?:at\s+)?\d{1,3}\s*%\b|"
+    r"\b\d{1,3}\s*%\s+(?:symmetry|redness|coverage|density|deviation)\b|"
+    r"\b(?:\d{1,3}\.\d+|\d{2,3})\s*(?:°|degrees?)\b|"
+    r"\b\d+(?:\.\d+)?\s*mm\b",
     re.IGNORECASE,
 )
 
@@ -164,7 +171,7 @@ def _template_summary(feature_id: str, ctx: dict) -> str:
     return (
         f"Prioritize the subject's {label} findings ({facts}). "
         "Focus on grooming, topical care, SPF, sleep, and hydration for 30 days before reassessing."
-    )[:200]
+    )
 
 
 def _template_description(feature_id: str, ctx: dict) -> str:
@@ -177,7 +184,7 @@ def _template_description(feature_id: str, ctx: dict) -> str:
     return (
         f"The subject's {label} assessment reflects the measured values ({facts}). "
         f"{limits} Recommendations remain educational and non-surgical."
-    )[:600]
+    )
 
 
 def template_feature_narrative(feature_id: str, ctx: dict) -> dict:
@@ -193,7 +200,7 @@ def template_feature_narrative(feature_id: str, ctx: dict) -> dict:
         subsections.append(
             {
                 "title": title,
-                "body": body[:700],
+                "body": body,
                 "evidenceTier": "lifestyle" if "dermatologist" in body.lower() else "otc",
             }
         )
@@ -404,13 +411,6 @@ def _as_str_list(value, *, max_items: int = 20) -> list[str]:
     return []
 
 
-def _clip(text: str, max_len: int) -> str:
-    t = (text or "").strip()
-    if len(t) <= max_len:
-        return t
-    return t[: max(0, max_len - 3)].rstrip() + "..."
-
-
 def normalize_feature_narrative_raw(
     raw: Optional[dict],
     feature_id: str,
@@ -419,7 +419,8 @@ def normalize_feature_narrative_raw(
     """Coerce common free-model JSON shape mistakes into FeatureNarrative fields.
 
     Handles: ``feature``→``featureId``, string list fields, subsections as a
-    title-keyed object, ``description`` used as subsection body, length caps.
+    title-keyed object, ``description`` used as subsection body.
+    Does not mid-sentence clip; over-length text fails Pydantic validation and retries.
     """
     if not isinstance(raw, dict) or not raw:
         return None
@@ -472,9 +473,9 @@ def normalize_feature_narrative_raw(
     data["recommendations"] = _as_str_list(data.get("recommendations"), max_items=8)
 
     if isinstance(data.get("summary"), str):
-        data["summary"] = _clip(data["summary"], 200)
+        data["summary"] = data["summary"].strip()
     if isinstance(data.get("description"), str):
-        data["description"] = _clip(data["description"], 600)
+        data["description"] = data["description"].strip()
 
     subs = data.get("subsections")
     converted: list[dict] = []
@@ -522,7 +523,7 @@ def normalize_feature_narrative_raw(
 
     for item in converted:
         body = item.get("body") if isinstance(item.get("body"), str) else ""
-        item["body"] = _clip(body, 700)
+        item["body"] = body.strip() if isinstance(body, str) else ""
         tier = item.get("evidenceTier")
         if tier not in ("lifestyle", "otc", "refer_clinician"):
             item["evidenceTier"] = "otc"
@@ -587,7 +588,7 @@ def hydrate_feature_narrative_fields(data: dict, feature_id: str, ctx: dict) -> 
             item["evidenceTier"] = "otc"
         subs.append(item)
     out["subsections"] = subs
-    return strip_score_language_from_narrative_dict(out)
+    return out
 
 
 def try_validate_feature_narrative(
@@ -600,7 +601,8 @@ def try_validate_feature_narrative(
     """Return (rewritten narrative, usable).
 
     LLM slim shape is hydrated with measuredFacts/limitations server-side.
-    Score language is stripped before validate. Banned procedural terms hard-reject.
+    Banned score language and procedural terms hard-reject (triggers retry).
+    strip_score_language is applied only after accept as a last-pass safety net.
     """
     if not raw:
         return None, False
@@ -610,9 +612,8 @@ def try_validate_feature_narrative(
         parsed = FeatureNarrative.model_validate(normalized)
         ok, errs = validate_feature_narrative(parsed, ctx, answers=answers)
         rewritten = _rewrite_narrative_dict(parsed.model_dump())
-        rewritten = strip_score_language_from_narrative_dict(rewritten)
         if ok:
-            return rewritten, True
+            return strip_score_language_from_narrative_dict(rewritten), True
         hard = any(
             ("banned clinical" in (e or "").lower()) or ("banned score" in (e or "").lower())
             for e in errs
@@ -621,7 +622,7 @@ def try_validate_feature_narrative(
             logger.warning("feature %s hard reject: %s", feature_id, errs)
             return None, False
         logger.warning("feature %s soft clinical warnings (keeping LLM): %s", feature_id, errs)
-        return rewritten, True
+        return strip_score_language_from_narrative_dict(rewritten), True
     except Exception as exc:
         keys = sorted(normalized.keys()) if isinstance(normalized, dict) else []
         logger.warning(

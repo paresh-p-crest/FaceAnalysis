@@ -1,4 +1,4 @@
-"""Serialization helpers for API and MongoDB-safe analysis payloads."""
+"""Serialization helpers for API and database-safe analysis payloads."""
 
 from __future__ import annotations
 

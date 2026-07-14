@@ -60,24 +60,37 @@ export function computeMetricsFromLandmarks(landmarks, answers, imageStats = {})
 
   const faceH = chin.y - forehead.y
   const browY = (lb.y + rb.y) / 2
-  const mouthY = (ml.y + mr.y) / 2
+  const subnasale = lm(landmarks, 2)
+  const subnasaleY = subnasale.y
 
   let upperThird = '0.33'
   let middleThird = '0.34'
   let lowerThird = '0.33'
+  let proportionality = '82.0'
 
   if (faceH > 0.01) {
-    const upper = (browY - forehead.y) / faceH
-    const middle = (mouthY - browY) / faceH
-    const lower = (chin.y - mouthY) / faceH
-    upperThird = Math.max(0.15, upper).toFixed(2)
-    middleThird = Math.max(0.15, middle).toFixed(2)
-    lowerThird = Math.max(0.15, lower).toFixed(2)
+    // Classical facial thirds (matches proportion overlay): hairline/10 → brow → subnasale → chin.
+    // Do NOT use mouth — that inflates the middle third and disagrees with the guide lines.
+    let upper = (browY - forehead.y) / faceH
+    let middle = (subnasaleY - browY) / faceH
+    let lower = (chin.y - subnasaleY) / faceH
+    const sum = upper + middle + lower
+    if (sum > 0.01) {
+      upper /= sum
+      middle /= sum
+      lower /= sum
+    }
+    upperThird = Math.max(0.05, upper).toFixed(2)
+    middleThird = Math.max(0.05, middle).toFixed(2)
+    lowerThird = Math.max(0.05, lower).toFixed(2)
+
+    const idealDev =
+      Math.abs(upper - 0.33) + Math.abs(middle - 0.34) + Math.abs(lower - 0.33)
+    proportionality = Math.min(99, Math.max(40, Math.round(100 - idealDev * 120))).toFixed(1)
   }
 
   const interocular = dist(li, ri)
   const faceW = dist(ml, mr) * 2.2
-  const proportionality = Math.min(99, Math.max(60, 70 + (interocular / faceW) * 80)).toFixed(1)
 
   const canthalTilt = (((le.y - li.y) - (re.y - ri.y)) * 200 + 5).toFixed(1)
   const eyebrowTilt = (Math.abs(lb.y - rb.y) * 180).toFixed(1)

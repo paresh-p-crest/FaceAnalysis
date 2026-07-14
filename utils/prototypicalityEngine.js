@@ -273,29 +273,38 @@ function measureDeviations(landmarks, metrics, norms) {
 }
 
 function buildExplanation(deviations, score) {
-  const notable = deviations.filter((d) => d.magnitude > 0.04 && d.direction !== 'balanced' && d.direction !== 'shifted').slice(0, 3)
+  const phraseFor = (d) => {
+    if (d.feature === 'brows') return d.direction === 'higher' ? 'a higher brow line' : 'a lower brow line'
+    if (d.feature === 'nose') return `a ${d.direction} nose`
+    if (d.feature === 'jaw width') return `a ${d.direction} jaw`
+    if (d.feature === 'facial thirds') return 'shifted facial thirds'
+    if (d.feature === 'symmetry') {
+      return d.direction === 'balanced' ? 'balanced left–right symmetry' : 'more left–right asymmetry'
+    }
+    return d.feature
+  }
+
+  const notable = deviations
+    .filter((d) => d.magnitude > 0.04 && d.direction !== 'balanced')
+    .slice(0, 3)
+    .map(phraseFor)
+
   if (score >= 70) {
     if (notable.length === 0) {
-      return 'You sit on the typical side overall: central features and skin quality are very average, with proportions that align closely to your demographic norm.'
+      return (
+        'Your measured proportions sit close to the demographic norm across jaw width, nose, ' +
+        'brows, facial thirds, and symmetry.'
+      )
     }
-    const phrases = notable.map((d) => {
-      if (d.feature === 'brows') return d.direction === 'higher' ? 'higher, thicker brows' : 'lower brows'
-      if (d.feature === 'nose') return d.direction === 'narrower' ? 'a straighter nose' : `a ${d.direction} nose`
-      if (d.feature === 'jaw width') return `a ${d.direction} jaw`
-      return d.feature
-    })
-    return `You sit on the typical side overall: central features and skin quality are very average, while ${phrases.join(', ')} add moderate distinctiveness without moving you far from the demographic norm.`
+    return (
+      'Your overall proportions sit on the typical side relative to your demographic norm, ' +
+      `with the most noticeable measured variation in ${notable.join(', ')}.`
+    )
   }
   if (notable.length === 0) {
     return 'Your ratios show a mix of conformity and variation relative to the ideal proportion targets.'
   }
-  const phrases = notable.map((d) => {
-    if (d.feature === 'brows') return `${d.direction} brow line`
-    if (d.feature === 'nose') return `a ${d.direction} nose`
-    if (d.feature === 'jaw width') return `a ${d.direction} jaw`
-    return `${d.direction} ${d.feature}`
-  })
-  return `Compared to the ideal proportion targets, notable variation appears in ${phrases.join(', ')}.`
+  return `Compared to the ideal proportion targets, notable measured variation appears in ${notable.join(', ')}.`
 }
 
 function computeScore(deviations) {

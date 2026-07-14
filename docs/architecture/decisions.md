@@ -423,3 +423,26 @@ Interactive Features Analysis panels repeated the same CV `explanation` in multi
 - Interactive report and protocol PDF can share the same feature narrative store without tripling CV copy in the UI.
 - Assessment sections remain available even when NL enrichment is incomplete.
 - Re-enrichment (or first enrichment after this change) generates an 11th narrative key `smile` without expanding the PDF page count.
+
+---
+
+## ADR-023: PostgreSQL + JSONB (supersedes ADR-001 database engine)
+Date: 2026-07-13  
+Status: accepted  
+Supersedes: ADR-001 database choice (MongoDB Atlas / Motor)
+
+### Context
+MongoDB fit nested `cvReport` / landmarks well, but the team preferred SQL tooling, real foreign keys, and a greenfield schema without preserving Atlas ObjectId strings. Nested MediaPipe payloads must remain document-shaped.
+
+### Decision
+- **PostgreSQL** via SQLAlchemy 2.0 async + asyncpg + Alembic.
+- **UUID** primary keys (`gen_random_uuid` / `uuid4`); API still exposes string `id`.
+- **JSONB** columns for nested assessment payloads (`analysis`, narratives, photos metadata, review_log, payment `raw`).
+- Normalize Beauty Assistant messages into `conversation_messages` (not JSONB arrays).
+- Env: `DATABASE_URL` (replaces `MONGODB_URI`). Gate: `is_db_configured()`.
+- No Atlas data import — empty DB / schema create on startup (`create_all`) + Alembic revision `20260713_0001`.
+
+### Consequences
+- Nested CV documents stay flexible without metric-table explosion.
+- Cascading deletes and partial unique `(user_id, scan_id)` are native SQL.
+- Operators need a Postgres instance; Motor/pymongo are removed from dependencies.

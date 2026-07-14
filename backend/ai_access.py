@@ -10,9 +10,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
+from sqlalchemy import select
 
 from .config import ASSISTANT_HOURLY_MESSAGE_LIMIT
-from .database import get_db
+from .database import session_scope
+from .models import AssistantRateLimit
+from .repositories._helpers import parse_uuid
 
 
 async def require_paid_ai_access(current_user: dict) -> None:
@@ -36,32 +39,54 @@ async def check_assistant_rate_limit(user_id: str) -> None:
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required.")
 
-    db = get_db()
+    uid = parse_uuid(user_id)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
     bucket = _hour_bucket()
-    doc = await db.assistant_rate_limits.find_one({"userId": user_id, "hourBucket": bucket})
-    count = int((doc or {}).get("count") or 0)
+    async with session_scope() as session:
+        result = await session.execute(
+            select(AssistantRateLimit).where(
+                AssistantRateLimit.user_id == uid,
+                AssistantRateLimit.hour_bucket == bucket,
+            )
+        )
+        row = result.scalar_one_or_none()
+        count = int(row.count) if row else 0
     if count >= ASSISTANT_HOURLY_MESSAGE_LIMIT:
         raise HTTPException(
             status_code=429,
-            detail=f"Assistant limit reached ({ASSISTANT_HOURLY_MESSAGE_LIMIT} messages per hour). Try again later.",
+            detail=(
+                f"Assistant limit reached ({ASSISTANT_HOURLY_MESSAGE_LIMIT} messages per hour). "
+                "Try again later."
+            ),
         )
 
 
 async def increment_assistant_rate_limit(user_id: str) -> int:
     """Increment the hourly counter after a successful assistant reply."""
-    db = get_db()
+    uid = parse_uuid(user_id)
+    if uid is None:
+        return 0
     bucket = _hour_bucket()
-    doc = await db.assistant_rate_limits.find_one_and_update(
-        {"userId": user_id, "hourBucket": bucket},
-        {
-            "$inc": {"count": 1},
-            "$setOnInsert": {
-                "userId": user_id,
-                "hourBucket": bucket,
-                "createdAt": datetime.now(timezone.utc),
-            },
-        },
-        upsert=True,
-        return_document=True,
-    )
-    return int(doc.get("count") or 1)
+    now = datetime.now(timezone.utc)
+    async with session_scope() as session:
+        result = await session.execute(
+            select(AssistantRateLimit).where(
+                AssistantRateLimit.user_id == uid,
+                AssistantRateLimit.hour_bucket == bucket,
+            )
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            row = AssistantRateLimit(
+                user_id=uid,
+                hour_bucket=bucket,
+                count=1,
+                created_at=now,
+            )
+            session.add(row)
+        else:
+            row.count = int(row.count or 0) + 1
+        await session.flush()
+        return int(row.count or 1)

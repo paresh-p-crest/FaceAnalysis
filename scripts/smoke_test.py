@@ -54,7 +54,7 @@ def main() -> int:
     passed = []
 
     status, health = request(args.base_url, "/api/health")
-    passed.append(check("health", status == 200 and health.get("status") == "ok", f"mongodb={health.get('mongodb')}"))
+    passed.append(check("health", status == 200 and health.get("status") == "ok", f"database={health.get('database')}"))
 
     if not args.email or not args.password:
         passed.append(check("auth credentials", False, "set MYFACE_TEST_EMAIL/PASSWORD or ADMIN_EMAIL/PASSWORD"))

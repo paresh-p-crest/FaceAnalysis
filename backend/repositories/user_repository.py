@@ -1,14 +1,16 @@
-"""MongoDB persistence for MyFace users."""
+"""PostgreSQL persistence for MyFace users."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Optional
 
-from bson import ObjectId
-from pymongo.errors import DuplicateKeyError
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
-from ..database import get_db
+from ..database import session_scope
+from ..models import Assessment, Conversation, Payment, User, UserRole
+from ._helpers import iso, parse_uuid
 
 
 def _utcnow() -> datetime:
@@ -17,13 +19,26 @@ def _utcnow() -> datetime:
 
 def serialize_user(doc: dict) -> dict:
     out = dict(doc)
-    if "_id" in out:
-        out["id"] = str(out.pop("_id"))
     out.pop("passwordHash", None)
     for key in ("createdAt", "updatedAt"):
         if key in out and hasattr(out[key], "isoformat"):
             out[key] = out[key].isoformat()
     return out
+
+
+def _user_to_dict(user: User, *, keep_password: bool = False) -> dict:
+    data = {
+        "id": str(user.id),
+        "email": user.email,
+        "firstName": user.first_name,
+        "lastName": user.last_name,
+        "role": user.role.value if hasattr(user.role, "value") else user.role,
+        "createdAt": iso(user.created_at),
+        "updatedAt": iso(user.updated_at),
+    }
+    if keep_password:
+        data["passwordHash"] = user.password_hash
+    return data
 
 
 async def create_user(
@@ -34,52 +49,57 @@ async def create_user(
     last_name: str = "",
     role: str = "user",
 ) -> dict:
-    db = get_db()
     now = _utcnow()
-    doc = {
-        "email": email.lower().strip(),
-        "firstName": first_name.strip(),
-        "lastName": last_name.strip(),
-        "passwordHash": password_hash,
-        "role": role if role in ("user", "admin") else "user",
-        "createdAt": now,
-        "updatedAt": now,
-    }
+    user = User(
+        email=email.lower().strip(),
+        first_name=first_name.strip(),
+        last_name=last_name.strip(),
+        password_hash=password_hash,
+        role=UserRole(role) if role in ("user", "admin") else UserRole.user,
+        created_at=now,
+        updated_at=now,
+    )
     try:
-        result = await db.users.insert_one(doc)
-    except DuplicateKeyError:
-        raise ValueError("Email already registered")
-    doc["_id"] = result.inserted_id
-    return serialize_user(doc)
+        async with session_scope() as session:
+            session.add(user)
+            await session.flush()
+            return serialize_user(_user_to_dict(user))
+    except IntegrityError as exc:
+        raise ValueError("Email already registered") from exc
 
 
 async def ensure_user(*, email: str, password_hash: str, role: str = "user") -> dict:
     """Create or update a known system user, used for local admin bootstrap."""
-    db = get_db()
-    now = _utcnow()
     normalized_email = email.lower().strip()
-    await db.users.update_one(
-        {"email": normalized_email},
-        {
-            "$set": {
-                "passwordHash": password_hash,
-                "role": role if role in ("user", "admin") else "user",
-                "updatedAt": now,
-            },
-            "$setOnInsert": {
-                "email": normalized_email,
-                "createdAt": now,
-            },
-        },
-        upsert=True,
-    )
-    user = await db.users.find_one({"email": normalized_email})
-    return serialize_user(user)
+    now = _utcnow()
+    role_enum = UserRole(role) if role in ("user", "admin") else UserRole.user
+    async with session_scope() as session:
+        result = await session.execute(select(User).where(User.email == normalized_email))
+        user = result.scalar_one_or_none()
+        if user is None:
+            user = User(
+                email=normalized_email,
+                first_name="",
+                last_name="",
+                password_hash=password_hash,
+                role=role_enum,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(user)
+        else:
+            user.password_hash = password_hash
+            user.role = role_enum
+            user.updated_at = now
+        await session.flush()
+        return serialize_user(_user_to_dict(user))
 
 
 async def get_user_with_password_by_email(email: str) -> Optional[dict]:
-    db = get_db()
-    return await db.users.find_one({"email": email.lower().strip()})
+    async with session_scope() as session:
+        result = await session.execute(select(User).where(User.email == email.lower().strip()))
+        user = result.scalar_one_or_none()
+        return _user_to_dict(user, keep_password=True) if user else None
 
 
 async def get_user_by_email(email: str) -> Optional[dict]:
@@ -88,42 +108,40 @@ async def get_user_by_email(email: str) -> Optional[dict]:
 
 
 async def get_user_by_id(user_id: str) -> Optional[dict]:
-    db = get_db()
-    try:
-        oid = ObjectId(user_id)
-    except Exception:
+    uid = parse_uuid(user_id)
+    if uid is None:
         return None
-    doc = await db.users.find_one({"_id": oid})
-    return serialize_user(doc) if doc else None
+    async with session_scope() as session:
+        user = await session.get(User, uid)
+        return serialize_user(_user_to_dict(user)) if user else None
 
 
 async def list_users(limit: int = 100) -> list[dict]:
-    db = get_db()
-    cursor = db.users.find().sort("createdAt", -1).limit(limit)
-    docs = await cursor.to_list(length=limit)
-    return [serialize_user(doc) for doc in docs]
+    async with session_scope() as session:
+        result = await session.execute(select(User).order_by(User.created_at.desc()).limit(limit))
+        users = result.scalars().all()
+        return [serialize_user(_user_to_dict(u)) for u in users]
 
 
 async def delete_user_and_related_data(user_id: str) -> dict:
-    """Delete a user and their assessments, conversations, and payments."""
-    db = get_db()
-    try:
-        oid = ObjectId(user_id)
-    except Exception:
+    """Delete a user and their assessments, conversations, and payments (FK CASCADE)."""
+    uid = parse_uuid(user_id)
+    if uid is None:
         raise ValueError("Invalid user id")
 
-    user = await db.users.find_one({"_id": oid})
-    if not user:
-        raise ValueError("User not found")
+    async with session_scope() as session:
+        user = await session.get(User, uid)
+        if not user:
+            raise ValueError("User not found")
 
-    assessments = await db.assessments.delete_many({"userId": user_id})
-    conversations = await db.conversations.delete_many({"userId": user_id})
-    payments = await db.payments.delete_many({"userId": user_id})
-    await db.users.delete_one({"_id": oid})
+        assessments = await session.execute(delete(Assessment).where(Assessment.user_id == uid))
+        conversations = await session.execute(delete(Conversation).where(Conversation.user_id == uid))
+        payments = await session.execute(delete(Payment).where(Payment.user_id == uid))
+        await session.delete(user)
 
-    return {
-        "userId": user_id,
-        "assessmentsDeleted": assessments.deleted_count,
-        "conversationsDeleted": conversations.deleted_count,
-        "paymentsDeleted": payments.deleted_count,
-    }
+        return {
+            "userId": user_id,
+            "assessmentsDeleted": assessments.rowcount or 0,
+            "conversationsDeleted": conversations.rowcount or 0,
+            "paymentsDeleted": payments.rowcount or 0,
+        }

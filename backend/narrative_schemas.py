@@ -27,7 +27,7 @@ FEATURE_SUBSECTION_TITLES: dict[str, list[str]] = {
 
 class FeatureSubsection(BaseModel):
     title: str
-    body: str = Field(..., min_length=80, max_length=700)
+    body: str = Field(..., min_length=80, max_length=1500)
     # Assigned server-side when omitted by the LLM (slim schema).
     evidenceTier: EvidenceTier = "otc"
 
@@ -41,11 +41,11 @@ class FeatureNarrative(BaseModel):
     """Stored feature page. LLM is only asked for summary + subsections; other fields are hydrated server-side."""
 
     featureId: str
-    summary: str = Field(..., min_length=10, max_length=200)
+    summary: str = Field(..., min_length=10, max_length=500)
     subsections: list[FeatureSubsection]
     measuredFacts: list[str] = Field(default_factory=list, max_length=20)
     limitations: list[str] = Field(default_factory=list, max_length=8)
-    description: str = Field(default="", max_length=600)
+    description: str = Field(default="", max_length=1200)
     recommendations: list[str] = Field(default_factory=list, max_length=8)
 
     @field_validator("featureId")
@@ -102,7 +102,7 @@ def feature_narrative_json_schema(feature_id: str) -> dict:
         "type": "object",
         "properties": {
             "title": {"type": "string", "enum": titles},
-            "body": {"type": "string", "minLength": 80, "maxLength": 700},
+            "body": {"type": "string", "minLength": 80, "maxLength": 1500},
         },
         "required": ["title", "body"],
         "additionalProperties": False,
@@ -112,7 +112,7 @@ def feature_narrative_json_schema(feature_id: str) -> dict:
         "type": "object",
         "properties": {
             "featureId": {"type": "string", "enum": [feature_id]},
-            "summary": {"type": "string", "minLength": 10, "maxLength": 400},
+            "summary": {"type": "string", "minLength": 10, "maxLength": 500},
             "subsections": {
                 "type": "array",
                 "minItems": len(titles),

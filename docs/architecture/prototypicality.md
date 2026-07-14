@@ -53,6 +53,10 @@ score    = clamp(round(84 - penalty), 25, 96)
 
 Bounds come from the user’s face oval (for chart framing only).
 
+## Explanation copy
+
+Interactive/PDF-facing `explanation` is built only from the five measured deviations (plus overall score). It must **not** claim skin quality or other unmeasured traits. Facial-thirds and symmetry deviations are included when magnitude is notable.
+
 ## Files
 
 - `backend/prototypicality.py` — runtime (authoritative)

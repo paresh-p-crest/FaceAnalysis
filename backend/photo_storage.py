@@ -138,7 +138,11 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
             ratios = prop.get("ratios", {})
             if isinstance(ratios, dict):
                 prop["ratios"] = {
-                    k: {**v, "overlaySpace": "image"} if isinstance(v, dict) else v
+                    k: (
+                        {**v, "overlaySpace": "image", "imageSrc": v.get("imageSrc") or front}
+                        if isinstance(v, dict) and k != "nasoAural"
+                        else ({**v, "overlaySpace": "image"} if isinstance(v, dict) else v)
+                    )
                     for k, v in ratios.items()
                 }
             cv_report["proportions"] = prop

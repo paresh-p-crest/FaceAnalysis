@@ -1,5 +1,6 @@
 """Tests for clinical guardrails on feature narratives."""
 
+import re
 import sys
 from pathlib import Path
 
@@ -130,7 +131,7 @@ def test_score_language_hard_rejects_before_strip_path():
     assert any("Banned score" in e for e in errs)
 
 
-def test_slim_llm_payload_hydrates_and_strips_scores():
+def test_slim_llm_payload_with_scores_hard_rejects():
     ctx = _ctx()
     raw = {
         "featureId": "skin",
@@ -149,10 +150,7 @@ def test_slim_llm_payload_hydrates_and_strips_scores():
         ],
     }
     kept, usable = try_validate_feature_narrative(raw, "skin", ctx)
-    assert usable and kept
-    assert kept["measuredFacts"]
-    assert "/100" not in kept["subsections"][0]["body"]
-    assert "score 72" not in kept["subsections"][0]["body"].lower()
+    assert not usable and kept is None
 
 
 def test_banned_term_hard_rejects_llm_copy():
@@ -173,6 +171,45 @@ def test_banned_term_hard_rejects_llm_copy():
     }
     kept, usable = try_validate_feature_narrative(raw, "skin", ctx)
     assert not usable and kept is None
+
+
+def test_normalize_keeps_long_body_without_ellipsis():
+    ctx = _ctx()
+    long_body = (
+        "The subject's skin shows elevated redness with a dry texture under photographic review. "
+        "Daily broad-spectrum SPF and gentle cleansing support barrier repair over thirty days "
+        "while monitoring tone under consistent lighting conditions for the subject. "
+        "Hydration and sleep remain foundational non-surgical supports for facial health. "
+        + ("Additional qualitative guidance for routine consistency. " * 8)
+    )
+    assert len(long_body) > 700
+    raw = {
+        "featureId": "skin",
+        "summary": "Skin clarity needs attention based on measured tone and texture.",
+        "subsections": [
+            {"title": "Skincare Protocol", "body": long_body},
+            {
+                "title": "Further Skin Enhancement",
+                "body": _qual_body("Keep routines conservative and reassess under consistent lighting."),
+            },
+        ],
+    }
+    normalized = normalize_feature_narrative_raw(raw, "skin", ctx)
+    body = normalized["subsections"][0]["body"]
+    assert len(body) > 700
+    assert not body.endswith("...")
+    kept, usable = try_validate_feature_narrative(raw, "skin", ctx)
+    assert usable and kept
+    assert len(kept["subsections"][0]["body"]) > 700
+    assert not kept["subsections"][0]["body"].endswith("...")
+
+
+def test_feature_context_facts_have_no_score_digits():
+    ctx = _ctx()
+    blob = " ".join(ctx["measuredFacts"])
+    assert "/100" not in blob
+    assert not any(re.search(r"\bscore\s+\d", f, re.I) for f in ctx["measuredFacts"])
+    assert any("relative strength" in f or "scoreLabel" in f for f in ctx["measuredFacts"])
 
 
 def test_normalize_free_model_feature_alias():
@@ -205,9 +242,12 @@ def test_json_schema_is_slim_summary_and_subsections_only():
     assert set(props.keys()) == {"featureId", "summary", "subsections"}
     assert "measuredFacts" not in props
     assert "body" in props["subsections"]["items"]["properties"]
+    assert props["subsections"]["items"]["properties"]["body"]["maxLength"] == 1500
+    assert props["summary"]["maxLength"] == 500
     assert "evidenceTier" not in props["subsections"]["items"]["properties"]
 
 
 def test_strip_score_language():
     assert "/100" not in strip_score_language("Overall harmony score 77/100 looks balanced.")
     assert "score 12" not in strip_score_language("The score 12 is noted.").lower()
+    assert "0.33" not in strip_score_language("The middle third ratio is 0.33 for balance.")

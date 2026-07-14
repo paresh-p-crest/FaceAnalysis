@@ -1,4 +1,4 @@
-"""Assessment API — run analysis and persist to MongoDB."""
+"""Assessment API — run analysis and persist to PostgreSQL."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from ..analyze_face import run_face_analysis, _normalize_cv_provider
 from ..auth import get_current_user, get_optional_current_user, require_admin
-from ..database import is_mongodb_configured
+from ..database import is_db_configured
 from ..photo_validation import validate_required_poses
 from ..ai_access import require_paid_ai_access
 from ..protocol_service import (
@@ -245,11 +245,11 @@ async def post_assessment(
     req: AssessmentCreateRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Run MediaPipe analysis and save full result to MongoDB."""
-    if not is_mongodb_configured():
+    """Run MediaPipe analysis and save full result to Database."""
+    if not is_db_configured():
         raise HTTPException(
             status_code=503,
-            detail="MongoDB not configured. Set MONGODB_URI in backend environment.",
+            detail="Database not configured. Set DATABASE_URL in backend environment.",
         )
 
     if current_user.get("role") != "admin" and not await user_has_completed_payment(current_user["id"]):
@@ -336,8 +336,8 @@ async def get_assessment_pdf(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
 
     existing = await get_assessment_by_id(assessment_id)
     if not existing:
@@ -371,8 +371,8 @@ async def get_assessment(
     assessment_id: str,
     current_user: Optional[dict] = Depends(get_optional_current_user),
 ):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
 
     doc = await get_assessment_by_id(assessment_id)
     if not doc:
@@ -384,24 +384,24 @@ async def get_assessment(
 
 @router.get("/assessments")
 async def get_assessments_list(limit: int = 20, current_user: dict = Depends(require_admin)):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
     limit = min(max(1, limit), 100)
     return {"items": serialize_assessments(await list_assessments(limit=limit), summary=True)}
 
 
 @router.get("/my/assessments")
 async def get_my_assessments(limit: int = 20, current_user: dict = Depends(get_current_user)):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
     limit = min(max(1, limit), 100)
     return {"items": serialize_assessments(await list_assessments_for_user(current_user["id"], limit=limit), summary=True)}
 
 
 @router.delete("/assessments")
 async def delete_assessments_data(current_user: dict = Depends(require_admin)):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
     return to_json_safe(await delete_all_assessment_data())
 
 
@@ -410,8 +410,8 @@ async def delete_assessment_by_id(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
     existing = await get_assessment_by_id(assessment_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Assessment not found")
@@ -430,8 +430,8 @@ async def patch_assessment_status(
     req: AssessmentStatusUpdateRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
     canonical_status = _parse_status_or_400(req.status)
     existing = await get_assessment_by_id(assessment_id)
     if not existing:
@@ -455,8 +455,8 @@ async def patch_assessment_admin_review(
     req: AssessmentAdminReviewRequest,
     current_user: dict = Depends(require_admin),
 ):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
     canonical_status = None
     if req.status is not None:
         canonical_status = _parse_status_or_400(req.status)
@@ -521,8 +521,8 @@ async def post_assessment_ai_narrative(
     current_user: dict = Depends(get_current_user),
 ):
     """Return stored narrative, or generate once. Admin may pass force=true to regenerate."""
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
 
     await require_paid_ai_access(current_user)
 
@@ -558,8 +558,8 @@ async def post_assessment_ai_visuals(
     req: AssessmentVisualsRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
 
     await require_paid_ai_access(current_user)
 
@@ -604,9 +604,9 @@ async def get_assessment_protocol(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    """Load persisted protocol bundle from storage (MongoDB fallback)."""
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    """Load persisted protocol bundle from storage (Database fallback)."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
 
     existing = await get_assessment_by_id(assessment_id)
     if not existing:
@@ -620,7 +620,7 @@ async def get_assessment_protocol(
     ):
         raise HTTPException(status_code=404, detail="Protocol not generated for this assessment.")
 
-    if bundle.get("source") == "mongodb":
+    if bundle.get("source") == "database":
         await persist_protocol_bundle(
             assessment_id,
             protocol_narrative=bundle.get("protocolNarrative"),
@@ -635,9 +635,9 @@ async def post_assessment_ai_protocol(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    """Generate protocol once, persist to storage + MongoDB."""
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    """Generate protocol once, persist to storage + Database."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
 
     await require_paid_ai_access(current_user)
 

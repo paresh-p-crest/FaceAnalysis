@@ -165,12 +165,77 @@ def _contraindications(answers: dict) -> dict[str, Any]:
     }
 
 
+def score_band_label(score: Any) -> str:
+    """Map 0–100 CV scores to qualitative bands for LLM context (no digits)."""
+    try:
+        s = float(score)
+    except (TypeError, ValueError):
+        return "unrated relative to peers"
+    if s >= 85:
+        return "strong relative to peers"
+    if s >= 70:
+        return "balanced relative to peers"
+    if s >= 55:
+        return "soft relative to peers"
+    return "notably soft relative to peers"
+
+
+def _qualitative_fact_value(key: str, val: Any) -> Optional[str]:
+    """Format a CV field as a qualitative cue (no raw decimals, %, or /100)."""
+    if val in (None, "", "N/A"):
+        return None
+    key_l = (key or "").lower()
+
+    if isinstance(val, bool):
+        return f"{key}: {'yes' if val else 'no'}"
+
+    if isinstance(val, (int, float)):
+        if "norwood" in key_l:
+            stage = int(val)
+            if stage <= 2:
+                band = "early pattern"
+            elif stage <= 4:
+                band = "mid pattern"
+            else:
+                band = "advanced pattern"
+            return f"{key}: {band}"
+        # Scores / symmetry-like 0–100 integers or percentages
+        if "score" in key_l or key_l.endswith("pct") or key_l.endswith("percent"):
+            return f"{key}: {score_band_label(val)}"
+        # Angles — band only, no degrees cited
+        if "angle" in key_l or key_l.endswith("deg"):
+            if val < 90:
+                band = "acute"
+            elif val <= 120:
+                band = "moderate"
+            else:
+                band = "obtuse"
+            return f"{key}: {band}"
+        # Normalized ratios / deviations (typically 0–1 floats)
+        mag = abs(float(val))
+        if mag <= 1.5:
+            return f"{key}: {magnitude_label(mag)}"
+        return f"{key}: {magnitude_label(mag / 100.0)}"
+
+    text = str(val).strip()
+    if not text:
+        return None
+    # Strip accidental numeric score echoes from stored labels
+    if re.search(r"\d+\s*/\s*100|\b0\.\d{2,}\b", text):
+        text = re.sub(r"\d+\s*/\s*100", "qualitative band", text)
+        text = re.sub(r"\b0\.\d{2,}\b", "measured cue", text)
+    return f"{key}: {text}"
+
+
 def build_measured_facts(feature_id: str, cv_slice: dict, eye_analysis: Optional[dict]) -> list[str]:
     facts: list[str] = []
     if cv_slice.get("score") is not None:
-        label = cv_slice.get("scoreLabel", "")
-        suffix = f" ({label})" if label else ""
-        facts.append(f"score {cv_slice['score']}/100{suffix}")
+        band = score_band_label(cv_slice["score"])
+        label = (cv_slice.get("scoreLabel") or "").strip()
+        if label and label.lower() not in band.lower():
+            facts.append(f"scoreLabel: {label}; relative strength: {band}")
+        else:
+            facts.append(f"relative strength: {band}")
 
     scalar_keys = (
         "shape",
@@ -227,16 +292,16 @@ def build_measured_facts(feature_id: str, cv_slice: dict, eye_analysis: Optional
         "gumExposure",
     )
     for key in scalar_keys:
-        val = cv_slice.get(key)
-        if val not in (None, "", "N/A"):
-            facts.append(f"{key}: {val}")
+        fact = _qualitative_fact_value(key, cv_slice.get(key))
+        if fact:
+            facts.append(fact)
 
     if feature_id == "eyes":
         m = None
         eyes_region = cv_slice.get("eyesRegion") if isinstance(cv_slice.get("eyesRegion"), dict) else None
         if eyes_region:
             if eyes_region.get("score") is not None:
-                facts.append(f"eyes score {eyes_region['score']}/100")
+                facts.append(f"eyes relative strength: {score_band_label(eyes_region['score'])}")
             for sub_key, sub_title in (
                 ("eyebrows", "brow"),
                 ("eyelashes", "lash"),
@@ -246,24 +311,27 @@ def build_measured_facts(feature_id: str, cv_slice: dict, eye_analysis: Optional
                 sub = eyes_region.get(sub_key)
                 if isinstance(sub, dict):
                     for k, v in sub.items():
-                        if k not in ("explanation", "dataSource") and v not in (None, ""):
-                            facts.append(f"{sub_title} {k}: {v}")
+                        if k in ("explanation", "dataSource"):
+                            continue
+                        fact = _qualitative_fact_value(f"{sub_title} {k}", v)
+                        if fact:
+                            facts.append(fact)
         elif isinstance(cv_slice.get("eyeAnalysis"), dict):
             m = cv_slice["eyeAnalysis"]
         elif eye_analysis and eye_analysis.get("metrics"):
             m = eye_analysis["metrics"]
         if m:
             for key in ("eyeTilt", "eyelidExposure", "scleraColor", "underEyeHealth", "lowerLidCurvature"):
-                val = m.get(key)
-                if val not in (None, ""):
-                    facts.append(f"{key}: {val}")
+                fact = _qualitative_fact_value(key, m.get(key))
+                if fact:
+                    facts.append(fact)
         brows = cv_slice.get("eyebrows")
         if isinstance(brows, dict) and brows.get("metrics"):
             bm = brows["metrics"]
             for key in ("shape", "symmetryScore", "thickness", "position"):
-                val = bm.get(key)
-                if val not in (None, ""):
-                    facts.append(f"brow {key}: {val}")
+                fact = _qualitative_fact_value(f"brow {key}", bm.get(key))
+                if fact:
+                    facts.append(fact)
         return facts[:20] if facts else ["limited periorbital metrics available"]
 
     if not facts:
@@ -272,7 +340,7 @@ def build_measured_facts(feature_id: str, cv_slice: dict, eye_analysis: Optional
 
 
 def _build_deviation_facts(feature_id: str, cv_report: dict) -> list[str]:
-    """Per-feature deviation/magnitude labels from averageness and scores."""
+    """Per-feature deviation/magnitude labels from averageness and scores (qualitative only)."""
     facts: list[str] = []
     avg = (cv_report or {}).get("averageness") or {}
     deviations = avg.get("deviations") or []
@@ -293,8 +361,13 @@ def _build_deviation_facts(feature_id: str, cv_report: dict) -> list[str]:
         feat = (d.get("feature") or "").lower()
         if keyword and keyword in feat:
             mag = d.get("magnitude", 0)
+            try:
+                mag_f = float(mag)
+            except (TypeError, ValueError):
+                mag_f = 0.0
             facts.append(
-                f"{feat}: direction {d.get('direction', 'unknown')}, magnitude: {mag:.3f} ({magnitude_label(mag)})"
+                f"{feat}: direction {d.get('direction', 'unknown')}, "
+                f"magnitude: {magnitude_label(mag_f)}"
             )
     cv_key = {
         "nose": "nose", "jaw": "jaw", "chin": "chin", "skin": "skin",
@@ -306,7 +379,10 @@ def _build_deviation_facts(feature_id: str, cv_report: dict) -> list[str]:
         score = section.get("score")
         if isinstance(score, (int, float)) and score < 75:
             mag = max(0, (80 - score) / 200)
-            facts.append(f"feature score {score}/100 implies {magnitude_label(mag)} deviation magnitude: {mag:.3f}")
+            facts.append(
+                f"feature relative strength {score_band_label(score)} implies "
+                f"{magnitude_label(mag)} deviation"
+            )
     return facts[:8]
 
 

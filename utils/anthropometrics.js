@@ -82,11 +82,17 @@ export function computeAnthropometrics(landmarks, answers = {}) {
   const faceW = Math.max(0.01, dist(jawL, jawR))
   const ipd = Math.max(0.001, dist(li, ri))
   const browY = (lb.y + rb.y) / 2
-  const mouthY = (ml.y + mr.y) / 2
+  const subnasale = lm(landmarks, 2)
 
-  const upperThird = (browY - forehead.y) / faceH
-  const middleThird = (mouthY - browY) / faceH
-  const lowerThird = (chin.y - mouthY) / faceH
+  let upperThird = (browY - forehead.y) / faceH
+  let middleThird = (subnasale.y - browY) / faceH
+  let lowerThird = (chin.y - subnasale.y) / faceH
+  const thirdsSum = upperThird + middleThird + lowerThird
+  if (thirdsSum > 0.01) {
+    upperThird /= thirdsSum
+    middleThird /= thirdsSum
+    lowerThird /= thirdsSum
+  }
 
   const interocularRatio = ipd / faceW
   const mouthWidth = dist(ml, mr)

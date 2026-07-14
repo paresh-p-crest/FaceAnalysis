@@ -15,7 +15,14 @@ from .clinical_guardrails import (
     try_validate_feature_narrative,
     validate_or_template,
 )
-from .config import FEATURE_NARRATIVE_IDS, PROTOCOL_FEATURE_IDS, LLM_MAX_OUTPUT_TOKENS
+from .config import (
+    FEATURE_NARRATIVE_IDS,
+    FEATURE_NARRATIVE_MAX_ATTEMPTS,
+    FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC,
+    FEATURE_NARRATIVE_RATE_LIMIT_RETRIES,
+    PROTOCOL_FEATURE_IDS,
+    LLM_MAX_OUTPUT_TOKENS,
+)
 from .feature_context import build_feature_context, feature_context_as_prompt_text
 from .llm_client import chat_structured_completion
 from .narrative_schemas import (
@@ -44,6 +51,16 @@ _FEATURE_SEMAPHORE = asyncio.Semaphore(2)
 
 logger = logging.getLogger(__name__)
 
+_RETRY_USER_HINT = (
+    "Previous output failed validation. Be more conservative and "
+    "strictly grounded. Prefer the phrase non-surgical. Do not invent procedures. "
+    "Use only ASCII hyphen (-) — no soft hyphens or special dashes. "
+    "Return ONLY JSON keys: featureId, summary, subsections "
+    "(array of {title, body}). Never include numeric CV measurements "
+    "(no X/100, no score N, no decimal ratios, no cited degrees/mm). "
+    "Use qualitative labels from supplied cues only."
+)
+
 _NL_STYLE_RULES = (
     "\n\n" + NARRATIVE_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES + "\n" + NO_SCORES_IN_REPORT_PROSE
 )
@@ -58,7 +75,9 @@ FEATURE_NARRATIVE_SYSTEM = (
     "Use subsection titles exactly as required by schema. "
     "Each subsection body: 100-140 words with qualitative measured cues woven into the prose — never X/100. "
     "Summary: 1-2 sentences naming qualitative priorities for this feature (not a generic placeholder). "
-    "The phrase 'non-surgical' is allowed and preferred; do not recommend surgery or injectables."
+    "The phrase 'non-surgical' is allowed and preferred; do not recommend surgery or injectables.\n"
+    "Example — Bad: 'The subject's skin quality shows score 72/100 with textured surface.' "
+    "Good: 'The subject's skin shows moderate redness with a dry texture under photographic review.'"
 )
 
 
@@ -97,6 +116,74 @@ def _build_feature_messages(
     ]
 
 
+def _is_rate_limit_result(result: dict) -> bool:
+    err = (result.get("error") or "").lower()
+    return "rate_limit" in err or "429" in err
+
+
+async def _chat_feature_structured(
+    *,
+    feature_id: str,
+    messages: list[dict],
+    temperature: float,
+    api_key: Optional[str],
+    schema_suffix: str = "",
+) -> dict:
+    async with _FEATURE_SEMAPHORE:
+        return await asyncio.to_thread(
+            chat_structured_completion,
+            schema_name=f"feature_{feature_id}{schema_suffix}",
+            json_schema=feature_narrative_json_schema(feature_id),
+            messages=messages,
+            temperature=temperature,
+            max_tokens=LLM_MAX_OUTPUT_TOKENS,
+            api_key_override=api_key,
+        )
+
+
+async def _chat_feature_with_rate_limit_backoff(
+    *,
+    feature_id: str,
+    messages: list[dict],
+    temperature: float,
+    api_key: Optional[str],
+    attempt: int,
+) -> dict:
+    """One validation-slot LLM call; on 429, up to N extra tries with exponential backoff from 30s."""
+    suffix = "" if attempt == 1 else f"_retry{attempt}"
+    result = await _chat_feature_structured(
+        feature_id=feature_id,
+        messages=messages,
+        temperature=temperature,
+        api_key=api_key,
+        schema_suffix=suffix,
+    )
+    if not _is_rate_limit_result(result):
+        return result
+
+    for extra in range(1, FEATURE_NARRATIVE_RATE_LIMIT_RETRIES + 1):
+        delay = FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC * (2 ** (extra - 1))
+        logger.info(
+            "feature %s rate limited (429); backoff %ss then extra retry %s/%s",
+            feature_id,
+            delay,
+            extra,
+            FEATURE_NARRATIVE_RATE_LIMIT_RETRIES,
+        )
+        await asyncio.sleep(delay)
+        result = await _chat_feature_structured(
+            feature_id=feature_id,
+            messages=messages,
+            temperature=temperature,
+            api_key=api_key,
+            schema_suffix=f"{suffix}_rl{extra}",
+        )
+        if not _is_rate_limit_result(result):
+            return result
+
+    return result
+
+
 async def generate_feature_narrative_async(
     feature_id: str,
     *,
@@ -122,66 +209,56 @@ async def generate_feature_narrative_async(
         photos_meta=photos_meta,
     )
 
-    async with _FEATURE_SEMAPHORE:
-        result = await asyncio.to_thread(
-            chat_structured_completion,
-            schema_name=f"feature_{feature_id}",
-            json_schema=feature_narrative_json_schema(feature_id),
+    max_attempts = max(1, FEATURE_NARRATIVE_MAX_ATTEMPTS)
+    for attempt in range(1, max_attempts + 1):
+        temperature = 0.3 if attempt == 1 else 0.2
+        result = await _chat_feature_with_rate_limit_backoff(
+            feature_id=feature_id,
             messages=messages,
-            temperature=0.3,
-            max_tokens=LLM_MAX_OUTPUT_TOKENS,
-            api_key_override=api_key,
+            temperature=temperature,
+            api_key=api_key,
+            attempt=attempt,
         )
 
-    raw = result.get("content")
-    if result.get("error") and not raw:
-        logger.info("feature %s structured: TEMPLATE (LLM error / empty)", feature_id)
-        return validate_or_template(None, feature_id, ctx, answers=answers)
-
-    # Keep schema-valid LLM copy (including soft clinical warnings).
-    # Hard reject / retry / template only when unparseable or banned terms.
-    validated, usable = try_validate_feature_narrative(raw, feature_id, ctx, answers=answers)
-    if usable and validated:
-        logger.info("feature %s structured: LLM accepted", feature_id)
-        return validated
-
-    err = (result.get("error") or "").lower()
-    if "rate_limit" in err or "429" in err:
-        logger.info("feature %s structured: TEMPLATE (rate limit)", feature_id)
-        return validate_or_template(None, feature_id, ctx, answers=answers)
-
-    try:
-        retry_messages = messages + [
-            {
-                "role": "user",
-                "content": (
-                    "Previous output failed validation. Be more conservative and "
-                    "strictly grounded. Prefer the phrase non-surgical. Do not invent procedures. "
-                    "Use only ASCII hyphen (-) — no soft hyphens or special dashes. "
-                    "Return ONLY JSON keys: featureId, summary, subsections "
-                    "(array of {title, body}). Never include numeric scores (no X/100)."
-                ),
-            }
-        ]
-        async with _FEATURE_SEMAPHORE:
-            retry = await asyncio.to_thread(
-                chat_structured_completion,
-                schema_name=f"feature_{feature_id}_retry",
-                json_schema=feature_narrative_json_schema(feature_id),
-                messages=retry_messages,
-                temperature=0.2,
-                max_tokens=LLM_MAX_OUTPUT_TOKENS,
-                api_key_override=api_key,
+        if _is_rate_limit_result(result):
+            logger.info(
+                "feature %s structured: TEMPLATE (rate limit after %s backoff retries)",
+                feature_id,
+                FEATURE_NARRATIVE_RATE_LIMIT_RETRIES,
             )
-        retry_raw = retry.get("content")
-        retry_validated, retry_ok = try_validate_feature_narrative(
-            retry_raw, feature_id, ctx, answers=answers
+            return validate_or_template(None, feature_id, ctx, answers=answers)
+
+        raw = result.get("content")
+        if result.get("error") and not raw:
+            logger.info(
+                "feature %s structured: LLM error / empty (attempt %s/%s)",
+                feature_id,
+                attempt,
+                max_attempts,
+            )
+            if attempt >= max_attempts:
+                logger.info("feature %s structured: TEMPLATE (LLM error / empty)", feature_id)
+                return validate_or_template(None, feature_id, ctx, answers=answers)
+            messages = messages + [{"role": "user", "content": _RETRY_USER_HINT}]
+            continue
+
+        # Keep schema-valid LLM copy (including soft clinical warnings).
+        # Hard reject / retry / template only when unparseable or banned terms.
+        validated, usable = try_validate_feature_narrative(raw, feature_id, ctx, answers=answers)
+        if usable and validated:
+            label = "LLM accepted" if attempt == 1 else f"LLM accepted (attempt {attempt})"
+            logger.info("feature %s structured: %s", feature_id, label)
+            return validated
+
+        logger.info(
+            "feature %s structured: hard reject (attempt %s/%s)",
+            feature_id,
+            attempt,
+            max_attempts,
         )
-        if retry_ok and retry_validated:
-            logger.info("feature %s structured: LLM accepted (retry)", feature_id)
-            return retry_validated
-    except Exception:
-        pass
+        if attempt >= max_attempts:
+            break
+        messages = messages + [{"role": "user", "content": _RETRY_USER_HINT}]
 
     logger.info("feature %s structured: TEMPLATE (schema/retry fail)", feature_id)
     return validate_or_template(None, feature_id, ctx, answers=answers)

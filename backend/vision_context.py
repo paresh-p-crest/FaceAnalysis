@@ -115,7 +115,8 @@ def vision_instruction_for_feature(feature_id: str, pose_ids: list[str]) -> str:
     return (
         f"Attached photos for this {feature_id} section (in order): {named}. "
         "Use them only as visual context for wording. "
-        "Do not invent scores or measurements; rely on measuredFacts for numbers. "
+        "Never invent or quote numeric scores, ratios, percentages, degrees, or millimetre measurements. "
+        "Use qualitative labels from measuredFacts only. "
         "Do not mention photos, cameras, or that images were provided."
     )
 

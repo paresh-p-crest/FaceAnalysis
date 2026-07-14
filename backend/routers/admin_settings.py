@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..auth import require_admin
-from ..database import is_mongodb_configured
+from ..database import is_db_configured
 from ..repositories.settings_repository import get_premium_product, update_premium_pricing
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -21,8 +21,8 @@ class PricingUpdateRequest(BaseModel):
 
 @router.get("/pricing")
 async def get_admin_pricing(current_user: dict = Depends(require_admin)):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
     product = await get_premium_product()
     return {"product": product}
 
@@ -32,8 +32,8 @@ async def patch_admin_pricing(
     req: PricingUpdateRequest,
     current_user: dict = Depends(require_admin),
 ):
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
     product = await update_premium_pricing(
         amount_cents=req.amountCents,
         currency=req.currency,

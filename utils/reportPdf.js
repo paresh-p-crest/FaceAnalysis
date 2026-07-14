@@ -433,7 +433,7 @@ function drawLabeledBody(doc, x, y, title, body, maxW, lineH = 11.5) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
-  return wrapText(doc, body || '', x, y + 18, maxW, lineH)
+  return wrapText(doc, body || '', x, y + 22, maxW, lineH)
 }
 
 /**
@@ -453,7 +453,8 @@ function drawSummaryCard(
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   const lines = doc.splitTextToSize(summary || '', w - pad * 2)
-  const titleBlock = 22
+  // Title baseline at +16; leave more room before body (was 22 — cramped under "X Summary")
+  const titleBlock = 30
   const naturalH = Math.max(minH, titleBlock + lines.length * lineH + pad)
   const topFloor = Math.max(80, y)
   const available = Math.max(0, maxBottom - topFloor)
@@ -486,7 +487,7 @@ function drawSummaryCard(
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   visible.forEach((line, i) => {
-    doc.text(line, x + pad, cardY + titleBlock + 4 + i * lineH)
+    doc.text(line, x + pad, cardY + titleBlock + 6 + i * lineH)
   })
   return { cardY, cardH, bottom: cardY + cardH }
 }

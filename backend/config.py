@@ -4,13 +4,23 @@ import os
 
 OPENAI_REPORT_MODEL = "gpt-4o-mini"
 GROQ_MODEL = "llama-3.3-70b-versatile"
-# OpenRouter model id (use `:free` for $0 token models — still rate-limited)
-OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+# OpenRouter model id (use `:free` for $0 token models — still rate-limited) - Backup one, if no model is defined in .env then this one will be used
+OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free" 
 
 # Unified max completion tokens for every backend LLM call (narratives, protocol, assistant).
 # Keeps budgets consistent and avoids truncated JSON from smaller per-call caps.
 # Override with LLM_MAX_OUTPUT_TOKENS in .env if needed.
-LLM_MAX_OUTPUT_TOKENS = int(os.environ.get("LLM_MAX_OUTPUT_TOKENS", "4000") or "4000")
+LLM_MAX_OUTPUT_TOKENS = int(os.environ.get("LLM_MAX_OUTPUT_TOKENS", "8000") or "8000")
+
+# Feature narrative generation: total LLM attempts on hard reject / empty / schema fail.
+FEATURE_NARRATIVE_MAX_ATTEMPTS = int(os.environ.get("FEATURE_NARRATIVE_MAX_ATTEMPTS", "3") or "3")
+# Extra LLM calls after a 429, with exponential backoff starting at BACKOFF_SEC (30 → 60 → 120).
+FEATURE_NARRATIVE_RATE_LIMIT_RETRIES = int(
+    os.environ.get("FEATURE_NARRATIVE_RATE_LIMIT_RETRIES", "3") or "3"
+)
+FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC = int(
+    os.environ.get("FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC", "30") or "30"
+)
 
 # Beauty Assistant — cost controls
 ASSISTANT_HOURLY_MESSAGE_LIMIT = 20
@@ -79,17 +89,6 @@ SCAN_STAGES = [
     "Writing feature recommendations",
     "Building protocol narrative",
     "Preparing report",
-]
-
-SCAN_MESSAGES = [
-    "Locating 468 facial landmark points…",
-    "Mapping facial thirds & fifths…",
-    "Calculating symmetry indices…",
-    "Assessing jawline & chin geometry…",
-    "Evaluating periorbital structure…",
-    "Writing feature recommendations…",
-    "Building the subject's protocol narrative…",
-    "Finalizing the personalized report…",
 ]
 
 INITIAL_ANSWERS = {

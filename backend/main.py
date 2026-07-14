@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 from .analyze_face import run_face_analysis
 from .auth import ensure_bootstrap_admin
-from .database import close_db, connect_db, is_mongodb_configured, ping_db
+from .database import close_db, connect_db, is_db_configured, ping_db
 from .image_utils import decode_image, decode_photo_dict
 from .routers.auth import router as auth_router
 from .routers.assessments import router as assessments_router
@@ -97,13 +97,13 @@ class GeneratePdfRequest(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    mongo_status = "not_configured"
-    if is_mongodb_configured():
-        mongo_status = "connected" if await ping_db() else "error"
+    db_status = "not_configured"
+    if is_db_configured():
+        db_status = "connected" if await ping_db() else "error"
     return {
         "status": "ok",
         "provider": "python-fastapi",
-        "mongodb": mongo_status,
+        "database": db_status,
     }
 
 

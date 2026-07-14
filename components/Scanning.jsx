@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { SCAN_MESSAGES, SCAN_NL_STAGE_INDEX, SCAN_STAGES } from '../utils/constants'
+import { SCAN_NL_STAGE_INDEX, SCAN_STAGES } from '../utils/constants'
 import { runFaceAnalysis } from '../utils/analyzeFace'
 import { Check } from 'lucide-react'
 
@@ -8,7 +8,6 @@ const CV_STAGE_MS = 1400
 const NL_STAGE_MS = 10000
 
 export default function Scanning({ photo, photos, answers, scanId, onComplete }) {
-  const [msgIndex, setMsgIndex] = useState(0)
   const [stageIndex, setStageIndex] = useState(0)
   const [completedStages, setCompletedStages] = useState([])
   const stageIndexRef = useRef(0)
@@ -69,14 +68,9 @@ export default function Scanning({ photo, photos, answers, scanId, onComplete })
 
     run()
 
-    const msgTimer = setInterval(() => {
-      setMsgIndex((i) => (i + 1) % SCAN_MESSAGES.length)
-    }, 1200)
-
     return () => {
       active = false
       if (stageTimer) clearTimeout(stageTimer)
-      clearInterval(msgTimer)
     }
   }, [photo, photos, answers, scanId, onComplete])
 
@@ -103,8 +97,8 @@ export default function Scanning({ photo, photos, answers, scanId, onComplete })
         </div>
 
         <div className="mt-8 text-center">
-          <p className="text-ink font-display text-lg font-semibold mb-2 min-h-[28px] transition-all">
-            {SCAN_MESSAGES[msgIndex]}
+          <p className="text-ink font-display text-lg font-semibold mb-2">
+            {SCAN_STAGES[stageIndex]}
           </p>
           {inNlBand ? (
             <p className="text-ink-muted text-xs mb-2 px-2">

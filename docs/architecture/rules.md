@@ -9,17 +9,17 @@ This document lists the hard, "always true" constraints that must be observed du
    - Smart templates, protocol recommendations, and advice.
    - Interactive Beauty Assistant chat responses.
    - Generative visual preview prompts (hairstyles, outfits, aging).
-3. **Data Dependency:** You must calculate and store the deterministic `cvReport` and landmarks in MongoDB *before* performing any OpenAI narrative enrichment. All AI narrative text must reference the stored metrics and never hallucinate raw measurements.
+3. **Data Dependency:** You must calculate and store the deterministic `cvReport` and landmarks in the database *before* performing any OpenAI narrative enrichment. All AI narrative text must reference the stored metrics and never hallucinate raw measurements.
 4. **Immutability of Measurements:** Keep raw landmark and metric data (`analysis.cvReport`) immutable during AI or administrative reviews. Reviewers/admins can only edit narrative, recommendations, and status flags.
 
 ## Layout & Stack Responsibilities
 1. **Frontend (Next.js 15 App Router):** Handles user interface rendering, user dashboard, routing, local browser settings, cookie-based sessions, client-side questionnaire flows, and basic billing states. No CV math logic or credentialed LLM calls run client-side — all text AI goes through `backend/text_ai_service.py`.
 2. **Backend (Python FastAPI):** Handles heavy compute tasks, image parsing, MediaPipe landmark evaluation, `cvReport` building, ReportLab PDF compilation, payment gateway webhooks, email triggers, and credentialed OpenAI vision/generation requests.
-3. **Database (MongoDB Atlas):** Primary transactional store for users, assessments, analysis logs, payment receipts, and chat logs.
+3. **Database (PostgreSQL):** Primary transactional store for users, assessments (JSONB nested analysis), payment receipts, and chat logs.
 
 ## Security & Secrets
 1. **No Committed Keys:** Never commit API keys, webhook secrets, passwords, or `.env` files.
-2. **Environment Variables:** All secrets (Stripe, PayPal, SMTP, OpenAI, MongoDB credentials) must live exclusively in environment variables loaded dynamically via `python-dotenv` (backend) or Next.js environment mechanisms.
+2. **Environment Variables:** All secrets (Stripe, PayPal, SMTP, OpenAI, `DATABASE_URL`) must live exclusively in environment variables loaded dynamically via `python-dotenv` (backend) or Next.js environment mechanisms.
 
 ## Report Workflow Gates
 1. **Access Restrictions:** Assessment PDFs can only be generated and downloaded when the report status is `approved` or `published`.

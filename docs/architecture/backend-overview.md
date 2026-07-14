@@ -145,13 +145,18 @@ Triggered by `enrich_assessment_nl_content` on create (not on report open). Idem
 
 **File:** `clinical_guardrails.py` (after each feature LLM response)
 
-1. Validate (banned procedural claims, ungrounded numbers, evidence tier, voice, etc.)  
-2. Soft failure → retry once (rate-limit → template immediately)  
-3. Still bad → deterministic template from measured facts  
-4. Rewrite to third-person “the subject” voice  
-5. ASCII sanitize for PDF-safe punctuation  
+1. Validate (banned procedural claims, **numeric CV measurement language** in prose, evidence tier, voice, etc.)  
+2. Soft failure → **keep** LLM copy (no retry). Hard reject (banned terms / score language) or empty → up to **`FEATURE_NARRATIVE_MAX_ATTEMPTS` (default 3)** total LLM attempts  
+3. **429 / rate limit** → up to **`FEATURE_NARRATIVE_RATE_LIMIT_RETRIES` (default 3)** extra calls with exponential backoff starting at **`FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC` (default 30s)** → 30 / 60 / 120; still limited → template  
+4. Still bad after attempts → deterministic template from measured facts  
+5. Rewrite to third-person “the subject” voice; **`strip_score_language` last-pass** after accept  
+6. ASCII sanitize for PDF-safe punctuation  
 
-Prompt-side rules also live in `text_ai_service` (`STRICT_NON_SURGICAL_RULES`, `NARRATIVE_VOICE_RULES`, …).
+**No mid-sentence clipping:** normalize does not ellipsis-truncate bodies/summaries. Schema caps are raised for 100–140 word bodies (`body` ≤1500, `summary` ≤500); over-length fails validation and retries.
+
+**Qualitative-only LLM context:** `feature_context` maps scores/decimals to bands/labels (no `N/100` in `measuredFacts`). Vision instructions forbid inventing or quoting numeric measurements. Product UI still shows real CV numbers.
+
+Prompt-side rules also live in `text_ai_service` (`STRICT_NON_SURGICAL_RULES`, `NARRATIVE_VOICE_RULES`, `NO_SCORES_IN_REPORT_PROSE` / NUMERIC BAN, …).
 
 ### Stage 6 — Report UI, PDF, and optional add-ons
 

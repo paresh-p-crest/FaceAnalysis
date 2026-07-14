@@ -305,52 +305,45 @@ def _measure_deviations(landmarks: list, metrics: Optional[dict], norms: dict) -
 
 
 def _build_explanation(deviations: list, score: int) -> str:
-    notable = [d for d in deviations if d["magnitude"] > 0.04 and d["direction"] not in ("balanced", "shifted")][:3]
+    def _phrase(d: dict) -> str:
+        feature = d["feature"]
+        direction = d["direction"]
+        if feature == "brows":
+            return "a higher brow line" if direction == "higher" else "a lower brow line"
+        if feature == "nose":
+            return f"a {direction} nose"
+        if feature == "jaw width":
+            return f"a {direction} jaw"
+        if feature == "facial thirds":
+            return "shifted facial thirds"
+        if feature == "symmetry":
+            return (
+                "balanced left–right symmetry"
+                if direction == "balanced"
+                else "more left–right asymmetry"
+            )
+        return feature
+
+    notable = [
+        _phrase(d)
+        for d in deviations
+        if d["magnitude"] > 0.04 and d["direction"] != "balanced"
+    ][:3]
+
     if score >= 70:
         if not notable:
             return (
-                "You sit on the typical side overall: central features and skin quality are very average, "
-                "with proportions that align closely to your demographic norm."
+                "Your measured proportions sit close to the demographic norm across jaw width, nose, "
+                "brows, facial thirds, and symmetry."
             )
-        phrases = []
-        for d in notable:
-            if d["feature"] == "brows":
-                adj = "higher, thicker" if d["direction"] == "higher" else "lower"
-                phrases.append(f"{adj} brows")
-            elif d["feature"] == "nose":
-                adj = "straighter" if d["direction"] == "narrower" else "broader"
-                phrases.append(f"a {adj} nose")
-            elif d["feature"] == "jaw width":
-                adj = "narrower" if d["direction"] == "narrower" else "wider"
-                phrases.append(f"a {adj} jaw")
-            else:
-                phrases.append(d["feature"])
         return (
-            "You sit on the typical side overall: central features and skin quality are very average, "
-            f"while {', '.join(phrases)} add moderate distinctiveness without moving you far from the demographic norm."
+            "Your overall proportions sit on the typical side relative to your demographic norm, "
+            f"with the most noticeable measured variation in {', '.join(notable)}."
         )
     if not notable:
-        return (
-            "Your key facial ratios align closely with the ideal proportion targets for your selected profile."
-            if score >= 70
-            else "Your ratios show a mix of conformity and variation relative to the ideal proportion targets."
-        )
-    phrases = []
-    for d in notable:
-        if d["feature"] == "brows":
-            phrases.append(f"{d['direction']} brow line")
-        elif d["feature"] == "nose":
-            phrases.append(f"a {d['direction']} nose")
-        elif d["feature"] == "jaw width":
-            phrases.append(f"a {d['direction']} jaw")
-        else:
-            phrases.append(f"{d['direction']} {d['feature']}")
-    if score >= 70:
-        return (
-            f"Overall your proportions sit close to the ideal targets; minor variation shows in {', '.join(phrases)}."
-        )
+        return "Your ratios show a mix of conformity and variation relative to the ideal proportion targets."
     return (
-        f"Compared to the ideal proportion targets, notable variation appears in {', '.join(phrases)}."
+        f"Compared to the ideal proportion targets, notable measured variation appears in {', '.join(notable)}."
     )
 
 

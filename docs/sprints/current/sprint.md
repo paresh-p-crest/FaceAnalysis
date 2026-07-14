@@ -5,6 +5,7 @@
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, Qoves-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
 ## In-Flight Tasks
+- [x] Postgres greenfield schema + remove MongoDB/Motor (ADR-023) (status: completed)
 - [x] Face Shape: metric cards right of photo; extras below (status: completed)
 - [x] Prototypicality mesh: nose triangle + outline to eye level; sage stroke (status: completed)
 - [x] Proportions overview: Qoves photo + score/thirds-bar/explanation cards (status: completed)
@@ -45,8 +46,17 @@
 - [x] OpenRouter text LLM provider (`LLM_PROVIDER=openrouter`, ADR-020) (status: completed)
 - [x] Free-model feature JSON normalize + narrative enrichment scoreboard (status: completed)
 - [x] Slim feature LLM schema (summary+subsections) + hard no-scores in report prose (ADR-021) (status: completed)
-- [x] Unify backend LLM max_tokens via LLM_MAX_OUTPUT_TOKENS=4000 (status: completed)
+- [x] Unify backend LLM max_tokens via LLM_MAX_OUTPUT_TOKENS=8000 (status: completed)
 - [x] Interactive report text: dedupe feature-panel prose; wire `featureNarratives`; Qoves-style Facial Assessments templates (no LLM); smile LLM for interactive panel (status: completed)
+- [x] Remove cycling scan headline text; audit Facial Assessments static vs live data (status: completed)
+- [x] Make Facial Assessments explanations/metrics measurement-driven where genuine (status: completed)
+- [x] Fix facial thirds source of truth: subnasale (not mouth) + score from thirds balance (status: completed)
+- [x] Eyes interactive panel: exclude Eyebrows subsection (brows on own tab) (status: completed)
+- [x] Feature narrative retries: 3 total on hard reject; 429 backoff 30/60/120 ×3 (status: completed)
+- [x] Remove hard clipping + ban numeric report prose (qualitative LLM context; Stage 5) (status: completed)
+- [x] Fix proportions overview guides: image-space lines vs full front photo URL (status: completed)
+- [x] Proportions overview: keep face-crop + crop-relative thirds (match Qoves scaling) (status: completed)
+- [x] Proportions overview: live landmark image-% guides on front photo (status: completed)
 - [ ] Run backend compile gates and smoke tests for Milestone 1 (status: planned)
 - [ ] Verify frontend build states for questionnaire and uploads (status: planned)
 - [ ] Optional BiSeNet upgrade for hair mask (future — not env-gated)

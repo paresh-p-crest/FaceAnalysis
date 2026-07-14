@@ -1,4 +1,4 @@
-"""Generate, load, and persist assessment protocols via storage + MongoDB."""
+"""Generate, load, and persist assessment protocols via storage + database."""
 
 from __future__ import annotations
 
@@ -114,7 +114,7 @@ def _bundle_from_assessment(assessment: dict) -> Optional[dict]:
         "protocolNarrative": assessment.get("protocolNarrative"),
         "featureNarratives": assessment.get("featureNarratives"),
         "protocolStorage": assessment.get("protocolStorage"),
-        "source": "mongodb",
+        "source": "database",
     }
 
 
@@ -163,7 +163,7 @@ async def persist_protocol_bundle(
     protocol_narrative: Optional[dict],
     feature_narratives: Optional[dict] = None,
 ) -> dict:
-    """Write protocol JSON to storage and sync denormalized fields to MongoDB."""
+    """Write protocol JSON to storage and sync denormalized fields to the database."""
     storage = get_protocol_storage()
     stored: StoredProtocol = await asyncio.to_thread(
         storage.save_protocol,

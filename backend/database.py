@@ -1,132 +1,84 @@
-"""MongoDB connection (Motor async driver)."""
+"""PostgreSQL connection (SQLAlchemy async + asyncpg)."""
 
 from __future__ import annotations
 
 import os
-from typing import Optional
+from contextlib import asynccontextmanager
+from typing import AsyncIterator, Optional
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo.errors import DuplicateKeyError, OperationFailure
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
-_client: Optional[AsyncIOMotorClient] = None
-_db: Optional[AsyncIOMotorDatabase] = None
+from .models import Base
 
-
-def get_mongodb_uri() -> Optional[str]:
-    return os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI")
+_engine: Optional[AsyncEngine] = None
+_session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
 
-def is_mongodb_configured() -> bool:
-    return bool(get_mongodb_uri())
+def get_database_url() -> Optional[str]:
+    """Return async SQLAlchemy URL from DATABASE_URL (postgres:// or postgresql://)."""
+    raw = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
+    if not raw:
+        return None
+    if raw.startswith("postgresql+asyncpg://"):
+        return raw
+    if raw.startswith("postgres://"):
+        return "postgresql+asyncpg://" + raw[len("postgres://") :]
+    if raw.startswith("postgresql://"):
+        return "postgresql+asyncpg://" + raw[len("postgresql://") :]
+    return raw
+
+
+def is_db_configured() -> bool:
+    return bool(get_database_url())
 
 
 async def connect_db() -> None:
-    """Connect on app startup."""
-    global _client, _db
-    uri = get_mongodb_uri()
-    if not uri:
+    """Connect on app startup and ensure schema exists (greenfield create_all)."""
+    global _engine, _session_factory
+    url = get_database_url()
+    if not url:
         return
-    _client = AsyncIOMotorClient(uri)
-    _db = _client.get_default_database()
-    if _db is None:
-        raise RuntimeError("MONGODB_URI must include a database name, e.g. .../myface")
-    await _client.admin.command("ping")
-    await _ensure_indexes()
+    _engine = create_async_engine(url, pool_pre_ping=True)
+    _session_factory = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
+    async with _engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
 async def close_db() -> None:
-    global _client, _db
-    if _client:
-        _client.close()
-    _client = None
-    _db = None
+    global _engine, _session_factory
+    if _engine is not None:
+        await _engine.dispose()
+    _engine = None
+    _session_factory = None
 
 
-def get_db() -> AsyncIOMotorDatabase:
-    if _db is None:
-        raise RuntimeError("MongoDB is not connected. Set MONGODB_URI in your environment.")
-    return _db
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    if _session_factory is None:
+        raise RuntimeError("Database is not connected. Set DATABASE_URL in your environment.")
+    return _session_factory
+
+
+@asynccontextmanager
+async def session_scope() -> AsyncIterator[AsyncSession]:
+    factory = get_session_factory()
+    session = factory()
+    try:
+        yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
 
 
 async def ping_db() -> bool:
-    if _client is None:
+    if _engine is None:
         return False
     try:
-        await _client.admin.command("ping")
+        async with _engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
         return True
     except Exception:
         return False
-
-
-async def _dedupe_assessment_scan_ids() -> int:
-    """Remove duplicate assessments sharing the same userId + scanId (keeps oldest)."""
-    db = get_db()
-    pipeline = [
-        {"$match": {"scanId": {"$exists": True, "$type": "string", "$ne": ""}}},
-        {
-            "$group": {
-                "_id": {"userId": "$userId", "scanId": "$scanId"},
-                "ids": {"$push": "$_id"},
-                "count": {"$sum": 1},
-            }
-        },
-        {"$match": {"count": {"$gt": 1}}},
-    ]
-    removed = 0
-    async for group in db.assessments.aggregate(pipeline):
-        ids = sorted(group.get("ids") or [])
-        if len(ids) <= 1:
-            continue
-        result = await db.assessments.delete_many({"_id": {"$in": ids[1:]}})
-        removed += result.deleted_count
-    return removed
-
-
-async def _ensure_scan_unique_index() -> None:
-    db = get_db()
-    for index_name in ("user_scan_unique", "userId_1_scanId_1"):
-        try:
-            await db.assessments.drop_index(index_name)
-        except Exception:
-            pass
-
-    await _dedupe_assessment_scan_ids()
-
-    try:
-        await db.assessments.create_index(
-            [("userId", 1), ("scanId", 1)],
-            unique=True,
-            partialFilterExpression={"scanId": {"$exists": True, "$type": "string"}},
-            name="user_scan_unique",
-        )
-    except (DuplicateKeyError, OperationFailure) as err:
-        if getattr(err, "code", None) != 11000:
-            raise
-        await _dedupe_assessment_scan_ids()
-        await db.assessments.create_index(
-            [("userId", 1), ("scanId", 1)],
-            unique=True,
-            partialFilterExpression={"scanId": {"$exists": True, "$type": "string"}},
-            name="user_scan_unique",
-        )
-
-
-async def _ensure_indexes() -> None:
-    db = get_db()
-    await db.assessments.create_index("createdAt")
-    await db.assessments.create_index("status")
-    await db.assessments.create_index("userId")
-    await _ensure_scan_unique_index()
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("role")
-    await db.payments.create_index("userId")
-    await db.payments.create_index("providerRef")
-    await db.payments.create_index("status")
-    await db.payments.create_index("createdAt")
-    await db.conversations.create_index([("assessmentId", 1), ("userId", 1)], unique=True)
-    await db.conversations.create_index("updatedAt")
-    await db.assistant_rate_limits.create_index(
-        [("userId", 1), ("hourBucket", 1)],
-        unique=True,
-        name="user_hour_bucket_unique",
-    )

@@ -292,6 +292,10 @@ export function FaceShapeOverlay({ overlay }) {
 
 export function ProportionsOverlay({ lines }) {
   if (!lines) return null
+  const hair = lines.hair
+  const brow = lines.brow
+  const nose = lines.nose
+  const chin = lines.chin
   const lineProps = {
     stroke: 'rgba(255,255,255,0.92)',
     strokeWidth: '1.15',
@@ -299,15 +303,26 @@ export function ProportionsOverlay({ lines }) {
     strokeLinecap: 'round',
     vectorEffect: 'non-scaling-stroke',
   }
+  const solidProps = {
+    stroke: 'rgba(255,255,255,0.88)',
+    strokeWidth: '1.35',
+    strokeLinecap: 'round',
+    vectorEffect: 'non-scaling-stroke',
+  }
+  // Midface height tick (brow → subnasale), Qoves-style, on the viewer's right.
+  const midX = 88
   return (
     <svg
       className="absolute inset-0 w-full h-full pointer-events-none"
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
     >
-      {[lines.hair, lines.brow, lines.nose, lines.chin].map((y, i) => (
+      {[hair, brow, nose, chin].map((y, i) =>
         y != null ? <line key={i} x1="8" y1={y} x2="92" y2={y} {...lineProps} /> : null
-      ))}
+      )}
+      {brow != null && nose != null ? (
+        <line x1={midX} y1={brow} x2={midX} y2={nose} {...solidProps} />
+      ) : null}
     </svg>
   )
 }

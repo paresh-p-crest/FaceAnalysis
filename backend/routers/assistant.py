@@ -14,7 +14,7 @@ from ..ai_access import (
     require_paid_ai_access,
 )
 from ..auth import get_current_user
-from ..database import is_mongodb_configured
+from ..database import is_db_configured
 from ..repositories.assessment_repository import get_assessment_by_id
 from ..repositories.conversation_repository import (
     append_messages,
@@ -46,8 +46,8 @@ def _can_access_assessment(existing: dict, current_user: dict) -> bool:
 
 
 async def _load_assessment_or_403(assessment_id: str, current_user: dict) -> dict:
-    if not is_mongodb_configured():
-        raise HTTPException(status_code=503, detail="MongoDB not configured.")
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
     assessment = await get_assessment_by_id(assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")

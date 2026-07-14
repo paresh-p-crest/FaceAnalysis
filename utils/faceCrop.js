@@ -135,6 +135,17 @@ export function proportionLinesInCrop(landmarks, box) {
   }
 }
 
+/** Facial third guides in full-image % space (matches front photo after URL binding). */
+export function proportionLinesInImage(landmarks) {
+  const browY = (lm(landmarks, 105).y + lm(landmarks, 334).y) / 2
+  return {
+    hair: lm(landmarks, 10).y * 100,
+    brow: browY * 100,
+    nose: lm(landmarks, 2).y * 100,
+    chin: lm(landmarks, 152).y * 100,
+  }
+}
+
 /** Qoves-style dashed guides per proportion tab (coords in 0–100 image space).
  *  orbito-nasal: en–en vs al–al; orbital: en–en vs ex–en; naso-oral: ch–ch vs al–al.
  */

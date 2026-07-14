@@ -23,12 +23,20 @@ def test_save_and_url_binding():
                 "symmetry": {},
                 "chin": {"score": 70},
                 "jaw": {"score": 70},
-                "proportions": {"ratios": {"nasoAural": {}}},
+                "proportions": {
+                    "imageSrc": "data:image/jpeg;base64,AAAA",
+                    "proportionLines": {"hair": 8, "brow": 28, "nose": 55, "chin": 92},
+                    "overlaySpace": "crop",
+                    "ratios": {"nasoAural": {}},
+                },
             },
             {"front": stored.publicUrl, "rightProfile": "/uploads/assessments/abc123/rightProfile.jpg"},
         )
         assert cv["photos"]["front"] == stored.publicUrl
         assert cv["faceShape"]["imageSrc"] == stored.publicUrl
+        # Proportions overview keeps the face crop (guides are crop-relative).
+        assert cv["proportions"]["imageSrc"] == "data:image/jpeg;base64,AAAA"
+        assert cv["proportions"]["overlaySpace"] == "crop"
         assert cv["proportions"]["ratios"]["nasoAural"]["photoSource"] == "rightProfile"
         assert cv["chin"]["photoSource"] == "front"
         assert cv["chin"]["imageSrcProfile"].endswith("rightProfile.jpg")

@@ -1,30 +1,75 @@
-"""MongoDB persistence for facial assessments."""
+"""PostgreSQL persistence for facial assessments."""
 
 from __future__ import annotations
 
+import copy
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from bson import ObjectId
-from pymongo import ReturnDocument
-from pymongo.errors import DuplicateKeyError
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.attributes import flag_modified
 
-from ..database import get_db
+from ..database import session_scope
+from ..models import Assessment, AssessmentStatus, Conversation
+from ._helpers import enum_val, iso, parse_uuid
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _serialize_doc(doc: dict) -> dict:
-    """Convert ObjectId and datetimes for JSON responses."""
-    out = dict(doc)
-    if "_id" in out:
-        out["id"] = str(out.pop("_id"))
-    for key in ("createdAt", "updatedAt"):
-        if key in out and hasattr(out[key], "isoformat"):
-            out[key] = out[key].isoformat()
-    return out
+def _assessment_to_dict(row: Assessment) -> dict:
+    return {
+        "id": str(row.id),
+        "status": enum_val(row.status),
+        "userId": str(row.user_id) if row.user_id else None,
+        "scanId": row.scan_id,
+        "provider": row.provider,
+        "answers": row.answers or {},
+        "photosKeys": row.photos_keys or [],
+        "photos": row.photos or {},
+        "analysis": row.analysis or {},
+        "aiNarrative": row.ai_narrative,
+        "protocolNarrative": row.protocol_narrative,
+        "featureNarratives": row.feature_narratives,
+        "protocolStorage": row.protocol_storage,
+        "aiVisuals": row.ai_visuals,
+        "adminNotes": row.admin_notes,
+        "reviewedBy": row.reviewed_by or {},
+        "reviewedAt": iso(row.reviewed_at),
+        "reviewLog": row.review_log or [],
+        "createdAt": iso(row.created_at),
+        "updatedAt": iso(row.updated_at),
+    }
+
+
+def _summary_dict(row: Assessment) -> dict:
+    full = _assessment_to_dict(row)
+    analysis = full.get("analysis") or {}
+    cv = analysis.get("cvReport") or {}
+    slim_analysis: dict[str, Any] = {}
+    if "metrics" in analysis:
+        slim_analysis["metrics"] = analysis["metrics"]
+    slim_cv: dict[str, Any] = {}
+    if "overall" in cv:
+        slim_cv["overall"] = cv["overall"]
+    for key in ("symmetry", "proportions", "skin", "structure"):
+        section = cv.get(key)
+        if isinstance(section, dict) and "score" in section:
+            slim_cv[key] = {"score": section["score"]}
+    if slim_cv:
+        slim_analysis["cvReport"] = slim_cv
+    return {
+        "id": full["id"],
+        "status": full["status"],
+        "userId": full["userId"],
+        "provider": full["provider"],
+        "scanId": full["scanId"],
+        "createdAt": full["createdAt"],
+        "updatedAt": full["updatedAt"],
+        "analysis": slim_analysis,
+    }
 
 
 async def create_assessment(
@@ -38,121 +83,125 @@ async def create_assessment(
     status: str = "draft",
     scan_id: Optional[str] = None,
 ) -> dict:
-    db = get_db()
-    if scan_id and user_id:
-        existing = await db.assessments.find_one({"userId": user_id, "scanId": scan_id})
-        if existing:
-            return _serialize_doc(existing)
+    uid = parse_uuid(user_id) if user_id else None
+    if scan_id and uid:
+        async with session_scope() as session:
+            existing = await session.execute(
+                select(Assessment).where(Assessment.user_id == uid, Assessment.scan_id == scan_id)
+            )
+            row = existing.scalar_one_or_none()
+            if row:
+                return _assessment_to_dict(row)
 
     now = _utcnow()
-    doc = {
-        "status": status,
-        "answers": answers,
-        "provider": provider,
-        "userId": user_id,
-        "photosKeys": photos_keys or [],
-        "photos": photos or {},
-        "analysis": analysis,
-        "scanId": scan_id,
-        "createdAt": now,
-        "updatedAt": now,
-    }
     try:
-        result = await db.assessments.insert_one(doc)
-    except DuplicateKeyError:
-        if scan_id and user_id:
-            existing = await db.assessments.find_one({"userId": user_id, "scanId": scan_id})
-            if existing:
-                return _serialize_doc(existing)
+        status_enum = AssessmentStatus(status)
+    except ValueError:
+        status_enum = AssessmentStatus.draft
+
+    row = Assessment(
+        user_id=uid,
+        status=status_enum,
+        scan_id=scan_id,
+        provider=provider,
+        answers=answers or {},
+        photos=photos or {},
+        photos_keys=photos_keys or [],
+        analysis=analysis or {},
+        created_at=now,
+        updated_at=now,
+    )
+    try:
+        async with session_scope() as session:
+            session.add(row)
+            await session.flush()
+            return _assessment_to_dict(row)
+    except IntegrityError:
+        if scan_id and uid:
+            async with session_scope() as session:
+                existing = await session.execute(
+                    select(Assessment).where(Assessment.user_id == uid, Assessment.scan_id == scan_id)
+                )
+                found = existing.scalar_one_or_none()
+                if found:
+                    return _assessment_to_dict(found)
         raise
-    doc["_id"] = result.inserted_id
-    return _serialize_doc(doc)
 
 
 async def get_assessment_by_id(assessment_id: str) -> Optional[dict]:
-    db = get_db()
-    try:
-        oid = ObjectId(assessment_id)
-    except Exception:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
         return None
-    doc = await db.assessments.find_one({"_id": oid})
-    return _serialize_doc(doc) if doc else None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        return _assessment_to_dict(row) if row else None
 
 
-ASSESSMENT_SUMMARY_PROJECTION = {
-    "status": 1,
-    "userId": 1,
-    "provider": 1,
-    "scanId": 1,
-    "createdAt": 1,
-    "updatedAt": 1,
-    "analysis.cvReport.overall": 1,
-    "analysis.cvReport.symmetry.score": 1,
-    "analysis.cvReport.proportions.score": 1,
-    "analysis.cvReport.skin.score": 1,
-    "analysis.cvReport.structure.score": 1,
-    "analysis.metrics": 1,
-}
-
-
-def _serialize_summary_doc(doc: dict) -> dict:
-    return _serialize_doc(doc)
+ASSESSMENT_SUMMARY_PROJECTION = {}  # kept for import compatibility; summary shaping is in _summary_dict
 
 
 async def list_assessments(limit: int = 20, *, summary: bool = True) -> list[dict]:
-    db = get_db()
-    kwargs = {}
-    if summary:
-        kwargs["projection"] = ASSESSMENT_SUMMARY_PROJECTION
-    cursor = db.assessments.find({}, **kwargs).sort("createdAt", -1).limit(limit)
-    docs = await cursor.to_list(length=limit)
-    return [_serialize_summary_doc(d) for d in docs]
+    async with session_scope() as session:
+        result = await session.execute(select(Assessment).order_by(Assessment.created_at.desc()).limit(limit))
+        rows = result.scalars().all()
+        mapper = _summary_dict if summary else _assessment_to_dict
+        return [mapper(r) for r in rows]
 
 
 async def list_assessments_for_user(user_id: str, limit: int = 20, *, summary: bool = True) -> list[dict]:
-    db = get_db()
-    kwargs = {}
-    if summary:
-        kwargs["projection"] = ASSESSMENT_SUMMARY_PROJECTION
-    cursor = db.assessments.find({"userId": user_id}, **kwargs).sort("createdAt", -1).limit(limit)
-    docs = await cursor.to_list(length=limit)
-    return [_serialize_summary_doc(d) for d in docs]
+    uid = parse_uuid(user_id)
+    if uid is None:
+        return []
+    async with session_scope() as session:
+        result = await session.execute(
+            select(Assessment)
+            .where(Assessment.user_id == uid)
+            .order_by(Assessment.created_at.desc())
+            .limit(limit)
+        )
+        rows = result.scalars().all()
+        mapper = _summary_dict if summary else _assessment_to_dict
+        return [mapper(r) for r in rows]
 
 
 async def delete_assessment(assessment_id: str) -> bool:
-    db = get_db()
-    try:
-        oid = ObjectId(assessment_id)
-    except Exception:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
         return False
-    result = await db.assessments.delete_one({"_id": oid})
-    if result.deleted_count:
-        await db.conversations.delete_many({"assessmentId": assessment_id})
-    return bool(result.deleted_count)
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return False
+        await session.execute(delete(Conversation).where(Conversation.assessment_id == aid))
+        await session.delete(row)
+        return True
 
 
 async def delete_all_assessment_data() -> dict:
-    db = get_db()
-    assessments = await db.assessments.delete_many({})
-    conversations = await db.conversations.delete_many({})
-    return {
-        "assessmentsDeleted": assessments.deleted_count,
-        "conversationsDeleted": conversations.deleted_count,
-    }
+    async with session_scope() as session:
+        conversations = await session.execute(delete(Conversation))
+        assessments = await session.execute(delete(Assessment))
+        return {
+            "assessmentsDeleted": assessments.rowcount or 0,
+            "conversationsDeleted": conversations.rowcount or 0,
+        }
 
 
 async def update_assessment_status(assessment_id: str, status: str) -> Optional[dict]:
-    db = get_db()
-    try:
-        oid = ObjectId(assessment_id)
-    except Exception:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
         return None
-    doc = await db.assessments.find_one_and_update(
-        {"_id": oid},
-        {"$set": {"status": status, "updatedAt": _utcnow()}},
-        return_document=ReturnDocument.AFTER,
-    )
-    return _serialize_doc(doc) if doc else None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        try:
+            row.status = AssessmentStatus(status)
+        except ValueError:
+            return None
+        row.updated_at = _utcnow()
+        await session.flush()
+        return _assessment_to_dict(row)
 
 
 async def update_assessment_admin_review(
@@ -163,85 +212,93 @@ async def update_assessment_admin_review(
     ai_narrative: Optional[dict] = None,
     reviewer: Optional[dict] = None,
 ) -> Optional[dict]:
-    db = get_db()
-    try:
-        oid = ObjectId(assessment_id)
-    except Exception:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
         return None
-
     now = _utcnow()
-    update_fields: dict[str, Any] = {
-        "updatedAt": now,
-        "reviewedAt": now,
-        "reviewedBy": reviewer or {},
-    }
-    if status is not None:
-        update_fields["status"] = status
-    if admin_notes is not None:
-        update_fields["adminNotes"] = admin_notes
-    if ai_narrative is not None:
-        update_fields["aiNarrative"] = ai_narrative
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.updated_at = now
+        row.reviewed_at = now
+        row.reviewed_by = reviewer or {}
+        if status is not None:
+            try:
+                row.status = AssessmentStatus(status)
+            except ValueError:
+                pass
+        if admin_notes is not None:
+            row.admin_notes = admin_notes
+        if ai_narrative is not None:
+            row.ai_narrative = ai_narrative
+        log = list(row.review_log or [])
+        log.append(
+            {
+                "at": now.isoformat(),
+                "reviewer": reviewer or {},
+                "status": status,
+                "editedAiNarrative": ai_narrative is not None,
+                "hasAdminNotes": bool(admin_notes),
+            }
+        )
+        row.review_log = log
+        flag_modified(row, "review_log")
+        flag_modified(row, "reviewed_by")
+        await session.flush()
+        return _assessment_to_dict(row)
 
-    review_log = {
-        "at": now,
-        "reviewer": reviewer or {},
-        "status": status,
-        "editedAiNarrative": ai_narrative is not None,
-        "hasAdminNotes": bool(admin_notes),
-    }
 
-    doc = await db.assessments.find_one_and_update(
-        {"_id": oid},
-        {"$set": update_fields, "$push": {"reviewLog": review_log}},
-        return_document=ReturnDocument.AFTER,
-    )
-    return _serialize_doc(doc) if doc else None
-
-
-async def update_assessment_analysis(assessment_id: str, analysis: dict, photos: Optional[dict] = None) -> Optional[dict]:
-    db = get_db()
-    try:
-        oid = ObjectId(assessment_id)
-    except Exception:
+async def update_assessment_analysis(
+    assessment_id: str, analysis: dict, photos: Optional[dict] = None
+) -> Optional[dict]:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
         return None
-    update_fields: dict[str, Any] = {"analysis": analysis, "updatedAt": _utcnow()}
-    if photos is not None:
-        update_fields["photos"] = photos
-        update_fields["photosKeys"] = list(photos.keys())
-    doc = await db.assessments.find_one_and_update(
-        {"_id": oid},
-        {"$set": update_fields},
-        return_document=ReturnDocument.AFTER,
-    )
-    return _serialize_doc(doc) if doc else None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.analysis = analysis
+        row.updated_at = _utcnow()
+        if photos is not None:
+            row.photos = photos
+            row.photos_keys = list(photos.keys())
+            flag_modified(row, "photos")
+            flag_modified(row, "photos_keys")
+        flag_modified(row, "analysis")
+        await session.flush()
+        return _assessment_to_dict(row)
 
 
 async def update_assessment_ai_narrative(assessment_id: str, ai_narrative: dict) -> Optional[dict]:
-    db = get_db()
-    try:
-        oid = ObjectId(assessment_id)
-    except Exception:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
         return None
-    doc = await db.assessments.find_one_and_update(
-        {"_id": oid},
-        {"$set": {"aiNarrative": ai_narrative, "updatedAt": _utcnow()}},
-        return_document=ReturnDocument.AFTER,
-    )
-    return _serialize_doc(doc) if doc else None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.ai_narrative = ai_narrative
+        row.updated_at = _utcnow()
+        flag_modified(row, "ai_narrative")
+        await session.flush()
+        return _assessment_to_dict(row)
 
 
 async def update_assessment_ai_visuals(assessment_id: str, ai_visuals: dict) -> Optional[dict]:
-    db = get_db()
-    try:
-        oid = ObjectId(assessment_id)
-    except Exception:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
         return None
-    doc = await db.assessments.find_one_and_update(
-        {"_id": oid},
-        {"$set": {"aiVisuals": ai_visuals, "updatedAt": _utcnow()}},
-        return_document=ReturnDocument.AFTER,
-    )
-    return _serialize_doc(doc) if doc else None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.ai_visuals = ai_visuals
+        row.updated_at = _utcnow()
+        flag_modified(row, "ai_visuals")
+        await session.flush()
+        return _assessment_to_dict(row)
 
 
 async def update_assessment_protocol(
@@ -252,24 +309,24 @@ async def update_assessment_protocol(
     feature_narratives: Optional[dict] = None,
     unset_protocol_data: bool = False,
 ) -> Optional[dict]:
-    db = get_db()
-    try:
-        oid = ObjectId(assessment_id)
-    except Exception:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
         return None
-    update_fields: dict[str, Any] = {"updatedAt": _utcnow()}
-    if protocol_narrative is not None:
-        update_fields["protocolNarrative"] = protocol_narrative
-    if feature_narratives is not None:
-        update_fields["featureNarratives"] = feature_narratives
-    if protocol_storage is not None:
-        update_fields["protocolStorage"] = protocol_storage
-    update_doc: dict[str, Any] = {"$set": update_fields}
-    if unset_protocol_data:
-        update_doc["$unset"] = {"protocolData": ""}
-    doc = await db.assessments.find_one_and_update(
-        {"_id": oid},
-        update_doc,
-        return_document=ReturnDocument.AFTER,
-    )
-    return _serialize_doc(doc) if doc else None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.updated_at = _utcnow()
+        if protocol_narrative is not None:
+            row.protocol_narrative = protocol_narrative
+            flag_modified(row, "protocol_narrative")
+        if feature_narratives is not None:
+            row.feature_narratives = feature_narratives
+            flag_modified(row, "feature_narratives")
+        if protocol_storage is not None:
+            row.protocol_storage = protocol_storage
+            flag_modified(row, "protocol_storage")
+        # protocolData legacy field no longer stored
+        _ = unset_protocol_data
+        await session.flush()
+        return _assessment_to_dict(row)

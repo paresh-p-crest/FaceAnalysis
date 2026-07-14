@@ -300,7 +300,7 @@ Sends a message to the Beauty Assistant (ReAct agent with report tools; max 3 to
     "message": "What should I focus on for skin quality?"
   }
   ```
-- **Response Shape (200 OK):** Updated conversation with appended `messages` (`max_tokens` 1000).
+- **Response Shape (200 OK):** Updated conversation with appended `messages` (`max_tokens` from `LLM_MAX_OUTPUT_TOKENS`, default **8000**).
 - **503:** LLM/provider failure — `{ "detail": { "code": "ASSISTANT_UNAVAILABLE", "message": "Beauty Assistant is not working right now. Please try again later." } }`. No fake template reply is stored.
 
 ---

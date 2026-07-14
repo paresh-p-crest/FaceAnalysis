@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Fixed
+- **Proportions overview guides** — lines were crop-% drawn on the full front photo (spread above the head / into the neck). Guides are now full-image % (hairline/brow/subnasale/chin); UI recomputes from landmarks at display time and prefers the front photo so existing assessments fix without a re-scan.
+### Changed
+- **Report prose: no hard clip + numeric ban** — removed mid-sentence `_clip` ellipsis; raised feature narrative caps (`body` 1500, `summary` 500); LLM `measuredFacts` use qualitative score bands (no `N/100`); expanded NUMERIC BAN prompts + `SCORE_PROSE_PATTERN`; score language hard-rejects then retries (strip only after accept).
+- **PDF summary / labeled heading spacing** — more gap under titles in `drawSummaryCard` and `drawLabeledBody` (e.g. Ear Summary).
+- **Feature narrative retries** — hard reject / empty: up to **3** total LLM attempts (`FEATURE_NARRATIVE_MAX_ATTEMPTS`); **429**: **3** extra calls with exponential backoff from **30s** (`FEATURE_NARRATIVE_RATE_LIMIT_RETRIES` / `FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC`).
+- **Eyes interactive panel** — omits the Eyebrows narrative subsection; brows stay on the dedicated Eyebrows Features Analysis tab.
+- **LLM max output tokens** — default `LLM_MAX_OUTPUT_TOKENS` raised from **4000** to **8000** (narratives, protocol, assistant; still overridable via env).
+### Fixed
+- **Facial thirds mismatch** — metrics used brow→mouth→chin while the overlay (reference) uses brow→subnasale→chin, producing inflated middle thirds (e.g. 0.60) and high proportionality scores unrelated to thirds; both now share hairline/10 → brow → subnasale/2 → chin, and score from thirds balance.
+### Changed
+- **Facial Assessments copy from measurements** — Face Shape `midfaceWidth` classified vs brow/jaw; dimorphism/symmetry/proportions/prototypicality explanations cite live scores, ratios, and regional drivers (no false skin claim); thirds fall back to landmarks when metrics missing.
+### Removed
+- **Scanning cycling headline** — dropped rotating `SCAN_MESSAGES` copy; scan UI shows the current progress stage only.
+### Changed
+- **PostgreSQL greenfield (ADR-023)** — replaced MongoDB/Motor with SQLAlchemy async + asyncpg; UUID PKs; JSONB for nested assessment payloads; `conversation_messages` normalized; env `DATABASE_URL`; gate `is_db_configured`; health field `database`. Removed `motor`/`pymongo`.
+### Fixed
 - **Domain models doc ↔ Mongo alignment** — documented `users.firstName`/`lastName`, `app_settings.createdAt`, `reviewLog` element shape, partial `user_scan_unique` index, cascade deletes, and `ai_access` owning `assistant_rate_limits`; startup now creates the unique `(userId, hourBucket)` index on that collection.
 ### Added
 - **Symmetry regional balance UI** — interactive Symmetry panel shows Eyes/Brows/Mouth/Jaw L–R balance bars from scoring pairs (`cvReport.symmetry.regions`).
