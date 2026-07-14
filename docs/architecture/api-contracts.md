@@ -193,24 +193,24 @@ Updates assessment status (e.g. submitting for review).
 - **Response Shape (200 OK):** Updated assessment summary. `status` is returned as a display label (`Pending Review`, `Approved`).
 
 ### `PATCH /api/assessments/{assessment_id}/admin-review`
-Saves admin review comments, alters client narrative text, and/or publishes reports.
+Saves admin review comments, PDF protocol text edits, and/or publishes reports.
 - **Auth:** Private (Admin)
 - **Request Body:**
   ```json
   {
     "status": "Approved",
     "adminNotes": "Admin notes...",
-    "aiNarrative": {
-      "content": "Updated client narrative here..."
-    }
+    "protocolNarrative": { "summary": "...", "closing": ["..."], "features": {} },
+    "featureNarratives": { "hair": { "summary": "...", "subsections": [] } }
   }
   ```
+  Optional legacy `aiNarrative` is still accepted. Protocol text is persisted via protocol storage + DB when `protocolNarrative` / `featureNarratives` are sent.
 - **Response Shape (200 OK):** Complete updated assessment document.
 
 ### `POST /api/assessments/{assessment_id}/ai-narrative`
 Returns stored executive narrative, or generates once if missing. Prefer pipeline enrichment on `POST /api/assessments`.
 - **Auth:** Owner User or Admin
-- **Query:** `force=true` — admin-only regenerate (used by Admin Review panel)
+- **Query:** `force=true` — admin-only regenerate (legacy executive narrative)
 - **Response Shape (200 OK):** Updated assessment with `aiNarrative`.
 
 ### `GET /api/assessments/{assessment_id}/protocol`
@@ -228,9 +228,27 @@ Loads persisted protocol from storage (`public/uploads/assessments/{id}/protocol
 - **404:** Protocol not yet generated.
 
 ### `POST /api/assessments/{assessment_id}/ai-protocol`
-Generates protocol via `narrative_orchestrator` (10 per-feature structured LLM calls + overview + closing), writes JSON to protocol storage, and syncs `featureNarratives` and `protocolNarrative` to MongoDB (and `$unset`s legacy `protocolData`).
-- **Auth:** Owner User or Admin
-- **Response Shape (200 OK):** Updated assessment document (idempotent if already stored).
+Generates protocol via `narrative_orchestrator` (per-feature structured LLM calls + overview + closing), writes JSON to protocol storage, and syncs `featureNarratives` / `protocolNarrative` to the database.
+- **Auth:** Owner User or Admin (paid AI access)
+- **Query:** `force=true` — **admin-only** full regenerate (overwrites existing PDF narrative text)
+- **Response Shape (200 OK):** Updated assessment document (idempotent for non-admin / `force=false` if already stored).
+
+### `POST /api/assessments/{assessment_id}/ai-protocol/section`
+Admin-only regenerate of one PDF section.
+- **Auth:** Private (Admin) + paid AI access
+- **Request Body:**
+  ```json
+  { "sectionId": "overview" | "closing" | "hair" | "eyes" | "…" }
+  ```
+- **Response Shape (200 OK):** Updated assessment with merged section text.
+
+### `POST /api/assessments/{assessment_id}/projected-after`
+Admin-only on-demand projected AFTER image. Always runs (ignores `PROJECTED_AFTER_ENABLED`), writes `projected/full.jpg` or `full.png`, updates `projected_after` JSONB, then runs MediaPipe/OpenCV CV on that image into `projected_analysis` (does **not** mutate BEFORE `analysis`).
+- **Auth:** Private (Admin)
+- **Response Shape (200 OK):** Updated assessment with `projectedAfter.status === "ready"` and `projectedAnalysis` (`status` `ready` \| `failed`, plus `cvReport` / `landmarks` / `metrics` / `eyeAnalysis` when ready).
+- **400:** Missing front photo / landmarks / generation failure.
+
+Assessment `GET` payloads include `projectedAnalysis` alongside `projectedAfter` when present. Protocol UI and PDF feature AFTER images use `projectedAnalysis.landmarks` + the same `getFeatureBox` crop keys as BEFORE for eyes/jaw/chin/ears/neck/hair. When AFTER aspect or pixel size differs from front BEFORE, AFTER is cover-fitted onto the BEFORE canvas (AFTER-only; landmarks remapped) before cropping; `FEATURE_MIN_PX` is scaled by short-side ratio. Other features prefer `projectedAnalysis.cvReport` / `eyeAnalysis` stored crops when `status === "ready"`. Fallback: client MediaPipe on AFTER, then BEFORE landmarks, then stored crops. Skin PDF half-split does not use this path.
 
 ### `POST /api/assessments/{assessment_id}/ai-visuals`
 Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images Edits (`OPENAI_IMAGE_MODEL`, default `gpt-image-1`).

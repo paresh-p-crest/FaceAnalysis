@@ -1,6 +1,12 @@
 /**
- * Resolves BEFORE images for protocol PDF / viewer feature pages.
- * Priority: cvReport / eyeAnalysis stored crops → live landmark crop → auxiliary pose photos.
+ * Resolves BEFORE (and AFTER) images for protocol PDF / viewer feature pages.
+ * BEFORE priority: live landmark crop (jaw/chin/ears/neck/hair/periorbital) or stored cvReport
+ *   → then the other; see resolveFeatureBeforeImage.
+ * AFTER: mirror that framing with projectedAnalysis.landmarks on projected/full; stored
+ *   projectedAnalysis.cvReport crops are fallback only where live crop fails — backend boxes
+ *   differ from getFeatureBox (esp. eyesCrop ≠ periorbital, ears.imageSrc = full face).
+ *   When AFTER aspect/size ≠ BEFORE, cover-fit AFTER onto BEFORE canvas (AFTER-only; industry
+ *   B&A same-format practice), remap landmarks, then crop. FEATURE_MIN_PX also scales by short side.
  */
 
 import {
@@ -12,9 +18,14 @@ import {
   normalizeToJpegDataUrl,
 } from './aestheticProjection'
 import { buildCheekAnalysisGuides, getCheekAnalysisBox } from './cheekGuides'
+import { analyzeWithMediaPipe } from './mediapipeAnalysis'
+import {
+  coverFitAfterToBeforeCanvas,
+  needsAfterCoverFitToBefore,
+} from './alignAfterToBefore'
 
 /** Min export px per feature — small regions must not expand into full-face crops. */
-const FEATURE_MIN_PX = {
+export const FEATURE_MIN_PX = {
   nose: 200,
   lips: 200,
   eyes: 220,
@@ -29,6 +40,22 @@ const FEATURE_MIN_PX = {
   skin: 280,
   hair: 400,
   ears: 320,
+}
+
+/**
+ * Landmark crop key for AFTER so framing matches the BEFORE pair used on that page.
+ * `null` = keep full projected face (protocol overview only).
+ */
+export function afterCropKeyForFeature(featureId) {
+  switch (featureId) {
+    case 'eyes':
+      return 'periorbital'
+    case 'overview':
+    case 'full':
+      return null
+    default:
+      return featureId
+  }
 }
 
 function storedCrop(cvReport, eyeAnalysis, featureId) {
@@ -136,6 +163,7 @@ export async function resolveFeatureBeforeImage({
   }
 
   // Chin / jaw / ears BEFORE use frontal crops (see liveCrop / storedCrop below).
+  // Live-first here must stay aligned with AFTER_LIVE_FIRST_FEATURES in resolveFeatureAfterImage.
   // Jaw: front-facing lower-face crop (never right profile full photo)
   if (featureId === 'jaw' || key === 'jaw') {
     const minPx = FEATURE_MIN_PX.jaw
@@ -307,6 +335,285 @@ export async function resolveAllFeatureImages({
           profileIsReal: profile?.isRealProfile ?? false,
         },
       ]
+    })
+  )
+  return Object.fromEntries(entries)
+}
+
+/**
+ * Features where protocol BEFORE always live-crops via getFeatureBox (see resolveFeatureBeforeImage).
+ * Do NOT prefer projectedAnalysis.cvReport / eyeAnalysis stored crops for these — backend boxes differ:
+ * - eyes: eyesCrop is eyes-only; BEFORE page uses periorbital (brows+eyes)
+ * - ears: cvReport.ears.imageSrc is full-face, not an ear tile
+ * - jaw / chin / neck / hair: Python crop pads ≠ frontend FEATURE_MIN_PX boxes
+ * Keep this list in sync with resolveFeatureBeforeImage live-first branches.
+ */
+const AFTER_LIVE_FIRST_FEATURES = new Set(['eyes', 'jaw', 'chin', 'ears', 'neck', 'hair'])
+
+/**
+ * FEATURE_MIN_PX is absolute pixels tuned for typical front photos (~1200px short side).
+ * Projected AFTER is often smaller (e.g. 896px); the same floor expands the box more and
+ * makes AFTER look zoomed-out vs BEFORE. Scale the floor by afterShort/beforeShort so
+ * expandBoxToMinSize applies comparable FOV on both. See expandBoxToMinSize in aestheticProjection.
+ */
+/**
+ * Measure image pixel size { w, h } or null.
+ */
+async function measureImageSize(src) {
+  if (!src || typeof src !== 'string') return null
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const w = img.naturalWidth || img.width
+      const h = img.naturalHeight || img.height
+      resolve(w > 0 && h > 0 ? { w, h } : null)
+    }
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
+
+async function measureImageShortSide(src) {
+  const size = await measureImageSize(src)
+  return size ? Math.min(size.w, size.h) : null
+}
+
+function scaleFeatureMinPx(baseMinPx, minPxScale) {
+  if (!baseMinPx || baseMinPx <= 0) return 0
+  const s = Number.isFinite(minPxScale) && minPxScale > 0 ? minPxScale : 1
+  return Math.max(1, Math.round(baseMinPx * s))
+}
+
+/**
+ * Crop / resolve AFTER for a feature page.
+ * Mirror BEFORE framing: getFeatureBox live crop on AFTER mesh first for live-first features;
+ * stored projectedAnalysis.cvReport as fallback (and primary for nose/lips/cheeks/…).
+ * minPxScale: multiply FEATURE_MIN_PX by AFTER/BEFORE short-side ratio (pair zoom parity).
+ * Half-split does not use this.
+ *
+ * @returns {Promise<string|null>} JPEG data URL (or original URL if normalize fails earlier)
+ */
+export async function resolveFeatureAfterImage({
+  featureId,
+  afterFullUrl,
+  landmarks,
+  afterLandmarks,
+  afterCvReport = null,
+  afterEyeAnalysis = null,
+  cropKey,
+  forPdf = false,
+  minPxScale = 1,
+}) {
+  if (!afterFullUrl && !afterCvReport) return null
+
+  const key =
+    cropKey !== undefined ? cropKey : afterCropKeyForFeature(featureId)
+  if (!key) {
+    if (!afterFullUrl) return null
+    try {
+      return await normalizeToJpegDataUrl(afterFullUrl)
+    } catch {
+      return afterFullUrl
+    }
+  }
+
+  const storedId = featureId === 'eyes' ? 'eyes' : featureId
+  const liveFirst =
+    AFTER_LIVE_FIRST_FEATURES.has(featureId) ||
+    key === 'periorbital' ||
+    key === 'eyelashes' ||
+    key === 'underEye'
+
+  let fullJpeg = null
+  if (afterFullUrl) {
+    try {
+      fullJpeg = await normalizeToJpegDataUrl(afterFullUrl)
+    } catch {
+      fullJpeg = afterFullUrl
+    }
+  }
+
+  const mesh =
+    (Array.isArray(afterLandmarks) && afterLandmarks.length >= 10 && afterLandmarks) ||
+    (Array.isArray(landmarks) && landmarks.length >= 10 && landmarks) ||
+    null
+
+  async function tryLiveCrop() {
+    if (!fullJpeg || !mesh) return null
+    const baseMin = FEATURE_MIN_PX[key] || FEATURE_MIN_PX[featureId] || 280
+    // Scale absolute FEATURE_MIN_PX when AFTER canvas is smaller/larger than BEFORE
+    const minPx = scaleFeatureMinPx(baseMin, minPxScale)
+    if (forPdf || minPx > 0) {
+      const cropped = await liveCrop(fullJpeg, mesh, key, minPx)
+      if (cropped) return cropped
+    }
+    try {
+      const cropped = await cropFeatureBefore(fullJpeg, mesh, key)
+      if (cropped && !isFullFrameCrop(cropped, fullJpeg)) return cropped
+    } catch {
+      /* fall through */
+    }
+    return null
+  }
+
+  if (liveFirst) {
+    const live = await tryLiveCrop()
+    if (live) return live
+    const fromCv = storedCrop(afterCvReport, afterEyeAnalysis, storedId)
+    if (fromCv) return fromCv
+    return fullJpeg || null
+  }
+
+  // Nose / lips / cheeks / eyebrows / … — stored crops usually match frontend boxes
+  const fromCv = storedCrop(afterCvReport, afterEyeAnalysis, storedId)
+  if (fromCv) return fromCv
+
+  const live = await tryLiveCrop()
+  if (live) return live
+  return fullJpeg || null
+}
+
+/**
+ * Batch-resolve AFTER images for feature pages.
+ * Prefer AFTER landmarks + getFeatureBox (parity with BEFORE); stored cvReport where live-first
+ * does not apply or live crop fails. Pass beforeFullUrl so AFTER can cover-fit to BEFORE canvas
+ * (AR/size) and FEATURE_MIN_PX can scale with short-side ratio.
+ * @returns {Promise<Record<string, string|null>>}
+ */
+export async function resolveAllFeatureAfterImages({
+  featurePages,
+  afterFullUrl,
+  landmarks,
+  afterLandmarks = null,
+  afterCvReport = null,
+  afterEyeAnalysis = null,
+  beforeFullUrl = null,
+  forPdf = false,
+}) {
+  if (!afterFullUrl && !afterCvReport) return {}
+
+  let afterMesh = Array.isArray(afterLandmarks) && afterLandmarks.length >= 10 ? afterLandmarks : null
+  let meshSource = afterMesh ? 'projectedAnalysis.landmarks (db) + getFeatureBox' : null
+
+  let afterJpegNorm = afterFullUrl
+  if (afterFullUrl) {
+    try {
+      afterJpegNorm = await normalizeToJpegDataUrl(afterFullUrl)
+    } catch {
+      afterJpegNorm = afterFullUrl
+    }
+  }
+
+  let beforeNorm = null
+  if (beforeFullUrl) {
+    try {
+      beforeNorm = await normalizeToJpegDataUrl(beforeFullUrl)
+    } catch {
+      beforeNorm = beforeFullUrl
+    }
+  }
+
+  // Industry B&A: same format/canvas. Cover-fit AFTER onto BEFORE WxH when AR or size differs.
+  // BEFORE unchanged; disk projected/full unchanged. Face-centered when AFTER mesh available.
+  if (beforeNorm && afterJpegNorm) {
+    const [beforeSize, afterSize] = await Promise.all([
+      measureImageSize(beforeNorm),
+      measureImageSize(afterJpegNorm),
+    ])
+    if (
+      beforeSize &&
+      afterSize &&
+      needsAfterCoverFitToBefore(beforeSize.w, beforeSize.h, afterSize.w, afterSize.h)
+    ) {
+      try {
+        const fitted = await coverFitAfterToBeforeCanvas(
+          beforeNorm,
+          afterJpegNorm,
+          afterMesh
+        )
+        if (fitted?.dataUrl) {
+          const beforeAr = (beforeSize.w / beforeSize.h).toFixed(3)
+          const afterAr = (afterSize.w / afterSize.h).toFixed(3)
+          console.info(
+            `[MyFace] Feature AFTER cover-fit to BEFORE canvas ` +
+              `(${afterSize.w}x${afterSize.h} ar=${afterAr} → ${beforeSize.w}x${beforeSize.h} ar=${beforeAr})` +
+              (forPdf ? ' [pdf]' : ' [protocol]')
+          )
+          afterJpegNorm = fitted.dataUrl
+          if (fitted.remappedLandmarks?.length >= 10) {
+            afterMesh = fitted.remappedLandmarks
+            meshSource = 'projectedAnalysis.landmarks remapped after cover-fit'
+          } else {
+            afterMesh = null
+          }
+        }
+      } catch (err) {
+        console.warn('[MyFace] Feature AFTER cover-fit failed; using native AFTER', err)
+      }
+    }
+  }
+
+  if (!afterMesh && afterJpegNorm) {
+    try {
+      const detected = await analyzeWithMediaPipe(afterJpegNorm)
+      if (detected?.landmarks?.length >= 10) {
+        afterMesh = detected.landmarks
+        meshSource = 'client MediaPipe on AFTER + getFeatureBox'
+      }
+    } catch {
+      /* fall through to BEFORE landmarks */
+    }
+  }
+  if (!afterMesh && Array.isArray(landmarks) && landmarks.length >= 10) {
+    meshSource = 'BEFORE landmarks (fallback) + getFeatureBox'
+  }
+  if (!meshSource && afterCvReport) {
+    meshSource = 'projectedAnalysis.cvReport crops (db fallback only)'
+  }
+
+  // Pair zoom: scale absolute FEATURE_MIN_PX by AFTER/BEFORE short-side ratio
+  // (usually ~1 after cover-fit onto BEFORE canvas; kept as safety).
+  let minPxScale = 1
+  if (beforeNorm && afterJpegNorm) {
+    const [beforeShort, afterShort] = await Promise.all([
+      measureImageShortSide(beforeNorm),
+      measureImageShortSide(afterJpegNorm),
+    ])
+    if (beforeShort && afterShort) {
+      minPxScale = afterShort / beforeShort
+      if (Math.abs(minPxScale - 1) >= 0.04) {
+        console.info(
+          `[MyFace] Feature AFTER minPx scale ${minPxScale.toFixed(3)} ` +
+            `(before short ${beforeShort}px → after ${afterShort}px)` +
+            (forPdf ? ' [pdf]' : ' [protocol]')
+        )
+      }
+    }
+  }
+
+  if (meshSource) {
+    console.info(
+      `[MyFace] Feature AFTER crops using ${meshSource}` +
+        (afterMesh ? ` (${afterMesh.length} points)` : '') +
+        (forPdf ? ' [pdf]' : ' [protocol]')
+    )
+  } else {
+    console.warn('[MyFace] Feature AFTER crops: no landmarks or cvReport; using full AFTER')
+  }
+
+  const entries = await Promise.all(
+    featurePages.map(async (page) => {
+      const after = await resolveFeatureAfterImage({
+        featureId: page.id,
+        afterFullUrl: afterJpegNorm || afterFullUrl,
+        landmarks,
+        afterLandmarks: afterMesh,
+        afterCvReport,
+        afterEyeAnalysis,
+        forPdf,
+        minPxScale,
+      })
+      return [page.id, after]
     })
   )
   return Object.fromEntries(entries)

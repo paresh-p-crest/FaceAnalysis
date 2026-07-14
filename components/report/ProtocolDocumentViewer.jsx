@@ -16,6 +16,8 @@ export function ProtocolDocumentViewer({
   protocolNarrative,
   aiNarrative,
   protocolLoading,
+  projectedAfter = null,
+  projectedAnalysis = null,
   onDownloadPdf,
   pdfLoading,
   canDownloadPdf,
@@ -102,6 +104,8 @@ export function ProtocolDocumentViewer({
           eyeAnalysis={eyeAnalysis}
           protocolNarrative={protocolNarrative}
           aiNarrative={aiNarrative}
+          projectedAfter={projectedAfter}
+          projectedAnalysis={projectedAnalysis}
           paginated={false}
         />
       </div>

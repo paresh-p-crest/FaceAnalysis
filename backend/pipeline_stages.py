@@ -8,21 +8,38 @@ from typing import Any, Optional
 
 from .analyze_face import run_face_analysis
 from .dev_config import dev_auto_approve_reports
-from .face_parsing import extract_feature_crops, face_parsing_enabled, run_face_parsing_on_image
+from .face_parsing import (
+    extract_feature_crops,
+    extract_lips_crop_from_front_landmarks,
+    extract_profile_ear_crop,
+    extract_smile_crop_from_smile_pose,
+    face_parsing_enabled,
+    run_face_parsing_on_image,
+)
 from .face_parsing_metrics import compute_parsing_metrics
 from .photo_storage import (
     apply_photo_urls_to_cv_report,
     get_photo_storage,
+    load_projected_full,
     photos_map_to_urls,
     save_parsing_crop,
+    save_projected_full,
 )
 from .pipeline_status import _utcnow_iso, new_feature_parsing_pending
+from .projected_after import projected_after_enabled, project_full_face_after
+from .projected_after_status import merge_projected_after_update, new_projected_after_pending
+from .projected_analysis_status import (
+    merge_projected_analysis_update,
+    new_projected_analysis_pending,
+)
 from .protocol_service import enrich_assessment_nl_content
 from .repositories.assessment_repository import (
     get_assessment_by_id,
     update_assessment_analysis,
     update_assessment_feature_parsing,
     update_assessment_pipeline,
+    update_assessment_projected_after,
+    update_assessment_projected_analysis,
 )
 from .serialization import to_json_safe
 
@@ -126,6 +143,47 @@ async def run_parsing_stage(assessment: dict) -> dict:
         crops_data = await asyncio.to_thread(extract_feature_crops, labels, image_rgb)
         metrics = compute_parsing_metrics(landmarks, w, h, labels)
 
+        if landmarks:
+            try:
+                lips_crops = await asyncio.to_thread(
+                    extract_lips_crop_from_front_landmarks,
+                    front_bytes,
+                    landmarks,
+                )
+                crops_data.update(lips_crops)
+            except Exception:
+                logger.exception("Front landmark lips crop failed for %s", assessment_id)
+
+        smile_bytes = _load_pose_bytes(assessment_id, "smile")
+        if smile_bytes:
+            try:
+                smile_crops = await asyncio.to_thread(extract_smile_crop_from_smile_pose, smile_bytes)
+                crops_data.update(smile_crops)
+            except Exception:
+                logger.exception("Smile mesh crop failed for %s", assessment_id)
+
+        for pose_id, crop_key in (("leftProfile", "earsLeft"), ("rightProfile", "earsRight")):
+            pose_bytes = _load_pose_bytes(assessment_id, pose_id)
+            if not pose_bytes:
+                continue
+            try:
+                ear = await asyncio.to_thread(extract_profile_ear_crop, pose_bytes, pose_id)
+                if ear:
+                    crops_data[crop_key] = ear
+            except Exception:
+                logger.exception("Profile ear crop failed (%s) for %s", pose_id, assessment_id)
+
+        # Aggregate ears hero entry for single-key consumers
+        left_ear = crops_data.get("earsLeft")
+        right_ear = crops_data.get("earsRight")
+        if left_ear or right_ear:
+            primary = left_ear or right_ear
+            crops_data["ears"] = {
+                **primary,
+                "labels": ["left_ear", "right_ear"],
+                "sourcePose": "profiles",
+            }
+
         crops_out: dict[str, Any] = {}
         for feature_id, crop in crops_data.items():
             stored = await asyncio.to_thread(
@@ -134,11 +192,24 @@ async def run_parsing_stage(assessment: dict) -> dict:
                 feature_id,
                 crop["jpegBytes"],
             )
-            crops_out[feature_id] = {
+            meta: dict[str, Any] = {
                 "publicUrl": stored.publicUrl,
                 "bbox": crop["bbox"],
                 "labels": crop["labels"],
             }
+            if crop.get("sourcePose"):
+                meta["sourcePose"] = crop["sourcePose"]
+            if crop.get("sourceMethod"):
+                meta["sourceMethod"] = crop["sourceMethod"]
+            crops_out[feature_id] = meta
+
+        if crops_out.get("earsLeft") or crops_out.get("earsRight"):
+            ears_meta = dict(crops_out.get("ears") or {})
+            if crops_out.get("earsLeft"):
+                ears_meta["leftPublicUrl"] = crops_out["earsLeft"]["publicUrl"]
+            if crops_out.get("earsRight"):
+                ears_meta["rightPublicUrl"] = crops_out["earsRight"]["publicUrl"]
+            crops_out["ears"] = ears_meta
 
         fp["status"] = "ready"
         fp["crops"] = crops_out
@@ -154,6 +225,177 @@ async def run_parsing_stage(assessment: dict) -> dict:
         await update_assessment_feature_parsing(assessment_id, fp)
 
     return await get_assessment_by_id(assessment_id) or refreshed
+
+
+async def _mark_projected_analysis_skipped(assessment_id: str, existing: Optional[dict] = None) -> None:
+    payload = merge_projected_analysis_update(
+        existing,
+        status="skipped",
+        cvReport=None,
+        landmarks=None,
+        metrics=None,
+        eyeAnalysis=None,
+        error=None,
+    )
+    await update_assessment_projected_analysis(assessment_id, payload)
+
+
+async def run_projected_analysis_now(assessment: dict) -> dict:
+    """Run MediaPipe/OpenCV CV on projected AFTER full image → projected_analysis.
+
+    Never mutates BEFORE analysis / analysis.cvReport.
+    Soft-fails into projected_analysis.status=failed without touching projected_after.
+    """
+    assessment_id = assessment["id"]
+    refreshed = await get_assessment_by_id(assessment_id)
+    if not refreshed:
+        raise RuntimeError("Assessment not found for projected analysis")
+
+    existing = refreshed.get("projectedAnalysis")
+    pa_meta = refreshed.get("projectedAfter") or {}
+    if pa_meta.get("status") != "ready":
+        await _mark_projected_analysis_skipped(assessment_id, existing)
+        return await get_assessment_by_id(assessment_id) or refreshed
+
+    running = merge_projected_analysis_update(
+        existing or new_projected_analysis_pending(),
+        status="running",
+        error=None,
+    )
+    await update_assessment_projected_analysis(assessment_id, running)
+
+    after_bytes = await asyncio.to_thread(load_projected_full, assessment_id, pa_meta)
+    if not after_bytes:
+        failed = merge_projected_analysis_update(
+            running,
+            status="failed",
+            error="Projected AFTER image missing on disk",
+            cvReport=None,
+            landmarks=None,
+            metrics=None,
+            eyeAnalysis=None,
+        )
+        await update_assessment_projected_analysis(assessment_id, failed)
+        return await get_assessment_by_id(assessment_id) or refreshed
+
+    answers = refreshed.get("answers") or {}
+    # Single-image CV: projected full as front only (no multi-view pose enrichments)
+    result = await asyncio.to_thread(run_face_analysis, after_bytes, answers, {})
+
+    if not result.get("success"):
+        failed = merge_projected_analysis_update(
+            running,
+            status="failed",
+            error=result.get("error") or "Projected AFTER CV failed",
+            cvReport=None,
+            landmarks=None,
+            metrics=None,
+            eyeAnalysis=None,
+        )
+        await update_assessment_projected_analysis(assessment_id, failed)
+        return await get_assessment_by_id(assessment_id) or refreshed
+
+    ready = merge_projected_analysis_update(
+        running,
+        status="ready",
+        source="projected_full",
+        cvReport=to_json_safe(result.get("cvReport")),
+        landmarks=to_json_safe(result.get("landmarks")),
+        metrics=to_json_safe(result.get("metrics")),
+        eyeAnalysis=to_json_safe(result.get("eyeAnalysis")),
+        error=None,
+    )
+    await update_assessment_projected_analysis(assessment_id, ready)
+    return await get_assessment_by_id(assessment_id) or refreshed
+
+
+async def generate_projected_after_now(
+    assessment: dict,
+    *,
+    respect_enabled_flag: bool = True,
+    raise_on_error: bool = False,
+) -> dict:
+    """Generate and persist full-face projected AFTER.
+
+    When respect_enabled_flag=False (admin), always run even if PROJECTED_AFTER_ENABLED=false.
+    When raise_on_error=True, raise instead of soft-failing into failed status.
+    On success, also runs CV into projected_analysis (BEFORE analysis untouched).
+    """
+    assessment_id = assessment["id"]
+    refreshed = await get_assessment_by_id(assessment_id)
+    if not refreshed:
+        raise RuntimeError("Assessment not found for projected AFTER")
+
+    pa = dict(refreshed.get("projectedAfter") or new_projected_after_pending())
+    pa["status"] = "running"
+    pa["updatedAt"] = _utcnow_iso()
+    await update_assessment_projected_after(assessment_id, pa)
+
+    if respect_enabled_flag and not projected_after_enabled():
+        pa = merge_projected_after_update(pa, status="skipped", lastError=None)
+        await update_assessment_projected_after(assessment_id, pa)
+        await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
+        return await get_assessment_by_id(assessment_id) or refreshed
+
+    analysis = refreshed.get("analysis") or {}
+    landmarks = analysis.get("landmarks") or []
+    cv_report = analysis.get("cvReport") or {}
+    metrics = analysis.get("metrics")
+    front_bytes = _load_pose_bytes(assessment_id, "front")
+    if not front_bytes:
+        msg = "Front photo missing"
+        if raise_on_error:
+            raise ValueError(msg)
+        pa = merge_projected_after_update(pa, status="failed", lastError=msg)
+        await update_assessment_projected_after(assessment_id, pa)
+        await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
+        return await get_assessment_by_id(assessment_id) or refreshed
+
+    if not landmarks:
+        msg = "Landmarks required for projected AFTER"
+        if raise_on_error:
+            raise ValueError(msg)
+        pa = merge_projected_after_update(pa, status="failed", lastError=msg)
+        await update_assessment_projected_after(assessment_id, pa)
+        await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
+        return await get_assessment_by_id(assessment_id) or refreshed
+
+    try:
+        jpeg_bytes = await asyncio.to_thread(
+            project_full_face_after,
+            front_bytes,
+            landmarks,
+            cv_report,
+            metrics,
+        )
+        stored = await asyncio.to_thread(save_projected_full, assessment_id, jpeg_bytes)
+        pa = merge_projected_after_update(
+            pa,
+            status="ready",
+            full={"publicUrl": stored.publicUrl, "relativePath": stored.relativePath},
+            lastError=None,
+        )
+        await update_assessment_projected_after(assessment_id, pa)
+    except Exception as exc:
+        logger.exception("Projected AFTER failed for %s", assessment_id)
+        if raise_on_error:
+            raise
+        pa = merge_projected_after_update(pa, status="failed", lastError=str(exc))
+        await update_assessment_projected_after(assessment_id, pa)
+        await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
+        return await get_assessment_by_id(assessment_id) or refreshed
+
+    # AFTER image ready — run CV into projected_analysis (does not touch analysis)
+    return await run_projected_analysis_now({"id": assessment_id})
+
+
+async def run_projected_after_stage(assessment: dict) -> dict:
+    """Full-face projected AFTER JPEG into projected_after JSONB (pipeline; soft-skip/soft-fail)."""
+    return await generate_projected_after_now(
+        assessment,
+        respect_enabled_flag=True,
+        raise_on_error=False,
+    )
 
 
 async def finalize_pipeline(assessment_id: str) -> Optional[dict]:

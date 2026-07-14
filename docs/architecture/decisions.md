@@ -476,7 +476,7 @@ Status: accepted
 
 ### Decision
 - Fast **POST** validates poses, persists JPGs, creates assessment with `pipeline.status = queued`, returns `assessmentId` + `processing: true`.
-- In-process **worker loop** on FastAPI startup claims rows (`FOR UPDATE SKIP LOCKED`) and runs stages: `cv` → `narratives` → `parsing` with per-stage retries.
+- In-process **worker loop** on FastAPI startup claims rows (`FOR UPDATE SKIP LOCKED`) and runs stages: `cv` → `narratives` → `parsing` → `projected_after` with per-stage retries.
 - `pipeline` and `featureParsing` JSONB on `assessments`; workflow `status` flips to `pending_review` (or dev auto-approve) when `pipeline.status = ready`.
 - Frontend **AnalysisPreparing** polls `GET /api/assessments/{id}`; Dashboard shows Processing/Failed badges.
 
@@ -484,3 +484,66 @@ Status: accepted
 - Report is not immediately available after upload; Dashboard is the recovery path.
 - Worker is single-process (no Redis/Celery v1); multi-worker deploys should run one worker instance or add a dedicated job runner later.
 - Email on ready is deferred until SMTP product hooks land.
+
+---
+
+## ADR-026: Backend Full-Face Projected AFTER (v1)
+Date: 2026-07-14  
+Status: accepted  
+
+### Context
+Protocol and PDF BEFORE/AFTER pairs showed empty AFTER placeholders. A measurement-guided “potential” portrait is required for report parity. This is **not** OpenAI AI Visuals (`ai_visuals`).
+
+### Decision
+- Add pipeline stage **`projected_after`** after `parsing`; worker runs `project_full_face_after` (OpenCV + landmark masks) and saves **`projected/full.jpg`** or **`full.png`** (extension from image magic bytes).
+- Store metadata in **`projected_after` JSONB** (`status`, `full.publicUrl`). Disk still holds **one** full asset only.
+- Gate with **`PROJECTED_AFTER_ENABLED`** (default `false`); when disabled, stage sets `status: skipped` and pipeline still completes.
+- Frontend reads `projectedAfter` from assessment payload; **feature pages crop the full AFTER client-side** with the same `getFeatureBox` / landmark keys as BEFORE (`resolveFeatureAfterImage`). Overview stays full-face. Requires AFTER geometry registered to front (pipeline-generated); misaligned manual uploads will crop wrongly until regen.
+
+### Consequences
+- Enabling requires env flag + pipeline re-run for existing assessments.
+- Python projection is a simplified port of `aestheticProjection.js` full-face path; pixel parity with JS is not guaranteed in v1.
+- AI Visuals remain a separate on-demand feature and must not populate protocol AFTER slots.
+- Per-feature AFTER files on disk remain deferred; read-time crops are enough for framing parity.
+- **Gemini / unregistered AFTER:** feature AFTER framing mirrors BEFORE: live `getFeatureBox` on `projectedAnalysis.landmarks` for eyes (periorbital), jaw, chin, ears, neck, hair. When AFTER AR/size ≠ front, **face-centered cover-fit** onto BEFORE canvas (AFTER-only; PRS GO / ASPS same-format B&A practice) then remap landmarks; `FEATURE_MIN_PX` scaled by short-side ratio. `projectedAnalysis.cvReport` for other features / fallback. Similarity warp (`alignAfterToBefore`) remains overview + skin half-split only.
+- **AFTER measurements:** after a successful `projected/full` write, the pipeline/admin path runs local CV on that image into **`projected_analysis`** JSONB (`cvReport`, landmarks, metrics). BEFORE `analysis` remains immutable.
+
+---
+
+## ADR-027: Projected AFTER CV in `projected_analysis`
+Date: 2026-07-14  
+Status: accepted  
+
+### Context
+Protocol AFTER images need measurable facial metrics for future before/after comparisons. BEFORE `analysis.cvReport` must stay immutable per architecture rules.
+
+### Decision
+- Add assessments column **`projected_analysis` JSONB** parallel to `analysis`.
+- After `projected_after` becomes `ready`, run `run_face_analysis` on `projected/full.jpg|png` (front-only, no multi-view pose enrichments) via `run_projected_analysis_now`.
+- Soft-fail CV into `projected_analysis.status=failed` without marking `projected_after` failed.
+- When AFTER is skipped/failed, set `projected_analysis.status=skipped`.
+
+### Consequences
+- Clients read `projectedAnalysis` from assessment GET; no separate endpoint in v1.
+- Protocol/PDF **feature AFTER** mirrors BEFORE live-first features via `projectedAnalysis.landmarks` + `getFeatureBox` (see `AFTER_LIVE_FIRST_FEATURES`); cover-fit AFTER onto BEFORE canvas when AR/size differs; `FEATURE_MIN_PX` scaled by short side; stored `cvReport` / `eyeAnalysis` for other features and as fallback. Skin half-split continues to use face-align.
+- SegFormer / AFTER narratives remain out of scope until a later ADR.
+
+---
+
+## ADR-028: Temple-Geometry Norwood Staging (1–3)
+Date: 2026-07-14  
+Status: accepted  
+
+### Context
+Hamilton–Norwood stages 1–3 are defined by **hairline/temple shape**, not scalp coverage %. Density-first `_norwood_stage` misclassified stage 1 vs 2 when lighting or forehead ROI diluted `densityPct`.
+
+### Decision
+- Primary staging for 1–3 uses `_temple_recession_metrics` + `_norwood_stage_geometric` in `hair_segmentation.py` / `hair_analysis.py`.
+- Density / crown escalate only once stage ≥ 3 (stage 4+).
+- Keep density heuristic `_norwood_stage` only when segmentation/temple metrics are missing.
+- Expose `templeMetrics` + `norwoodStagingMethod` on hair result; calibrate depth cutoffs via `scripts/calibrate_norwood_temples.py` before asserting production 1/2/3 boundaries.
+- Type A variants and ethnicity-adjusted norms deferred.
+
+### Consequences
+- Existing stored `cvReport.hair.norwoodStage` values may change on re-analysis.
+- Pre-calibration thresholds are directional; keep “(not a clinical diagnosis)” client language and avoid leaking metric key names into prose.

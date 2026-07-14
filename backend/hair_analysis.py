@@ -1,4 +1,10 @@
-"""Top-of-head hair analysis — hair-mask segmentation + Norwood estimate."""
+"""Top-of-head hair analysis — hair-mask segmentation + Norwood estimate.
+
+Stages 1–3 use temple-triangle geometry (Hamilton–Norwood clinical definition).
+Density / crown signal only escalates stage 4+. Geometric thresholds (0.03 / 0.07 /
+0.13) are pre-calibration placeholders — calibrate via scripts/calibrate_norwood_temples.py
+before treating 1–3 boundaries as production-ready. Not a clinical diagnosis.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +17,7 @@ from .hair_segmentation import analyze_hair_segmentation
 
 
 def _norwood_stage(density_pct: float, hairline: str, thinning: str) -> int:
+    """Density-first heuristic — fallback only when temple geometry is unavailable."""
     if density_pct > 45 and hairline == "Full" and thinning == "None detected":
         return 1
     if density_pct > 35 and hairline in ("Full", "Slight recession"):
@@ -22,6 +29,39 @@ def _norwood_stage(density_pct: float, hairline: str, thinning: str) -> int:
     if density_pct > 12:
         return 5
     return 6 if density_pct > 8 else 7
+
+
+def _norwood_stage_geometric(temple_metrics: dict, density_pct: float, thinning: str) -> int:
+    """Norwood 1–3 from temple-triangle geometry; 4+ from density/crown.
+
+    Thresholds 0.03 / 0.07 / 0.13 are relative depth-fraction placeholders — calibrate
+    against labeled top-of-head photos before production trust on the 1/2/3 boundary.
+    """
+    temple_recession = float(temple_metrics.get("templeRecession") or 0.0)
+    mid_frac = float(temple_metrics.get("midFrontalFrac") or 0.0)
+
+    if temple_recession < 0.03 and mid_frac <= 0.22:
+        stage = 1
+    elif temple_recession < 0.07 and mid_frac <= 0.22:
+        stage = 2
+    elif temple_recession < 0.13 or mid_frac > 0.22:
+        stage = 3
+    else:
+        stage = 4
+
+    if stage >= 3:
+        if density_pct <= 25:
+            stage = max(stage, 4)
+        if density_pct <= 18:
+            stage = max(stage, 5)
+        if density_pct <= 12:
+            stage = max(stage, 6)
+        if density_pct <= 8:
+            stage = 7
+    if thinning == "Crown thinning" and stage < 4:
+        stage = max(stage, 3)
+
+    return stage
 
 
 def analyze_hair_photo(
@@ -65,6 +105,7 @@ def analyze_hair_photo(
 
         # Prefer hair-mask segmentation (always in pipeline).
         seg = analyze_hair_segmentation(top_head_bytes, front_bytes)
+        temple_metrics = None
         if seg:
             density_pct = float(seg["densityPct"])
             density_estimate = seg["densityEstimate"]
@@ -75,6 +116,7 @@ def analyze_hair_photo(
             recession = float(seg.get("hairlineRecession") or 0.2)
             forehead_exposure = "Low" if recession < 0.12 else "Moderate" if recession < 0.22 else "High"
             method = seg.get("segmentationMethod", "opencv_hsv")
+            temple_metrics = seg.get("templeMetrics")
         else:
             dark_ratio = float(dark_mask.mean()) if dark_mask.size else 0.0
             density_pct = round(dark_ratio * 100, 1)
@@ -113,9 +155,34 @@ def analyze_hair_photo(
         else:
             hair_color, hair_color_hex = "Brown", "#3d2b1f"
 
-        norwood = _norwood_stage(density_pct, hairline, thinning)
+        if temple_metrics:
+            norwood = _norwood_stage_geometric(temple_metrics, density_pct, thinning)
+            staging_method = "temple_geometry"
+        else:
+            norwood = _norwood_stage(density_pct, hairline, thinning)
+            staging_method = "density_heuristic_fallback"
+
         score = min(99, max(40, 75 + (8 if density_estimate == "Thick" else 0) - (10 if norwood >= 5 else 0)))
         parting_visible = (gray[int(h * 0.2), int(w * 0.45) : int(w * 0.55)] > 120).mean() > 0.3
+
+        # Client-facing prose: depth as plain English, no internal key names.
+        if temple_metrics:
+            depth = float(temple_metrics.get("templeRecession") or 0.0)
+            explanation = (
+                f"Hair analysis from top-of-head photo: {density_estimate.lower()} hair with "
+                f"{coverage_estimate.lower()}. Estimated Norwood stage {norwood} "
+                f"(not a clinical diagnosis; stage 1–3 boundaries use temple recession geometry "
+                f"and are pre-calibration estimates). Mean temple recession depth is about "
+                f"{depth * 100:.1f}% of scalp height relative to the mid-frontal hairline — "
+                f"not scalp coverage percentage. "
+                f"Hairline is {hairline.lower()} with {forehead_exposure.lower()} forehead exposure."
+            )
+        else:
+            explanation = (
+                f"Hair analysis from top-of-head photo: {density_estimate.lower()} hair with "
+                f"{coverage_estimate.lower()}. Estimated Norwood stage {norwood} (not a clinical diagnosis). "
+                f"Hairline is {hairline.lower()} with {forehead_exposure.lower()} forehead exposure."
+            )
 
         result = {
             "score": score,
@@ -131,18 +198,17 @@ def analyze_hair_photo(
             "crownVisibility": crown_visibility,
             "densityPct": density_pct,
             "norwoodStage": norwood,
+            "norwoodStagingMethod": staging_method,
             "partingVisible": parting_visible,
             "segmentationMethod": method,
             "dataSource": "measured",
-            "explanation": (
-                f"Hair analysis from top-of-head photo: {density_estimate.lower()} hair with "
-                f"{coverage_estimate.lower()}. Estimated Norwood stage {norwood} (not a clinical diagnosis). "
-                f"Hairline is {hairline.lower()} with {forehead_exposure.lower()} forehead exposure."
-            ),
+            "explanation": explanation,
         }
         if seg:
             result["crownCoverage"] = seg.get("crownCoverage")
             result["hairlineRecession"] = seg.get("hairlineRecession")
+            if temple_metrics:
+                result["templeMetrics"] = temple_metrics
         return result
     except Exception:
         return {**fallback, "explanation": "Top-of-head hair analysis failed."}

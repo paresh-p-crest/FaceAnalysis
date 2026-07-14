@@ -290,6 +290,6 @@ Client-side jsPDF uses the same tokens as the web report:
 | Surface warm | `#FAFBFD` | Image frame backgrounds |
 | Summary bar | `#374151` gradient | Per-feature summary footer |
 
-> **Rule:** AFTER/projected image slots render as empty placeholders until generated assets are available.
+> **Rule:** AFTER/projected image slots use `projectedAfter.full.publicUrl` when `status === ready`; otherwise show “Projected image pending” (`skipped` / disabled until `PROJECTED_AFTER_ENABLED=true`).
 
 > **Rule:** Report nav uses flat section IDs (`intro`, `dimorphism`, `eyebrows`, `protocol`, etc.). Introduction and Disclaimer are always visible; assessment and feature scores are gated until the assessment is **Approved**.

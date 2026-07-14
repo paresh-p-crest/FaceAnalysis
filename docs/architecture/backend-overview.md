@@ -11,7 +11,7 @@ Python FastAPI service for MyFace. It runs computer vision on uploaded photos, s
 ```
 Photos + questionnaire
   → POST /api/assessments (validate + persist + enqueue)
-  → pipeline worker: analyze_face → NL enrichment → face parsing
+  → pipeline worker: analyze_face → NL enrichment → face parsing → projected_after
   → Report UI / browser PDF / Beauty Assistant
   → Admin approve → PDF download gate opens
 ```
@@ -55,8 +55,9 @@ If the backend API is disabled, the FE can run a browser-local MediaPipe path (`
 1. Claim queued row (`claim_next_queued_assessment`, `FOR UPDATE SKIP LOCKED`)  
 2. **cv** — `pipeline_stages.run_cv_stage` → `analyze_face.run_face_analysis` in thread  
 3. **narratives** — `enrich_assessment_nl_content`  
-4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg`  
-5. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
+4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (requires optional `backend/requirements-face-parsing.txt`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
+5. **projected_after** — full-face projected image → `projected_after` + `projected/full.jpg` or `full.png` (skipped when `PROJECTED_AFTER_ENABLED=false`); then MediaPipe/OpenCV on that image → `projected_analysis` (BEFORE `analysis` untouched)  
+6. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
 
 ### Stage 2 — Computer vision (`analyze_face.py`)
 
@@ -90,7 +91,7 @@ Front face failure fails the whole analysis. Other poses soft-fail (empty landma
 |--------|------|
 | `quarter_analysis.py` | 45° oblique views |
 | `smile_analysis.py` | Dentofacial smile metrics |
-| `hair_analysis.py` / `hair_segmentation.py` | Density / Norwood (only if measured) |
+| `hair_analysis.py` / `hair_segmentation.py` | Density + temple-geometry Norwood 1–3 (density for 4+) |
 | `profile_cephalometrics.py` + `profile_silhouette.py` | Side-profile angles/ratios (normalized units; no physical mm scale) |
 
 **Analysis blob stored:** `{ success, cvEngine, landmarks, metrics, eyeAnalysis, cvReport, error }`.
@@ -161,7 +162,7 @@ Prompt-side rules also live in `text_ai_service` (`STRICT_NON_SURGICAL_RULES`, `
 
 | Path | How |
 |------|-----|
-| **Interactive report** | `Report.jsx` + `CvReportView` / `QovesProtocolReport` / `ExecutiveSummary` — hydrates from create response or `GET /api/assessments/{id}` (load only; no regenerate on open) |
+| **Interactive report** | `Report.jsx` + `CvReportView` / `QovesProtocolReport` / `ExecutiveSummary` — opens from one `GET /api/assessments/{id}` (admin/dashboard); Report reuses that payload for admin tools + NL hydrate (load only; no regenerate on open) |
 | **Branded PDF (primary)** | Browser `utils/reportPdf.js` (jsPDF) using `cvReport` + protocol narratives + front photo. Chin PROFILE plates stay center-cover; convexity/E-line guides snap to the profile silhouette edge. Cheek ANALYSIS overlays use DB MediaPipe landmarks via `utils/cheekGuides.js` (notebook midface construction). Reference fixtures under `fixtures/`. |
 | **Backend PDF (fallback)** | `GET /api/assessments/{id}/pdf` → ReportLab (`report_pdf.py`) from markdown — used when the UI has no front photo |
 | **PDF gate** | `report_status.is_pdf_allowed_status` — only `approved` / `published` (or always if dev auto-approve) |
@@ -190,7 +191,11 @@ Tools only **read** the stored assessment — they do not re-run CV or regenerat
 
 - Only admins can `PATCH` status / admin-review  
 - Approved cannot move back to pending  
-- Admin edits to `aiNarrative` best-effort refresh protocol closing (`refresh_protocol_closing_for_assessment`)  
+- Admin review edits **protocol / feature narratives** (PDF text) via `admin-review` + optional `ai-protocol?force=true` / `ai-protocol/section`  
+- Admins can on-demand generate projected AFTER via `POST .../projected-after` (ignores env flag)  
+- Manual helper (same generation path): `scripts/rerun_projected_after.py <assessment_id>`
+- CV-only from existing AFTER (no image regen): `scripts/rerun_projected_analysis.py <assessment_id>` — uses DB `projectedAfter.full` URL/path → `projected_analysis`  
+- Optional legacy `aiNarrative` edits still best-effort refresh protocol closing  
 - **CV measurements stay immutable** during review
 
 ### Error & fallback cheat sheet
@@ -316,7 +321,7 @@ This is the core of the product: photos in → structured `cvReport` out.
 | `eye_analysis.py` | Eye metrics (tilt, lids, sclera, under-eye, etc.). |
 | `build_eye_report.py` | Markdown eye report text from those metrics. |
 | `hair_segmentation.py` | OpenCV HSV hair mask (crown coverage / hairline). |
-| `hair_analysis.py` | Hair density + Norwood-stage estimate. |
+| `hair_analysis.py` | Hair density + temple-geometry Norwood (1–3) / density (4+). |
 | `smile_analysis.py` | Smile-photo dentofacial metrics. |
 | `profile_silhouette.py` | Side-profile outline points when FaceMesh is weak at ~90°. |
 | `profile_cephalometrics.py` | Lateral angles/ratios (nose, lips, ear height, etc.). |

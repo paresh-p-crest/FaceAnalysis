@@ -77,3 +77,21 @@ Key rules enforced:
 - **Secrets Management:** Secrets must reside strictly inside `.env` configurations. Never check in `.env`, `venv/`, or `.next/` directories. Use `.env.example` to document placeholders.
 - **Role Protections:** Protect admin routes using role-based FastAPI dependencies (`require_admin`) and ensure JWT signed session tokens are properly validated server-side.
 - **Database Safety:** Avoid raw MongoDB injections; utilize the motor repository layer to build structured query filters.
+
+---
+
+## 6. Clinical BEFORE/AFTER comparison (protocol / PDF)
+
+Aligned with aesthetic photography standards (PRS GO photographic documentation; ASPS framing guides; Aesthetics Journal B&A guidelines):
+
+- **Same format always** — pair tiles must share aspect / canvas orientation. Divergent projected AFTER AR or resolution is normalized **AFTER-only** via face-centered cover-fit onto the front BEFORE canvas before feature crops (`coverFitAfterToBeforeCanvas`). BEFORE and disk `projected/full` are never rewritten for this.
+- **Equal image section** — feature crops use the same `getFeatureBox` keys on both sides; absolute `FEATURE_MIN_PX` is scaled by AFTER/BEFORE short side so smaller gens do not over-expand.
+- **Post-capture framing adjust is OK** — matching section need not be locked only at generation time; software fit to a reference frame is accepted industry practice.
+- **No presentation bias** — do not give AFTER a more flattering zoom than BEFORE (avoid unscaled absolute minPx on a smaller AFTER canvas; avoid stored `eyesCrop` for protocol eyes pairs).
+- **Similarity warp** (`alignAfterToBefore`) is reserved for overview full-face and skin half-split registration, not routine feature tiles.
+
+### Hair / Norwood staging
+- Stages **1–3** follow Hamilton–Norwood **hairline/temple shape** (bilateral temple triangles vs mid-frontal line), not scalp coverage %. `densityPct` may escalate only from stage 3→4+.
+- Geometric depth fractions (currently 0.03 / 0.07 / 0.13) require calibration via `scripts/calibrate_norwood_temples.py` on labeled top-of-head photos before production trust on the 1/2/3 boundary.
+- Client prose must not leak internal metric keys (`templeRecession`, `jawWidthClass`, …); report human-readable language only.
+- Type A variants and ethnicity-adjusted hairline norms are out of scope for the current geometric path.

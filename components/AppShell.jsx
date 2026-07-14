@@ -18,6 +18,8 @@ export function AppShell({ children, authRequired = false }) {
     answers,
     analysis,
     historyId,
+    cloudAssessment,
+    setCloudAssessment,
     primaryPhoto,
     settingsOpen,
     setSettingsOpen,
@@ -79,6 +81,8 @@ export function AppShell({ children, authRequired = false }) {
         answers={answers}
         analysis={analysis}
         historyId={historyId}
+        cloudAssessment={cloudAssessment}
+        onCloudAssessmentChange={setCloudAssessment}
         user={user}
         onRestart={startNewAnalysis}
         onRetryLocal={handleRetryLocal}

@@ -18,11 +18,40 @@ function formatMetricValue(metric) {
   return String(v)
 }
 
+/** Append ?v= from featureParsing.updatedAt so re-parsed crops bust browser cache. */
+function withCacheBust(url, featureParsing) {
+  if (!url || typeof url !== 'string') return url
+  const stamp = featureParsing?.updatedAt
+  if (!stamp) return url
+  const v = encodeURIComponent(String(stamp))
+  return url.includes('?') ? `${url}&v=${v}` : `${url}?v=${v}`
+}
+
 export function resolveFeatureHero(featureId, cvSection, featureParsing) {
-  const parsingCrop = featureParsing?.crops?.[featureId]?.publicUrl
-  if (parsingCrop && featureParsing?.status === 'ready') return parsingCrop
+  if (featureParsing?.status === 'ready') {
+    // Ears: single left-profile crop only (not dual L/R heroes).
+    if (featureId === 'ears') {
+      const left =
+        featureParsing?.crops?.earsLeft?.publicUrl ||
+        featureParsing?.crops?.ears?.leftPublicUrl ||
+        featureParsing?.crops?.ears?.publicUrl
+      if (left) return withCacheBust(left, featureParsing)
+    }
+    const parsingCrop = featureParsing?.crops?.[featureId]?.publicUrl
+    if (parsingCrop) return withCacheBust(parsingCrop, featureParsing)
+  }
   if (cvSection?.crop) return cvSection.crop
   return cvSection?.imageSrc || null
+}
+
+/** @deprecated Prefer resolveFeatureHero('ears') — kept for any leftover dual-profile callers. */
+export function resolveEarProfileImages(cvEars, featureParsing, photos) {
+  const left = resolveFeatureHero('ears', cvEars, featureParsing)
+    || cvEars?.imageSrcLeft
+    || photos?.leftProfile
+    || null
+  if (!left) return undefined
+  return { left }
 }
 
 export function parsingMetricsToCards(featureId, featureParsing) {

@@ -1,4 +1,16 @@
-import { useState } from 'react'
+import { resolveFeatureHero } from '../../utils/featureParsing'
+
+const FEATURE_NAME_TO_PARSING_ID = {
+  Eyebrows: 'eyebrows',
+  Eyes: 'eyes',
+  Nose: 'nose',
+  Cheeks: 'cheeks',
+  Lips: 'lips',
+  Jaw: 'jaw',
+  Chin: 'chin',
+  Neck: 'neck',
+  Ears: 'ears',
+}
 
 function DimorphismScale({ score, scaleLeft, scaleRight }) {
   return (
@@ -40,55 +52,62 @@ function dimorphismBarClass(label) {
   return 'bg-amber-400'
 }
 
-function FeatureCard({ feature, isExpanded, onToggle }) {
+function FeatureCard({ feature, imageSrc }) {
   const badgeClass = dimorphismBadgeClass(feature.label)
   const barClass = dimorphismBarClass(feature.label)
 
   return (
-    <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card overflow-hidden">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-5 py-4 text-left"
-      >
+    <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card overflow-hidden p-5 space-y-4">
+      <div className="flex items-center justify-between">
         <span className="font-display text-base font-semibold text-ink">{feature.name}</span>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${badgeClass}`}>
           {feature.label}
         </span>
-      </button>
-      {isExpanded && (
-        <div className="px-5 pb-5 space-y-4">
-          {/* Scale bar */}
-          <div>
-            <div className="relative h-2 rounded-full bg-surface-border">
-              <div
-                className={`absolute top-0 bottom-0 rounded-full opacity-25 ${barClass}`}
-                style={{ left: `${Math.max(0, feature.score - 12)}%`, width: '24%' }}
-              />
-              <div
-                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-ink shadow"
-                style={{ left: `calc(${feature.score}% - 6px)` }}
-              />
-            </div>
-            <div className="flex justify-between text-[10px] text-ink-faint font-sans mt-1">
-              <span>Hyper Feminine</span>
-              <span>Hyper Masculine</span>
-            </div>
-          </div>
-          {/* Explanation */}
-          <div className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-            <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-1.5 font-medium">Explanation</p>
-            <p className="text-sm text-ink-secondary leading-relaxed font-sans">{feature.explanation}</p>
-          </div>
+      </div>
+
+      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4 flex items-center justify-center min-h-[9rem]">
+        {imageSrc ? (
+          <img
+            src={imageSrc}
+            alt={feature.name}
+            className="max-h-40 w-auto object-contain rounded-xl"
+          />
+        ) : null}
+      </div>
+
+      <div>
+        <div className="relative h-2 rounded-full bg-surface-border">
+          <div
+            className={`absolute top-0 bottom-0 rounded-full opacity-25 ${barClass}`}
+            style={{ left: `${Math.max(0, feature.score - 12)}%`, width: '24%' }}
+          />
+          <div
+            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-sm bg-ink shadow"
+            style={{ left: `calc(${feature.score}% - 6px)` }}
+          />
         </div>
-      )}
+        <div className="flex justify-between text-[10px] text-ink-faint font-sans mt-1">
+          <span>Hyper Feminine</span>
+          <span>Hyper Masculine</span>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
+        <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-1.5 font-medium">Explanation</p>
+        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{feature.explanation}</p>
+      </div>
     </div>
   )
 }
 
-export function DimorphismSection({ dimorphism, photo }) {
-  const [expandedIdx, setExpandedIdx] = useState(0)
+export function DimorphismSection({ dimorphism, photo, featureParsing = null }) {
   if (!dimorphism) return null
+
+  const cropFor = (featureName) => {
+    const id = FEATURE_NAME_TO_PARSING_ID[featureName]
+    if (!id) return null
+    return resolveFeatureHero(id, null, featureParsing)
+  }
 
   return (
     <div className="pr-2 space-y-6">
@@ -120,7 +139,6 @@ export function DimorphismSection({ dimorphism, photo }) {
         </div>
       </div>
 
-      {/* Per-feature section */}
       <div>
         <h4 className="font-display text-base font-semibold text-ink mb-1">
           Your dimorphism <span className="text-brand">per feature</span>
@@ -128,13 +146,12 @@ export function DimorphismSection({ dimorphism, photo }) {
         <p className="text-[12px] text-ink-muted font-sans mb-4">
           These measurements best highlight the differences between your <strong className="text-ink-secondary">masculine</strong> and <strong className="text-ink-secondary">feminine</strong> features.
         </p>
-        <div className="space-y-3">
-          {dimorphism.features.map((f, i) => (
+        <div className="grid sm:grid-cols-2 gap-4">
+          {dimorphism.features.map((f) => (
             <FeatureCard
               key={f.name}
               feature={f}
-              isExpanded={expandedIdx === i}
-              onToggle={() => setExpandedIdx(expandedIdx === i ? -1 : i)}
+              imageSrc={cropFor(f.name)}
             />
           ))}
         </div>

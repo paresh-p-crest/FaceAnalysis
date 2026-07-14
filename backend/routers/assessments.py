@@ -22,6 +22,7 @@ from ..protocol_service import (
     load_protocol_bundle,
     persist_protocol_bundle,
     refresh_protocol_closing_for_assessment,
+    regenerate_protocol_section,
 )
 from ..repositories.assessment_repository import (
     create_assessment,
@@ -36,6 +37,7 @@ from ..repositories.assessment_repository import (
     update_assessment_ai_visuals,
     update_assessment_analysis,
 )
+from ..projected_after_status import new_projected_after_pending
 from ..pipeline_status import (
     format_pipeline_for_api,
     new_feature_parsing_pending,
@@ -82,10 +84,16 @@ class AssessmentAdminReviewRequest(BaseModel):
     status: Optional[str] = None
     adminNotes: Optional[str] = None
     aiNarrative: Optional[dict] = None
+    protocolNarrative: Optional[dict] = None
+    featureNarratives: Optional[dict] = None
 
 
 class AssessmentVisualsRequest(BaseModel):
     variants: list[str] = ["hair", "outfit", "aging"]
+
+
+class ProtocolSectionRequest(BaseModel):
+    sectionId: str
 
 
 def _parse_status_or_400(status: str) -> str:
@@ -296,6 +304,7 @@ async def post_assessment(
         scan_id=req.scanId,
         pipeline=new_queued_pipeline(),
         feature_parsing=new_feature_parsing_pending(),
+        projected_after=new_projected_after_pending(),
     )
 
     assessment_id = saved["id"]
@@ -508,6 +517,32 @@ async def patch_assessment_admin_review(
         ai_narrative=ai_narrative,
         reviewer=reviewer,
     )
+
+    if req.protocolNarrative is not None or req.featureNarratives is not None:
+        try:
+            persisted = await persist_protocol_bundle(
+                assessment_id,
+                protocol_narrative=(
+                    req.protocolNarrative
+                    if req.protocolNarrative is not None
+                    else (updated or existing).get("protocolNarrative")
+                ),
+                feature_narratives=(
+                    req.featureNarratives
+                    if req.featureNarratives is not None
+                    else (updated or existing).get("featureNarratives")
+                ),
+            )
+            if persisted.get("assessment"):
+                updated = persisted["assessment"]
+            else:
+                updated = await get_assessment_by_id(assessment_id) or updated
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not save protocol text: {exc}",
+            ) from exc
+
     if ai_narrative is not None and updated:
         try:
             refreshed = await refresh_protocol_closing_for_assessment(updated)
@@ -640,9 +675,10 @@ async def get_assessment_protocol(
 @router.post("/assessments/{assessment_id}/ai-protocol")
 async def post_assessment_ai_protocol(
     assessment_id: str,
+    force: bool = False,
     current_user: dict = Depends(get_current_user),
 ):
-    """Generate protocol once, persist to storage + Database."""
+    """Generate protocol once, persist to storage + Database. Admin may force regenerate."""
     if not is_db_configured():
         raise HTTPException(status_code=503, detail="Database not configured.")
 
@@ -658,8 +694,84 @@ async def post_assessment_ai_protocol(
     if not analysis.get("cvReport"):
         raise HTTPException(status_code=400, detail="Stored cvReport is required for AI protocol.")
 
-    bundle = await generate_and_store_protocol(existing)
+    allow_force = force and current_user.get("role") == "admin"
+    if force and not allow_force:
+        raise HTTPException(status_code=403, detail="Only admins can force-regenerate protocol text")
+
+    try:
+        bundle = await generate_and_store_protocol(existing, force=allow_force)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"AI protocol generation failed: {exc}",
+        ) from exc
     updated = bundle.get("assessment") or existing
+    return serialize_assessment(updated)
+
+
+@router.post("/assessments/{assessment_id}/ai-protocol/section")
+async def post_assessment_ai_protocol_section(
+    assessment_id: str,
+    req: ProtocolSectionRequest,
+    current_user: dict = Depends(require_admin),
+):
+    """Admin: regenerate one protocol overview / closing / feature section."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
+
+    await require_paid_ai_access(current_user)
+
+    existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    analysis = existing.get("analysis") or {}
+    if not analysis.get("cvReport"):
+        raise HTTPException(status_code=400, detail="Stored cvReport is required for AI protocol.")
+
+    try:
+        bundle = await regenerate_protocol_section(existing, req.sectionId)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Section generation failed: {exc}",
+        ) from exc
+
+    updated = bundle.get("assessment") or await get_assessment_by_id(assessment_id) or existing
+    return serialize_assessment(updated)
+
+
+@router.post("/assessments/{assessment_id}/projected-after")
+async def post_assessment_projected_after(
+    assessment_id: str,
+    current_user: dict = Depends(require_admin),
+):
+    """Admin: generate/overwrite projected AFTER image (ignores PROJECTED_AFTER_ENABLED)."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
+
+    existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    from ..pipeline_stages import generate_projected_after_now
+
+    try:
+        updated = await generate_projected_after_now(
+            existing,
+            respect_enabled_flag=False,
+            raise_on_error=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Projected AFTER generation failed: {exc}",
+        ) from exc
+
     return serialize_assessment(updated)
 
 

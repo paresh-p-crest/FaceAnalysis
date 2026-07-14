@@ -242,6 +242,62 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
     return cv_report
 
 
+def _projected_full_ext(image_bytes: bytes) -> tuple[str, str]:
+    """Return (filename_ext, contentType) from magic bytes — jpg or png."""
+    if image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png", "image/png"
+    return "jpg", "image/jpeg"
+
+
+def save_projected_full(assessment_id: str, image_bytes: bytes) -> StoredPhoto:
+    """Persist full-face projected AFTER as projected/full.jpg or full.png."""
+    storage = get_photo_storage()
+    dest_dir = storage.upload_root / assessment_id / "projected"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    ext, content_type = _projected_full_ext(image_bytes)
+    filename = f"full.{ext}"
+    dest_path = dest_dir / filename
+    # Drop the alternate extension so only one full.* exists
+    for other in ("jpg", "jpeg", "png"):
+        if other == ext:
+            continue
+        alt = dest_dir / f"full.{other}"
+        if alt.exists():
+            alt.unlink()
+    dest_path.write_bytes(image_bytes)
+    rel = f"uploads/assessments/{assessment_id}/projected/{filename}"
+    return StoredPhoto(
+        poseId="full",
+        relativePath=rel,
+        publicUrl=f"{storage.public_url_prefix}/{assessment_id}/projected/{filename}",
+        contentType=content_type,
+        byteSize=len(image_bytes),
+        storedAt=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+def load_projected_full(assessment_id: str, projected_after: dict | None = None) -> bytes | None:
+    """Load projected AFTER full image bytes from disk (jpg or png)."""
+    storage = get_photo_storage()
+    dest_dir = storage.upload_root / assessment_id / "projected"
+    rel = None
+    if isinstance(projected_after, dict):
+        full = projected_after.get("full") or {}
+        if isinstance(full, dict):
+            rel = full.get("relativePath")
+    if rel:
+        # relativePath like uploads/assessments/{id}/projected/full.jpg
+        name = Path(rel).name
+        path = dest_dir / name
+        if path.exists():
+            return path.read_bytes()
+    for name in ("full.jpg", "full.jpeg", "full.png"):
+        path = dest_dir / name
+        if path.exists():
+            return path.read_bytes()
+    return None
+
+
 def save_parsing_crop(assessment_id: str, feature_id: str, image_bytes: bytes) -> StoredPhoto:
     """Persist a SegFormer feature crop under parsing/{featureId}.jpg."""
     storage = get_photo_storage()

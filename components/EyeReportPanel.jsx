@@ -1,7 +1,8 @@
 import { FaceImageFrame } from './report/FaceImageFrame'
 import { FeatureProseBlock } from './report/FeatureProseBlock'
+import { resolveFeatureHero } from '../utils/featureParsing'
 
-export function EyeReportPanel({ eyeAnalysis, narrative = null }) {
+export function EyeReportPanel({ eyeAnalysis, narrative = null, featureParsing = null }) {
   const m = eyeAnalysis?.metrics
   if (!m) return null
 
@@ -17,14 +18,16 @@ export function EyeReportPanel({ eyeAnalysis, narrative = null }) {
     { label: 'Under-eye health', value: m.underEyeHealth },
   ]
 
+  const heroSrc = resolveFeatureHero('eyes', { crop: eyeAnalysis.eyesCrop }, featureParsing)
+
   return (
     <div className="space-y-5">
       <div>
         <h3 className="font-display text-lg font-semibold text-ink mb-1">An overview of your eyes</h3>
         <p className="text-[10px] text-ink-muted font-sans mb-4">Facial landmark balance from your photos</p>
-        {eyeAnalysis.eyesCrop && (
+        {heroSrc && (
           <FaceImageFrame
-            src={eyeAnalysis.eyesCrop}
+            src={heroSrc}
             alt="Your eyes"
             aspect="auto"
             maxW="380px"

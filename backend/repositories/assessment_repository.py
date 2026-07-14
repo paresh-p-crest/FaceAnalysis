@@ -37,6 +37,8 @@ def _assessment_to_dict(row: Assessment) -> dict:
         "aiVisuals": row.ai_visuals,
         "pipeline": row.pipeline,
         "featureParsing": row.feature_parsing,
+        "projectedAfter": row.projected_after,
+        "projectedAnalysis": row.projected_analysis,
         "adminNotes": row.admin_notes,
         "reviewedBy": row.reviewed_by or {},
         "reviewedAt": iso(row.reviewed_at),
@@ -87,6 +89,8 @@ async def create_assessment(
     scan_id: Optional[str] = None,
     pipeline: Optional[dict] = None,
     feature_parsing: Optional[dict] = None,
+    projected_after: Optional[dict] = None,
+    projected_analysis: Optional[dict] = None,
 ) -> dict:
     uid = parse_uuid(user_id) if user_id else None
     if scan_id and uid:
@@ -115,6 +119,8 @@ async def create_assessment(
         analysis=analysis or {},
         pipeline=pipeline,
         feature_parsing=feature_parsing,
+        projected_after=projected_after,
+        projected_analysis=projected_analysis,
         created_at=now,
         updated_at=now,
     )
@@ -378,6 +384,42 @@ async def update_assessment_feature_parsing(
         row.feature_parsing = feature_parsing
         row.updated_at = _utcnow()
         flag_modified(row, "feature_parsing")
+        await session.flush()
+        return _assessment_to_dict(row)
+
+
+async def update_assessment_projected_after(
+    assessment_id: str,
+    projected_after: dict,
+) -> Optional[dict]:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.projected_after = projected_after
+        row.updated_at = _utcnow()
+        flag_modified(row, "projected_after")
+        await session.flush()
+        return _assessment_to_dict(row)
+
+
+async def update_assessment_projected_analysis(
+    assessment_id: str,
+    projected_analysis: dict,
+) -> Optional[dict]:
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.projected_analysis = projected_analysis
+        row.updated_at = _utcnow()
+        flag_modified(row, "projected_analysis")
         await session.flush()
         return _assessment_to_dict(row)
 

@@ -20,6 +20,7 @@ import {
   resolveFeatureNarrative,
   eyesNarrativeWithoutBrows,
 } from './FeatureProseBlock'
+import { resolveFeatureHero } from '../../utils/featureParsing'
 
 export function CvReportView({
   activeId,
@@ -27,6 +28,8 @@ export function CvReportView({
   eyeAnalysis,
   featureNarratives = null,
   featureParsing = null,
+  projectedAfter = null,
+  projectedAnalysis = null,
   protocolNarrative,
   protocolLoading,
   aiNarrative,
@@ -61,7 +64,13 @@ export function CvReportView({
   }
 
   if (activeId === 'dimorphism' && cvReport?.dimorphism) {
-    return <DimorphismSection dimorphism={cvReport.dimorphism} photo={photo} />
+    return (
+      <DimorphismSection
+        dimorphism={cvReport.dimorphism}
+        photo={photo}
+        featureParsing={featureParsing}
+      />
+    )
   }
   if (activeId === 'averageness' && cvReport?.averageness) {
     return <AveragenessSection averageness={cvReport.averageness} landmarks={landmarks} />
@@ -251,7 +260,7 @@ export function CvReportView({
       <FeatureAnalysisPage
         featureName="nose"
         subtitle="Nasal proportionality and structure"
-        heroImage={n.imageSrc}
+        heroImage={resolveFeatureHero('nose', n, featureParsing) || n.imageSrc}
         summaryCards={summaryCards}
         details={details}
       >
@@ -267,7 +276,7 @@ export function CvReportView({
       <FeatureAnalysisPage
         featureName="lips"
         subtitle="Perioral proportionality and volume"
-        heroImage={l.imageSrc}
+        heroImage={resolveFeatureHero('lips', l, featureParsing) || l.imageSrc}
         summaryCards={[
           { label: 'Fullness', value: l.fullness },
           { label: 'Philtrum', value: l.philtrum },
@@ -294,6 +303,7 @@ export function CvReportView({
       <EyeReportPanel
         eyeAnalysis={eyeAnalysis}
         narrative={eyesNarrativeWithoutBrows(narrativeFor('eyes'))}
+        featureParsing={featureParsing}
       />
     )
   }
@@ -533,11 +543,12 @@ export function CvReportView({
   // ── Ears ──
   if (activeId === 'ears' && cvReport?.ears) {
     const e = cvReport.ears
-    const leftEarSrc = e.imageSrcLeft || photos?.leftProfile || cvReport?.photos?.leftProfile
-    const rightEarSrc = e.imageSrcRight || photos?.rightProfile || cvReport?.photos?.rightProfile
-    const profileImages = (leftEarSrc || rightEarSrc)
-      ? { left: leftEarSrc, right: rightEarSrc }
-      : undefined
+    const photosMap = photos || cvReport?.photos
+    const earHero =
+      resolveFeatureHero('ears', e, featureParsing) ||
+      e.imageSrcLeft ||
+      photosMap?.leftProfile ||
+      e.imageSrc
 
     return (
       <FeatureReportPanel
@@ -547,9 +558,8 @@ export function CvReportView({
         narrative={narrativeFor('ears')}
         featureId="ears"
         featureParsing={featureParsing}
-        profileImages={profileImages}
-        imageSrc={profileImages ? undefined : e.imageSrc}
-        imageAlt="Your ears"
+        imageSrc={earHero}
+        imageAlt="Left profile ear"
         sections={[
           {
             title: 'Ear Proportions',
@@ -580,7 +590,7 @@ export function CvReportView({
 
   // â”€â”€ Skin Quality â”€â”€
   if (activeId === 'skin' && cvReport?.skin) {
-    return <SkinReportPanel skin={cvReport.skin} narrative={narrativeFor('skin')} />
+    return <SkinReportPanel skin={cvReport.skin} featureParsing={featureParsing} narrative={narrativeFor('skin')} />
   }
 
   if (activeId === 'protocol') {
@@ -597,6 +607,8 @@ export function CvReportView({
         protocolNarrative={protocolNarrative}
         aiNarrative={aiNarrative}
         protocolLoading={protocolLoading}
+        projectedAfter={projectedAfter}
+        projectedAnalysis={projectedAnalysis}
         onDownloadPdf={onDownloadPdf}
         pdfLoading={pdfLoading}
         canDownloadPdf={canDownloadPdf}

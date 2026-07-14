@@ -10,7 +10,9 @@ import {
   resolveChinProjectionOverlay,
 } from './chinProfileGuides'
 import { analyzeWithMediaPipe } from './mediapipeAnalysis'
-import { resolveAllFeatureImages } from './protocolFeatureImages'
+import { resolveAllFeatureAfterImages, resolveAllFeatureImages } from './protocolFeatureImages'
+import { resolveAfterCvPayload, resolveAfterLandmarks, resolveProjectedAfterUrl } from './projectedAfter'
+import { alignAfterToBefore } from './alignAfterToBefore'
 import {
   buildClosingColumns,
   buildClosingRecommendations,
@@ -256,11 +258,11 @@ function createCoverCropSession() {
       if (dataUrl && img) imgByUrl.set(dataUrl, img)
     },
     crop(dataUrl, maxW, maxH) {
-      if (!dataUrl || maxW <= 0 || maxH <= 0) return dataUrl
+      if (!dataUrl || maxW <= 0 || maxH <= 0) return null
       const key = `${maxW.toFixed(1)}x${maxH.toFixed(1)}:${dataUrl.length}:${dataUrl.slice(-48)}`
       if (cropByKey.has(key)) return cropByKey.get(key)
       const img = imgByUrl.get(dataUrl)
-      if (!img) return dataUrl
+      if (!img || !img.width || !img.height) return null
 
       const pxW = Math.max(1, Math.round(maxW * 2))
       const pxH = Math.max(1, Math.round(maxH * 2))
@@ -337,10 +339,12 @@ let coverCropSession = null
 function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false) {
   if (!dataUrl) return { w: 0, h: 0 }
   if (cover) {
-    const fitted =
-      coverCropSession?.crop(dataUrl, maxW, maxH) || dataUrl
-    doc.addImage(fitted, 'JPEG', x, y, maxW, maxH, undefined, IMG_QUALITY)
-    return { w: maxW, h: maxH, ox: x, oy: y }
+    const fitted = coverCropSession?.crop(dataUrl, maxW, maxH) || null
+    if (fitted) {
+      doc.addImage(fitted, 'JPEG', x, y, maxW, maxH, undefined, IMG_QUALITY)
+      return { w: maxW, h: maxH, ox: x, oy: y }
+    }
+    // Never stretch into the frame — contain + letterbox (avoids horizontal squeeze)
   }
   const props = doc.getImageProperties(dataUrl)
   const ratio = Math.min(maxW / props.width, maxH / props.height)
@@ -678,7 +682,7 @@ function drawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profile
 
   const pairH = section.layoutHints?.stackedImages ? 180 : 100
   const vertical = section.layoutHints?.stackedImages
-  imgY = drawBeforeAfterPair(doc, rightX, imgY, imgColW, beforeJpeg, null, pairH, !vertical)
+  imgY = drawBeforeAfterPair(doc, rightX, imgY, imgColW, beforeJpeg, section.afterJpeg || null, pairH, !vertical)
 
   const summaryTitle = `${section.title.replace(' Recommendations', '')} Summary`
   drawSummaryBar(doc, Math.max(textY, imgY) + SECTION_GAP, summaryTitle, section.summary)
@@ -864,8 +868,10 @@ function drawHairFeaturePage(doc, section, pageNum, beforeJpeg, norwoodImages = 
   let leftY = y
   let rightY = y
   if (subs[0]) leftY = wrapSubsectionText(doc, subs[0], MARGIN, leftY, COL_W)
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, beforeJpeg, 'BEFORE')
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, null, 'AFTER')
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, beforeJpeg, 'BEFORE', { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, section.afterJpeg || null, 'AFTER', {
+    cover: true,
+  })
   y = Math.max(leftY, rightY) + SECTION_GAP
 
   if (subs[1]) {
@@ -909,7 +915,7 @@ function drawEyesFeaturePage(doc, section, pageNum) {
   if (subs[1]) rightY = drawLabeledBody(doc, rightX, rightY, 'Eyelashes', subs[1].body, COL_W)
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 130, true)
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, section.afterJpeg || null, 130, true)
 
   leftY = y
   rightY = y
@@ -941,7 +947,7 @@ function drawNoseFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, pro
       cover: true,
     })
   }
-  rightY = drawBeforeAfterPair(doc, rightX, rightY, COL_W, beforeJpeg, null, 120, true)
+  rightY = drawBeforeAfterPair(doc, rightX, rightY, COL_W, beforeJpeg, section.afterJpeg || null, 120, true)
   drawSummaryCard(doc, rightX, rightY, COL_W, 'Nose Summary', section.summary)
 }
 
@@ -982,7 +988,7 @@ function drawCheeksFeaturePage(doc, section, pageNum) {
   y = Math.max(leftY, rightY) + SECTION_GAP
 
   // Pair width so each tile is exactly cheekFrameW (= COL_W)
-  y = drawBeforeAfterPair(doc, MARGIN, y, cheekFrameW * 2 + 8, pairBefore, null, cheekFrameH, true)
+  y = drawBeforeAfterPair(doc, MARGIN, y, cheekFrameW * 2 + 8, pairBefore, section.afterJpeg || null, cheekFrameH, true)
   drawSummaryBar(doc, y, 'Cheek Region Summary', section.summary)
 }
 
@@ -1006,7 +1012,7 @@ function drawJawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, prof
   y = Math.max(leftY, rightY) + SECTION_GAP
 
   // BEFORE/AFTER larger than before, but still smaller than the profile plate
-  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, null, 150, true)
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, section.afterJpeg || null, 150, true)
 
   leftY = y
   rightY = y
@@ -1034,7 +1040,7 @@ function drawLipsFeaturePage(doc, section, pageNum) {
   })
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, null, 200, true)
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, section.afterJpeg || null, 200, true)
   drawSummaryBar(doc, y, 'Lips Summary', section.summary)
 }
 
@@ -1254,7 +1260,7 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
   }
 
   y = Math.max(leftY, rightY) + SECTION_GAP
-  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, null, 120, true)
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, section.afterJpeg || null, 120, true)
   drawSummaryBar(doc, y, 'Chin Summary', section.summary)
 }
 
@@ -1266,7 +1272,9 @@ function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null
 
   const diagH = 240
   const diagY = y
-  let leftY = drawSplitComparisonFrame(doc, MARGIN, diagY, COL_W, diagH, beforeJpeg, afterJpeg, { gap: 10 })
+  // Half-split only: use face-aligned AFTER so midline features match. Side-by-side pair stays unaligned.
+  const splitAfter = section.splitAfterJpeg || afterJpeg
+  let leftY = drawSplitComparisonFrame(doc, MARGIN, diagY, COL_W, diagH, beforeJpeg, splitAfter, { gap: 10 })
 
   const introText =
     'The condition of the subject\'s facial skin is a key part of overall appearance and one of the main signals of youth. To improve how the skin looks and support its health, the following steps are recommended:'
@@ -1293,7 +1301,7 @@ function drawNeckFeaturePage(doc, section, pageNum, beforeJpeg) {
   if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Neck Skin', subs[1].body, COL_W)
 
   let rightY = drawImageFrame(doc, rightX, y, COL_W, 240, beforeJpeg, 'BEFORE', { cover: true })
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 240, null, 'AFTER', { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 240, section.afterJpeg || null, 'AFTER', { cover: true })
 
   drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, 'Neck Summary', section.summary)
 }
@@ -1308,7 +1316,7 @@ function drawEarsFeaturePage(doc, section, pageNum, beforeJpeg) {
 
   // Front-facing ear crop only — no measurement overlays for now
   let rightY = drawImageFrame(doc, rightX, y, COL_W, 220, beforeJpeg, 'BEFORE', { cover: true })
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 220, null, 'AFTER', { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 220, section.afterJpeg || null, 'AFTER', { cover: true })
 
   drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, 'Ear Summary', section.summary)
 }
@@ -1327,10 +1335,34 @@ export async function downloadMyFacePdf({
   eyeAnalysis,
   aiNarrative,
   user = null,
+  projectedAfter = null,
+  projectedAnalysis = null,
 }) {
   if (!photo || !cvReport) throw new Error('Photo and analysis data required for PDF export')
 
   const photoJpeg = await normalizeToJpegDataUrl(photo)
+  const afterUrl = resolveProjectedAfterUrl(projectedAfter)
+  const afterLandmarks = resolveAfterLandmarks(projectedAnalysis)
+  const afterCv = resolveAfterCvPayload(projectedAnalysis)
+  let afterJpeg = null
+  if (afterUrl) {
+    try {
+      afterJpeg = await normalizeToJpegDataUrl(afterUrl)
+    } catch (err) {
+      console.warn('[MyFace] Projected AFTER image failed to load for PDF:', afterUrl, err)
+    }
+  }
+
+  // Overview pair: warp AFTER onto BEFORE canvas so frame cover matches face scale (no squeeze).
+  let overviewAfterJpeg = afterJpeg
+  if (photoJpeg && afterJpeg) {
+    try {
+      overviewAfterJpeg = await alignAfterToBefore(photoJpeg, afterJpeg)
+    } catch (err) {
+      console.warn('[MyFace] Overview AFTER align failed; using unaligned AFTER', err)
+      overviewAfterJpeg = afterJpeg
+    }
+  }
   const [featurePages, norwoodImages] = await Promise.all([
     Promise.resolve(buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative)),
     loadNorwoodStageImages().catch(() => []),
@@ -1346,6 +1378,19 @@ export async function downloadMyFacePdf({
     lipPreviewMask: 'contour',
   })
 
+  const featureAfterImages = afterJpeg
+    ? await resolveAllFeatureAfterImages({
+        featurePages,
+        afterFullUrl: afterJpeg,
+        beforeFullUrl: photoJpeg,
+        landmarks,
+        afterLandmarks,
+        afterCvReport: afterCv?.cvReport || null,
+        afterEyeAnalysis: afterCv?.eyeAnalysis || null,
+        forPdf: true,
+      })
+    : {}
+
   const sectionPairs = featurePages.map((page) => ({
     ...page,
     beforeJpeg: featureImages[page.id]?.before || null,
@@ -1353,14 +1398,30 @@ export async function downloadMyFacePdf({
     profileJpeg: featureImages[page.id]?.profile || null,
     profileIsReal: featureImages[page.id]?.profileIsReal ?? false,
     profileOverlay: null,
-    afterJpeg: null,
+    afterJpeg: featureAfterImages[page.id] || afterJpeg,
+    splitAfterJpeg: null,
   }))
+
+  // Skin half-split only: warp full AFTER onto skin BEFORE canvas (BEFORE unchanged).
+  // Side-by-side still uses feature-cropped afterJpeg.
+  const skinSection = sectionPairs.find((p) => p.id === 'skin')
+  if (skinSection?.beforeJpeg && (afterJpeg || skinSection.afterJpeg)) {
+    try {
+      skinSection.splitAfterJpeg = await alignAfterToBefore(
+        skinSection.beforeJpeg,
+        afterJpeg || skinSection.afterJpeg
+      )
+    } catch (err) {
+      console.warn('[MyFace] Skin split AFTER align failed; using unaligned AFTER', err)
+      skinSection.splitAfterJpeg = skinSection.afterJpeg
+    }
+  }
 
   // Warm HTMLImages so cover frames can canvas-crop (no jsPDF clip).
   coverCropSession = createCoverCropSession()
-  const warmUrls = [photoJpeg]
+  const warmUrls = [photoJpeg, afterJpeg, overviewAfterJpeg]
   for (const page of sectionPairs) {
-    warmUrls.push(page.beforeJpeg, page.profileJpeg, page.afterJpeg)
+    warmUrls.push(page.beforeJpeg, page.profileJpeg, page.afterJpeg, page.splitAfterJpeg)
     const slots = page.imageSlots || {}
     for (const v of Object.values(slots)) {
       if (typeof v === 'string') warmUrls.push(v)
@@ -1682,7 +1743,7 @@ export async function downloadMyFacePdf({
   drawImageFrame(doc, MARGIN, protocolPairY, COL_W, protocolPairH, photoJpeg, 'BEFORE', {
     cover: true,
   })
-  drawImageFrame(doc, rightX, protocolPairY, COL_W, protocolPairH, null, 'AFTER', {
+  drawImageFrame(doc, rightX, protocolPairY, COL_W, protocolPairH, overviewAfterJpeg, 'AFTER', {
     cover: true,
   })
 

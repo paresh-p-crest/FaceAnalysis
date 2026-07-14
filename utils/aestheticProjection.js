@@ -689,6 +689,45 @@ export async function cropFeatureBefore(imageSrc, landmarks, featureKey) {
   return cropDataUrl(canvas, getFeatureBox(lmArr, featureKey))
 }
 
+/**
+ * BEFORE/AFTER pair framing for skin: box centered between nose tip and upper lip,
+ * slightly zoomed out vs a tight cheek crop (`zoomOut` > 1 → larger box → less zoom).
+ */
+export function getMidfacePairBox(landmarks, zoomOut = 1.22) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  if (!lmArr?.length) return null
+  const face = bboxFullFace(lmArr, 0.02)
+  const nose = lm(lmArr, 1)
+  const upperLip = lm(lmArr, 13)
+  const cx = (nose.x + upperLip.x) / 2
+  const cy = (nose.y + upperLip.y) / 2
+  const z = Number.isFinite(zoomOut) && zoomOut > 0 ? zoomOut : 1.22
+  let w = Math.min(1, face.w * 0.78 * z)
+  let h = Math.min(1, face.h * 0.7 * z)
+  let x = cx - w / 2
+  let y = cy - h / 2
+  if (x < 0) x = 0
+  if (y < 0) y = 0
+  if (x + w > 1) x = 1 - w
+  if (y + h > 1) y = 1 - h
+  return { x, y, w, h }
+}
+
+/** Crop AFTER for side-by-side pair: midface center, reduced zoom. */
+export async function cropAfterMidfaceForPair(imageSrc, landmarks, { zoomOut = 1.22, minPx = 0 } = {}) {
+  const lmArr = landmarksFromOverlay(landmarks)
+  const base = await normalizeToJpegDataUrl(imageSrc)
+  const box = getMidfacePairBox(lmArr, zoomOut)
+  if (!box) return base
+
+  const img = await loadImage(base)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+  return cropDataUrl(canvas, box, minPx)
+}
+
 /** Higher-resolution crop for PDF export (min ~450px short edge). */
 export async function cropFeatureBeforeForPdf(imageSrc, landmarks, featureKey, minPx = 450) {
   const lmArr = landmarksFromOverlay(landmarks)

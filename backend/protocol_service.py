@@ -244,17 +244,20 @@ async def refresh_protocol_closing_for_assessment(assessment: dict) -> Optional[
     )
 
 
-async def generate_and_store_protocol(assessment: dict) -> dict:
-    """Generate protocol via structured per-feature orchestrator and persist."""
+async def generate_and_store_protocol(assessment: dict, *, force: bool = False) -> dict:
+    """Generate protocol via structured per-feature orchestrator and persist.
+
+    When force=True (admin), regenerate all features + overview + closing even if
+    a complete bundle already exists.
+    """
     assessment_id = assessment["id"]
     existing = load_protocol_bundle(assessment_id, assessment)
-    if existing and _bundle_complete(existing):
+    if not force and existing and _bundle_complete(existing):
         return existing
 
-    generated = await generate_all_protocol_text(assessment, skip_existing=True)
+    generated = await generate_all_protocol_text(assessment, skip_existing=not force)
 
-    # Merge with any partial existing feature narratives
-    if existing and existing.get("featureNarratives"):
+    if not force and existing and existing.get("featureNarratives"):
         merged = dict(existing.get("featureNarratives") or {})
         merged.update(generated.get("featureNarratives") or {})
         generated["featureNarratives"] = merged
@@ -265,6 +268,93 @@ async def generate_and_store_protocol(assessment: dict) -> dict:
         feature_narratives=generated.get("featureNarratives"),
     )
     persisted["source"] = "generated"
+    return persisted
+
+
+async def regenerate_protocol_section(assessment: dict, section_id: str) -> dict:
+    """Regenerate one protocol section (overview | closing | feature id) and persist."""
+    from .config import FEATURE_NARRATIVE_IDS, PROTOCOL_FEATURE_IDS
+    from .narrative_orchestrator import (
+        build_protocol_narrative_compat,
+        generate_closing_synthesis_async,
+        generate_feature_narrative_async,
+        generate_protocol_overview_async,
+        stitch_closing_paragraphs,
+    )
+
+    section_id = (section_id or "").strip().lower()
+    valid = {"overview", "closing", *FEATURE_NARRATIVE_IDS}
+    if section_id not in valid:
+        raise ValueError(
+            f"Invalid sectionId '{section_id}'. Expected one of: overview, closing, "
+            + ", ".join(FEATURE_NARRATIVE_IDS)
+        )
+
+    assessment_id = assessment["id"]
+    analysis = assessment.get("analysis") or {}
+    cv_report = analysis.get("cvReport") or {}
+    if not cv_report:
+        raise ValueError("Stored cvReport is required for protocol section generation")
+
+    answers = assessment.get("answers") or {}
+    metrics = analysis.get("metrics")
+    eye_analysis = analysis.get("eyeAnalysis")
+    client_name = answers.get("name") or answers.get("fullName") or "Client"
+    photos_meta = assessment.get("photos") or {}
+
+    features = dict(assessment.get("featureNarratives") or {})
+    pn = dict(assessment.get("protocolNarrative") or {})
+    overview_summary = (pn.get("summary") or "").strip()
+    closing = list(pn.get("closing") or []) if isinstance(pn.get("closing"), list) else []
+
+    if section_id == "overview":
+        overview = await generate_protocol_overview_async(
+            answers=answers, cv_report=cv_report, metrics=metrics
+        )
+        overview_summary = overview.get("summary") or overview_summary
+    elif section_id == "closing":
+        closing = await generate_closing_synthesis_async(
+            features,
+            cv_report=cv_report,
+            ai_narrative=assessment.get("aiNarrative"),
+            answers=answers,
+            client_name=client_name,
+        )
+        if not closing:
+            closing = stitch_closing_paragraphs(
+                features,
+                assessment.get("aiNarrative"),
+                client_name,
+                cv_report=cv_report,
+            )
+    else:
+        narrative = await generate_feature_narrative_async(
+            section_id,
+            cv_report=cv_report,
+            eye_analysis=eye_analysis,
+            answers=answers,
+            assessment_id=assessment_id,
+            photos_meta=photos_meta,
+        )
+        features[section_id] = narrative
+
+    protocol_narrative = build_protocol_narrative_compat(
+        feature_narratives={
+            fid: features[fid] for fid in PROTOCOL_FEATURE_IDS if fid in features
+        },
+        overview_summary=overview_summary,
+        closing=closing,
+        source="admin_section",
+        model=None,
+    )
+
+    persisted = await persist_protocol_bundle(
+        assessment_id,
+        protocol_narrative=protocol_narrative,
+        feature_narratives=features,
+    )
+    persisted["source"] = "section"
+    persisted["sectionId"] = section_id
     return persisted
 
 
@@ -280,6 +370,7 @@ __all__ = [
     "load_protocol_bundle",
     "persist_protocol_bundle",
     "generate_and_store_protocol",
+    "regenerate_protocol_section",
     "delete_stored_protocol",
     "refresh_protocol_closing_for_assessment",
     "report_content_status",

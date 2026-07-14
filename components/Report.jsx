@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import { ScanFace, RotateCcw, Loader2, AlertTriangle, Download, Lock, ShieldCheck, X } from 'lucide-react'
+import { ScanFace, RotateCcw, Loader2, AlertTriangle, Download, Lock, ShieldCheck, X, Sparkles, ImagePlus } from 'lucide-react'
 import { saveHistoryEntry, createHistoryId, loadHistory } from '../utils/historyStorage'
 import {
   downloadAssessmentPdf,
@@ -11,6 +11,7 @@ import {
   sendAssistantMessage,
   updateAssessmentStatus,
 } from '../utils/apiClient'
+import { resolveProjectedAfterUrl } from '../utils/projectedAfter'
 import {
   canClientViewFullReport,
   canDownloadReportPdf,
@@ -71,10 +72,24 @@ function StatusBadge({ status }) {
   )
 }
 
-export default function Report({ photo, photos, answers, analysis, historyId, onRestart, onRetryLocal, user, onClose }) {
+export default function Report({
+  photo,
+  photos,
+  answers,
+  analysis,
+  historyId,
+  cloudAssessment = null,
+  onCloudAssessmentChange = null,
+  onRestart,
+  onRetryLocal,
+  user,
+  onClose,
+}) {
   const [protocolNarrative, setProtocolNarrative] = useState(null)
   const [featureNarratives, setFeatureNarratives] = useState(null)
   const [featureParsing, setFeatureParsing] = useState(null)
+  const [projectedAfter, setProjectedAfter] = useState(null)
+  const [projectedAnalysis, setProjectedAnalysis] = useState(null)
   const [protocolLoading, setProtocolLoading] = useState(false)
   const [protocolError, setProtocolError] = useState('')
   const [aiNarrative, setAiNarrative] = useState(null)
@@ -88,6 +103,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   const [statusOverride, setStatusOverride] = useState('')
   const [statusUpdating, setStatusUpdating] = useState('')
   const [adminAssessment, setAdminAssessment] = useState(null)
+  const [adminView, setAdminView] = useState(null) // null | 'narrative' | 'after' — admin-only overlays
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false)
   const [activeSectionId, setActiveSectionId] = useState('intro')
   const nlHydratedForId = useRef(null)
@@ -147,19 +163,38 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
   useEffect(() => {
     if (!isAdmin || !assessmentId || !isBackendApiEnabled()) {
       setAdminAssessment(null)
+      setAdminView(null)
+      return
+    }
+    // Reuse the same full GET that opened the report (admin / dashboard).
+    if (cloudAssessment?.id === assessmentId) {
+      setAdminAssessment(cloudAssessment)
       return
     }
     fetchAssessment(assessmentId)
       .then(setAdminAssessment)
       .catch(() => setAdminAssessment(null))
-  }, [isAdmin, assessmentId])
+  }, [isAdmin, assessmentId, cloudAssessment])
+
+  useEffect(() => {
+    if (isReportApproved(reportStatus) || !isAdmin) setAdminView(null)
+  }, [reportStatus, isAdmin])
 
   const handleAdminReviewSaved = useCallback((updated) => {
+    if (!updated) return
     setAdminAssessment(updated)
-    setStatusOverride(updated?.status || '')
-    if (updated?.aiNarrative) setAiNarrative(updated.aiNarrative)
-    if (updated?.protocolNarrative) setProtocolNarrative(updated.protocolNarrative)
-    if (updated?.featureNarratives) setFeatureNarratives(updated.featureNarratives)
+    onCloudAssessmentChange?.(updated)
+    setStatusOverride(updated.status || '')
+    if (updated.aiNarrative) setAiNarrative(updated.aiNarrative)
+    if (updated.protocolNarrative) setProtocolNarrative(updated.protocolNarrative)
+    if (updated.featureNarratives) setFeatureNarratives(updated.featureNarratives)
+    if (updated.projectedAfter) setProjectedAfter(updated.projectedAfter)
+    if (updated.projectedAnalysis) setProjectedAnalysis(updated.projectedAnalysis)
+  }, [onCloudAssessmentChange])
+
+  const showAdminTools = isAdmin && !!adminAssessment && !isReportApproved(reportStatus)
+  const toggleAdminView = useCallback((next) => {
+    setAdminView((prev) => (prev === next ? null : next))
   }, [])
 
   const handleDownloadPdf = useCallback(async () => {
@@ -181,6 +216,8 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
           eyeAnalysis,
           aiNarrative,
           user,
+          projectedAfter,
+          projectedAnalysis,
         })
       } else if (canUseBackendPdf) {
         await downloadAssessmentPdf(assessmentId)
@@ -191,7 +228,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     } finally {
       setPdfLoading(false)
     }
-  }, [displayPhoto, photos, cvReport, metrics, landmarks, protocolNarrative, featureNarratives, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis, user])
+  }, [displayPhoto, photos, cvReport, metrics, landmarks, protocolNarrative, featureNarratives, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis, user, projectedAfter, projectedAnalysis])
 
   const persistHistory = useCallback(
     (content, source, error) => {
@@ -264,17 +301,63 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
     setProtocolNarrative(historyEntry?.protocolNarrative || displayAnalysis?.protocolNarrative || null)
     setFeatureNarratives(historyEntry?.featureNarratives || displayAnalysis?.featureNarratives || null)
     setFeatureParsing(historyEntry?.featureParsing || displayAnalysis?.featureParsing || null)
+    setProjectedAfter((prev) => {
+      const next = historyEntry?.projectedAfter || displayAnalysis?.projectedAfter || null
+      // Don't clobber a ready API hydration with stale analysis/history payload
+      if (resolveProjectedAfterUrl(prev) && !resolveProjectedAfterUrl(next)) return prev
+      return next
+    })
+    setProjectedAnalysis((prev) => {
+      const next = historyEntry?.projectedAnalysis || displayAnalysis?.projectedAnalysis || null
+      if (prev?.status === 'ready' && next?.status !== 'ready') return prev
+      return next
+    })
     setProtocolError('')
   }, [historyEntry, displayAnalysis])
 
-  // Load stored NL content only — never regenerate on report open.
+  // Hydrate NL from the open-path payload when available; otherwise one GET (legacy / incomplete).
   useEffect(() => {
     if (!showQovesReport || !assessmentId || !isBackendApiEnabled()) return
-    if (aiNarrative && protocolNarrative && featureNarratives) {
+    if (nlHydratedForId.current === assessmentId) return
+
+    const applyPacked = (full) => {
+      if (!full) return
+      if (full.aiNarrative) setAiNarrative(full.aiNarrative)
+      if (full.protocolNarrative) setProtocolNarrative(full.protocolNarrative)
+      if (full.featureNarratives) setFeatureNarratives(full.featureNarratives)
+      if (full.featureParsing) setFeatureParsing(full.featureParsing)
+      if (full.projectedAfter) setProjectedAfter(full.projectedAfter)
+      if (full.projectedAnalysis) setProjectedAnalysis(full.projectedAnalysis)
+    }
+
+    // Prefer the same full assessment already loaded when opening the report.
+    if (cloudAssessment?.id === assessmentId) {
+      applyPacked(cloudAssessment)
       nlHydratedForId.current = assessmentId
       return
     }
-    if (nlHydratedForId.current === assessmentId) return
+
+    // HydrateFromCloudAssessment already seeded displayAnalysis — skip GET if enrichment is present.
+    const fromAnalysis = {
+      aiNarrative: displayAnalysis?.aiNarrative,
+      protocolNarrative: displayAnalysis?.protocolNarrative,
+      featureNarratives: displayAnalysis?.featureNarratives,
+      featureParsing: displayAnalysis?.featureParsing,
+      projectedAfter: displayAnalysis?.projectedAfter,
+      projectedAnalysis: displayAnalysis?.projectedAnalysis,
+    }
+    if (
+      fromAnalysis.aiNarrative
+      || fromAnalysis.protocolNarrative
+      || fromAnalysis.featureNarratives
+      || fromAnalysis.featureParsing
+      || fromAnalysis.projectedAfter
+      || fromAnalysis.projectedAnalysis
+    ) {
+      applyPacked(fromAnalysis)
+      nlHydratedForId.current = assessmentId
+      return
+    }
 
     let cancelled = false
     ;(async () => {
@@ -295,6 +378,8 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
           setFeatureNarratives(full.featureNarratives)
         }
         if (full?.featureParsing) setFeatureParsing(full.featureParsing)
+        if (full?.projectedAfter) setProjectedAfter(full.projectedAfter)
+        if (full?.projectedAnalysis) setProjectedAnalysis(full.projectedAnalysis)
         const stillNeedsProtocol = !protocolNarrative && !full?.protocolNarrative
         const stillNeedsFeatures = !featureNarratives && !full?.featureNarratives
         if (stillNeedsProtocol || stillNeedsFeatures) {
@@ -323,7 +408,7 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
       }
     })()
     return () => { cancelled = true }
-  }, [showQovesReport, assessmentId, aiNarrative, protocolNarrative, featureNarratives])
+  }, [showQovesReport, assessmentId, cloudAssessment, displayAnalysis, aiNarrative, protocolNarrative, featureNarratives])
 
   const handleGenerateVisuals = useCallback(async () => {
     if (!assessmentId || !isBackendApiEnabled() || aiVisualsLoading) return
@@ -403,9 +488,40 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-surface-border bg-surface-card shrink-0">
-        <h2 className="font-display text-sm font-semibold text-ink truncate">Facial Analysis Report</h2>
-        <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 py-3 border-b border-surface-border bg-surface-card shrink-0">
+        <h2 className="font-display text-sm font-semibold text-ink truncate min-w-0">Facial Analysis Report</h2>
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end">
+          {showAdminTools && (
+            <>
+              <button
+                type="button"
+                onClick={() => toggleAdminView('narrative')}
+                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-medium font-display border transition-colors ${
+                  adminView === 'narrative'
+                    ? 'bg-brand-50 border-brand/30 text-brand'
+                    : 'bg-white border-surface-border text-ink-secondary hover:border-brand/30'
+                }`}
+                title="Edit PDF narrative (admin)"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline sm:inline">Edit PDF narrative</span>
+                <span className="sm:hidden">Narrative</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleAdminView('after')}
+                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-medium font-display border transition-colors ${
+                  adminView === 'after'
+                    ? 'bg-brand-50 border-brand/30 text-brand'
+                    : 'bg-white border-surface-border text-ink-secondary hover:border-brand/30'
+                }`}
+                title="Generate projected AFTER (admin)"
+              >
+                <ImagePlus className="w-3.5 h-3.5" />
+                <span>Edit After Image</span>
+              </button>
+            </>
+          )}
           {showQovesReport && isAdmin && assessmentId && !isReportApproved(reportStatus) && (
             <button
               type="button"
@@ -443,16 +559,6 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col px-3 sm:px-4 pb-3 pt-3">
-        {isAdmin && adminAssessment && !isReportApproved(reportStatus) && (
-          <div className="mb-3 shrink-0">
-            <AdminReviewPanel
-              embedded
-              assessment={adminAssessment}
-              onSaved={handleAdminReviewSaved}
-            />
-          </div>
-        )}
-
         {displayAnalysis?.protocolWarnings?.length > 0 && (
           <div className="mb-3 shrink-0 p-4 rounded-2xl bg-amber-50 border border-amber-200">
             <p className="text-sm font-display font-semibold text-amber-700 mb-2">Protocol warnings</p>
@@ -500,6 +606,8 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
                   protocolNarrative={protocolNarrative}
                   featureNarratives={featureNarratives}
                   featureParsing={featureParsing}
+                  projectedAfter={projectedAfter}
+                  projectedAnalysis={projectedAnalysis}
                   protocolLoading={protocolLoading}
                   aiNarrative={aiNarrative}
                   photo={displayPhoto}
@@ -548,6 +656,16 @@ export default function Report({ photo, photos, answers, analysis, historyId, on
           </div>
         )}
       </div>
+
+      {showAdminTools && adminView && adminAssessment && (
+        <AdminReviewPanel
+          view={adminView}
+          assessment={adminAssessment}
+          onClose={() => setAdminView(null)}
+          onSaved={handleAdminReviewSaved}
+        />
+      )}
+
       <ConfirmDialog
         open={approveConfirmOpen}
         title="Approve report?"

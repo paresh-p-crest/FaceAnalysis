@@ -17,7 +17,7 @@ import {
   adminTabToPath,
 } from '../../utils/routes'
 import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser } from '../../utils/authClient'
-import { isBackendApiEnabled, confirmStripeCheckout, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment } from '../../utils/apiClient'
+import { isBackendApiEnabled, confirmStripeCheckout, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, isFullCloudAssessment } from '../../utils/apiClient'
 import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
@@ -70,6 +70,8 @@ export function AppProvider({ children }) {
   const [analysisStep, setAnalysisStep] = useState(ANALYSIS_STEPS.WELCOME)
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [openingReportId, setOpeningReportId] = useState(null)
+  /** Full GET assessment used to open the report — reused by Report (no re-fetch). */
+  const [cloudAssessment, setCloudAssessment] = useState(null)
   const [adminWorkspace, setAdminWorkspace] = useState({
     assessments: [],
     payments: [],
@@ -207,6 +209,7 @@ export function AppProvider({ children }) {
   const closeReportModal = useCallback(() => {
     setReportModalOpen(false)
     setHistoryId(null)
+    setCloudAssessment(null)
   }, [])
 
   const resetAnalysisFlow = useCallback(() => {
@@ -260,6 +263,8 @@ export function AppProvider({ children }) {
       reportStatus: assessment.status || 'pending_review',
       pipeline: assessment.pipeline || null,
       featureParsing: assessment.featureParsing || null,
+      projectedAfter: assessment.projectedAfter || null,
+      projectedAnalysis: assessment.projectedAnalysis || null,
       processing: assessment.processing ?? false,
       aiNarrative: assessment.aiNarrative || assessment.analysis?.aiNarrative || null,
       aiVisuals: assessment.aiVisuals || assessment.analysis?.aiVisuals || null,
@@ -465,6 +470,7 @@ export function AppProvider({ children }) {
 
   const handlePreparingReady = useCallback((assessment) => {
     hydrateFromCloudAssessment(assessment)
+    setCloudAssessment(isFullCloudAssessment(assessment) ? assessment : null)
     setPreparingAssessmentId(null)
     resetAnalysisFlow()
     openReportModal()
@@ -556,6 +562,14 @@ export function AppProvider({ children }) {
     }
     if (!assessment?.id || !isBackendApiEnabled()) {
       hydrateFromCloudAssessment(assessment)
+      setCloudAssessment(null)
+      openReportModal()
+      return
+    }
+    // Admin (and other callers) may already pass a full GET payload — skip a second fetch.
+    if (isFullCloudAssessment(assessment)) {
+      hydrateFromCloudAssessment(assessment)
+      setCloudAssessment(assessment)
       openReportModal()
       return
     }
@@ -563,6 +577,7 @@ export function AppProvider({ children }) {
     try {
       const full = await fetchAssessment(assessment.id)
       hydrateFromCloudAssessment(full)
+      setCloudAssessment(full)
       openReportModal()
     } catch (err) {
       alert(err?.message || 'Could not load report')
@@ -619,6 +634,8 @@ export function AppProvider({ children }) {
     analysisStep,
     reportModalOpen,
     openingReportId,
+    cloudAssessment,
+    setCloudAssessment,
     primaryPhoto,
     pathname,
     goTo,
@@ -657,7 +674,7 @@ export function AppProvider({ children }) {
     user, authReady, answers, photos, analysis, historyId, settingsOpen, authOpen, returnPath,
     billingMessage, paymentReturn, logoutConfirmOpen, scanId,
     adminWorkspace,
-    questionnaireStartAtEnd, analysisStep, reportModalOpen, openingReportId, primaryPhoto, pathname,
+    questionnaireStartAtEnd, analysisStep, reportModalOpen, openingReportId, cloudAssessment, primaryPhoto, pathname,
     preparingAssessmentId,
     goTo, goToStage, openDashboard, openHistory, openBilling, startNewAnalysis,
     startAnalysisAfterPayment, handleScanComplete, handleRetryLocal, logout,

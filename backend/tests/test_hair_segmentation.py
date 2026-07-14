@@ -42,3 +42,14 @@ def test_analyze_hair_photo_uses_segmentation_method():
     assert result["dataSource"] == "measured"
     assert result.get("segmentationMethod") == "opencv_hsv"
     assert result.get("norwoodStage") is not None
+    assert result.get("templeMetrics") is not None
+    assert result.get("norwoodStagingMethod") == "temple_geometry"
+
+
+def test_hair_segmentation_includes_temple_metrics():
+    img = np.full((400, 400, 3), 200, dtype=np.uint8)
+    img[40:300, 60:340] = (15, 15, 15)
+    result = analyze_hair_segmentation(_encode_bgr(img))
+    assert result is not None
+    assert "templeMetrics" in result
+    assert "templeRecession" in result["templeMetrics"]

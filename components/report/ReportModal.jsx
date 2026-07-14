@@ -13,6 +13,8 @@ export function ReportModal({
   answers,
   analysis,
   historyId,
+  cloudAssessment = null,
+  onCloudAssessmentChange = null,
   user,
   onRestart,
   onRetryLocal,
@@ -42,6 +44,8 @@ export function ReportModal({
           answers={answers}
           analysis={analysis}
           historyId={historyId}
+          cloudAssessment={cloudAssessment}
+          onCloudAssessmentChange={onCloudAssessmentChange}
           onRestart={onRestart}
           onRetryLocal={onRetryLocal}
           user={user}

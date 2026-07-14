@@ -41,7 +41,7 @@ Indexes: unique `email`, `role`.
 | `reviewed_by` | `JSONB` | |
 | `answers`, `photos`, `photos_keys`, `analysis` | `JSONB` | |
 | `ai_narrative`, `protocol_narrative`, `feature_narratives`, `protocol_storage`, `ai_visuals` | `JSONB` nullable | |
-| `pipeline`, `feature_parsing` | `JSONB` nullable | async job progress + SegFormer crops/metrics |
+| `pipeline`, `feature_parsing`, `projected_after`, `projected_analysis` | `JSONB` nullable | async job progress + SegFormer crops + full-face AFTER URL + AFTER CV report |
 | `review_log` | `JSONB` array | |
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | |
 
@@ -58,7 +58,9 @@ Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolW
 | Per-feature narratives | `feature_narratives` |
 | AI visuals | `ai_visuals` |
 | Async pipeline state | `pipeline` (`status`, `stage`, `attempts`, timestamps) |
-| SegFormer parsing (interactive only) | `feature_parsing` (`crops`, `metrics`, `scaleNote`) |
+| SegFormer parsing (interactive only) | `feature_parsing` (`crops`, `metrics`, `scaleNote`); `parsing/*.jpg` — front white-mask (incl. neck) / rect chin·cheeks·jaw; lips from front DB landmarks; smile from smile mesh; earsLeft/earsRight from profiles |
+| Projected AFTER (protocol/PDF) | `projected_after` (`status`, `full.publicUrl` → `projected/full.jpg` or `full.png`) |
+| Projected AFTER CV (immutable sibling of BEFORE) | `projected_analysis` (`status`, `cvReport`, `landmarks`, `metrics`, `eyeAnalysis`, `source: projected_full`) — never writes into `analysis` |
 | Beauty Assistant | `conversations` + `conversation_messages` |
 
 ---

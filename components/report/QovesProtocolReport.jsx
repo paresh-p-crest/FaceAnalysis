@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { normalizeToJpegDataUrl } from '../../utils/aestheticProjection'
-import { resolveAllFeatureImages } from '../../utils/protocolFeatureImages'
+import {
+  resolveAllFeatureAfterImages,
+  resolveAllFeatureImages,
+} from '../../utils/protocolFeatureImages'
+import {
+  resolveAfterCvPayload,
+  resolveAfterLandmarks,
+  resolveProjectedAfterUrl,
+} from '../../utils/projectedAfter'
+import { alignAfterToBefore } from '../../utils/alignAfterToBefore'
 import {
   buildClosingColumns,
   buildClosingRecommendations,
@@ -62,14 +71,20 @@ function SectionBlock({ title, subtitle, page, children, splitTitle }) {
 
 function ImageFrame({ src, tag, emptyLabel = 'Projected image pending', aspectClass = 'aspect-[4/3]' }) {
   return (
-    <div className={`relative rounded-xl overflow-hidden bg-surface-warm border border-surface-border ${aspectClass} flex items-center justify-center`}>
+    <div className={`relative rounded-xl overflow-hidden bg-surface-warm border border-surface-border ${aspectClass}`}>
       {src ? (
-        <img src={src} alt={tag || 'Feature'} className="w-full h-full object-cover" />
+        <img
+          src={src}
+          alt={tag || 'Feature'}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
       ) : (
-        <span className="text-xs text-ink-muted font-sans px-4 text-center">{emptyLabel}</span>
+        <span className="absolute inset-0 flex items-center justify-center text-xs text-ink-muted font-sans px-4 text-center">
+          {emptyLabel}
+        </span>
       )}
       {tag && (
-        <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-ink/70 text-white">
+        <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-ink/70 text-white">
           {tag}
         </span>
       )}
@@ -77,19 +92,19 @@ function ImageFrame({ src, tag, emptyLabel = 'Projected image pending', aspectCl
   )
 }
 
-function BeforeAfterPair({ beforeSrc, stacked = false, aspectClass }) {
+function BeforeAfterPair({ beforeSrc, afterSrc = null, stacked = false, aspectClass }) {
   if (stacked) {
     return (
       <div className="flex flex-col gap-3 my-4">
         <ImageFrame src={beforeSrc} tag="BEFORE" aspectClass={aspectClass} />
-        <ImageFrame src={null} tag="AFTER" aspectClass={aspectClass} />
+        <ImageFrame src={afterSrc} tag="AFTER" aspectClass={aspectClass} />
       </div>
     )
   }
   return (
     <div className="grid grid-cols-2 gap-3 my-4">
       <ImageFrame src={beforeSrc} tag="BEFORE" aspectClass={aspectClass} />
-      <ImageFrame src={null} tag="AFTER" aspectClass={aspectClass} />
+      <ImageFrame src={afterSrc} tag="AFTER" aspectClass={aspectClass} />
     </div>
   )
 }
@@ -157,6 +172,8 @@ export default function QovesProtocolReport({
   eyeAnalysis,
   protocolNarrative,
   aiNarrative,
+  projectedAfter = null,
+  projectedAnalysis = null,
   pageIndex = 0,
   paginated = false,
 }) {
@@ -174,9 +191,12 @@ export default function QovesProtocolReport({
   )
   const closingCols = useMemo(() => buildClosingColumns(closingParagraphs), [closingParagraphs])
   const chartItems = useMemo(() => getFeatureComparisonData(cvReport), [cvReport])
+  const afterFullUrl = useMemo(() => resolveProjectedAfterUrl(projectedAfter), [projectedAfter])
+  const afterLandmarks = useMemo(() => resolveAfterLandmarks(projectedAnalysis), [projectedAnalysis])
+  const afterCv = useMemo(() => resolveAfterCvPayload(projectedAnalysis), [projectedAnalysis])
 
   const [loading, setLoading] = useState(true)
-  const [images, setImages] = useState({ fullBefore: null, features: {} })
+  const [images, setImages] = useState({ fullBefore: null, fullAfter: null, features: {}, featureAfter: {} })
 
   useEffect(() => {
     let cancelled = false
@@ -196,11 +216,40 @@ export default function QovesProtocolReport({
           eyeAnalysis,
           photos,
         })
+        let fullAfter = null
+        let featureAfter = {}
+        if (afterFullUrl) {
+          try {
+            fullAfter = await normalizeToJpegDataUrl(afterFullUrl)
+          } catch {
+            fullAfter = afterFullUrl
+          }
+          featureAfter = await resolveAllFeatureAfterImages({
+            featurePages,
+            afterFullUrl: fullAfter || afterFullUrl,
+            beforeFullUrl: photoJpeg,
+            landmarks,
+            afterLandmarks,
+            afterCvReport: afterCv?.cvReport || null,
+            afterEyeAnalysis: afterCv?.eyeAnalysis || null,
+            forPdf: false,
+          })
+          // Overview pair only: match AFTER face scale to BEFORE (feature AFTER crops stay unaligned)
+          if (photoJpeg && fullAfter) {
+            try {
+              fullAfter = await alignAfterToBefore(photoJpeg, fullAfter)
+            } catch (err) {
+              console.warn('Overview AFTER align failed:', err)
+            }
+          }
+        }
         if (cancelled) return
-        setImages({ fullBefore: photoJpeg, features })
+        setImages({ fullBefore: photoJpeg, fullAfter, features, featureAfter })
       } catch (err) {
         console.warn('Protocol image load failed:', err)
-        if (!cancelled) setImages({ fullBefore: photo, features: {} })
+        if (!cancelled) {
+          setImages({ fullBefore: photo, fullAfter: afterFullUrl, features: {}, featureAfter: {} })
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -209,7 +258,7 @@ export default function QovesProtocolReport({
     return () => {
       cancelled = true
     }
-  }, [photo, photos, landmarks, cvReport, eyeAnalysis, featurePages])
+  }, [photo, photos, landmarks, afterLandmarks, afterCv, cvReport, eyeAnalysis, featurePages, afterFullUrl])
 
   if (!cvReport) {
     return <p className="text-sm text-ink-muted font-sans">Analysis data required for protocol report.</p>
@@ -326,7 +375,11 @@ export default function QovesProtocolReport({
               "This evidence-based protocol is grounded in the subject's measured facial analysis, organised around 11 key features for facial aesthetics."
           )}
         </p>
-        <BeforeAfterPair beforeSrc={images.fullBefore} />
+        <BeforeAfterPair
+          beforeSrc={images.fullBefore}
+          afterSrc={images.fullAfter}
+          aspectClass="aspect-[3/4]"
+        />
         <div className="grid sm:grid-cols-2 gap-6 mt-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted mb-3">
@@ -386,6 +439,7 @@ export default function QovesProtocolReport({
         const pair = images.features[page.id] || {}
         const slots = pair.slots || {}
         const beforeSrc = slots.pairBefore || pair.before || images.fullBefore
+        const pageAfterSrc = images.featureAfter?.[page.id] || images.fullAfter
         const previewSrc = slots.preview || pair.before || images.fullBefore
         const qovesMeta = QOVES_PROTOCOL_FEATURES.find((f) => f.id === page.id)
         const titleParts = page.title.split(' ')
@@ -415,6 +469,7 @@ export default function QovesProtocolReport({
                   <div>
                     <BeforeAfterPair
                       beforeSrc={beforeSrc}
+                      afterSrc={pageAfterSrc}
                       stacked={stacked}
                       aspectClass={page.id === 'neck' ? 'aspect-[3/4]' : undefined}
                     />
@@ -458,6 +513,7 @@ export default function QovesProtocolReport({
                     ) : null}
                     <BeforeAfterPair
                       beforeSrc={beforeSrc}
+                      afterSrc={pageAfterSrc}
                       stacked={stacked}
                       aspectClass={page.id === 'neck' ? 'aspect-[3/4]' : undefined}
                     />

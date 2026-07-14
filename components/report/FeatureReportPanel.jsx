@@ -1,4 +1,3 @@
-import { FaceImageFrame } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { FeatureProseBlock } from './FeatureProseBlock'
 import { mergeMetricSections, resolveFeatureHero } from '../../utils/featureParsing'
@@ -25,7 +24,6 @@ function MetricCard({ label, value, tooltip }) {
  * @param {object} props.data - The feature data object (must have score, scoreLabel, explanation)
  * @param {Array<{title: string, metrics: Array<{label: string, value: string, tooltip?: string}>}>} props.sections - Sections to render
  * @param {string} [props.imageSrc] - Optional cropped image
- * @param {{ left?: string, right?: string }} [props.profileImages] - Left/right profile photos (e.g. ears)
  * @param {string} [props.imageAlt] - Alt text for image
  * @param {Array<{label: string, value: string}>} [props.extraMetrics] - Metrics shown in the overall score card
  */
@@ -35,7 +33,6 @@ export function FeatureReportPanel({
   data,
   sections,
   imageSrc,
-  profileImages,
   imageAlt,
   extraMetrics,
   narrative = null,
@@ -54,7 +51,6 @@ export function FeatureReportPanel({
     label: m.label,
     value: m.value,
   }))
-  const hasProfileImages = Boolean(profileImages?.left || profileImages?.right)
 
   return (
     <div className="space-y-6">
@@ -63,28 +59,13 @@ export function FeatureReportPanel({
         accent={accent}
         subtitle="Facial landmark balance from your photos"
       />
-      {hasProfileImages ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {profileImages.left && (
-            <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-              <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-3 font-medium">Left profile</p>
-              <div className="flex items-center justify-center">
-                <FaceImageFrame src={profileImages.left} alt="Left profile" aspect="auto" maxW="100%" />
-              </div>
-            </div>
-          )}
-          {profileImages.right && (
-            <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-              <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-3 font-medium">Right profile</p>
-              <div className="flex items-center justify-center">
-                <FaceImageFrame src={profileImages.right} alt="Right profile" aspect="auto" maxW="100%" />
-              </div>
-            </div>
-          )}
-        </div>
-      ) : resolvedImage ? (
+      {resolvedImage ? (
         <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-6 flex items-center justify-center">
-          <FaceImageFrame src={resolvedImage} alt={imageAlt || title} aspect="auto" maxW="380px" />
+          <img
+            src={resolvedImage}
+            alt={imageAlt || title}
+            className="max-h-48 w-auto object-contain rounded-xl"
+          />
         </div>
       ) : null}
       {summaryCards.length > 0 && (

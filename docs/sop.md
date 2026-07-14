@@ -28,6 +28,8 @@ This document contains standard step-by-step procedures for local environment se
    source venv/bin/activate
    
    pip install -r requirements.txt
+   # Optional — SegFormer face parsing (Aesthetic Assessment stage):
+   uv pip install --python .venv/Scripts/python.exe -r requirements-face-parsing.txt
    ```
 4. **Environment Configuration:**
    - Copy `.env.example` to `.env` in the **project root** (single file for backend + Next.js).
@@ -78,12 +80,6 @@ Expected output from the smoke test script:
 ```
 
 ---
-
-## 4a. Local tunnel via ngrok (optional)
-
-Expose FastAPI with `ngrok http 8000`, set `NEXT_PUBLIC_API_URL` to the `https://….ngrok-free.app` URL, keep `PUBLIC_APP_URL` / page origin in `CORS_ORIGINS` (e.g. `http://localhost:3000`). Restart `npm run dev` after changing `NEXT_PUBLIC_*`. Free ngrok interstitials are skipped automatically by `apiFetch` when the API host contains `ngrok`.
-
-**End of day:** set `NEXT_PUBLIC_API_URL=http://localhost:8000`, restart Next — no code revert required.
 
 ## 4. Replit Deployment Guide
 

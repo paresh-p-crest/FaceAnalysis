@@ -118,6 +118,8 @@ class Assessment(Base):
     ai_visuals: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     pipeline: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     feature_parsing: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    projected_after: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    projected_analysis: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     review_log: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)

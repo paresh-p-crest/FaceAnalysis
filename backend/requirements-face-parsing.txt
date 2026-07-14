@@ -1,5 +1,6 @@
 # Optional face-parsing dependencies (SegFormer via HuggingFace)
-# Install: pip install -r backend/requirements-face-parsing.txt
+# Install: uv pip install --python backend/.venv/Scripts/python.exe -r backend/requirements-face-parsing.txt
 torch>=2.0.0
+torchvision>=0.15.0
 transformers>=4.40.0
 accelerate>=0.30.0

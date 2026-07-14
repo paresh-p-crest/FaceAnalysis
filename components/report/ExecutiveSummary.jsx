@@ -1,5 +1,6 @@
 import { Sparkles, Calendar, UserCheck, Timer } from 'lucide-react'
 import { PhotoLandmarkFrame } from './FaceImageFrame'
+import { resolveProjectedAfterUrl } from '../../utils/projectedAfter'
 
 function RadarChart({ scores }) {
   const cx = 100
@@ -168,7 +169,9 @@ export function ExecutiveSummary({
   landmarks,
   metrics,
   answers,
+  projectedAfter = null,
 }) {
+  const afterSrc = resolveProjectedAfterUrl(projectedAfter)
   const overall = cvReport?.overall || {}
   const faceAge = metrics?.visualAge || overall?.visualAge || 28
   const bioAge = answers?.age || overall?.chronologicalAge || 33
@@ -219,9 +222,18 @@ export function ExecutiveSummary({
         </div>
 
         <div className="space-y-2">
-          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Potential · Landmarks</p>
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            {afterSrc ? 'Potential · Projected' : 'Potential · Landmarks'}
+          </p>
           <div className="relative">
-            {photo ? (
+            {afterSrc ? (
+              <div className="relative rounded-2xl overflow-hidden aspect-[4/5] bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                <img src={afterSrc} alt="Projected potential" className="w-full h-full object-cover" />
+                <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-sm text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Potential
+                </div>
+              </div>
+            ) : photo ? (
               <PhotoLandmarkFrame
                 src={photo}
                 alt="Landmarks overlay"
@@ -253,9 +265,11 @@ export function ExecutiveSummary({
                 Potential Scan
               </div>
             )}
-            <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-sm text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider pointer-events-none z-[2]">
-              Potential
-            </div>
+            {!afterSrc && photo && (
+              <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-sm text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider pointer-events-none z-[2]">
+                Potential
+              </div>
+            )}
           </div>
         </div>
       </div>

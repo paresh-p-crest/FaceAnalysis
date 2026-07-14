@@ -1,6 +1,7 @@
 import { safeDisplay } from '../../utils/safeFormat'
 import { FeatureAnalysisPage } from './FeatureAnalysisPage'
 import { FeatureProseBlock } from './FeatureProseBlock'
+import { resolveFeatureHero } from '../../utils/featureParsing'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -114,7 +115,7 @@ function SymmetryBar({ left, right, leftLabel, rightLabel }) {
   )
 }
 
-export function SkinReportPanel({ skin, narrative = null }) {
+export function SkinReportPanel({ skin, narrative = null, featureParsing = null }) {
   if (!skin) return null
 
   const s = skin
@@ -134,7 +135,7 @@ export function SkinReportPanel({ skin, narrative = null }) {
     <FeatureAnalysisPage
       featureName="skin"
       subtitle="Canvas pixel analysis from 6 facial regions"
-      heroImage={s.imageSrc}
+      heroImage={resolveFeatureHero('skin', s, featureParsing) || s.imageSrc}
       summaryCards={[
         { label: 'Skin Tone', value: s.skinTone },
         { label: 'Texture', value: s.texture },

@@ -13,7 +13,7 @@ from .pipeline_status import (
     next_pipeline_stage,
     _utcnow_iso,
 )
-from .pipeline_stages import finalize_pipeline, run_cv_stage, run_narratives_stage, run_parsing_stage
+from .pipeline_stages import finalize_pipeline, run_cv_stage, run_narratives_stage, run_parsing_stage, run_projected_after_stage
 from .repositories.assessment_repository import (
     claim_next_queued_assessment,
     get_assessment_by_id,
@@ -47,6 +47,7 @@ async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
         "cv": run_cv_stage,
         "narratives": run_narratives_stage,
         "parsing": run_parsing_stage,
+        "projected_after": run_projected_after_stage,
     }
     runner = runners[stage]
 
@@ -81,7 +82,7 @@ async def _process_assessment(assessment: dict) -> None:
     pipeline = dict(assessment.get("pipeline") or {})
     current_stage = pipeline.get("stage") or "cv"
 
-    stage_sequence = ("cv", "narratives", "parsing")
+    stage_sequence = ("cv", "narratives", "parsing", "projected_after")
     start_idx = stage_sequence.index(current_stage) if current_stage in stage_sequence else 0
 
     for stage in stage_sequence[start_idx:]:

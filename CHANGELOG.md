@@ -5,18 +5,44 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Fixed
+- **`scripts/test_hair_norwood_assessment.py`** — hair/Norwood geometry test; by default inserts a **new** assessment clone with only `analysis.cvReport.hair` updated (source row untouched; `--dry-run` to skip write).
+- **`scripts/calibrate_norwood_temples.py`** — labeled-folder harness for temple-recession threshold calibration.
+- **Norwood stage 1 vs 2 misclassification** — staging for Hamilton–Norwood 1–3 is now **temple-geometry** driven (`templeRecession` / mid-frontal hairline), not scalp `densityPct`. Density only escalates stage 4+. Also: hair-mask highlight arm (glossy lit hair), density ROI starts below the detected hairline (not fixed forehead %), `templeMetrics` on hair result, calibration harness `scripts/calibrate_norwood_temples.py`. Thresholds 0.03/0.07/0.13 are pre-calibration placeholders (not a clinical diagnosis).
 ### Added
+- **Projected AFTER CV (`projected_analysis`)** — after a successful `projected/full` write, runs MediaPipe/OpenCV on that image into assessments JSONB `projected_analysis` (`cvReport`, landmarks, metrics, eyeAnalysis). BEFORE `analysis` is never mutated (ADR-027). Admin `POST …/projected-after` regenerates both image + AFTER analysis.
+- **`scripts/rerun_projected_analysis.py`** — run AFTER CV (`projected_analysis`) from the assessment’s `projectedAfter.full` URL/path (disk scan only as fallback); asserts BEFORE `analysis` unchanged. Manual invoke only.
+### Fixed
+- **Protocol/PDF feature AFTER framing** — eyes/jaw/chin/ears (and neck/hair) live-crop with `projectedAnalysis.landmarks` + same `getFeatureBox` as BEFORE. When AFTER aspect/size ≠ BEFORE front, face-centered cover-fit onto BEFORE canvas (AFTER-only; clinical B&A same-format practice) then remap landmarks. `FEATURE_MIN_PX` scaled by short-side ratio. Stored `cvReport` crops fallback for live-first features; other features prefer stored crops. Skin half-split unchanged.
+- **PDF skin half-split alignment** — for Skin Recommendations, the half-before / half-after panel warps projected AFTER onto the BEFORE canvas via MediaPipe similarity (`alignAfterToBefore`) before `composeSplit`. BEFORE is never modified.
+- **Skin BEFORE/AFTER pair AFTER framing** — side-by-side AFTER uses a midface crop centered between nose tip and upper lip, slightly zoomed out (`zoomOut` 1.22); landmarks detected on the AFTER image. Half-split path unchanged.
+- **Protocol overview AFTER squeeze** — PDF cover no longer stretch-falls-back when warm/crop misses (aspect-preserving contain). Overview BEFORE/AFTER face-aligns AFTER onto BEFORE; UI overview frames use `aspect-[3/4]` matching portrait captures.
+### Changed
+- **Report open: single assessment GET** — admin/dashboard no longer stack redundant `GET /api/assessments/{id}` calls; `viewCloudAssessment` skips a second fetch when already given a full payload, and `Report` reuses that doc for admin tools + NL hydrate (no extra GETs on open).
+### Added
+- **Admin projected AFTER** — `POST /api/assessments/{id}/projected-after` (admin) always generates/overwrites `projected/full.jpg|png`, ignoring `PROJECTED_AFTER_ENABLED`.
+- **`scripts/rerun_projected_after.py`** — re-run full-face projected AFTER for one assessment (mirrors admin path; default ignores env flag). Manual invoke only.
+- **Admin protocol section regen** — `POST /api/assessments/{id}/ai-protocol/section` regenerates overview, closing, or one feature; `ai-protocol?force=true` regenerates the whole PDF narrative (admin).
+- **Projected AFTER pipeline stage** — last worker step after parsing generates one full-face measurement-guided image (`projected/full.jpg` or `full.png` from magic bytes); same `publicUrl` on all protocol/PDF AFTER slots; `PROJECTED_AFTER_ENABLED=false` by default (ADR-026). Distinct from AI Visuals.
 - **Async full assessment pipeline** — `POST /api/assessments` validates photos, persists uploads, and enqueues CV → narratives → SegFormer parsing via Postgres-tracked `pipeline` JSONB + in-process worker (`PIPELINE_WORKER_ENABLED`, `FOR UPDATE SKIP LOCKED`).
 - **AnalysisPreparing UI** — Qoves-style “your analysis is being prepared” screen with live stage list; users can close the tab and track progress from Dashboard/History.
 - **Feature parsing enrichment** — `featureParsing` JSONB + `parsing/{featureId}.jpg` crops; assumed-scale mm metrics (`scale: assumed_ipd_63.5`) for interactive Features Analysis panels only (ADR-024).
 - **Pipeline retry endpoint** — `POST /api/assessments/{id}/retry-pipeline` for failed jobs.
+- **`scripts/rerun_parsing.py`** — re-run SegFormer parsing only for an existing assessment (no full pipeline replay).
 ### Changed
+- **Admin review panel** — removed executive summary / strengths / focus / recommendations / disclaimer editors; admins generate whole or per-section PDF protocol text, edit subsection bodies via section dropdown, and generate projected AFTER; save persists `protocolNarrative` + `featureNarratives`.
+- **Hybrid SegFormer parsing crops** — front-pose mask-isolated heroes use **white** background (eyes, nose, eyebrows, hair, **neck**; ears skipped on front); **skin** = face composite minus hair; **chin / cheeks / jaw** stay rectangular. **lips** from DB front MediaPipe landmarks on `front.jpg`; **smile** from MediaPipe on `smile.jpg`; **earsLeft / earsRight** from SegFormer on profile poses.
+- **Ears panel** — single left-profile hero (`max-h-48`) matching other feature boxes; dual L/R grid removed.
+- **Dimorphism per-feature cards** — show the same `featureParsing` crops (eyebrows/eyes/nose/…) as Features Analysis; scores/explanations unchanged.
 - **Upload flow** — Scanning step is a fast submit only; report opens after pipeline `ready` (not inline in POST).
 - **Per-subsection narrative body caps (all features)** — explicit short/standard/long bands (1000 / 1500 / 2000 chars) for every feature title; Ear Structure / Neck Skin / Eyebrows / Under eye = long; Further Enhancement = standard.
-### Added
-- **ngrok API tunneling** — `apiFetch` in `apiClient.js` / `authClient.js` sends `ngrok-skip-browser-warning` when `NEXT_PUBLIC_API_URL` hosts ngrok (or `NEXT_PUBLIC_NGROK_SKIP_WARNING=true`); inert once API URL is back to localhost.
 ### Fixed
-- **Pipeline worker poll loop (Python 3.12)** — idle polling uses `asyncio.wait_for` instead of passing a coroutine to `asyncio.wait`, which raised `TypeError: Passing coroutines is forbidden`.
+- **PDF projected AFTER** — protocol overview and feature pages were hardcoding AFTER as `null` (“Projected image pending”); they now use `projectedAfter.full.publicUrl`. Report also re-fetches `projectedAfter` when narratives are already cached.
+- **Admin review scroll** — embedded review panel uses a max-height + internal scroll with sticky Save/Approve so actions stay reachable inside the report modal.
+- **Admin review tools** — PDF narrative and After image are separate admin-only header toggles that open independent overlays; not shown to clients; report body stays uncluttered.
+- **Protocol BEFORE/AFTER framing** — preview `ImageFrame` uses absolute `object-cover` so portrait AFTER fills the frame (no side letterboxing); hair PDF frames also use `cover: true`.
+- **Landmark-matched AFTER crops** — protocol UI + PDF crop `projectedAfter.full` with the same `getFeatureBox` keys as BEFORE (`resolveFeatureAfterImage`); overview stays full-face; skin uses cheek/skin box (not full portrait).
+- **Face parsing optional deps** — `requirements-face-parsing.txt` now includes `torchvision` (required by `SegformerImageProcessor`); documented `uv pip install --python backend/.venv/Scripts/python.exe` for local venv setup.
 - **AnalysisFlow build** — removed duplicate `openDashboard` destructure from `useApp()` that broke Next.js compile.
 - **Proportions overview guides** — lines were crop-% drawn on the full front photo (spread above the head / into the neck). Guides are now full-image % (hairline/brow/subnasale/chin); UI recomputes from landmarks at display time and prefers the front photo so existing assessments fix without a re-scan.
 ### Changed
