@@ -1286,7 +1286,10 @@ function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null
 
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  leftY = drawBeforeAfterPair(doc, MARGIN, y, COL_W, beforeJpeg, afterJpeg, 150, true)
+  // Side-by-side pair uses the tight single-cheek crop (eye→lips, nose excluded);
+  // the half-split above stays on the wide beforeJpeg.
+  const pairBefore = section.imageSlots?.pairBefore || beforeJpeg
+  leftY = drawBeforeAfterPair(doc, MARGIN, y, COL_W, pairBefore, afterJpeg, 150, true)
   if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Further Skin Enhancement', subs[1].body, COL_W)
   drawSummaryCard(doc, rightX, y, COL_W, 'Skin Summary', section.summary)
 }
@@ -1403,7 +1406,7 @@ export async function downloadMyFacePdf({
   }))
 
   // Skin half-split only: warp full AFTER onto skin BEFORE canvas (BEFORE unchanged).
-  // Side-by-side still uses feature-cropped afterJpeg.
+  // BEFORE here is the wide cheek crop (imageSlots.before), NOT the tight side-by-side pair crop.
   const skinSection = sectionPairs.find((p) => p.id === 'skin')
   if (skinSection?.beforeJpeg && (afterJpeg || skinSection.afterJpeg)) {
     try {

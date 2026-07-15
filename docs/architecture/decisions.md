@@ -547,3 +547,27 @@ Hamilton–Norwood stages 1–3 are defined by **hairline/temple shape**, not sc
 ### Consequences
 - Existing stored `cvReport.hair.norwoodStage` values may change on re-analysis.
 - Pre-calibration thresholds are directional; keep “(not a clinical diagnosis)” client language and avoid leaking metric key names into prose.
+
+---
+
+## ADR-029: Generative projected AFTER + provider-agnostic image client
+Date: 2026-07-15  
+Status: accepted  
+
+### Context
+The projected AFTER face was a deterministic OpenCV retouch (`project_full_face_after`), which produced flat, unconvincing results. The existing "AI Visuals" feature already generated realistic edits through OpenAI Images Edits. We want the AFTER face generated the same way, and — since the project already routes text LLM traffic through OpenRouter — images should be provider-agnostic (OpenAI **or** OpenRouter) driven by one setting.
+
+### Decision
+- New **`backend/image_client.py`** (replaces `openai_images.py`): one `generate_image_edit(prompt, image_bytes)` entry point abstracting two provider surfaces:
+  - **OpenAI** — `POST /v1/images/edits` (multipart, `b64_json` in `data[0]`).
+  - **OpenRouter** — `POST /v1/chat/completions` with `modalities:["image","text"]`, the source image as an `image_url` part in the user message; edited image returned as a data URL in `choices[0].message.images[0].image_url.url`.
+- Provider resolution mirrors `resolve_llm_provider`: **`IMAGE_PROVIDER` → `LLM_PROVIDER` → key presence** (groq is not image-capable, so it falls through to key detection). Models via `OPENAI_IMAGE_MODEL` (default `gpt-image-1`) and `OPENROUTER_IMAGE_MODEL` (default `google/gemini-2.5-flash-image`).
+- `visual_generation.py` (AI visuals) and **`backend/projected_after_ai.py`** (generative AFTER) both call the shared client. The AFTER prompt is identity/measurement-preserving (same person, bone structure, proportions, pose, lighting; no reshaping; no clinical/surgical imagery) and emphasizes the weakest features derived from `projection_strengths`.
+- The pipeline (`generate_projected_after_now`) replaces the OpenCV call with the generative path. On provider unavailable/failure/crash, `projected_after.status` = **`pending`** (retryable, not `failed`); AFTER CV is skipped until a later retry succeeds. Landmarks are no longer required to start generation (downstream `projected_analysis` runs its own MediaPipe).
+- The client never raises for expected failures (missing key, timeout, non-2xx); callers branch on the returned `error`.
+
+### Consequences
+- One env switch (`IMAGE_PROVIDER`/`LLM_PROVIDER` + matching key/model) selects the provider for **both** AI visuals and the AFTER face.
+- The legacy OpenCV `backend/projected_after.py` (`project_full_face_after`) is **removed**; its still-needed pure helpers (`projected_after_enabled`, `projection_strengths`) moved into `projected_after_ai.py`.
+- `pending` AFTER rows are expected during outages and are picked up by existing retry paths (admin regen, `rerun_projected_after.py`, pipeline worker) — consumers must treat `pending` as non-terminal.
+- OpenRouter image models vary in edit fidelity; the default (`google/gemini-2.5-flash-image`) is chosen for identity-preserving image-to-image, and is overridable per deployment.

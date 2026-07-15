@@ -56,7 +56,7 @@ If the backend API is disabled, the FE can run a browser-local MediaPipe path (`
 2. **cv** — `pipeline_stages.run_cv_stage` → `analyze_face.run_face_analysis` in thread  
 3. **narratives** — `enrich_assessment_nl_content`  
 4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (requires optional `backend/requirements-face-parsing.txt`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
-5. **projected_after** — full-face projected image → `projected_after` + `projected/full.jpg` or `full.png` (skipped when `PROJECTED_AFTER_ENABLED=false`); then MediaPipe/OpenCV on that image → `projected_analysis` (BEFORE `analysis` untouched)  
+5. **projected_after** — **generative** AFTER image via `projected_after_ai.generate_projected_after_bytes` → `image_client` (OpenAI Images Edits **or** OpenRouter chat image modalities) → `projected_after` + `projected/full.jpg` or `full.png` (skipped when `PROJECTED_AFTER_ENABLED=false`); provider unavailable/fail → status **`pending`** (retryable). On success, MediaPipe/OpenCV on that image → `projected_analysis` (BEFORE `analysis` untouched). (ADR-029)  
 6. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
 
 ### Stage 2 — Computer vision (`analyze_face.py`)
@@ -113,7 +113,7 @@ Front face failure fails the whole analysis. Other poses soft-fail (empty landma
 | `photos` / `photosKeys` | Pose storage metadata |
 | Review fields | `adminNotes`, `reviewedBy`, `reviewedAt`, `reviewLog` |
 
-**Disk** under `public/uploads/assessments/{id}/`:
+**Disk** under `artifacts/myface/public/uploads/assessments/{id}/` (the Next.js static root; `backend/config.py` `UPLOADS_ROOT`):
 
 - `{poseId}.jpg` — pose photos  
 - `protocol.json` — `{ version, storedAt, protocolNarrative, featureNarratives }`  
@@ -346,7 +346,9 @@ This is the core of the product: photos in → structured `cvReport` out.
 | `answer_summary.py` | Turns questionnaire codes into readable labels. |
 | `assistant_agent.py` | ReAct-style Beauty Assistant that calls report tools. |
 | `assistant_tools.py` | Tools that read sections of the stored assessment. |
-| `visual_generation.py` | AI image edits (hair / outfit / aging previews). |
+| `image_client.py` | Provider-agnostic image edit (OpenAI Images Edits / OpenRouter chat image modalities); provider via `IMAGE_PROVIDER`→`LLM_PROVIDER`→key. |
+| `visual_generation.py` | AI image edits (hair / outfit / aging previews) via `image_client`. |
+| `projected_after_ai.py` | Generative projected AFTER face via `image_client` (identity/measurement-preserving prompt); owns `projected_after_enabled` flag + `projection_strengths` prompt weighting. |
 
 ---
 

@@ -1,6 +1,17 @@
 """Port of constants.js — all constants, thresholds, model names."""
 
 import os
+from pathlib import Path
+
+# --- Filesystem roots -------------------------------------------------------
+# After the Replit port, the Next.js frontend (and its static `public/` root)
+# lives under artifacts/myface. Browser-served files (uploaded poses, parsing
+# crops, projected AFTER images, protocol JSON) must be written INTO that public
+# dir so `next dev` serves them at `/uploads/...` on both Replit and locally.
+# Writing to a repo-root `public/` would 404 because Next never serves it.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PUBLIC_DIR = REPO_ROOT / "artifacts" / "myface" / "public"
+UPLOADS_ROOT = PUBLIC_DIR / "uploads" / "assessments"
 
 OPENAI_REPORT_MODEL = "gpt-4o-mini"
 GROQ_MODEL = "llama-3.3-70b-versatile"

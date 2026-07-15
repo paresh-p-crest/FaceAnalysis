@@ -88,7 +88,8 @@ Aligned with aesthetic photography standards (PRS GO photographic documentation;
 - **Equal image section** — feature crops use the same `getFeatureBox` keys on both sides; absolute `FEATURE_MIN_PX` is scaled by AFTER/BEFORE short side so smaller gens do not over-expand.
 - **Post-capture framing adjust is OK** — matching section need not be locked only at generation time; software fit to a reference frame is accepted industry practice.
 - **No presentation bias** — do not give AFTER a more flattering zoom than BEFORE (avoid unscaled absolute minPx on a smaller AFTER canvas; avoid stored `eyesCrop` for protocol eyes pairs).
-- **Similarity warp** (`alignAfterToBefore`) is reserved for overview full-face and skin half-split registration, not routine feature tiles.
+- **Similarity warp** (`alignAfterToBefore`) is reserved for overview full-face and the skin half-split registration, not routine feature tiles.
+- **Skin side-by-side pair = cheek-only texture patch** — the Skin Recommendations *side-by-side* pair frames one cheek (image-left / subject's right) **below the lower eyelid and above the upper lip**, inset from the ear/jaw silhouette and stopped before the nasal ala: no eye, no lips, no nose — just cheek skin texture (tight `getFeatureBox('skin')` live crop, both sides; `FEATURE_MIN_PX.skin` kept low so the box is not re-inflated). The PDF **half-split panel is unchanged**: it keeps the wide cheek crop (`imageSlots.before` = stored `cvReport.cheeks`) with the full AFTER warped onto it via `alignAfterToBefore`.
 
 ### Hair / Norwood staging
 - Stages **1–3** follow Hamilton–Norwood **hairline/temple shape** (bilateral temple triangles vs mid-frontal line), not scalp coverage %. `densityPct` may escalate only from stage 3→4+.

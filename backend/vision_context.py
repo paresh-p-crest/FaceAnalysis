@@ -92,10 +92,9 @@ def load_pose_image_bytes(
     meta = (photos_meta or {}).get(pose_id) or {}
     rel = meta.get("relativePath")
     if rel:
-        from pathlib import Path
+        from .config import PUBLIC_DIR
 
-        repo_public = Path(__file__).resolve().parent.parent / "public"
-        candidate = repo_public / rel.replace("\\", "/").lstrip("/")
+        candidate = PUBLIC_DIR / rel.replace("\\", "/").lstrip("/")
         if candidate.is_file():
             return candidate.read_bytes()
     return None

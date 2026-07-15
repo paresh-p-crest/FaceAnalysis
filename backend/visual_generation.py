@@ -1,20 +1,21 @@
 """AI visual variant generation for hair, outfit, and aging previews.
 
-Uses OpenAI Images Edits (gpt-image-1 by default) against the stored front portrait.
-Source images may be data URLs (legacy) or persisted public URLs under photo storage.
+Delegates image edits to the provider-agnostic image_client (OpenAI Images Edits
+or OpenRouter chat image modalities). Source images may be data URLs (legacy) or
+persisted public URLs under photo storage.
 """
 
 from __future__ import annotations
 
 import logging
-import os
-import time
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
 
+from .image_client import generate_image_edit, has_image_api_key, resolve_image_provider
+from .image_client import image_model as _image_model
 from .image_utils import decode_image
 from .photo_storage import get_photo_storage
 
@@ -29,10 +30,6 @@ _VARIANT_TITLES = {
 }
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _image_model() -> str:
-    return os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-1").strip() or "gpt-image-1"
 
 
 def _profile_line(answers: dict) -> str:
@@ -142,8 +139,8 @@ def _public_url_to_local_path(url_or_path: str) -> Optional[Path]:
         if candidate.is_file():
             return candidate
 
-    # Fallback: repo public/
-    public_candidate = _REPO_ROOT / "public" / rel
+    # Fallback: Next.js public dir (artifacts/myface); see backend/config.py.
+    public_candidate = _REPO_ROOT / "artifacts" / "myface" / "public" / rel
     if public_candidate.is_file():
         return public_candidate
     return None
@@ -224,96 +221,13 @@ def resolve_source_image_bytes(
     return None, None
 
 
-async def _generate_openai_image(prompt: str, image_bytes: bytes) -> dict:
-    key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if not key:
-        return {"imageSrc": None, "error": "OpenAI API key not set."}
-
-    if not image_bytes or len(image_bytes) < 100:
-        return {"imageSrc": None, "error": "Source portrait is missing or too small."}
-
-    # Detect content type from magic bytes
-    content_type = "image/jpeg"
-    filename = "portrait.jpg"
-    if image_bytes.startswith(b"\x89PNG"):
-        content_type = "image/png"
-        filename = "portrait.png"
-    elif image_bytes.startswith(b"RIFF"):
-        content_type = "image/webp"
-        filename = "portrait.webp"
-
-    files = {"image": (filename, image_bytes, content_type)}
-    data = {
-        "model": _image_model(),
-        "prompt": prompt,
-        "size": "1024x1024",
-        "quality": "medium",
-    }
-
-    started = time.perf_counter()
-    try:
-        async with httpx.AsyncClient(timeout=180) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/images/edits",
-                headers={"Authorization": f"Bearer {key}"},
-                data=data,
-                files=files,
-            )
-    except httpx.TimeoutException:
-        duration = time.perf_counter() - started
-        logger.warning(
-            "AI visuals image edit timed out (model=%s duration=%.2fs)",
-            _image_model(),
-            duration,
-        )
-        return {"imageSrc": None, "error": "Image generation timed out. Try again."}
-    except Exception as exc:
-        duration = time.perf_counter() - started
-        logger.warning(
-            "AI visuals image edit request failed (model=%s duration=%.2fs): %s",
-            _image_model(),
-            duration,
-            exc,
-        )
-        return {"imageSrc": None, "error": str(exc) or "Image generation request failed."}
-
-    duration = time.perf_counter() - started
-    try:
-        payload = response.json()
-    except Exception:
-        payload = {}
-
-    if response.status_code >= 400:
-        message = (
-            (payload.get("error") or {}).get("message")
-            if isinstance(payload, dict)
-            else None
-        ) or f"OpenAI image generation failed ({response.status_code})."
-        logger.warning(
-            "AI visuals image edit error (model=%s status=%s duration=%.2fs): %s",
-            _image_model(),
-            response.status_code,
-            duration,
-            message,
-        )
-        return {"imageSrc": None, "error": message}
-
-    b64 = (payload.get("data") or [{}])[0].get("b64_json")
-    if not b64:
-        logger.warning(
-            "AI visuals image edit returned no b64_json (model=%s duration=%.2fs)",
-            _image_model(),
-            duration,
-        )
-        return {"imageSrc": None, "error": "OpenAI returned no image data."}
-
-    logger.info(
-        "AI visuals image edit OK (model=%s bytes_in=%s duration=%.2fs)",
-        _image_model(),
-        len(image_bytes),
-        duration,
-    )
-    return {"imageSrc": f"data:image/png;base64,{b64}", "error": None}
+async def _generate_edit_image(prompt: str, image_bytes: bytes) -> dict:
+    """Provider-agnostic image edit → {imageSrc: data URL | None, error}."""
+    result = await generate_image_edit(prompt, image_bytes, log_label="AI visuals image edit")
+    data_url = result.get("dataUrl")
+    if data_url:
+        return {"imageSrc": data_url, "error": None}
+    return {"imageSrc": None, "error": result.get("error") or "Image generation returned no image."}
 
 
 def _pick_cv_source_ref(cv_report: dict) -> Optional[str]:
@@ -349,11 +263,12 @@ async def generate_visual_variants(
         source_image=source_ref,
     )
 
-    has_key = bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    provider = resolve_image_provider()
+    has_key = has_image_api_key(provider)
     can_generate = bool(image_bytes and has_key)
 
     if not has_key:
-        resolve_note = "OpenAI API key not set."
+        resolve_note = f"{provider} API key not set."
     elif not image_bytes:
         resolve_note = (
             "Front portrait could not be loaded for image edits. "
@@ -379,7 +294,7 @@ async def generate_visual_variants(
 
         if can_generate and image_bytes:
             try:
-                result = await _generate_openai_image(prompt, image_bytes)
+                result = await _generate_edit_image(prompt, image_bytes)
                 image_src = result.get("imageSrc")
                 error = result.get("error")
                 status = "generated" if image_src else "blocked"
@@ -403,7 +318,7 @@ async def generate_visual_variants(
         )
 
     return {
-        "source": "openai" if any(v.get("imageSrc") for v in variants) else ("blocked" if not can_generate else "openai"),
+        "source": provider if (can_generate or any(v.get("imageSrc") for v in variants)) else "blocked",
         "model": _image_model(),
         "sourceKind": source_kind,
         "variants": variants,

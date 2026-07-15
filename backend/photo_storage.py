@@ -8,11 +8,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Protocol
 
+from .config import UPLOADS_ROOT
+
 PIPELINE_VERSION = "2.0.0"
 
-# Repo root: backend/ -> parent
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-_DEFAULT_UPLOAD_ROOT = _REPO_ROOT / "public" / "uploads" / "assessments"
+# Browser-served uploads live under the Next.js public dir (artifacts/myface),
+# not a repo-root public/. See backend/config.py for why.
+_DEFAULT_UPLOAD_ROOT = UPLOADS_ROOT
 
 
 @dataclass

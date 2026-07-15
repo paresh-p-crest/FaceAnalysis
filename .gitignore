@@ -53,3 +53,7 @@ attached_assets/
 .cache/
 dist/
 
+__pycache__/
+.env
+*uploads/
+

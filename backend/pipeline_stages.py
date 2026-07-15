@@ -26,7 +26,7 @@ from .photo_storage import (
     save_projected_full,
 )
 from .pipeline_status import _utcnow_iso, new_feature_parsing_pending
-from .projected_after import projected_after_enabled, project_full_face_after
+from .projected_after_ai import generate_projected_after_bytes, projected_after_enabled
 from .projected_after_status import merge_projected_after_update, new_projected_after_pending
 from .projected_analysis_status import (
     merge_projected_analysis_update,
@@ -338,52 +338,68 @@ async def generate_projected_after_now(
         return await get_assessment_by_id(assessment_id) or refreshed
 
     analysis = refreshed.get("analysis") or {}
-    landmarks = analysis.get("landmarks") or []
     cv_report = analysis.get("cvReport") or {}
     metrics = analysis.get("metrics")
     front_bytes = _load_pose_bytes(assessment_id, "front")
     if not front_bytes:
+        # No source portrait yet — keep pending (retryable) so it re-runs once photos exist.
         msg = "Front photo missing"
-        if raise_on_error:
-            raise ValueError(msg)
-        pa = merge_projected_after_update(pa, status="failed", lastError=msg)
+        pa = merge_projected_after_update(pa, status="pending", lastError=msg)
         await update_assessment_projected_after(assessment_id, pa)
         await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
+        if raise_on_error:
+            raise ValueError(msg)
         return await get_assessment_by_id(assessment_id) or refreshed
 
-    if not landmarks:
-        msg = "Landmarks required for projected AFTER"
-        if raise_on_error:
-            raise ValueError(msg)
-        pa = merge_projected_after_update(pa, status="failed", lastError=msg)
+    # Generative AFTER (OpenAI Images Edits / OpenRouter chat image modalities).
+    try:
+        result = await generate_projected_after_bytes(
+            front_bytes=front_bytes,
+            answers=refreshed.get("answers") or {},
+            cv_report=cv_report,
+            metrics=metrics,
+        )
+    except Exception as exc:  # noqa: BLE001 — treated as retryable below
+        logger.exception("Projected AFTER generation crashed for %s", assessment_id)
+        result = {"imageBytes": None, "error": str(exc) or "Image generation crashed."}
+
+    image_bytes = result.get("imageBytes")
+    if not image_bytes:
+        # Provider unavailable / failed — mark pending (retryable), do not run AFTER CV.
+        msg = result.get("error") or "Image generation returned no image."
+        pa = merge_projected_after_update(
+            pa,
+            status="pending",
+            lastError=msg,
+            provider=result.get("provider"),
+            model=result.get("model"),
+        )
         await update_assessment_projected_after(assessment_id, pa)
         await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
+        if raise_on_error:
+            raise RuntimeError(f"Projected AFTER generation unavailable: {msg}")
         return await get_assessment_by_id(assessment_id) or refreshed
 
     try:
-        jpeg_bytes = await asyncio.to_thread(
-            project_full_face_after,
-            front_bytes,
-            landmarks,
-            cv_report,
-            metrics,
-        )
-        stored = await asyncio.to_thread(save_projected_full, assessment_id, jpeg_bytes)
-        pa = merge_projected_after_update(
-            pa,
-            status="ready",
-            full={"publicUrl": stored.publicUrl, "relativePath": stored.relativePath},
-            lastError=None,
-        )
-        await update_assessment_projected_after(assessment_id, pa)
+        stored = await asyncio.to_thread(save_projected_full, assessment_id, image_bytes)
     except Exception as exc:
-        logger.exception("Projected AFTER failed for %s", assessment_id)
+        logger.exception("Projected AFTER save failed for %s", assessment_id)
         if raise_on_error:
             raise
-        pa = merge_projected_after_update(pa, status="failed", lastError=str(exc))
+        pa = merge_projected_after_update(pa, status="pending", lastError=str(exc))
         await update_assessment_projected_after(assessment_id, pa)
         await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
         return await get_assessment_by_id(assessment_id) or refreshed
+
+    pa = merge_projected_after_update(
+        pa,
+        status="ready",
+        full={"publicUrl": stored.publicUrl, "relativePath": stored.relativePath},
+        lastError=None,
+        provider=result.get("provider"),
+        model=result.get("model"),
+    )
+    await update_assessment_projected_after(assessment_id, pa)
 
     # AFTER image ready — run CV into projected_analysis (does not touch analysis)
     return await run_projected_analysis_now({"id": assessment_id})

@@ -70,6 +70,7 @@
 - [x] Norwood 1–3 temple-geometry staging (ADR-028); density only for 4+; calibrate harness (status: completed)
 - [x] Landmark-matched AFTER crops on protocol UI/PDF (same getFeatureBox as BEFORE) (status: completed)
 - [x] Report open: dedupe stacked assessment GETs (reuse full payload for admin + NL hydrate) (status: completed)
+- [x] Generative projected AFTER face + provider-agnostic `image_client` (OpenAI/OpenRouter); AI visuals reuse it; fail→`pending` (ADR-029) (status: completed)
 - [ ] Run backend compile gates and smoke tests for Milestone 1 (status: planned)
 - [ ] Verify frontend build states for questionnaire and uploads (status: planned)
 - [ ] Optional BiSeNet upgrade for hair mask (future — not env-gated)

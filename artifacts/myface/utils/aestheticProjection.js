@@ -192,9 +192,30 @@ function getFeatureBox(landmarks, featureKey) {
       )
     }
     case 'skin': {
-      const l = bboxFromIndices(landmarks, CHEEK_L, 0.04)
-      const r = bboxFromIndices(landmarks, CHEEK_R, 0.04)
-      return mergeBboxes(l, r, 0.02)
+      // Cheek-only skin patch (image-left = subject's right): strictly BELOW the lower
+      // eyelid and ABOVE the upper lip, inset from the ear/jaw silhouette and stopped
+      // before the nose ala. No eye, no lips, no nose — just cheek skin texture.
+      const eye = bboxFromIndices(landmarks, RIGHT_EYE, 0.006)
+      const cheek = bboxFromIndices(landmarks, CHEEK_L, 0.01)
+      const lips = bboxFromIndices(landmarks, MOUTH, 0.01)
+      // Subject's-right nasal ala / sidewall — inner (toward-nose) boundary.
+      const noseLeftX = Math.min(
+        lm(landmarks, 98).x,
+        lm(landmarks, 64).x,
+        lm(landmarks, 48).x,
+        lm(landmarks, 129).x,
+      )
+      // Vertical: lower eyelid → upper lip, trimmed so neither eye nor lips are in frame.
+      const y0 = Math.min(0.85, eye.y + eye.h + 0.02)
+      const y1 = Math.max(y0 + 0.08, lips.y - 0.02)
+      const h = y1 - y0
+      // Horizontal: centered on the cheek between the silhouette and the nose ala.
+      const medialX = Math.max(0, noseLeftX - 0.02)
+      const cheekCenterX = (cheek.x + medialX) / 2
+      const halfW = Math.max(0.09, Math.min((medialX - cheek.x) * 0.42, h * 0.7))
+      const x0 = Math.max(0, cheekCenterX - halfW)
+      const x1 = Math.min(1, medialX, cheekCenterX + halfW)
+      return { x: x0, y: y0, w: Math.max(0.1, x1 - x0), h: Math.max(0.08, h) }
     }
     case 'neck': {
       // Lower face + neck: nostrils through jaw to collar (not a thin under-chin strip)

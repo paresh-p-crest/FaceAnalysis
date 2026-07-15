@@ -37,7 +37,9 @@ export const FEATURE_MIN_PX = {
   jaw: 300,
   chin: 240,
   neck: 280,
-  skin: 280,
+  // Tight cheek-skin patch (below eye → above lips). Kept low so expandBoxToMinSize does
+  // not re-inflate the box on typical (>~1200px) photos; parity via minPxScale for AFTER.
+  skin: 180,
   hair: 400,
   ears: 320,
 }
@@ -204,6 +206,17 @@ export async function resolveFeatureBeforeImage({
     return photoJpeg || null
   }
 
+  // Skin: tight single-cheek patch (eye→lips, nose excluded). The stored cheeks crop is a
+  // wide both-cheek/midface tile, so always live-crop via getFeatureBox('skin') here.
+  if (featureId === 'skin' || key === 'skin') {
+    const minPx = FEATURE_MIN_PX.skin
+    const cropped = await liveCrop(photoJpeg, landmarks, 'skin', minPx)
+    if (cropped) return cropped
+    const stored = storedCrop(cvReport, eyeAnalysis, 'skin')
+    if (stored) return stored
+    return photoJpeg || null
+  }
+
   const stored = storedCrop(cvReport, eyeAnalysis, key === 'periorbital' ? 'eyes' : key)
   if (stored && key !== 'periorbital' && key !== 'eyelashes' && key !== 'underEye') {
     return stored
@@ -264,6 +277,13 @@ export async function resolveFeatureImageSlots({
         overlayPoints: guides?.points || [],
         overlaySegments: guides?.segments || [],
       }
+    }
+    case 'skin': {
+      // `before` = wide cheek crop for the PDF half-split (unchanged framing).
+      // `pairBefore` = tight single-cheek crop (eye→lips, nose excluded) for the side-by-side pair.
+      const tight = await resolveFeatureBeforeImage({ featureId: 'skin', photoJpeg, landmarks, cvReport, eyeAnalysis, photos })
+      const wide = storedCrop(cvReport, eyeAnalysis, 'skin') || photoJpeg || tight
+      return { before: wide, pairBefore: tight || wide }
     }
     case 'jaw':
     case 'chin':
@@ -346,9 +366,10 @@ export async function resolveAllFeatureImages({
  * - eyes: eyesCrop is eyes-only; BEFORE page uses periorbital (brows+eyes)
  * - ears: cvReport.ears.imageSrc is full-face, not an ear tile
  * - jaw / chin / neck / hair: Python crop pads ≠ frontend FEATURE_MIN_PX boxes
+ * - skin: cvReport.cheeks.imageSrc is a wide both-cheek tile; BEFORE uses the tight single-cheek box
  * Keep this list in sync with resolveFeatureBeforeImage live-first branches.
  */
-const AFTER_LIVE_FIRST_FEATURES = new Set(['eyes', 'jaw', 'chin', 'ears', 'neck', 'hair'])
+const AFTER_LIVE_FIRST_FEATURES = new Set(['eyes', 'jaw', 'chin', 'ears', 'neck', 'hair', 'skin'])
 
 /**
  * FEATURE_MIN_PX is absolute pixels tuned for typical front photos (~1200px short side).
