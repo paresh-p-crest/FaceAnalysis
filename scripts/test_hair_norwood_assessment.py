@@ -10,11 +10,11 @@ Photos metadata still point at the source assessment's files (no disk copy).
 
 Usage:
 
-  PYTHONPATH=. backend/.venv/Scripts/python.exe scripts/test_hair_norwood_assessment.py \\
+  PYTHONPATH=. .venv/Scripts/python.exe scripts/test_hair_norwood_assessment.py \\
     53bc5a23-6ece-4852-abc9-66687e30554a
 
   # Print only (no DB write):
-  PYTHONPATH=. backend/.venv/Scripts/python.exe scripts/test_hair_norwood_assessment.py <id> --dry-run
+  PYTHONPATH=. .venv/Scripts/python.exe scripts/test_hair_norwood_assessment.py <id> --dry-run
 """
 
 from __future__ import annotations
@@ -37,19 +37,17 @@ load_dotenv(ROOT / "backend" / ".env")
 load_dotenv(ROOT / ".env")
 
 
-def _pose_path(assessment_id: str, pose_id: str) -> Path | None:
-    from backend.photo_storage import get_photo_storage
+def _load_pose(assessment_id: str, pose_id: str) -> tuple[bytes | None, str | None]:
+    """Return (bytes, object_key) for a stored pose from the active media backend."""
+    from backend.media_storage import assessment_key, get_media_storage
 
-    storage = get_photo_storage()
+    media = get_media_storage()
     for ext in ("jpg", "jpeg", "png", "webp"):
-        path = storage.upload_root / assessment_id / f"{pose_id}.{ext}"
-        if path.exists() and path.stat().st_size > 0:
-            return path
-    for ext in ("jpg", "jpeg", "png", "webp"):
-        path = ROOT / "public" / "uploads" / "assessments" / assessment_id / f"{pose_id}.{ext}"
-        if path.exists() and path.stat().st_size > 0:
-            return path
-    return None
+        key = assessment_key(assessment_id, f"{pose_id}.{ext}")
+        data = media.get_bytes(key)
+        if data:
+            return data, key
+    return None, None
 
 
 def _merge_hair_block(existing_hair: dict | None, fresh_hair: dict) -> dict:
@@ -169,16 +167,13 @@ async def run(assessment_id: str, *, dry_run: bool = False) -> dict:
         if not doc:
             raise ValueError(f"Assessment not found: {assessment_id}")
 
-        top_path = _pose_path(assessment_id, "topHead")
-        front_path = _pose_path(assessment_id, "front")
-        if not top_path:
+        top_bytes, top_key = _load_pose(assessment_id, "topHead")
+        front_bytes, front_key = _load_pose(assessment_id, "front")
+        if not top_bytes:
             raise FileNotFoundError(
                 f"topHead image missing for {assessment_id} "
-                "(expected uploads/assessments/{id}/topHead.jpg)"
+                "(expected assessments/{id}/topHead.jpg in media storage)"
             )
-
-        top_bytes = top_path.read_bytes()
-        front_bytes = front_path.read_bytes() if front_path else None
 
         stored_hair = ((doc.get("analysis") or {}).get("cvReport") or {}).get("hair") or {}
 
@@ -216,9 +211,9 @@ async def run(assessment_id: str, *, dry_run: bool = False) -> dict:
         return {
             "assessmentId": assessment_id,
             "dryRun": dry_run,
-            "topHeadPath": str(top_path),
+            "topHeadKey": top_key,
             "topHeadBytes": len(top_bytes),
-            "frontPath": str(front_path) if front_path else None,
+            "frontKey": front_key,
             "storedHair": {
                 "norwoodStage": stored_hair.get("norwoodStage"),
                 "densityPct": stored_hair.get("densityPct"),

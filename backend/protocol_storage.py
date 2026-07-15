@@ -1,21 +1,19 @@
-"""Protocol persistence — local JSON files (dev) with cloud migration path."""
+"""Protocol persistence over the unified MediaStorage interface.
+
+Stores the protocol bundle as JSON at assessments/{id}/protocol.json in whichever
+media backend is active (local filesystem or Replit Object Storage).
+"""
 
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, Protocol
+from typing import Optional
 
-from .config import UPLOADS_ROOT
+from .media_storage import assessment_key, get_media_storage, public_url_for_key
 
 PROTOCOL_FILE_VERSION = 1
-
-# Protocol JSON lives alongside uploads under the Next.js public dir
-# (artifacts/myface). See backend/config.py.
-_DEFAULT_UPLOAD_ROOT = UPLOADS_ROOT
 
 
 @dataclass
@@ -30,29 +28,15 @@ class StoredProtocol:
         return asdict(self)
 
 
-class ProtocolStorage(Protocol):
-    def save_protocol(
-        self,
-        assessment_id: str,
-        *,
-        protocol_narrative: Optional[dict] = None,
-        feature_narratives: Optional[dict] = None,
-    ) -> StoredProtocol: ...
+class ProtocolStorage:
+    """Protocol JSON persistence over the active MediaStorage backend."""
 
-    def load_protocol(self, assessment_id: str) -> Optional[dict]: ...
+    def __init__(self, media=None):
+        self.media = media or get_media_storage()
 
-    def delete_protocol(self, assessment_id: str) -> None: ...
-
-
-class LocalPublicProtocolStorage:
-    """Writes protocol bundle JSON under public/uploads/assessments/{id}/protocol.json."""
-
-    def __init__(self, upload_root: Optional[Path] = None, public_url_prefix: str = "/uploads/assessments"):
-        self.upload_root = upload_root or _DEFAULT_UPLOAD_ROOT
-        self.public_url_prefix = public_url_prefix.rstrip("/")
-
-    def _protocol_path(self, assessment_id: str) -> Path:
-        return self.upload_root / assessment_id / "protocol.json"
+    @staticmethod
+    def _key(assessment_id: str) -> str:
+        return assessment_key(assessment_id, "protocol.json")
 
     def save_protocol(
         self,
@@ -61,8 +45,7 @@ class LocalPublicProtocolStorage:
         protocol_narrative: Optional[dict] = None,
         feature_narratives: Optional[dict] = None,
     ) -> StoredProtocol:
-        dest_path = self._protocol_path(assessment_id)
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        key = self._key(assessment_id)
         payload = {
             "version": PROTOCOL_FILE_VERSION,
             "storedAt": datetime.now(timezone.utc).isoformat(),
@@ -70,23 +53,22 @@ class LocalPublicProtocolStorage:
             "featureNarratives": feature_narratives,
         }
         raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        dest_path.write_bytes(raw)
-        rel = f"uploads/assessments/{assessment_id}/protocol.json"
+        self.media.put_bytes(key, raw)
         return StoredProtocol(
-            relativePath=rel,
-            publicUrl=f"{self.public_url_prefix}/{assessment_id}/protocol.json",
+            relativePath=key,
+            publicUrl=public_url_for_key(key),
             contentType="application/json",
             byteSize=len(raw),
             storedAt=payload["storedAt"],
         )
 
     def load_protocol(self, assessment_id: str) -> Optional[dict]:
-        dest_path = self._protocol_path(assessment_id)
-        if not dest_path.exists():
+        raw = self.media.get_bytes(self._key(assessment_id))
+        if not raw:
             return None
         try:
-            payload = json.loads(dest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
             return None
         if not isinstance(payload, dict):
             return None
@@ -99,18 +81,8 @@ class LocalPublicProtocolStorage:
         }
 
     def delete_protocol(self, assessment_id: str) -> None:
-        dest_path = self._protocol_path(assessment_id)
-        if dest_path.exists():
-            dest_path.unlink()
+        self.media.delete(self._key(assessment_id))
 
 
-def get_protocol_storage() -> LocalPublicProtocolStorage:
-    backend = os.environ.get("PROTOCOL_STORAGE_BACKEND", "local").lower()
-    if backend != "local":
-        # Future S3/R2 backend — fall back to local until implemented.
-        pass
-    root = os.environ.get("PROTOCOL_UPLOAD_ROOT") or os.environ.get("PHOTO_UPLOAD_ROOT")
-    prefix = os.environ.get("PROTOCOL_PUBLIC_URL_PREFIX", "/uploads/assessments")
-    if root:
-        return LocalPublicProtocolStorage(upload_root=Path(root), public_url_prefix=prefix)
-    return LocalPublicProtocolStorage(public_url_prefix=prefix)
+def get_protocol_storage() -> ProtocolStorage:
+    return ProtocolStorage()

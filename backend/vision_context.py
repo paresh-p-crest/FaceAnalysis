@@ -14,7 +14,7 @@ from typing import Any, Optional
 
 from .config import FEATURE_VISION_POSES, FEATURE_NARRATIVE_IDS, PROTOCOL_FEATURE_IDS
 from .llm_client import resolve_llm_provider
-from .photo_storage import get_photo_storage
+from .media_storage import assessment_key, get_media_storage, media_key_from_ref
 
 logger = logging.getLogger(__name__)
 
@@ -82,21 +82,19 @@ def load_pose_image_bytes(
     pose_id: str,
     photos_meta: Optional[dict] = None,
 ) -> Optional[bytes]:
-    """Load a stored pose JPEG from disk (local public storage)."""
+    """Load a stored pose JPEG from the active media backend."""
     if not assessment_id or not pose_id:
         return None
-    storage = get_photo_storage()
-    path = storage.upload_root / assessment_id / f"{pose_id}.jpg"
-    if path.is_file():
-        return path.read_bytes()
+    media = get_media_storage()
+    data = media.get_bytes(assessment_key(assessment_id, f"{pose_id}.jpg"))
+    if data:
+        return data
     meta = (photos_meta or {}).get(pose_id) or {}
-    rel = meta.get("relativePath")
-    if rel:
-        from .config import PUBLIC_DIR
-
-        candidate = PUBLIC_DIR / rel.replace("\\", "/").lstrip("/")
-        if candidate.is_file():
-            return candidate.read_bytes()
+    ref = meta.get("relativePath") or meta.get("publicUrl")
+    if ref:
+        key = media_key_from_ref(str(ref))
+        if key:
+            return media.get_bytes(key)
     return None
 
 

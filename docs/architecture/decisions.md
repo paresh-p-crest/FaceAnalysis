@@ -571,3 +571,27 @@ The projected AFTER face was a deterministic OpenCV retouch (`project_full_face_
 - The legacy OpenCV `backend/projected_after.py` (`project_full_face_after`) is **removed**; its still-needed pure helpers (`projected_after_enabled`, `projection_strengths`) moved into `projected_after_ai.py`.
 - `pending` AFTER rows are expected during outages and are picked up by existing retry paths (admin regen, `rerun_projected_after.py`, pipeline worker) — consumers must treat `pending` as non-terminal.
 - OpenRouter image models vary in edit fidelity; the default (`google/gemini-2.5-flash-image`) is chosen for identity-preserving image-to-image, and is overridable per deployment.
+
+---
+
+## ADR-030: Unified media storage interface (local filesystem ⇄ Replit Object Storage)
+Date: 2026-07-15  
+Status: accepted  
+
+### Context
+After the Replit migration the frontend is built and served from `artifacts/myface`. Backend-written media (poses, SegFormer parsing crops, projected AFTER images, protocol JSON) had been written into that Next `public/` dir so `next dev` could serve it at `/uploads/...`. That only works under the dev server: a Replit static/app deploy freezes files at build time, so any runtime-written upload would 404 in production. We need media that persists and serves in production, works for local Windows dev, and does not fork the codebase into two storage paths.
+
+### Decision
+- One interface, `backend/media_storage.py` `MediaStorage` (`put_bytes` / `get_bytes` / `delete` / `delete_prefix` / `exists`), accessed everywhere via `get_media_storage()`. Two implementations:
+  - `LocalMediaStorage` — filesystem under `MEDIA_LOCAL_ROOT` (default `<repo>/var/media`), for local dev + tests.
+  - `ReplitObjectMediaStorage` — Replit Object Storage via `replit-object-storage` (`Client()` auto-resolves `.replit` `[objectStorage] defaultBucketID`; optional `REPLIT_DEFAULT_BUCKET_ID`). Client + package import are lazy so the backend runs locally without the SDK.
+- Backend chosen once by `MEDIA_STORAGE_BACKEND` (`local` | `replit`). Unset = auto-detect: `replit` when a Replit environment is detected (`REPL_ID`/`REPLIT_DEPLOYMENT`/`REPLIT_DB_URL`/`REPLIT_DEFAULT_BUCKET_ID`), else `local`. There is **no runtime fallback** — if `replit` is selected and the bucket errors, it raises (single source of truth per environment).
+- Objects use forward-slash keys `assessments/{id}/{pose}.jpg`, `.../parsing/{feature}.jpg`, `.../projected/full.{png|jpg}`, `.../protocol.json`. `StoredPhoto.relativePath` = the key; `publicUrl` = `/api/media/{key}`.
+- Serving: new open route `GET /api/media/{object_key}` (`backend/routers/media.py`) validates the key is under `assessments/`, streams bytes from the active backend with a content-type by extension. `/api/*` is already routed to the backend by Next (dev rewrite) and the Replit app router (prod), so the same URLs work everywhere and keep media same-origin (client-side canvas pixel reads in `cvReport.js` stay CORS-clean).
+
+### Consequences
+- Local Windows dev works with the filesystem backend; Replit uses Object Storage. Switching is one env var, and the frontend/DB never change (`/api/media/...` URLs are identical).
+- The Replit Object Storage SDK only runs inside Replit and caps at Python `<3.13` (Replit is 3.11); local dev at 3.12 installs it fine but does not need it for the `local` backend.
+- Access is open, matching the prior public `/uploads` behavior. Owner-only access (short-lived signed media tokens on `/api/media`) is a deferred follow-up; the route is the hook for it.
+- Legacy on-disk assessments will not display after cutover to `replit` unless their bytes are uploaded into the bucket (optional one-time migration). `media_key_from_ref` still accepts legacy `/uploads/...` refs so reads resolve if the object exists.
+- Supersedes the interim `artifacts/myface/public/uploads` writing (removed `backend/config.py` `PUBLIC_DIR`/`UPLOADS_ROOT`).

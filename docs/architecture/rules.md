@@ -30,6 +30,11 @@ This document lists the hard, "always true" constraints that must be observed du
 1. **Local-First Development:** Developers should always write, run, and test code locally using local configurations and virtual environments.
 2. **Deployment Ready:** Replit deployment compatibility remains supported as a deployment target, but live deployments should be run only at key release checkpoints.
 
+## Media Storage (Hard Rules)
+1. **One interface only.** All media reads/writes (poses, parsing crops, projected AFTER, protocol JSON) MUST go through `backend/media_storage.py` `get_media_storage()`. Never read/write assessment media via raw filesystem paths or a Next `public/` dir. Keys are `assessments/{id}/...`.
+2. **Serve via `/api/media`.** Media is served only by `GET /api/media/{key}` and stored `publicUrl` values MUST be `/api/media/...` (same-origin, so client-side canvas pixel reads stay CORS-clean). Do not reintroduce `/uploads/...` static serving.
+3. **One backend per environment, no runtime fallback.** `MEDIA_STORAGE_BACKEND` selects `local` or `replit`; a misconfigured `replit` backend MUST raise, not silently fall back to disk. Local dev uses the filesystem backend (`var/media`, gitignored); Replit uses Object Storage.
+
 ## UI & Styling Constraints (Hard Rules)
 
 All frontend component work is governed by the design system in [`docs/design/theme.md`](../design/theme.md). The following are non-negotiable:

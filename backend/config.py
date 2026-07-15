@@ -3,15 +3,24 @@
 import os
 from pathlib import Path
 
-# --- Filesystem roots -------------------------------------------------------
-# After the Replit port, the Next.js frontend (and its static `public/` root)
-# lives under artifacts/myface. Browser-served files (uploaded poses, parsing
-# crops, projected AFTER images, protocol JSON) must be written INTO that public
-# dir so `next dev` serves them at `/uploads/...` on both Replit and locally.
-# Writing to a repo-root `public/` would 404 because Next never serves it.
+# --- Media storage ----------------------------------------------------------
+# All assessment media (uploaded poses, SegFormer parsing crops, projected AFTER
+# images, protocol JSON) is stored and read through the single MediaStorage
+# interface (backend/media_storage.py). Objects are addressed by forward-slash
+# keys like "assessments/{id}/front.jpg" and served to the browser by the backend
+# at MEDIA_URL_BASE (/api/media/{key}) — identical URLs for both the local
+# filesystem and Replit Object Storage backends, so dev and prod behave the same.
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PUBLIC_DIR = REPO_ROOT / "artifacts" / "myface" / "public"
-UPLOADS_ROOT = PUBLIC_DIR / "uploads" / "assessments"
+
+# Browser-facing base path for media, served by backend/routers/media.py (proxied
+# to the backend by Next in dev and the Replit app router in prod).
+MEDIA_URL_BASE = "/api/media"
+# Top-level object-key namespace for per-assessment media.
+MEDIA_OBJECT_ROOT = "assessments"
+# Root directory for the local filesystem media backend (dev + tests). Override
+# with MEDIA_LOCAL_ROOT. Kept out of the Next public dir because serving now goes
+# through the API route, not Next static.
+MEDIA_LOCAL_ROOT = Path(os.environ.get("MEDIA_LOCAL_ROOT") or (REPO_ROOT / "var" / "media"))
 
 OPENAI_REPORT_MODEL = "gpt-4o-mini"
 GROQ_MODEL = "llama-3.3-70b-versatile"

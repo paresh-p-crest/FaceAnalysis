@@ -1,9 +1,10 @@
 """Tests for AI visual source resolution and prompts."""
 
-from pathlib import Path
+import base64
 
 import pytest
 
+from backend.media_storage import assessment_key, get_media_storage
 from backend.visual_generation import (
     build_visual_prompt,
     resolve_source_image_bytes,
@@ -28,17 +29,12 @@ def test_build_visual_prompt_rejects_unknown_type():
         build_visual_prompt("laser", {}, {}, None)
 
 
-def test_resolve_prefers_assessment_front_file(tmp_path, monkeypatch):
+def test_resolve_prefers_assessment_front_file():
     assessment_id = "abc123"
-    pose_dir = tmp_path / assessment_id
-    pose_dir.mkdir()
-    front = pose_dir / "front.jpg"
-    front.write_bytes(b"\xff\xd8\xff" + b"0" * 200 + b"\xff\xd9")
-
-    class FakeStorage:
-        upload_root = tmp_path
-
-    monkeypatch.setattr("backend.visual_generation.get_photo_storage", lambda: FakeStorage())
+    get_media_storage().put_bytes(
+        assessment_key(assessment_id, "front.jpg"),
+        b"\xff\xd8\xff" + b"0" * 200 + b"\xff\xd9",
+    )
 
     data, kind = resolve_source_image_bytes(assessment_id=assessment_id)
     assert data is not None
@@ -46,51 +42,33 @@ def test_resolve_prefers_assessment_front_file(tmp_path, monkeypatch):
     assert data.startswith(b"\xff\xd8")
 
 
-def test_resolve_data_url(monkeypatch):
-    import base64
-
+def test_resolve_data_url():
     raw = b"\xff\xd8\xff" + b"1" * 120 + b"\xff\xd9"
     data_url = "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
-
-    class FakeStorage:
-        upload_root = Path("/nonexistent")
-
-    monkeypatch.setattr("backend.visual_generation.get_photo_storage", lambda: FakeStorage())
 
     data, kind = resolve_source_image_bytes(source_image=data_url)
     assert kind == "data_url"
     assert data.startswith(b"\xff\xd8")
 
 
-def test_resolve_rejects_public_url_as_base64(monkeypatch, tmp_path):
-    """Regression: /uploads/... must not be base64-decoded (Incorrect padding)."""
-
-    class FakeStorage:
-        upload_root = tmp_path  # empty — no matching file
-
-    monkeypatch.setattr("backend.visual_generation.get_photo_storage", lambda: FakeStorage())
-    monkeypatch.setattr("backend.visual_generation._REPO_ROOT", tmp_path)
-
+def test_resolve_rejects_public_url_as_base64():
+    """Regression: /uploads/... (missing object) must not be base64-decoded."""
     data, kind = resolve_source_image_bytes(
-        source_image="/uploads/assessments/missing-assessment-id/front.jpg"
+        source_image="/api/media/assessments/missing-assessment-id/front.jpg"
     )
     assert data is None
     assert kind is None
 
 
-def test_resolve_public_url_from_disk(monkeypatch, tmp_path):
+def test_resolve_public_url_from_storage():
     assessment_id = "viztest01"
-    (tmp_path / assessment_id).mkdir()
-    target = tmp_path / assessment_id / "front.jpg"
-    target.write_bytes(b"\xff\xd8\xff" + b"2" * 80 + b"\xff\xd9")
-
-    class FakeStorage:
-        upload_root = tmp_path
-
-    monkeypatch.setattr("backend.visual_generation.get_photo_storage", lambda: FakeStorage())
+    get_media_storage().put_bytes(
+        assessment_key(assessment_id, "front.jpg"),
+        b"\xff\xd8\xff" + b"2" * 80 + b"\xff\xd9",
+    )
 
     data, kind = resolve_source_image_bytes(
-        source_image=f"/uploads/assessments/{assessment_id}/front.jpg"
+        source_image=f"/api/media/assessments/{assessment_id}/front.jpg"
     )
     assert kind == "cv_report_url_file"
     assert data.startswith(b"\xff\xd8")

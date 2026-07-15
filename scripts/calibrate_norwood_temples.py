@@ -7,7 +7,7 @@ stage distributions — not at arbitrary round numbers.
 
 Usage:
 
-  PYTHONPATH=. backend/.venv/Scripts/python.exe scripts/calibrate_norwood_temples.py path/to/labeled
+  PYTHONPATH=. .venv/Scripts/python.exe scripts/calibrate_norwood_temples.py path/to/labeled
 
   labeled/
     stage_1/*.jpg

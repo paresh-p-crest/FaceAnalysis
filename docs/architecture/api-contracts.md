@@ -120,7 +120,7 @@ Fast upload + enqueue: validates 7 poses, persists photos, creates assessment wi
       "stageLabel": "queued"
     },
     "featureParsing": { "status": "pending" },
-    "photos": { "front": { "publicUrl": "/uploads/assessments/{id}/front.jpg" } },
+    "photos": { "front": { "publicUrl": "/api/media/assessments/{id}/front.jpg" } },
     "createdAt": "2026-07-14T12:00:00Z"
   }
   ```
@@ -213,15 +213,22 @@ Returns stored executive narrative, or generates once if missing. Prefer pipelin
 - **Query:** `force=true` — admin-only regenerate (legacy executive narrative)
 - **Response Shape (200 OK):** Updated assessment with `aiNarrative`.
 
+### `GET /api/media/{object_key}`
+Streams a stored media object (pose photo, parsing crop, projected AFTER, protocol JSON) from the active media backend (local filesystem or Replit Object Storage; `backend/media_storage.py`). Same URLs in dev and prod. See [ADR-030](decisions.md).
+- **Auth:** None (open, matching prior public `/uploads`; owner-only signed tokens deferred)
+- **Path:** `object_key` must be under `assessments/` (e.g. `assessments/{id}/front.jpg`). Rejects `..`.
+- **Response (200 OK):** Raw bytes with a content-type by extension (`image/jpeg`, `image/png`, `application/json`, …) and `Cache-Control: public, max-age=3600`.
+- **404:** Object not found / key outside `assessments/`.
+
 ### `GET /api/assessments/{assessment_id}/protocol`
-Loads persisted protocol from storage (`public/uploads/assessments/{id}/protocol.json` locally) with MongoDB fallback.
+Loads persisted protocol from media storage (`assessments/{id}/protocol.json`) with database fallback.
 - **Auth:** Owner User or Admin
 - **Response Shape (200 OK):**
   ```json
   {
     "protocolNarrative": { "summary": "...", "features": {}, "closing": [] },
     "featureNarratives": { "hair": { "measuredFacts": [], "subsections": [] } },
-    "protocolStorage": { "publicUrl": "/uploads/assessments/{id}/protocol.json" },
+    "protocolStorage": { "publicUrl": "/api/media/assessments/{id}/protocol.json" },
     "source": "storage"
   }
   ```
@@ -253,7 +260,7 @@ Assessment `GET` payloads include `projectedAnalysis` alongside `projectedAfter`
 ### `POST /api/assessments/{assessment_id}/ai-visuals`
 Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images Edits (`OPENAI_IMAGE_MODEL`, default `gpt-image-1`).
 - **Auth:** Owner User or Admin (paid AI access)
-- **Source image:** Prefers stored front pose file (`public/uploads/assessments/{id}/front.jpg`), then `assessment.photos.front`, then `cvReport` image refs (data URL or `/uploads/...` path). Never base64-decodes public URLs.
+- **Source image:** Prefers the stored front pose object (`assessments/{id}/front.jpg` via the media backend), then `assessment.photos.front`, then `cvReport` image refs (data URL or `/api/media/...` path; legacy `/uploads/...` still accepted). Never base64-decodes public URLs.
 - **Request Body:**
   ```json
   {

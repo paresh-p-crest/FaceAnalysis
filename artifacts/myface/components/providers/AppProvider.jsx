@@ -337,10 +337,14 @@ export function AppProvider({ children }) {
 
     fetchCurrentUser()
       .then((currentUser) => {
-        if (currentUser) {
-          setUser(currentUser)
-          return
-        }
+        setUser(currentUser || (getAuthToken() ? storedUser : null))
+      })
+      .catch(() => {
+        // Transient network/backend failure (e.g. dev server reloading, cold
+        // start, proxy blip): fall back to the optimistic stored session so we
+        // never strand a logged-in user on the boot screen. Without this catch,
+        // setUser is skipped while finally still flips authReady -> the app
+        // renders AppBootScreen forever until a full page refresh.
         setUser(getAuthToken() ? storedUser : null)
       })
       .finally(() => setAuthReady(true))

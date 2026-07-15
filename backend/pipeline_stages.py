@@ -17,9 +17,9 @@ from .face_parsing import (
     run_face_parsing_on_image,
 )
 from .face_parsing_metrics import compute_parsing_metrics
+from .media_storage import assessment_key, get_media_storage, public_url_for_key
 from .photo_storage import (
     apply_photo_urls_to_cv_report,
-    get_photo_storage,
     load_projected_full,
     photos_map_to_urls,
     save_parsing_crop,
@@ -47,11 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 def _load_pose_bytes(assessment_id: str, pose_id: str) -> Optional[bytes]:
-    storage = get_photo_storage()
-    path = storage.upload_root / assessment_id / f"{pose_id}.jpg"
-    if not path.exists():
-        return None
-    return path.read_bytes()
+    return get_media_storage().get_bytes(assessment_key(assessment_id, f"{pose_id}.jpg"))
 
 
 def _decode_all_poses(assessment_id: str, photos_meta: dict) -> dict[str, bytes]:
@@ -93,7 +89,10 @@ async def run_cv_stage(assessment: dict) -> dict:
         if isinstance(meta, dict) and meta.get("publicUrl")
     }
     if not photo_urls:
-        photo_urls = {pid: f"/uploads/assessments/{assessment_id}/{pid}.jpg" for pid in photos_bytes}
+        photo_urls = {
+            pid: public_url_for_key(assessment_key(assessment_id, f"{pid}.jpg"))
+            for pid in photos_bytes
+        }
 
     if analysis.get("cvReport") and photo_urls:
         analysis["cvReport"] = apply_photo_urls_to_cv_report(analysis["cvReport"], photo_urls)

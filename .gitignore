@@ -57,3 +57,6 @@ __pycache__/
 .env
 *uploads/
 
+# Local media storage backend output (MEDIA_STORAGE_BACKEND=local)
+var/media/
+

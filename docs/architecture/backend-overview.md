@@ -55,7 +55,7 @@ If the backend API is disabled, the FE can run a browser-local MediaPipe path (`
 1. Claim queued row (`claim_next_queued_assessment`, `FOR UPDATE SKIP LOCKED`)  
 2. **cv** — `pipeline_stages.run_cv_stage` → `analyze_face.run_face_analysis` in thread  
 3. **narratives** — `enrich_assessment_nl_content`  
-4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (requires optional `backend/requirements-face-parsing.txt`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
+4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (needs the torch deps in `backend/requirements.txt`; disabled gracefully if absent). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
 5. **projected_after** — **generative** AFTER image via `projected_after_ai.generate_projected_after_bytes` → `image_client` (OpenAI Images Edits **or** OpenRouter chat image modalities) → `projected_after` + `projected/full.jpg` or `full.png` (skipped when `PROJECTED_AFTER_ENABLED=false`); provider unavailable/fail → status **`pending`** (retryable). On success, MediaPipe/OpenCV on that image → `projected_analysis` (BEFORE `analysis` untouched). (ADR-029)  
 6. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
 
@@ -113,12 +113,14 @@ Front face failure fails the whole analysis. Other poses soft-fail (empty landma
 | `photos` / `photosKeys` | Pose storage metadata |
 | Review fields | `adminNotes`, `reviewedBy`, `reviewedAt`, `reviewLog` |
 
-**Disk** under `artifacts/myface/public/uploads/assessments/{id}/` (the Next.js static root; `backend/config.py` `UPLOADS_ROOT`):
+**Media storage** via the `MediaStorage` interface (`backend/media_storage.py`, keys under `assessments/{id}/`) — local filesystem (`var/media`, dev) or Replit Object Storage (prod), selected by `MEDIA_STORAGE_BACKEND`:
 
 - `{poseId}.jpg` — pose photos  
+- `parsing/{featureId}.jpg` — SegFormer feature crops  
+- `projected/full.{jpg|png}` — projected AFTER image  
 - `protocol.json` — `{ version, storedAt, protocolNarrative, featureNarratives }`  
 
-Public URLs look like `/uploads/assessments/{id}/front.jpg`.
+Served by the backend at `GET /api/media/{key}`; public URLs look like `/api/media/assessments/{id}/front.jpg` (identical in dev and prod). See ADR-030.
 
 ### Stage 4 — AI narrative & protocol (LLM)
 

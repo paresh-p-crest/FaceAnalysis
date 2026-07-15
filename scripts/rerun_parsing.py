@@ -35,7 +35,7 @@ async def main() -> int:
     if not face_parsing_enabled():
         print(
             "ERROR: Face parsing disabled or PyTorch/transformers not installed.\n"
-            "Install: backend\\.venv\\Scripts\\pip install -r backend\\requirements-face-parsing.txt",
+            "Install: .venv\\Scripts\\pip install -r backend\\requirements.txt",
             file=sys.stderr,
         )
         return 1

@@ -1,20 +1,28 @@
-"""Photo persistence — local public storage (dev) with cloud migration path."""
+"""Photo persistence over the unified MediaStorage interface.
+
+Local filesystem (dev) or Replit Object Storage (prod) is selected once in
+backend/media_storage.py; this module only builds object keys, writes/reads
+bytes, and shapes StoredPhoto metadata. Public URLs are always /api/media/...
+"""
 
 from __future__ import annotations
 
-import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, Protocol
+from typing import Optional
 
-from .config import UPLOADS_ROOT
+from .media_storage import (
+    assessment_key,
+    get_media_storage,
+    media_key_from_ref,
+    public_url_for_key,
+)
 
 PIPELINE_VERSION = "2.0.0"
 
-# Browser-served uploads live under the Next.js public dir (artifacts/myface),
-# not a repo-root public/. See backend/config.py for why.
-_DEFAULT_UPLOAD_ROOT = UPLOADS_ROOT
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 @dataclass
@@ -30,61 +38,30 @@ class StoredPhoto:
         return asdict(self)
 
 
-class PhotoStorage(Protocol):
-    def save_pose(self, assessment_id: str, pose_id: str, image_bytes: bytes) -> StoredPhoto: ...
-    def delete_assessment_photos(self, assessment_id: str) -> None: ...
+class PhotoStorage:
+    """Assessment photo persistence over the active MediaStorage backend."""
 
-
-class LocalPublicPhotoStorage:
-    """Writes JPEGs under public/uploads/assessments/{id}/{poseId}.jpg."""
-
-    def __init__(self, upload_root: Optional[Path] = None, public_url_prefix: str = "/uploads/assessments"):
-        self.upload_root = upload_root or _DEFAULT_UPLOAD_ROOT
-        self.public_url_prefix = public_url_prefix.rstrip("/")
-
-    def _assessment_dir(self, assessment_id: str) -> Path:
-        return self.upload_root / assessment_id
+    def __init__(self, media=None):
+        self.media = media or get_media_storage()
 
     def save_pose(self, assessment_id: str, pose_id: str, image_bytes: bytes) -> StoredPhoto:
-        dest_dir = self._assessment_dir(assessment_id)
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{pose_id}.jpg"
-        dest_path = dest_dir / filename
-        dest_path.write_bytes(image_bytes)
-        rel = f"uploads/assessments/{assessment_id}/{filename}"
+        key = assessment_key(assessment_id, f"{pose_id}.jpg")
+        self.media.put_bytes(key, image_bytes)
         return StoredPhoto(
             poseId=pose_id,
-            relativePath=rel,
-            publicUrl=f"{self.public_url_prefix}/{assessment_id}/{filename}",
+            relativePath=key,
+            publicUrl=public_url_for_key(key),
             contentType="image/jpeg",
             byteSize=len(image_bytes),
-            storedAt=datetime.now(timezone.utc).isoformat(),
+            storedAt=_now_iso(),
         )
 
     def delete_assessment_photos(self, assessment_id: str) -> None:
-        dest_dir = self._assessment_dir(assessment_id)
-        if not dest_dir.exists():
-            return
-        for f in dest_dir.iterdir():
-            if f.is_file():
-                f.unlink()
-        try:
-            dest_dir.rmdir()
-        except OSError:
-            pass
+        self.media.delete_prefix(assessment_key(assessment_id) + "/")
 
 
-def get_photo_storage() -> LocalPublicPhotoStorage:
-    backend = os.environ.get("PHOTO_STORAGE_BACKEND", "local").lower()
-    if backend != "local":
-        # Prod S3/R2 not implemented — fall back to local with warning in logs
-        pass
-    root = os.environ.get("PHOTO_UPLOAD_ROOT")
-    prefix = os.environ.get("PHOTO_PUBLIC_URL_PREFIX", "/uploads/assessments")
-    return LocalPublicPhotoStorage(
-        upload_root=Path(root) if root else None,
-        public_url_prefix=prefix,
-    )
+def get_photo_storage() -> PhotoStorage:
+    return PhotoStorage()
 
 
 def save_all_poses(assessment_id: str, photos: dict[str, bytes], front_bytes: bytes) -> dict[str, StoredPhoto]:
@@ -253,67 +230,56 @@ def _projected_full_ext(image_bytes: bytes) -> tuple[str, str]:
 
 def save_projected_full(assessment_id: str, image_bytes: bytes) -> StoredPhoto:
     """Persist full-face projected AFTER as projected/full.jpg or full.png."""
-    storage = get_photo_storage()
-    dest_dir = storage.upload_root / assessment_id / "projected"
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    media = get_media_storage()
     ext, content_type = _projected_full_ext(image_bytes)
-    filename = f"full.{ext}"
-    dest_path = dest_dir / filename
-    # Drop the alternate extension so only one full.* exists
+    key = assessment_key(assessment_id, "projected", f"full.{ext}")
+    # Drop the alternate extension so only one full.* exists.
     for other in ("jpg", "jpeg", "png"):
         if other == ext:
             continue
-        alt = dest_dir / f"full.{other}"
-        if alt.exists():
-            alt.unlink()
-    dest_path.write_bytes(image_bytes)
-    rel = f"uploads/assessments/{assessment_id}/projected/{filename}"
+        alt = assessment_key(assessment_id, "projected", f"full.{other}")
+        if media.exists(alt):
+            media.delete(alt)
+    media.put_bytes(key, image_bytes)
     return StoredPhoto(
         poseId="full",
-        relativePath=rel,
-        publicUrl=f"{storage.public_url_prefix}/{assessment_id}/projected/{filename}",
+        relativePath=key,
+        publicUrl=public_url_for_key(key),
         contentType=content_type,
         byteSize=len(image_bytes),
-        storedAt=datetime.now(timezone.utc).isoformat(),
+        storedAt=_now_iso(),
     )
 
 
 def load_projected_full(assessment_id: str, projected_after: dict | None = None) -> bytes | None:
-    """Load projected AFTER full image bytes from disk (jpg or png)."""
-    storage = get_photo_storage()
-    dest_dir = storage.upload_root / assessment_id / "projected"
-    rel = None
+    """Load projected AFTER full image bytes (jpg or png) from media storage."""
+    media = get_media_storage()
     if isinstance(projected_after, dict):
         full = projected_after.get("full") or {}
-        if isinstance(full, dict):
-            rel = full.get("relativePath")
-    if rel:
-        # relativePath like uploads/assessments/{id}/projected/full.jpg
-        name = Path(rel).name
-        path = dest_dir / name
-        if path.exists():
-            return path.read_bytes()
-    for name in ("full.jpg", "full.jpeg", "full.png"):
-        path = dest_dir / name
-        if path.exists():
-            return path.read_bytes()
+        rel = full.get("relativePath") or full.get("publicUrl") if isinstance(full, dict) else None
+        if rel:
+            key = media_key_from_ref(str(rel))
+            if key:
+                data = media.get_bytes(key)
+                if data:
+                    return data
+    for ext in ("jpg", "jpeg", "png"):
+        data = media.get_bytes(assessment_key(assessment_id, "projected", f"full.{ext}"))
+        if data:
+            return data
     return None
 
 
 def save_parsing_crop(assessment_id: str, feature_id: str, image_bytes: bytes) -> StoredPhoto:
     """Persist a SegFormer feature crop under parsing/{featureId}.jpg."""
-    storage = get_photo_storage()
-    dest_dir = storage.upload_root / assessment_id / "parsing"
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"{feature_id}.jpg"
-    dest_path = dest_dir / filename
-    dest_path.write_bytes(image_bytes)
-    rel = f"uploads/assessments/{assessment_id}/parsing/{filename}"
+    media = get_media_storage()
+    key = assessment_key(assessment_id, "parsing", f"{feature_id}.jpg")
+    media.put_bytes(key, image_bytes)
     return StoredPhoto(
         poseId=feature_id,
-        relativePath=rel,
-        publicUrl=f"{storage.public_url_prefix}/{assessment_id}/parsing/{filename}",
+        relativePath=key,
+        publicUrl=public_url_for_key(key),
         contentType="image/jpeg",
         byteSize=len(image_bytes),
-        storedAt=datetime.now(timezone.utc).isoformat(),
+        storedAt=_now_iso(),
     )

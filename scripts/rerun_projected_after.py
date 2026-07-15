@@ -8,10 +8,10 @@ unless --respect-enabled-flag is passed).
 
 Usage (do not run automatically — invoke manually):
 
-  PYTHONPATH=. backend/.venv/Scripts/python.exe scripts/rerun_projected_after.py <assessment_uuid>
+  PYTHONPATH=. .venv/Scripts/python.exe scripts/rerun_projected_after.py <assessment_uuid>
 
   # Soft-skip when PROJECTED_AFTER_ENABLED=false (pipeline-like):
-  PYTHONPATH=. backend/.venv/Scripts/python.exe scripts/rerun_projected_after.py <id> --respect-enabled-flag
+  PYTHONPATH=. .venv/Scripts/python.exe scripts/rerun_projected_after.py <id> --respect-enabled-flag
 """
 
 from __future__ import annotations

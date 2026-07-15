@@ -27,9 +27,9 @@ This document contains standard step-by-step procedures for local environment se
    # On macOS/Linux:
    source venv/bin/activate
    
+   # Installs everything, including SegFormer face parsing (torch) and, on
+   # Python <3.13, the Replit Object Storage backend:
    pip install -r requirements.txt
-   # Optional — SegFormer face parsing (Aesthetic Assessment stage):
-   uv pip install --python .venv/Scripts/python.exe -r requirements-face-parsing.txt
    ```
 4. **Environment Configuration:**
    - Copy `.env.example` to `.env` in the **project root** (single file for backend + Next.js).

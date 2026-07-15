@@ -7,11 +7,11 @@ AFTER art (saves cost). Does not mutate BEFORE `analysis`.
 
 Usage (manual invoke only):
 
-  PYTHONPATH=. backend/.venv/Scripts/python.exe scripts/rerun_projected_analysis.py <assessment_uuid>
+  PYTHONPATH=. .venv/Scripts/python.exe scripts/rerun_projected_analysis.py <assessment_uuid>
 
   # If status is not ready but a local file still exists for the DB path (or under
   # projected/), mark ready then CV:
-  PYTHONPATH=. backend/.venv/Scripts/python.exe scripts/rerun_projected_analysis.py <id> --ensure-ready
+  PYTHONPATH=. .venv/Scripts/python.exe scripts/rerun_projected_analysis.py <id> --ensure-ready
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -50,42 +49,15 @@ def _fingerprint_analysis(analysis: dict | None) -> str:
     )
 
 
-def _local_path_from_relative(relative_path: str) -> Path | None:
-    """Map DB relativePath (uploads/assessments/…) → public/ file."""
-    if not relative_path:
-        return None
-    rel = relative_path.replace("\\", "/").lstrip("/")
-    if rel.startswith("uploads/"):
-        return ROOT / "public" / rel
-    return ROOT / "public" / "uploads" / rel
-
-
-def _local_path_from_public_url(public_url: str, assessment_id: str) -> Path | None:
-    """Map /uploads/assessments/{id}/projected/full.png → disk path."""
-    if not public_url:
-        return None
-    path = urlparse(public_url).path if "://" in public_url else public_url
-    path = path.replace("\\", "/")
-    marker = f"/uploads/assessments/{assessment_id}/"
-    idx = path.find("/uploads/assessments/")
-    if idx >= 0:
-        # uploads/assessments/... relative to public/
-        rel = path[idx + 1 :]  # strip leading /
-        return ROOT / "public" / rel
-    if path.startswith("/uploads/"):
-        return ROOT / "public" / path.lstrip("/")
-    # Bare filename under projected/
-    name = Path(path).name
-    if name.startswith("full."):
-        from backend.photo_storage import get_photo_storage
-
-        return get_photo_storage().upload_root / assessment_id / "projected" / name
-    _ = marker
-    return None
+def _key_size(media, key: str) -> int:
+    data = media.get_bytes(key)
+    return len(data) if data else 0
 
 
 def resolve_from_db(assessment_id: str, projected_after: dict | None) -> dict | None:
     """Prefer DB projectedAfter.full.relativePath / publicUrl (canonical source)."""
+    from backend.media_storage import get_media_storage, media_key_from_ref, public_url_for_key
+
     pa = projected_after or {}
     full = pa.get("full") if isinstance(pa.get("full"), dict) else {}
     if not full:
@@ -94,45 +66,42 @@ def resolve_from_db(assessment_id: str, projected_after: dict | None) -> dict | 
     relative = full.get("relativePath") or ""
     public_url = full.get("publicUrl") or ""
 
-    path = _local_path_from_relative(relative) if relative else None
-    if path is None or not path.exists():
-        path = _local_path_from_public_url(public_url, assessment_id) if public_url else None
-
-    if path is None or not path.exists() or path.stat().st_size <= 0:
+    key = media_key_from_ref(relative) or media_key_from_ref(public_url)
+    if not key:
         return None
 
-    from backend.photo_storage import get_photo_storage
+    media = get_media_storage()
+    size = _key_size(media, key)
+    if size <= 0:
+        return None
 
-    storage = get_photo_storage()
-    filename = path.name
-    rel = relative or f"uploads/assessments/{assessment_id}/projected/{filename}"
-    url = public_url or f"{storage.public_url_prefix}/{assessment_id}/projected/{filename}"
+    filename = key.rsplit("/", 1)[-1]
     return {
-        "publicUrl": url,
-        "relativePath": rel,
-        "byteSize": path.stat().st_size,
+        "publicUrl": public_url or public_url_for_key(key),
+        "relativePath": key,
+        "byteSize": size,
         "filename": filename,
         "source": "db",
-        "path": str(path),
+        "path": key,
     }
 
 
 def resolve_from_disk_scan(assessment_id: str) -> dict | None:
     """Fallback only: scan projected/ for full.jpg|png when DB has no usable URL."""
-    from backend.photo_storage import get_photo_storage
+    from backend.media_storage import assessment_key, get_media_storage, public_url_for_key
 
-    storage = get_photo_storage()
-    dest_dir = storage.upload_root / assessment_id / "projected"
+    media = get_media_storage()
     for name in ("full.jpg", "full.jpeg", "full.png"):
-        path = dest_dir / name
-        if path.exists() and path.stat().st_size > 0:
+        key = assessment_key(assessment_id, "projected", name)
+        size = _key_size(media, key)
+        if size > 0:
             return {
-                "publicUrl": f"{storage.public_url_prefix}/{assessment_id}/projected/{name}",
-                "relativePath": f"uploads/assessments/{assessment_id}/projected/{name}",
-                "byteSize": path.stat().st_size,
+                "publicUrl": public_url_for_key(key),
+                "relativePath": key,
+                "byteSize": size,
                 "filename": name,
                 "source": "disk_scan",
-                "path": str(path),
+                "path": key,
             }
     return None
 

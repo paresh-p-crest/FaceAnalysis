@@ -8,16 +8,14 @@ persisted public URLs under photo storage.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
 
 import httpx
 
 from .image_client import generate_image_edit, has_image_api_key, resolve_image_provider
 from .image_client import image_model as _image_model
 from .image_utils import decode_image
-from .photo_storage import get_photo_storage
+from .media_storage import assessment_key, get_media_storage, media_key_from_ref
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +26,6 @@ _VARIANT_TITLES = {
     "outfit": "Outfit Styling Preview",
     "aging": "Healthy Aging Preview",
 }
-
-_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _profile_line(answers: dict) -> str:
@@ -113,45 +109,16 @@ def _looks_like_data_or_b64(value: str) -> bool:
     return False
 
 
-def _public_url_to_local_path(url_or_path: str) -> Optional[Path]:
-    """Map /uploads/assessments/{id}/{pose}.jpg → local file under photo storage or public/."""
-    raw = (url_or_path or "").strip()
-    if not raw:
+def _resolve_ref_bytes(url_or_path: str) -> Optional[bytes]:
+    """Resolve a stored media ref (publicUrl / relativePath / URL) to bytes."""
+    key = media_key_from_ref(url_or_path or "")
+    if not key:
         return None
-    parsed = urlparse(raw)
-    path = parsed.path if parsed.scheme in ("http", "https") else raw
-    path = path.replace("\\", "/")
-    marker = "/uploads/assessments/"
-    idx = path.find(marker)
-    if idx < 0 and path.startswith("uploads/assessments/"):
-        rel = path
-    elif idx >= 0:
-        rel = path[idx + 1 :]  # uploads/assessments/...
-    else:
-        return None
-
-    storage = get_photo_storage()
-    # relativePath style: uploads/assessments/{id}/{file}
-    parts = rel.split("/")
-    if len(parts) >= 4 and parts[0] == "uploads" and parts[1] == "assessments":
-        assessment_id, filename = parts[2], parts[3]
-        candidate = storage.upload_root / assessment_id / filename
-        if candidate.is_file():
-            return candidate
-
-    # Fallback: Next.js public dir (artifacts/myface); see backend/config.py.
-    public_candidate = _REPO_ROOT / "artifacts" / "myface" / "public" / rel
-    if public_candidate.is_file():
-        return public_candidate
-    return None
+    return get_media_storage().get_bytes(key)
 
 
 def load_pose_bytes(assessment_id: str, pose_id: str = "front") -> Optional[bytes]:
-    storage = get_photo_storage()
-    path = storage.upload_root / assessment_id / f"{pose_id}.jpg"
-    if path.is_file():
-        return path.read_bytes()
-    return None
+    return get_media_storage().get_bytes(assessment_key(assessment_id, f"{pose_id}.jpg"))
 
 
 def resolve_source_image_bytes(
@@ -184,9 +151,9 @@ def resolve_source_image_bytes(
             ref = front_meta.get(key)
             if not ref:
                 continue
-            local = _public_url_to_local_path(str(ref))
-            if local:
-                return local.read_bytes(), f"photos.front.{key}"
+            data = _resolve_ref_bytes(str(ref))
+            if data:
+                return data, f"photos.front.{key}"
 
     if not source_image or not isinstance(source_image, str):
         return None, None
@@ -201,10 +168,10 @@ def resolve_source_image_bytes(
             logger.warning("AI visuals: could not decode data URL source (%s)", exc)
             return None, None
 
-    # 4) Local public URL / path
-    local = _public_url_to_local_path(src)
-    if local:
-        return local.read_bytes(), "cv_report_url_file"
+    # 4) Stored media ref (publicUrl / relativePath / URL) → bytes
+    data = _resolve_ref_bytes(src)
+    if data:
+        return data, "cv_report_url_file"
 
     # 5) Remote fetch
     if src.startswith("http://") or src.startswith("https://"):

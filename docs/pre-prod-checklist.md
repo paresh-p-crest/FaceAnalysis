@@ -2,13 +2,14 @@
 
 Gate items before deploying MyFace to production. Photo storage and biometric data require extra care.
 
-## Photo storage
+## Media storage (ADR-030)
 
-- [ ] Set `PHOTO_STORAGE_BACKEND=s3` (or R2) — migrate off `LocalPublicPhotoStorage`
-- [ ] Configure private bucket; disable public `/uploads/` URLs
-- [ ] Use signed URLs with short TTL for report image display
-- [ ] Confirm `public/uploads/assessments/` is in `.gitignore` and never committed
-- [ ] Set `PHOTO_UPLOAD_ROOT` to persistent volume in production
+- [ ] Set `MEDIA_STORAGE_BACKEND=replit` on Replit (or leave unset — auto-detects Replit)
+- [ ] Confirm `replit-object-storage` is installed and `.replit` `[objectStorage] defaultBucketID` resolves (or set `REPLIT_DEFAULT_BUCKET_ID`)
+- [ ] Verify `GET /api/media/assessments/{id}/front.jpg` returns HTTP 200 in the deployed env
+- [ ] Decide on owner-only access: add short-lived signed media tokens on `/api/media` before exposing biometric photos publicly (currently open)
+- [ ] Confirm local media dir `var/media/` is gitignored and never committed
+- [ ] (Optional) Migrate legacy on-disk assessment bytes into the bucket so old reports still display
 
 ## Security & compliance
 

@@ -47,16 +47,29 @@ export function login(email, password) {
   return authRequest('/api/auth/login', { email, password })
 }
 
-export async function fetchCurrentUser() {
+export async function fetchCurrentUser({ timeoutMs = 12000 } = {}) {
   const base = getApiBaseUrl()
   const token = getAuthToken()
   if (!token) return null
 
-  const res = await fetch(`${base}/api/auth/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  // Time-box the request so a hung/unreachable backend can't leave the app
+  // spinning on the boot screen forever (the caller flips authReady in finally).
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let res
+  try {
+    res = await fetch(`${base}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
   if (!res.ok) {
-    clearSession()
+    // Only drop the session for real auth failures. Transient server/proxy
+    // errors (5xx, dev server reloading) must NOT log the user out — keep the
+    // token so the optimistic stored session survives and can revalidate later.
+    if (res.status === 401 || res.status === 403) clearSession()
     return null
   }
   const data = await res.json()

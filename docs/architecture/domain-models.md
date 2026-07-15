@@ -10,7 +10,7 @@ API responses keep **camelCase** field names (`userId`, `createdAt`, …) and st
 | User delete | assessments, conversations (+ messages), payments, assistant_rate_limits (FK `ON DELETE CASCADE`) |
 | Assessment delete | conversations (+ messages) for that assessment |
 
-Photos and `protocol.json` under `public/uploads/assessments/{id}/` remain filesystem mirrors.
+Photos, parsing crops, projected AFTER, and `protocol.json` live in media storage under keys `assessments/{id}/...` (local filesystem or Replit Object Storage; `backend/media_storage.py`), served at `/api/media/{key}`. See [ADR-030](decisions.md).
 
 ---
 
