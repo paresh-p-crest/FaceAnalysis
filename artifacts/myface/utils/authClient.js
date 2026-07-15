@@ -26,8 +26,7 @@ export function clearSession() {
 }
 
 async function authRequest(path, body) {
-  const base = getApiBaseUrl()
-  if (!base) throw new Error('Backend API is not configured.')
+  const base = getApiBaseUrl() // relative base now, empty string is fine
 
   const res = await fetch(`${base}${path}`, {
     method: 'POST',
@@ -51,7 +50,7 @@ export function login(email, password) {
 export async function fetchCurrentUser() {
   const base = getApiBaseUrl()
   const token = getAuthToken()
-  if (!base || !token) return null
+  if (!token) return null
 
   const res = await fetch(`${base}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },

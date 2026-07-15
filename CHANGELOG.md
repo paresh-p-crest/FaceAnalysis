@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Added
+- **Replit deployment wiring** — restored Next.js 15 frontend in `artifacts/myface`, moved Python FastAPI backend to workspace root, and connected both to Replit's internal PostgreSQL. Added `Python Backend` workflow (`uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload`). Frontend API calls now use relative paths and rely on the Next.js rewrite in `next.config.js` to proxy `/api/*` to the Python backend.
+- **Replit database routing** — `backend/database.py` now builds its asyncpg URL from Replit's injected `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`/`PGDATABASE` variables, with SSL disabled for the internal loopback host and `sslmode` stripped from any legacy `DATABASE_URL` value.
 ### Fixed
+- **"Backend API is not configured" error on sign-up** — `utils/apiClient.js` and `utils/authClient.js` now use relative paths, so the Next.js `/api/*` rewrite reaches the Python FastAPI backend instead of failing on an empty `NEXT_PUBLIC_API_URL`.
+- **Replit path conflict for `/api/*`** — moved the shared `api-server` artifact from `/api` to `/api-server` so MyFace's Next.js rewrite owns `/api/*` and proxies to the Python backend on `localhost:8000`.
 - **`scripts/test_hair_norwood_assessment.py`** — hair/Norwood geometry test; by default inserts a **new** assessment clone with only `analysis.cvReport.hair` updated (source row untouched; `--dry-run` to skip write).
 - **`scripts/calibrate_norwood_temples.py`** — labeled-folder harness for temple-recession threshold calibration.
 - **Norwood stage 1 vs 2 misclassification** — staging for Hamilton–Norwood 1–3 is now **temple-geometry** driven (`templeRecession` / mid-frontal hairline), not scalp `densityPct`. Density only escalates stage 4+. Also: hair-mask highlight arm (glossy lit hair), density ROI starts below the detected hairline (not fixed forehead %), `templeMetrics` on hair result, calibration harness `scripts/calibrate_norwood_temples.py`. Thresholds 0.03/0.07/0.13 are pre-calibration placeholders (not a clinical diagnosis).

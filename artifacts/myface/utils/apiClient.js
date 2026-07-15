@@ -16,11 +16,21 @@ function scanCacheKey(scanId) {
 
 export function getApiBaseUrl() {
   const url = process.env.NEXT_PUBLIC_API_URL || ''
-  return url.replace(/\/$/, '')
+  const clean = url.replace(/\/$/, '')
+
+  // In the Replit preview, localhost/127.0.0.0 resolve to the user's browser
+  // machine, not the workspace container. Fall back to relative paths so the
+  // Next.js rewrite in next.config.js proxies /api/* to the Python backend.
+  // A non-localhost URL (e.g. an external production API) is still respected.
+  if (clean && /^https?:\/\/localhost/.test(clean)) return ''
+  if (clean && /^https?:\/\/127\.\d+\.\d+\.\d+/.test(clean)) return ''
+  if (clean && /^https?:\/\/0\.0\.0\.0/.test(clean)) return ''
+
+  return clean
 }
 
 export function isBackendApiEnabled() {
-  return Boolean(getApiBaseUrl())
+  return true
 }
 
 function getAuthToken() {
@@ -380,8 +390,8 @@ export async function downloadAssessmentPdf(assessmentId) {
 
 export async function checkBackendHealth() {
   const base = getApiBaseUrl()
-  if (!base) return { ok: false, database: 'not_configured' }
-  const res = await fetch(`${base}/api/health`)
+  // base may be empty (relative paths) and still be reachable via the Next.js rewrite
+  const res = await fetch(`${base || ''}/api/health`)
   return res.json()
 }
 

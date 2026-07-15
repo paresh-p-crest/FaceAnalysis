@@ -16,17 +16,38 @@ _session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
 
 def get_database_url() -> Optional[str]:
-    """Return async SQLAlchemy URL from DATABASE_URL (postgres:// or postgresql://)."""
+    """Return async SQLAlchemy URL, preferring Replit's PG* vars over DATABASE_URL secret."""
+    from urllib.parse import quote_plus
+
+    # Prefer Replit's injected individual PG vars — they point to the internal
+    # Postgres and are never shadowed by user-set secrets.
+    pghost = os.environ.get("PGHOST")
+    pgport = os.environ.get("PGPORT", "5432")
+    pguser = os.environ.get("PGUSER")
+    pgpassword = os.environ.get("PGPASSWORD")
+    pgdatabase = os.environ.get("PGDATABASE")
+
+    if pghost and pguser and pgdatabase:
+        password_part = f":{quote_plus(pgpassword)}@" if pgpassword else "@"
+        return f"postgresql+asyncpg://{pguser}{password_part}{pghost}:{pgport}/{pgdatabase}"
+
+    # Fall back to DATABASE_URL / POSTGRES_URL if PG* vars are absent
     raw = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
     if not raw:
         return None
-    if raw.startswith("postgresql+asyncpg://"):
-        return raw
-    if raw.startswith("postgres://"):
-        return "postgresql+asyncpg://" + raw[len("postgres://") :]
-    if raw.startswith("postgresql://"):
-        return "postgresql+asyncpg://" + raw[len("postgresql://") :]
-    return raw
+    # Strip sslmode — asyncpg uses connect_args for SSL, not the URL param
+    from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
+    parsed = urlparse(raw)
+    qs = parse_qs(parsed.query)
+    qs.pop("sslmode", None)
+    cleaned = urlunparse(parsed._replace(query=urlencode({k: v[0] for k, v in qs.items()})))
+    if cleaned.startswith("postgresql+asyncpg://"):
+        return cleaned
+    if cleaned.startswith("postgres://"):
+        return "postgresql+asyncpg://" + cleaned[len("postgres://"):]
+    if cleaned.startswith("postgresql://"):
+        return "postgresql+asyncpg://" + cleaned[len("postgresql://"):]
+    return cleaned
 
 
 def is_db_configured() -> bool:
@@ -39,7 +60,13 @@ async def connect_db() -> None:
     url = get_database_url()
     if not url:
         return
-    _engine = create_async_engine(url, pool_pre_ping=True)
+    # Only use SSL when connecting to a remote host (not Replit's internal loopback)
+    pghost = os.environ.get("PGHOST", "")
+    is_remote = pghost and not pghost.startswith("127.") and pghost != "localhost"
+    raw_url = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or ""
+    needs_ssl = is_remote and ("sslmode=require" in raw_url or not pghost)
+    connect_args = {"ssl": True} if needs_ssl else {}
+    _engine = create_async_engine(url, pool_pre_ping=True, connect_args=connect_args)
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

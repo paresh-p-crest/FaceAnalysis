@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "MyFace"
+version = "1.0.0"
+id = "artifacts/myface"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22039
+
+[services.development]
+run = "pnpm --filter @workspace/myface run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/myface", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/myface/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22039"
+BASE_PATH = "/"
