@@ -35,11 +35,15 @@ def get_database_url() -> Optional[str]:
     raw = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
     if not raw:
         return None
-    # Strip sslmode — asyncpg uses connect_args for SSL, not the URL param
+    # Strip libpq-only params (sslmode, channel_binding, ...) — asyncpg rejects them;
+    # SSL is applied via connect_args in connect_db().
     from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
+    _libpq_only = {
+        "sslmode", "channel_binding", "sslrootcert", "sslcert",
+        "sslkey", "sslpassword", "gssencmode", "options",
+    }
     parsed = urlparse(raw)
-    qs = parse_qs(parsed.query)
-    qs.pop("sslmode", None)
+    qs = {k: v for k, v in parse_qs(parsed.query).items() if k not in _libpq_only}
     cleaned = urlunparse(parsed._replace(query=urlencode({k: v[0] for k, v in qs.items()})))
     if cleaned.startswith("postgresql+asyncpg://"):
         return cleaned
@@ -60,11 +64,18 @@ async def connect_db() -> None:
     url = get_database_url()
     if not url:
         return
-    # Only use SSL when connecting to a remote host (not Replit's internal loopback)
-    pghost = os.environ.get("PGHOST", "")
-    is_remote = pghost and not pghost.startswith("127.") and pghost != "localhost"
+    # SSL: off for Replit's internal Postgres (built from PG* vars), on for a
+    # managed/remote DATABASE_URL (e.g. Neon) unless it explicitly disables SSL.
     raw_url = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or ""
-    needs_ssl = is_remote and ("sslmode=require" in raw_url or not pghost)
+    using_pg_vars = bool(
+        os.environ.get("PGHOST")
+        and os.environ.get("PGUSER")
+        and os.environ.get("PGDATABASE")
+    )
+    if using_pg_vars:
+        needs_ssl = False
+    else:
+        needs_ssl = "sslmode=disable" not in raw_url
     connect_args = {"ssl": True} if needs_ssl else {}
     _engine = create_async_engine(url, pool_pre_ping=True, connect_args=connect_args)
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
