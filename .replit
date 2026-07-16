@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "python-3.11", "web", "bash", "nix"]
+modules = ["nodejs-20", "python-3.11", "web", "bash", "nix", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -20,17 +20,33 @@ author = "agent"
 task = "workflow.run"
 args = "Python Backend"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "artifacts/myface: web"
+
 [[workflows.workflow]]
 name = "Python Backend"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir backend"
-waitForPort = 8000
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir backend"
+waitForPort = 8000
+
+[[workflows.workflow]]
+name = "artifacts/myface: web"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/myface run dev"
+waitForPort = 3000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -46,3 +62,13 @@ packages = ["freetype", "glibcLocales", "lcms2", "libimagequant", "libjpeg", "li
 
 [objectStorage]
 defaultBucketID = "replit-objstore-87409622-8841-4e00-9cf9-12d6601966e3"
+
+[userenv]
+
+[userenv.shared]
+ADMIN_EMAIL = "admin@myface.local"
+CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
+CORS_ORIGIN_REGEX = 'https://.*\.(replit\.dev|repl\.co)'
+LLM_PROVIDER = "groq"
+MEDIA_STORAGE_BACKEND = "replit"
+PUBLIC_APP_URL = "http://localhost:3000"
