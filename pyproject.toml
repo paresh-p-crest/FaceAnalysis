@@ -22,7 +22,7 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "torch>=2.2",
     "torchvision>=0.17",
-    "transformers>=4.44",
+    "transformers>=4.43,<4.44",
 ]
 
 # Lock only for the deployment target so uv.lock has no resolution-markers.
