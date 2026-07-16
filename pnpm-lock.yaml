@@ -94,6 +94,9 @@ importers:
       '@replit/connectors-sdk':
         specifier: ^0.4.1
         version: 0.4.1
+      pnpm:
+        specifier: ^10.34.5
+        version: 10.34.5
     devDependencies:
       prettier:
         specifier: ^3.9.5
@@ -1491,6 +1494,11 @@ packages:
   pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
+
+  pnpm@10.34.5:
+    resolution: {integrity: sha512-pO4F8vc2WCVb1qiYWcBlpFwopX2u+uLIk6Fo7itzFow3uR6D5X6mdlStA/AwMXRkMOi84442LgQmBfuKvIAZLg==}
+    engines: {node: '>=18.12'}
+    hasBin: true
 
   po-parser@2.1.1:
     resolution: {integrity: sha512-ECF4zHLbUItpUgE3OTtLKlPjeBN+fKEczj2zYjDfCGOzicNs0GK3Vg2IoAYwx7LH/XYw43fZQP6xnZ4TkNxSLQ==}
@@ -3311,6 +3319,8 @@ snapshots:
   pify@2.3.0: {}
 
   pirates@4.0.7: {}
+
+  pnpm@10.34.5: {}
 
   po-parser@2.1.1: {}
 
