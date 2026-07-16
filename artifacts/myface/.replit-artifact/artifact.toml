@@ -15,12 +15,7 @@ run = "pnpm --filter @workspace/myface run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/myface", "run", "build" ]
-serve = "static"
-publicDir = "artifacts/myface/dist/public"
-
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+run = [ "pnpm", "--filter", "@workspace/myface", "run", "start:prod" ]
 
 [services.env]
 PORT = "3000"
