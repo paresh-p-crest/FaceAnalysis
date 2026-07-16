@@ -72,3 +72,7 @@ CORS_ORIGIN_REGEX = 'https://.*\.(replit\.dev|repl\.co)'
 LLM_PROVIDER = "groq"
 MEDIA_STORAGE_BACKEND = "replit"
 PUBLIC_APP_URL = "http://localhost:3000"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
