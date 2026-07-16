@@ -20,24 +20,7 @@ dependencies = [
     "reportlab>=4.2.0",
     "sqlalchemy[asyncio]>=2.0.36",
     "uvicorn[standard]>=0.30.0",
-    # SegFormer face parsing (feature crops). Kept CPU-only via the pytorch-cpu
-    # index below so a plain `uv sync` installs it on Windows and Linux/Replit.
     "torch>=2.2",
     "torchvision>=0.17",
     "transformers>=4.44",
 ]
-
-# Pin torch/torchvision to the CPU wheels on Windows + Linux (no CUDA pulled).
-# macOS falls through to PyPI (correct native build) since no source override applies.
-[tool.uv.sources]
-torch = [
-    { index = "pytorch-cpu", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
-]
-torchvision = [
-    { index = "pytorch-cpu", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
-]
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
