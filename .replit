@@ -12,41 +12,29 @@ env = { "CI" = "true" }
 runButton = "Project"
 
 [[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Python Backend"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "artifacts/myface: web"
-
-[[workflows.workflow]]
 name = "Python Backend"
 author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir backend"
 waitForPort = 8000
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow]]
 name = "artifacts/myface: web"
 author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/myface run dev"
-waitForPort = 3000
+mode = "sequential"
 
 [workflows.workflow.metadata]
 outputType = "webview"
+artifactId = "artifacts/myface"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/myface run dev --port 3000"
 
 [agent]
 stack = "PNPM_WORKSPACE"
