@@ -1,7 +1,7 @@
 [project]
-name = "repl-nix-workspace"
+name = "myface-backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "MyFace Python FastAPI backend"
 requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.14.0",
