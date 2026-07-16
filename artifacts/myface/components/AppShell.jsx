@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname } from '../i18n/navigation'
 import { hasSiteNavbar, ROUTES } from '../utils/routes'
 import { SiteNavbar } from './SiteNavbar'
 import Settings from './Settings'

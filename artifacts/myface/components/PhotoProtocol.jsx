@@ -1,8 +1,12 @@
+'use client'
+
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { PROTOCOL_ITEMS } from '../utils/protocolCheck'
 
 export default function PhotoProtocol({ onComplete, onBack }) {
+  const t = useTranslations('Photo.protocol')
   const [checked, setChecked] = useState(() => Object.fromEntries(PROTOCOL_ITEMS.map((i) => [i.id, false])))
 
   const allChecked = PROTOCOL_ITEMS.every((i) => checked[i.id])
@@ -17,22 +21,22 @@ export default function PhotoProtocol({ onComplete, onBack }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12 animate-fade-up bg-surface">
       <div className="w-full max-w-xl">
-        <h2 className="font-display text-3xl font-semibold text-ink mb-2">Photo Requirements</h2>
+        <h2 className="font-display text-3xl font-semibold text-ink mb-2">{t('title')}</h2>
         <p className="text-ink-muted text-sm mb-8">
-          Confirm each guideline so your analysis meets standard protocol.
+          {t('description')}
         </p>
 
         <div className="bg-white dark:bg-surface-card rounded-3xl p-6 sm:p-8 shadow-card border border-surface-border">
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs font-medium uppercase tracking-wider text-ink-muted">
-              Photo guidelines checklist
+              {t('checklistTitle')}
             </p>
             <button
               type="button"
               onClick={toggleAll}
               className="text-xs font-medium text-brand hover:text-brand/80 transition-colors"
             >
-              {allChecked ? 'Deselect all' : 'Select all'}
+              {allChecked ? t('deselectAll') : t('selectAll')}
             </button>
           </div>
 
@@ -57,7 +61,7 @@ export default function PhotoProtocol({ onComplete, onBack }) {
                   >
                     {on && <Check className="w-3 h-3 text-white" />}
                   </div>
-                  <span className="text-sm text-ink-secondary">{item.label}</span>
+                  <span className="text-sm text-ink-secondary">{t(`items.${item.id}`)}</span>
                 </button>
               )
             })}
@@ -65,7 +69,7 @@ export default function PhotoProtocol({ onComplete, onBack }) {
 
           {!allChecked && (
             <p className="text-xs text-amber-600 mt-4">
-              Check all items to continue. Uploading without protocol (e.g. with glasses) reduces accuracy.
+              {t('warning')}
             </p>
           )}
         </div>
@@ -73,14 +77,14 @@ export default function PhotoProtocol({ onComplete, onBack }) {
         <div className="flex items-center justify-between mt-8">
           <button onClick={onBack} className="btn-ghost text-sm">
             <ChevronLeft className="w-4 h-4" />
-            Back
+            {t('back')}
           </button>
           <button
             onClick={onComplete}
             disabled={!allChecked}
             className="btn-primary text-sm disabled:opacity-40 disabled:pointer-events-none"
           >
-            Continue to Upload
+            {t('continueToUpload')}
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>

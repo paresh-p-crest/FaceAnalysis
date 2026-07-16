@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import {
   AllMetricsTable,
@@ -47,6 +48,7 @@ export function CheekReportPanel({
   photoOverlay = null,
   heroSlot = null,
 }) {
+  const t = useTranslations('Report')
   const c = cheeks || {}
   const heroImage = c.imageSrc
 
@@ -81,7 +83,7 @@ export function CheekReportPanel({
     }
   }, [featureParsing])
 
-  const landmark = 'Landmark-based'
+  const landmark = t('common.landmarkBased')
   const slides = []
   if (metrics.malarRatio != null) {
     slides.push({
@@ -139,10 +141,10 @@ export function CheekReportPanel({
   }
 
   const cards = [
-    { label: 'Cheek Width', value: metrics.widthClass },
-    { label: 'Cheekbone Position', value: metrics.positionClass },
-    { label: 'Cheek Fullness', value: metrics.fullnessClass },
-    { label: 'Cheekbone Height', value: metrics.heightClass },
+    { label: t('cheek.width'), value: metrics.widthClass },
+    { label: t('cheek.position'), value: metrics.positionClass },
+    { label: t('cheek.fullness'), value: metrics.fullnessClass },
+    { label: t('cheek.height'), value: metrics.heightClass },
   ]
 
   const left = [
@@ -164,14 +166,9 @@ export function CheekReportPanel({
   return (
     <div className="space-y-8">
       <ReportSectionHeading
-        title="Summary of your"
-        accent="cheeks"
-        subtitle={
-          <>
-            Cheekbones frame midface width and height and contribute to overall{' '}
-            <strong className="text-ink font-semibold">harmony</strong>.
-          </>
-        }
+        title={t('common.summaryOfYour')}
+        accent={t('nav.cheeks').toLowerCase()}
+        subtitle={t('cheek.subtitle')}
       />
 
       {(heroSlot || heroImage) && (
@@ -180,7 +177,7 @@ export function CheekReportPanel({
             <div className="relative inline-block max-h-48">
               <img
                 src={heroImage}
-                alt="Cheeks"
+                alt={t('cheek.heroAlt')}
                 className="max-h-48 w-auto object-contain rounded-xl"
               />
               {photoOverlay ? (
@@ -194,12 +191,12 @@ export function CheekReportPanel({
       )}
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">Summary of your cheeks</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('cheek.summaryTitle')}</p>
         <FeatureSummaryGrid cards={cards} slides={slides} />
       </div>
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">All Cheek Metrics</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('cheek.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
     </div>

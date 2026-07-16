@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { resolveFeatureHero } from '../../utils/featureParsing'
 import {
@@ -52,6 +53,7 @@ function classifyShape(avgAngle) {
  * Jaw — Lips-matched UI. Image source / data unchanged.
  */
 export function JawReportPanel({ jaw, featureParsing, narrative: _narrative, imageSrc = null }) {
+  const t = useTranslations('Report')
   const j = jaw || {}
   const heroImage = resolveFeatureHero('jaw', j, featureParsing) || imageSrc || j.imageSrc
 
@@ -88,16 +90,16 @@ export function JawReportPanel({ jaw, featureParsing, narrative: _narrative, ima
     }
   }, [featureParsing, j.mandibularDefinition, j.jawWidthClass, j.jawAngle])
 
-  const landmark = 'Landmark-based'
+  const landmark = t('common.landmarkBased')
   const slides = []
   if (metrics.riseMm != null) {
     slides.push({
       id: 'rise',
-      titleLead: 'Frontal Jaw',
-      titleAccent: 'Rise',
-      body: 'Vertical drop from the gonion (jaw angle) to the menton (chin tip). Higher = more defined, angular jawline.',
+      titleLead: t('jaw.slides.rise.titleLead'),
+      titleAccent: t('jaw.slides.rise.titleAccent'),
+      body: t('jaw.slides.rise.body'),
       meter: {
-        metricLabel: 'Frontal Jaw Rise',
+        metricLabel: t('jaw.slides.rise.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.riseMm)} mm`,
         valueNum: metrics.riseMm,
@@ -111,11 +113,11 @@ export function JawReportPanel({ jaw, featureParsing, narrative: _narrative, ima
   if (metrics.widthMm != null) {
     slides.push({
       id: 'width',
-      titleLead: 'Jaw Width',
-      titleAccent: '(mm)',
-      body: 'Bi-gonial width — the horizontal distance between both jaw angle landmarks.',
+      titleLead: t('jaw.slides.width.titleLead'),
+      titleAccent: t('jaw.slides.width.titleAccent'),
+      body: t('jaw.slides.width.body'),
       meter: {
-        metricLabel: 'Jaw Width',
+        metricLabel: t('jaw.slides.width.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.widthMm)} mm`,
         valueNum: metrics.widthMm,
@@ -129,11 +131,11 @@ export function JawReportPanel({ jaw, featureParsing, narrative: _narrative, ima
   if (metrics.avgAngle != null) {
     slides.push({
       id: 'angle',
-      titleLead: 'Jaw Inclination',
-      titleAccent: 'Angle',
-      body: 'Average jaw inclination angle. Smaller = sharper V/U shape. Larger = more square jaw.',
+      titleLead: t('jaw.slides.angle.titleLead'),
+      titleAccent: t('jaw.slides.angle.titleAccent'),
+      body: t('jaw.slides.angle.body'),
       meter: {
-        metricLabel: 'Jaw Inclination',
+        metricLabel: t('jaw.slides.angle.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.avgAngle)}°`,
         valueNum: metrics.avgAngle,
@@ -146,68 +148,51 @@ export function JawReportPanel({ jaw, featureParsing, narrative: _narrative, ima
   }
 
   const cards = [
-    { label: 'Jaw Definition', value: metrics.definitionClass },
-    { label: 'Jaw Width', value: metrics.widthClass },
-    { label: 'Jaw Shape', value: metrics.shapeClass },
-    { label: 'Jaw Angle', value: metrics.angleClass },
+    { label: t('jaw.definition'), value: metrics.definitionClass },
+    { label: t('jaw.width'), value: metrics.widthClass },
+    { label: t('jaw.shape'), value: metrics.shapeClass },
+    { label: t('jaw.angle'), value: metrics.angleClass },
   ]
 
   const left = [
-    { label: 'Jaw Width', value: metrics.widthMm != null ? `${fmt(metrics.widthMm)} mm` : null },
-    {
-      label: 'Frontal Jaw Rise',
-      value: metrics.riseMm != null ? `${fmt(metrics.riseMm)} mm` : null,
-    },
-    {
-      label: 'Right Jaw Inclination',
-      value: metrics.rightAngle != null ? `${fmt(metrics.rightAngle)}°` : null,
-    },
-    { label: 'Definition Classification', value: metrics.definitionClass },
-    { label: 'Shape Classification', value: metrics.shapeClass },
+    { label: t('jaw.width'), value: metrics.widthMm != null ? `${fmt(metrics.widthMm)} mm` : null },
+    { label: t('jaw.metrics.frontalRise'), value: metrics.riseMm != null ? `${fmt(metrics.riseMm)} mm` : null },
+    { label: t('jaw.metrics.rightInclination'), value: metrics.rightAngle != null ? `${fmt(metrics.rightAngle)}°` : null },
+    { label: t('jaw.metrics.definitionClass'), value: metrics.definitionClass },
+    { label: t('jaw.metrics.shapeClass'), value: metrics.shapeClass },
   ]
   const right = [
-    {
-      label: 'Left Jaw Inclination',
-      value: metrics.leftAngle != null ? `${fmt(metrics.leftAngle)}°` : null,
-    },
-    {
-      label: 'Face Width',
-      value: metrics.faceWidthMm != null ? `${fmt(metrics.faceWidthMm)} mm` : null,
-    },
-    { label: 'Width Classification', value: metrics.widthClass },
-    { label: 'Avg Angle Classification', value: metrics.angleClass },
+    { label: t('jaw.metrics.leftInclination'), value: metrics.leftAngle != null ? `${fmt(metrics.leftAngle)}°` : null },
+    { label: t('jaw.metrics.faceWidth'), value: metrics.faceWidthMm != null ? `${fmt(metrics.faceWidthMm)} mm` : null },
+    { label: t('jaw.metrics.widthClass'), value: metrics.widthClass },
+    { label: t('jaw.metrics.avgAngleClass'), value: metrics.angleClass },
   ]
 
   return (
     <div className="space-y-8">
       <ReportSectionHeading
-        title="Summary of your"
-        accent="jaw"
-        subtitle={
-          <>
-            The jawline frames the lower face and contributes to overall{' '}
-            <strong className="text-ink font-semibold">harmony</strong>.
-          </>
-        }
+        title={t('common.summaryOfYour')}
+        accent={t('nav.jaw').toLowerCase()}
+        subtitle={t('jaw.subtitle')}
       />
 
       {heroImage && (
         <FeatureHeroFrame>
           <img
             src={heroImage}
-            alt="Jaw"
+            alt={t('jaw.heroAlt')}
             className="max-h-48 w-auto object-contain rounded-xl"
           />
         </FeatureHeroFrame>
       )}
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">Summary of your jaw</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('jaw.summaryTitle')}</p>
         <FeatureSummaryGrid cards={cards} slides={slides} />
       </div>
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">All Jaw Metrics</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('jaw.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
     </div>

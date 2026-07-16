@@ -1,4 +1,7 @@
+'use client'
+
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { FaceImageFrame, ProportionFeatureOverlay, ProportionsOverlay } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { AssessmentGridLayout } from './FeatureAnalysisPage'
@@ -12,17 +15,17 @@ import {
 import { cropNormalized } from '../../utils/eyeAnalysis'
 
 const RATIO_PARTS = {
-  nasoAural: { primary: 'Ear', secondary: 'Nose' },
-  orbitoNasal: { primary: 'Nose', secondary: 'Eye' },
-  nasoOral: { primary: 'Mouth', secondary: 'Nose' },
-  orbital: { primary: 'Spacing', secondary: 'Eye' },
+  nasoAural: { primary: 'ear', secondary: 'nose' },
+  orbitoNasal: { primary: 'nose', secondary: 'eye' },
+  nasoOral: { primary: 'mouth', secondary: 'nose' },
+  orbital: { primary: 'spacing', secondary: 'eye' },
 }
 
 const RATIO_TABS = [
-  { id: 'nasoAural', label: 'Ear', ratioLabel: 'NASO-AURAL RATIO' },
-  { id: 'orbitoNasal', label: 'Nose', ratioLabel: 'ORBITO-NASAL RATIO' },
-  { id: 'nasoOral', label: 'Mouth', ratioLabel: 'NASO-ORAL PROPORTION' },
-  { id: 'orbital', label: 'Eye', ratioLabel: 'ORBITAL PROPORTION' },
+  { id: 'nasoAural' },
+  { id: 'orbitoNasal' },
+  { id: 'nasoOral' },
+  { id: 'orbital' },
 ]
 
 const BAR_HEIGHT = 148
@@ -32,27 +35,26 @@ function parseThird(value, fallback = 0.33) {
   return Number.isFinite(n) ? n : fallback
 }
 
-function proportionalityBadge(score) {
-  if (score >= 80) return { label: 'High', className: 'bg-emerald-500/90 text-white' }
-  if (score >= 70) return { label: 'Good', className: 'bg-brand/80 text-white' }
-  return { label: 'Fair', className: 'bg-ink-muted text-white' }
+function proportionalityBadge(score, t) {
+  if (score >= 80) return { label: t('common.high'), className: 'bg-emerald-500/90 text-white' }
+  if (score >= 70) return { label: t('common.good'), className: 'bg-brand/80 text-white' }
+  return { label: t('common.fair'), className: 'bg-ink-muted text-white' }
 }
 
-/** Qoves-style horizontal facial thirds stack: Lower [C] → Middle [B] → Upper [A]. */
-function FacialThirdsBar({ upper, middle, lower }) {
+function FacialThirdsBar({ upper, middle, lower, t }) {
   const u = parseThird(upper, 0.33)
   const m = parseThird(middle, 0.34)
   const l = parseThird(lower, 0.33)
   const total = Math.max(u + m + l, 1e-6)
   const segments = [
-    { key: 'c', label: 'Lower Third [C]', value: l, pct: (l / total) * 100, color: 'bg-[#4a5d73]' },
-    { key: 'b', label: 'Middle Third [B]', value: m, pct: (m / total) * 100, color: 'bg-[#8a9aab]' },
-    { key: 'a', label: 'Upper Third [A]', value: u, pct: (u / total) * 100, color: 'bg-[#c5ced8]' },
+    { key: 'c', label: t('proportions.lowerThird'), value: l, pct: (l / total) * 100, color: 'bg-[#4a5d73]' },
+    { key: 'b', label: t('proportions.middleThird'), value: m, pct: (m / total) * 100, color: 'bg-[#8a9aab]' },
+    { key: 'a', label: t('proportions.upperThird'), value: u, pct: (u / total) * 100, color: 'bg-[#c5ced8]' },
   ]
 
   return (
     <div className="qoves-report-metric-card">
-      <p className="qoves-report-mono-label mb-4">Facial Thirds</p>
+      <p className="qoves-report-mono-label mb-4">{t('proportions.facialThirds')}</p>
       <div className="grid grid-cols-3 gap-1 mb-2">
         {segments.map((s) => (
           <p key={s.key} className="text-[9px] uppercase tracking-wider text-ink-muted text-center leading-tight">
@@ -104,14 +106,14 @@ function RatioStackBar({ value }) {
   )
 }
 
-function RatioBar({ yourValue, idealValue, label1, label2, primaryFeature, secondaryFeature }) {
+function RatioBar({ yourValue, idealValue, label1, label2, primaryFeature, secondaryFeature, t }) {
   return (
     <div className="w-full max-w-md mx-auto lg:mx-0">
       <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-end">
         <div className="text-center">
-          <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1.5 font-semibold">Your Proportion</p>
+          <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1.5 font-semibold">{t('proportions.yourProportion')}</p>
           <p className="text-sm font-semibold text-ink font-sans min-h-[40px] flex items-center justify-center">{label1}</p>
-          <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1 mt-4">Value</p>
+          <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1 mt-4">{t('common.value')}</p>
           <p className="text-base font-display font-bold text-ink">{yourValue.toFixed(2)} : 1.00</p>
         </div>
 
@@ -133,9 +135,9 @@ function RatioBar({ yourValue, idealValue, label1, label2, primaryFeature, secon
         </div>
 
         <div className="text-center">
-          <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1.5 font-semibold">Ideal Proportion</p>
+          <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1.5 font-semibold">{t('proportions.idealProportion')}</p>
           <p className="text-sm font-semibold text-ink font-sans min-h-[40px] flex items-center justify-center">{label2}</p>
-          <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1 mt-4">Value</p>
+          <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1 mt-4">{t('common.value')}</p>
           <p className="text-base font-display font-bold text-ink">{idealValue.toFixed(2)} : 1.00</p>
         </div>
       </div>
@@ -150,10 +152,10 @@ function resolveOverlay(tabId, active, liveOverlays) {
   return active?.overlay || null
 }
 
-function nasoOralLabel(ratio) {
-  if (ratio > 1.05) return 'Mouth > Nose'
-  if (ratio < 0.95) return 'Mouth < Nose'
-  return 'Mouth ≈ Nose'
+function nasoOralLabel(ratio, t) {
+  if (ratio > 1.05) return t('proportions.nasoOralLabels.mouthGreater')
+  if (ratio < 0.95) return t('proportions.nasoOralLabels.mouthLess')
+  return t('proportions.nasoOralLabels.mouthEqual')
 }
 
 export function ProportionsSection({
@@ -162,6 +164,7 @@ export function ProportionsSection({
   photo = null,
   photos = null,
 }) {
+  const t = useTranslations('Report')
   const [activeTab, setActiveTab] = useState('nasoAural')
 
   const frontSrc = photos?.front || photo || null
@@ -217,11 +220,11 @@ export function ProportionsSection({
       const mouthW = Math.abs(chR.x - chL.x)
       if (noseW < 1e-6) return null
       const yourValue = mouthW / noseW
-      return { yourValue, yourLabel: nasoOralLabel(yourValue) }
+      return { yourValue, yourLabel: nasoOralLabel(yourValue, t) }
     } catch {
       return null
     }
-  }, [landmarks])
+  }, [landmarks, t])
 
   if (!proportions?.ratios) return null
 
@@ -264,19 +267,14 @@ export function ProportionsSection({
     activeTab === 'nasoOral' && liveNasoOral ? liveNasoOral.yourLabel : active?.yourLabel
 
   const score = proportions.score
-  const badge = score != null ? proportionalityBadge(score) : null
+  const badge = score != null ? proportionalityBadge(score, t) : null
 
   return (
     <div className="pr-2 space-y-6">
       <ReportSectionHeading
-        title="An overview of your"
-        accent="proportions"
-        subtitle={
-          <>
-            Facial proportions refer to the size of each feature in relation to the rest of the face, which plays a key
-            role in how <span className="font-semibold text-ink">harmonious</span> the face looks.
-          </>
-        }
+        title={t('proportions.title')}
+        accent={t('proportions.accent')}
+        subtitle={t('proportions.subtitle')}
       />
 
       {(overviewPhoto || score != null || proportions.explanation) && (
@@ -292,7 +290,7 @@ export function ProportionsSection({
             <>
               {score != null && (
                 <div className="qoves-report-metric-card text-center py-6">
-                  <p className="qoves-report-mono-label mb-4">Proportionality</p>
+                  <p className="qoves-report-mono-label mb-4">{t('proportions.proportionality')}</p>
                   <p className="text-5xl font-display font-bold text-ink tabular-nums leading-none">{score}</p>
                   <div className="flex justify-between items-center border-t border-surface-border pt-3 mt-5">
                     {badge ? (
@@ -310,10 +308,11 @@ export function ProportionsSection({
                 upper={proportions.upperThird}
                 middle={proportions.middleThird}
                 lower={proportions.lowerThird}
+                t={t}
               />
               {proportions.explanation && (
                 <div className="qoves-report-metric-card">
-                  <p className="qoves-report-mono-label mb-2">Explanation</p>
+                  <p className="qoves-report-mono-label mb-2">{t('common.explanation')}</p>
                   <p className="text-sm text-ink-secondary leading-relaxed font-sans">{proportions.explanation}</p>
                 </div>
               )}
@@ -323,9 +322,9 @@ export function ProportionsSection({
       )}
 
       <ReportSectionHeading
-        title="Your proportions per"
-        accent="feature"
-        subtitle="We've compared your facial proportionality with data specific to your demographic."
+        title={t('proportions.perFeatureTitle')}
+        accent={t('proportions.perFeatureAccent')}
+        subtitle={t('proportions.perFeatureSubtitle')}
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -341,12 +340,12 @@ export function ProportionsSection({
             }`}
           >
             <p className="qoves-report-mono-label mb-2 font-medium leading-tight">
-              {tab.ratioLabel}
+              {t(`proportions.ratioTabs.${tab.id}.ratioLabel`)}
             </p>
             <p className={`text-base font-display font-semibold ${
               activeTab === tab.id ? 'text-brand' : 'text-ink'
             }`}>
-              {tab.label}
+              {t(`proportions.ratioTabs.${tab.id}.label`)}
             </p>
           </button>
         ))}
@@ -366,7 +365,7 @@ export function ProportionsSection({
               <FaceImageFrame
                 key={`${activeTab}-${activeImageSrc}`}
                 src={activeImageSrc}
-                alt="Facial proportions"
+                alt={t('proportions.facialProportionsAlt')}
                 aspect="4/5"
                 maxW="280px"
                 fit="contain"
@@ -380,13 +379,14 @@ export function ProportionsSection({
               idealValue={active.idealValue}
               label1={displayYourLabel}
               label2={active.idealLabel}
-              primaryFeature={RATIO_PARTS[activeTab]?.primary}
-              secondaryFeature={RATIO_PARTS[activeTab]?.secondary}
+              primaryFeature={t(`proportions.ratioParts.${RATIO_PARTS[activeTab]?.primary}`)}
+              secondaryFeature={t(`proportions.ratioParts.${RATIO_PARTS[activeTab]?.secondary}`)}
+              t={t}
             />
           </div>
 
           <div className="mt-6 pt-4 border-t border-surface-border">
-            <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">Explanation</p>
+            <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">{t('common.explanation')}</p>
             <p className="text-sm text-ink-secondary leading-relaxed font-sans">{active.explanation}</p>
           </div>
         </div>

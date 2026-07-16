@@ -1,12 +1,17 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading, ReportExplanationCard } from './ReportSectionHeading'
 import { PrototypicalityShapeAnalysis } from './PrototypicalityShapeAnalysis'
 import { prototypicalityRangeLabel } from '../../utils/prototypicalityWireframe'
 
 export function AveragenessSection({ averageness, landmarks }) {
+  const t = useTranslations('Report')
+
   if (!averageness || averageness.score == null) {
     return (
       <p className="text-sm text-ink-muted font-sans py-8">
-        Prototypicality data is not available for this assessment.
+        {t('averageness.unavailable')}
       </p>
     )
   }
@@ -15,15 +20,15 @@ export function AveragenessSection({ averageness, landmarks }) {
   const label = averageness.label
   const explanation = averageness.explanation
   const rangeLabel = averageness.rangeLabel || prototypicalityRangeLabel(score)
-  const scaleLeft = averageness.scaleLeft || 'Distinctive'
-  const scaleRight = averageness.scaleRight || 'Highly Typical'
+  const scaleLeft = averageness.scaleLeft || t('averageness.distinctive')
+  const scaleRight = averageness.scaleRight || t('averageness.highlyTypical')
 
   return (
     <div className="space-y-6">
       <ReportSectionHeading
-        title="An overview of your"
-        accent="prototypicality"
-        subtitle="Facial prototypicality describes how closely your features match the typical features of people in your demographic group."
+        title={t('averageness.title')}
+        accent={t('averageness.accent')}
+        subtitle={t('averageness.subtitle')}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -33,7 +38,7 @@ export function AveragenessSection({ averageness, landmarks }) {
 
         <div className="flex flex-col gap-4">
           <div className="qoves-report-metric-card text-center flex flex-col min-h-[180px]">
-            <p className="qoves-report-mono-label mb-6">Prototypicality</p>
+            <p className="qoves-report-mono-label mb-6">{t('averageness.prototypicality')}</p>
             <p className="text-[5.5rem] leading-none font-display font-bold text-ink tracking-tight flex-1 flex items-center justify-center">
               {score}
             </p>
@@ -44,7 +49,7 @@ export function AveragenessSection({ averageness, landmarks }) {
           </div>
 
           <div className="qoves-report-metric-card">
-            <p className="qoves-report-mono-label mb-2">Prototypicality Range</p>
+            <p className="qoves-report-mono-label mb-2">{t('averageness.prototypicalityRange')}</p>
             <p className="text-lg font-display font-bold text-ink mb-5">{rangeLabel}</p>
             <div className="relative h-[3px] rounded-full bg-surface-border mb-3">
               <div
@@ -58,7 +63,7 @@ export function AveragenessSection({ averageness, landmarks }) {
             </div>
           </div>
 
-          {explanation && <ReportExplanationCard>{explanation}</ReportExplanationCard>}
+          {explanation && <ReportExplanationCard label={t('common.explanation')}>{explanation}</ReportExplanationCard>}
         </div>
       </div>
     </div>

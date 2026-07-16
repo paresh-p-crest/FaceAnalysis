@@ -1,7 +1,7 @@
 'use client'
 
-import HistoryPage from '../../components/HistoryPage'
-import { useApp } from '../../components/providers/AppProvider'
+import HistoryPage from '../../../components/HistoryPage'
+import { useApp } from '../../../components/providers/AppProvider'
 
 export default function HistoryRoutePage() {
   const {

@@ -1,3 +1,5 @@
+'use client'
+
 export default function SectionHeader({ icon: Icon, title, subtitle, badge }) {
   return (
     <div className="flex items-center gap-3">

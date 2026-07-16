@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { resolveFeatureHero } from '../../utils/featureParsing'
 import {
@@ -39,6 +40,7 @@ export function NeckReportPanel({
   narrative: _narrative,
   imageSrc = null,
 }) {
+  const t = useTranslations('Report')
   const n = neck || {}
   const heroImage = resolveFeatureHero('neck', n, featureParsing) || imageSrc || n.imageSrc
 
@@ -60,17 +62,18 @@ export function NeckReportPanel({
     }
   }, [featureParsing, n.neckWidthClass])
 
-  const landmark = 'Segmentation-based'
+  const segmentation = t('common.segmentationBased')
+  const computed = t('common.computed')
   const slides = []
   if (metrics.neckWidthMm != null) {
     slides.push({
       id: 'width',
-      titleLead: 'Neck Width',
-      titleAccent: '(mm)',
-      body: 'Horizontal span of the neck region from the segmentation mask. Typical range 80–100 mm.',
+      titleLead: t('neck.slides.width.titleLead'),
+      titleAccent: t('neck.slides.width.titleAccent'),
+      body: t('neck.slides.width.body'),
       meter: {
-        metricLabel: 'Neck Width',
-        sourceLabel: landmark,
+        metricLabel: t('neck.slides.width.metricLabel'),
+        sourceLabel: segmentation,
         valueText: `${fmt(metrics.neckWidthMm)} mm`,
         valueNum: metrics.neckWidthMm,
         rangeMin: 80,
@@ -83,12 +86,12 @@ export function NeckReportPanel({
   if (metrics.neckJawRatio != null) {
     slides.push({
       id: 'ratio',
-      titleLead: 'Neck / Jaw Width',
-      titleAccent: 'Ratio',
-      body: 'Ratio of neck width to jaw width. Closer to 0.7–0.8 is typically considered proportionate.',
+      titleLead: t('neck.slides.ratio.titleLead'),
+      titleAccent: t('neck.slides.ratio.titleAccent'),
+      body: t('neck.slides.ratio.body'),
       meter: {
-        metricLabel: 'Neck / Jaw Width Ratio',
-        sourceLabel: 'Computed',
+        metricLabel: t('neck.slides.ratio.metricLabel'),
+        sourceLabel: computed,
         valueText: fmt(metrics.neckJawRatio),
         valueNum: metrics.neckJawRatio,
         rangeMin: 0.5,
@@ -100,56 +103,51 @@ export function NeckReportPanel({
   }
 
   const cards = [
-    { label: 'Neck Width', value: metrics.widthClass },
-    { label: 'Neck Definition', value: metrics.definitionClass },
-    { label: 'Neck Length', value: metrics.lengthClass },
-    { label: 'Neck Aging', value: metrics.agingClass },
+    { label: t('neck.width'), value: metrics.widthClass },
+    { label: t('neck.definition'), value: metrics.definitionClass },
+    { label: t('neck.length'), value: metrics.lengthClass },
+    { label: t('neck.aging'), value: metrics.agingClass },
   ]
 
   const left = [
     {
-      label: 'Neck Width',
+      label: t('neck.width'),
       value: metrics.neckWidthMm != null ? `${fmt(metrics.neckWidthMm)} mm` : null,
     },
-    { label: 'Width Classification', value: metrics.widthClass },
-    { label: 'Definition', value: metrics.definitionClass },
+    { label: t('neck.metrics.widthClass'), value: metrics.widthClass },
+    { label: t('neck.metrics.definitionLabel'), value: metrics.definitionClass },
   ]
   const right = [
-    { label: 'Neck / Jaw Width Ratio', value: fmt(metrics.neckJawRatio) },
-    { label: 'Length', value: metrics.lengthClass },
-    { label: 'Aging', value: metrics.agingClass },
+    { label: t('neck.metrics.neckJawRatio'), value: fmt(metrics.neckJawRatio) },
+    { label: t('neck.metrics.lengthLabel'), value: metrics.lengthClass },
+    { label: t('neck.metrics.agingLabel'), value: metrics.agingClass },
   ]
 
   return (
     <div className="space-y-8">
       <ReportSectionHeading
-        title="Summary of your"
-        accent="neck"
-        subtitle={
-          <>
-            Neck width and its proportion to the jaw support lower-face framing and overall{' '}
-            <strong className="text-ink font-semibold">harmony</strong>.
-          </>
-        }
+        title={t('common.summaryOfYour')}
+        accent={t('nav.neck').toLowerCase()}
+        subtitle={t('neck.subtitle')}
       />
 
       {heroImage && (
         <FeatureHeroFrame>
           <img
             src={heroImage}
-            alt="Neck"
+            alt={t('neck.heroAlt')}
             className="max-h-48 w-auto object-contain rounded-xl"
           />
         </FeatureHeroFrame>
       )}
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">Summary of your neck</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('neck.summaryTitle')}</p>
         <FeatureSummaryGrid cards={cards} slides={slides} />
       </div>
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">All Neck Metrics</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('neck.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
     </div>

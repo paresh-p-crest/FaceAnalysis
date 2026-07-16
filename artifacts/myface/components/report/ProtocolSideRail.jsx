@@ -1,23 +1,27 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { getClientName } from '../../utils/qovesProtocolModel'
 
-function tagList(answers) {
+function tagList(answers, t) {
   const tags = []
   if (answers?.gender) tags.push(String(answers.gender))
   if (answers?.age) tags.push(`${answers.age}y`)
   if (answers?.ethnicity) tags.push(String(answers.ethnicity))
-  if (answers?.hadSurgery === 'no') tags.push('No Previous Surgeries')
+  if (answers?.hadSurgery === 'no') tags.push(t('common.noPreviousSurgeries'))
   return tags
 }
 
 export function ProtocolSideRail({ photo, answers, user = null, assessmentId, onViewProtocol }) {
+  const t = useTranslations('Report')
   const clientName = getClientName(answers, user)
   const displayId = assessmentId ? `#${String(assessmentId).slice(-5).toUpperCase()}` : '#—'
-  const tags = tagList(answers)
+  const tags = tagList(answers, t)
 
   return (
     <div className="space-y-6 sticky top-6">
       <div>
-        <p className="qoves-report-mono-label mb-3">User Profile</p>
+        <p className="qoves-report-mono-label mb-3">{t('protocolSideRail.userProfile')}</p>
         <div className="flex items-center gap-3 mb-3">
           {photo ? (
             <img src={photo} alt="" className="w-12 h-12 rounded-full object-cover border border-surface-border" />
@@ -26,7 +30,7 @@ export function ProtocolSideRail({ photo, answers, user = null, assessmentId, on
           )}
           <div>
             <p className="text-sm font-bold text-ink">{clientName}</p>
-            <p className="text-xs text-ink-muted">Protocol ID: {displayId}</p>
+            <p className="text-xs text-ink-muted">{t('common.protocolId', { id: displayId })}</p>
           </div>
         </div>
         {tags.length > 0 && (
@@ -44,14 +48,14 @@ export function ProtocolSideRail({ photo, answers, user = null, assessmentId, on
       </div>
 
       <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4">
-        <p className="qoves-report-mono-label mb-2">Next Steps</p>
-        <p className="text-sm font-semibold text-ink mb-3">Non-Surgical Protocol</p>
+        <p className="qoves-report-mono-label mb-2">{t('protocolSideRail.nextSteps')}</p>
+        <p className="text-sm font-semibold text-ink mb-3">{t('protocolSideRail.nonSurgicalProtocol')}</p>
         <button
           type="button"
           onClick={onViewProtocol}
           className="w-full text-left text-xs font-bold text-brand hover:text-brand-dark flex items-center justify-between"
         >
-          View Report
+          {t('protocolSideRail.viewReport')}
           <span aria-hidden>→</span>
         </button>
       </div>

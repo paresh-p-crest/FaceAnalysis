@@ -1,24 +1,29 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { X, Settings as SettingsIcon, Info, Cpu, ShieldCheck, Server } from 'lucide-react'
 
-const STACK_ITEMS = [
-  {
-    icon: Cpu,
-    title: 'Computer vision',
-    desc: 'MediaPipe Face Landmarker + OpenCV geometry, run on the managed backend.',
-  },
-  {
-    icon: Server,
-    title: 'Analysis pipeline',
-    desc: 'Photos are processed asynchronously (CV → parsing → narratives) after you submit.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Care team review',
-    desc: 'Every report is reviewed and approved by our team before it is released to you.',
-  },
-]
-
 export default function Settings({ open, onClose }) {
+  const t = useTranslations('Settings')
+
+  const stackItems = [
+    {
+      icon: Cpu,
+      title: t('stackCvTitle'),
+      desc: t('stackCvDesc'),
+    },
+    {
+      icon: Server,
+      title: t('stackPipelineTitle'),
+      desc: t('stackPipelineDesc'),
+    },
+    {
+      icon: ShieldCheck,
+      title: t('stackReviewTitle'),
+      desc: t('stackReviewDesc'),
+    },
+  ]
+
   if (!open) return null
 
   return (
@@ -32,8 +37,8 @@ export default function Settings({ open, onClose }) {
               <SettingsIcon className="w-5 h-5 text-brand" />
             </div>
             <div>
-              <h2 className="font-display text-lg font-semibold text-ink">API Settings</h2>
-              <p className="text-[11px] text-ink-muted mt-1">How your facial analysis is processed</p>
+              <h2 className="font-display text-lg font-semibold text-ink">{t('title')}</h2>
+              <p className="text-[11px] text-ink-muted mt-1">{t('subtitle')}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-warm text-ink-muted transition-colors">
@@ -44,12 +49,12 @@ export default function Settings({ open, onClose }) {
         <div className="mb-5 p-3 rounded-xl bg-surface-warm border border-surface-border flex gap-3">
           <Info className="w-4 h-4 text-brand shrink-0 mt-0.5" />
           <div className="text-xs text-ink-secondary leading-relaxed">
-            Analysis runs entirely on our managed backend — no API keys or configuration required.
+            {t('infoText')}
           </div>
         </div>
 
         <div className="space-y-3">
-          {STACK_ITEMS.map(({ icon: Icon, title, desc }) => (
+          {stackItems.map(({ icon: Icon, title, desc }) => (
             <div key={title} className="rounded-xl border border-surface-border bg-surface-warm/60 dark:bg-surface-raised/30 p-4 flex gap-3">
               <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
                 <Icon className="w-4 h-4 text-brand" />
@@ -63,7 +68,7 @@ export default function Settings({ open, onClose }) {
         </div>
 
         <div className="flex mt-8">
-          <button onClick={onClose} className="btn-primary flex-1 text-sm">Close</button>
+          <button onClick={onClose} className="btn-primary flex-1 text-sm">{t('close')}</button>
         </div>
       </div>
     </div>

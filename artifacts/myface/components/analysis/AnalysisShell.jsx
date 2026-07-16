@@ -2,6 +2,7 @@
 
 import AuthModal from '../AuthModal'
 import DevShortcuts, { isDevShortcutsEnabled } from '../DevShortcuts'
+import { LocaleSwitcher } from '../LocaleSwitcher'
 import { useApp } from '../providers/AppProvider'
 import { ANALYSIS_STEPS } from '../../utils/routes'
 
@@ -20,6 +21,9 @@ export function AnalysisShell({ children, authRequired = false }) {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden font-sans">
+      <div className="fixed top-3 right-3 z-40">
+        <LocaleSwitcher />
+      </div>
       <AuthModal
         open={authOpen}
         required={authRequired}

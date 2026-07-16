@@ -1,5 +1,8 @@
+'use client'
+
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
+import { useRouter } from '../i18n/navigation'
 import {
   BarChart3,
   CreditCard,
@@ -29,15 +32,16 @@ import { ADMIN_TABS, adminTabToPath, persistAdminTab } from '../utils/adminPanel
 import { isAdminResourceLoading, resourcesForAdminTab } from '../utils/adminWorkspace'
 import { formatHistoryDate } from '../utils/historyStorage'
 import { isReportApproved, normalizeReportStatus, REPORT_WORKFLOW_STATUSES } from '../utils/reportWorkflow'
+import { translateApiError } from '../utils/translateApiError'
 import ConfirmDialog from './ConfirmDialog'
 import { useApp } from './providers/AppProvider'
 
-const TAB_META = {
-  overview: { label: 'Overview', icon: LayoutDashboard },
-  users: { label: 'Users', icon: Users },
-  review: { label: 'Review reports', icon: FileText },
-  payments: { label: 'Payments', icon: CreditCard },
-  settings: { label: 'Pricing', icon: DollarSign },
+const TAB_ICONS = {
+  overview: LayoutDashboard,
+  users: Users,
+  review: FileText,
+  payments: CreditCard,
+  settings: DollarSign,
 }
 
 const STATUS_STYLE = {
@@ -50,17 +54,18 @@ const STATUS_STYLE = {
   created: 'bg-surface-warm text-ink-muted border-surface-border',
 }
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, t }) {
   const display = normalizeReportStatus(status)
+  const label = display === 'pending_review' ? t('status.pendingReview') : t(`status.${display}`)
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold ${STATUS_STYLE[display] || STATUS_STYLE.created}`}>
-      {display.replace('_', ' ')}
+      {label}
     </span>
   )
 }
 
 /** Admin-only live pipeline indicator (hidden from clients). */
-function PipelineBadge({ pipeline }) {
+function PipelineBadge({ pipeline, t }) {
   if (!pipeline) return null
   const status = pipeline.status || 'queued'
   const style =
@@ -69,7 +74,10 @@ function PipelineBadge({ pipeline }) {
       : status === 'ready'
         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
         : 'bg-sky-50 text-sky-700 border-sky-200'
-  const label = status === 'running' && pipeline.stage ? `running · ${pipeline.stage}` : status
+  const label =
+    status === 'running' && pipeline.stage
+      ? t('pipelineRunning', { stage: pipeline.stage })
+      : t(`pipelineStatus.${status}`, { default: status })
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold capitalize ${style}`}>
       {label}
@@ -84,9 +92,9 @@ function money(amountCents, currency = 'usd') {
   }).format((amountCents || 0) / 100)
 }
 
-function displayName(item) {
+function displayName(item, t) {
   const full = [item?.firstName, item?.lastName].filter(Boolean).join(' ').trim()
-  return full || item?.email || 'Unknown user'
+  return full || item?.email || t('unknownUser')
 }
 
 function EmptyState({ title, text }) {
@@ -99,6 +107,9 @@ function EmptyState({ title, text }) {
 }
 
 export default function AdminPanelPage({ user, onSettings, onViewCloudItem, activeTab }) {
+  const t = useTranslations('Admin.panel')
+  const tErrors = useTranslations('Errors')
+  const tCommon = useTranslations('Admin.common')
   const router = useRouter()
   const { adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace } = useApp()
   const { assessments, payments, users, loading: resourceLoading, error: workspaceError } = adminWorkspace
@@ -137,8 +148,8 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
   }, [activeTab, canLoad, loadAdminTab])
 
   useEffect(() => {
-    if (workspaceError) setError(workspaceError)
-  }, [workspaceError])
+    if (workspaceError) setError(translateApiError({ message: workspaceError, code: workspaceError }, tErrors))
+  }, [workspaceError, tErrors])
 
   const handleRefresh = () => {
     if (!canLoad || !activeTab) return
@@ -152,13 +163,13 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
         setPricing(product)
         setPriceInput(((product.amountCents || 50) / 100).toFixed(2))
       })
-      .catch((err) => setPricingMessage(err.message || 'Could not load pricing'))
+      .catch((err) => setPricingMessage(translateApiError(err, tErrors)))
   }, [activeTab, canLoad])
 
   const handleSavePricing = async () => {
     const dollars = Number.parseFloat(priceInput)
     if (!Number.isFinite(dollars) || dollars < 0.01) {
-      setPricingMessage('Enter a valid price of at least $0.01')
+      setPricingMessage(t('pricing.invalidPrice'))
       return
     }
     setPricingSaving(true)
@@ -172,9 +183,9 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
       })
       setPricing(product)
       setPriceInput(((product.amountCents || 1) / 100).toFixed(2))
-      setPricingMessage('Premium report price saved.')
+      setPricingMessage(t('pricing.saved'))
     } catch (err) {
-      setPricingMessage(err.message || 'Could not save pricing')
+      setPricingMessage(translateApiError(err, tErrors))
     } finally {
       setPricingSaving(false)
     }
@@ -225,7 +236,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
         assessments: assessments.map((item) => (item.id === assessmentId ? { ...item, ...updated, id: assessmentId } : item)),
       })
     } catch (err) {
-      setError(err.message || 'Could not update status')
+      setError(translateApiError(err, tErrors))
     } finally {
       setUpdatingId('')
     }
@@ -233,9 +244,9 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
 
   const handleDeleteAssessment = (assessmentId) => {
     setConfirmState({
-      title: 'Delete report?',
-      message: 'This report and its assistant conversation will be permanently removed from MongoDB.',
-      confirmLabel: 'Delete report',
+      title: t('confirm.deleteReportTitle'),
+      message: t('confirm.deleteReportMessage'),
+      confirmLabel: t('confirm.deleteReportLabel'),
       danger: true,
       onConfirm: async () => {
         setDeletingId(assessmentId)
@@ -246,7 +257,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
             assessments: assessments.filter((item) => item.id !== assessmentId),
           })
         } catch (err) {
-          setError(err.message || 'Could not delete report')
+          setError(translateApiError(err, tErrors))
         } finally {
           setDeletingId('')
           setConfirmState(null)
@@ -257,13 +268,13 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
 
   const handleDeleteUser = (targetUser) => {
     if (targetUser.id === user?.id) {
-      setError('You cannot delete your own admin account.')
+      setError(t('errors.cannotDeleteSelf'))
       return
     }
     setConfirmState({
-      title: 'Delete user account?',
-      message: `Delete ${displayName(targetUser)} (${targetUser.email}) and all linked reports, conversations, and payments? This cannot be undone.`,
-      confirmLabel: 'Delete user',
+      title: t('confirm.deleteUserTitle'),
+      message: t('confirm.deleteUserMessage', { name: displayName(targetUser, t), email: targetUser.email }),
+      confirmLabel: t('confirm.deleteUserLabel'),
       danger: true,
       onConfirm: async () => {
         setDeletingId(targetUser.id)
@@ -276,7 +287,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
             payments: payments.filter((item) => item.userId !== targetUser.id),
           })
         } catch (err) {
-          setError(err.message || 'Could not delete user')
+          setError(translateApiError(err, tErrors))
         } finally {
           setDeletingId('')
           setConfirmState(null)
@@ -287,9 +298,9 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
 
   const handleApprove = (assessment) => {
     setConfirmState({
-      title: 'Approve report?',
-      message: 'This releases the full report and PDF download to the client. This action cannot be undone.',
-      confirmLabel: 'Approve',
+      title: t('confirm.approveTitle'),
+      message: t('confirm.approveMessage'),
+      confirmLabel: t('confirm.approveLabel'),
       onConfirm: async () => {
         setConfirmState(null)
         await handleStatusChange(assessment.id, 'approved')
@@ -300,9 +311,9 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
   const handleResetReports = () => {
     if (adminMode !== 'testing') return
     setConfirmState({
-      title: 'Reset all reports?',
-      message: 'Testing mode: delete ALL reports and assistant conversations from MongoDB.',
-      confirmLabel: 'Reset reports',
+      title: t('confirm.resetReportsTitle'),
+      message: t('confirm.resetReportsMessage'),
+      confirmLabel: t('confirm.resetReportsLabel'),
       danger: true,
       onConfirm: async () => {
         setResetting('reports')
@@ -310,7 +321,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
           await deleteAllAssessments()
           patchAdminWorkspace({ assessments: [] })
         } catch (err) {
-          setError(err.message || 'Could not reset report history')
+          setError(translateApiError(err, tErrors))
         } finally {
           setResetting('')
           setConfirmState(null)
@@ -322,9 +333,9 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
   const handleResetPayments = () => {
     if (adminMode !== 'testing') return
     setConfirmState({
-      title: 'Reset all payments?',
-      message: 'Testing mode: delete ALL payment records from MongoDB.',
-      confirmLabel: 'Reset payments',
+      title: t('confirm.resetPaymentsTitle'),
+      message: t('confirm.resetPaymentsMessage'),
+      confirmLabel: t('confirm.resetPaymentsLabel'),
       danger: true,
       onConfirm: async () => {
         setResetting('payments')
@@ -332,7 +343,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
           await deleteAllPayments()
           patchAdminWorkspace({ payments: [] })
         } catch (err) {
-          setError(err.message || 'Could not reset payment history')
+          setError(translateApiError(err, tErrors))
         } finally {
           setResetting('')
           setConfirmState(null)
@@ -346,12 +357,12 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
     if (owner) {
       return (
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink truncate">{displayName(owner)}</p>
+          <p className="text-sm font-semibold text-ink truncate">{displayName(owner, t)}</p>
           <p className="text-xs text-ink-muted truncate">{owner.email}</p>
         </div>
       )
     }
-    return <span className="text-xs text-amber-700">Unlinked report</span>
+    return <span className="text-xs text-amber-700">{t('unlinkedReport')}</span>
   }
 
   const handleOpenAssessment = async (assessment) => {
@@ -361,7 +372,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
       const full = await fetchAssessment(assessment.id)
       onViewCloudItem?.(full)
     } catch (err) {
-      setError(err.message || 'Could not open report')
+      setError(translateApiError(err, tErrors))
     } finally {
       setOpeningId('')
     }
@@ -376,11 +387,11 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               {renderClientCell(assessment)}
-              {showStatus && <StatusBadge status={assessment.status} />}
-              <PipelineBadge pipeline={assessment.pipeline} />
+              {showStatus && <StatusBadge status={assessment.status} t={t} />}
+              <PipelineBadge pipeline={assessment.pipeline} t={t} />
             </div>
             <p className="text-[11px] text-ink-muted mt-2">
-              ID …{assessment.id.slice(-8)} · {formatHistoryDate(assessment.createdAt)} · score {score}
+              {t('reportMeta', { id: assessment.id.slice(-8), date: formatHistoryDate(assessment.createdAt), score })}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 justify-end">
@@ -390,7 +401,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                 disabled={updatingId === assessment.id}
                 className="px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
               >
-                Approve
+                {t('actions.approve')}
               </button>
             )}
             <button
@@ -398,7 +409,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
               disabled={openingId === assessment.id}
               className="px-3 py-2 rounded-xl bg-white dark:bg-surface-card border border-surface-border text-xs font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
             >
-              {openingId === assessment.id ? 'Opening…' : 'Open'}
+              {openingId === assessment.id ? t('actions.opening') : t('actions.open')}
             </button>
             <button
               onClick={() => handleDeleteAssessment(assessment.id)}
@@ -406,7 +417,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
             >
               {deletingId === assessment.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              Delete
+              {t('actions.delete')}
             </button>
           </div>
         </div>
@@ -423,19 +434,19 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
               <ShieldCheck className="w-5 h-5 text-brand" />
             </div>
             <div>
-              <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">Admin Panel</h1>
-              <p className="text-sm text-ink-muted">Users, review reports, and payments</p>
+              <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">{t('title')}</h1>
+              <p className="text-sm text-ink-muted">{t('subtitle')}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={onSettings} className="btn-ghost text-sm">API settings</button>
+            <button onClick={onSettings} className="btn-ghost text-sm">{t('apiSettings')}</button>
             <button
               onClick={handleRefresh}
               disabled={loading || !canLoad}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border border-surface-border bg-white dark:bg-surface-card text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-              Refresh
+              {t('refresh')}
             </button>
           </div>
         </div>
@@ -443,7 +454,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
         <div className="mb-6 overflow-x-auto">
           <div className="inline-flex min-w-full sm:min-w-0 rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-1 shadow-card gap-1">
             {ADMIN_TABS.map((tab) => {
-              const Icon = TAB_META[tab].icon
+              const Icon = TAB_ICONS[tab]
               const count = tab === 'review' ? pendingReviewCount : tab === 'users' ? clientUsers.length : null
               return (
                 <button
@@ -456,7 +467,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  {TAB_META[tab].label}
+                  {t(`tabs.${tab}`)}
                   {count != null && count > 0 && (
                     <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeTab === tab ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>
                       {count}
@@ -473,9 +484,9 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Database className="w-4 h-4 text-brand" />
-                <h2 className="font-display text-lg font-semibold text-ink">Environment mode</h2>
+                <h2 className="font-display text-lg font-semibold text-ink">{t('environment.title')}</h2>
               </div>
-              <p className="text-xs text-ink-muted">Production hides destructive QA tools. Testing mode enables data reset.</p>
+              <p className="text-xs text-ink-muted">{t('environment.description')}</p>
             </div>
             <div className="flex rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-1">
               {['production', 'testing'].map((mode) => (
@@ -490,7 +501,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                       : 'text-ink-muted hover:text-ink'
                   }`}
                 >
-                  {mode}
+                  {t(`environment.${mode}`)}
                 </button>
               ))}
             </div>
@@ -498,10 +509,10 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
           {adminMode === 'testing' && (
             <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-wrap gap-2">
               <button onClick={handleResetReports} disabled={!!resetting} className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 disabled:opacity-50">
-                Reset reports
+                {t('environment.resetReports')}
               </button>
               <button onClick={handleResetPayments} disabled={!!resetting} className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 disabled:opacity-50">
-                Reset payments
+                {t('environment.resetPayments')}
               </button>
             </div>
           )}
@@ -512,13 +523,13 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
         )}
 
         {!isBackendApiEnabled() ? (
-          <EmptyState title="Backend API required" text="Set NEXT_PUBLIC_API_URL to use the admin panel." />
+          <EmptyState title={t('empty.backendRequiredTitle')} text={t('empty.backendRequiredText')} />
         ) : !user || user.role !== 'admin' ? (
-          <EmptyState title="Admin access required" text="Sign in with an admin account to manage clients and reports." />
+          <EmptyState title={t('empty.adminRequiredTitle')} text={t('empty.adminRequiredText')} />
         ) : loading && assessments.length === 0 ? (
           <div className="py-16 text-center">
             <Loader2 className="w-7 h-7 text-brand animate-spin mx-auto mb-3" />
-            <p className="text-sm text-ink-muted">Loading admin workspace...</p>
+            <p className="text-sm text-ink-muted">{t('loadingWorkspace')}</p>
           </div>
         ) : (
           <>
@@ -526,16 +537,16 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
               <div className="space-y-6">
                 <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
                   {[
-                    ['Users', clientUsers.length, Users],
-                    ['Reports', reportStats.total, FileText],
-                    ['Pending review', reportStats.pending_review, ShieldCheck],
-                    ['Approved', reportStats.approved, BarChart3],
-                    ['Payments', paidCount, CreditCard],
-                  ].map(([label, value, Icon]) => (
-                    <div key={label} className="bg-white dark:bg-surface-card rounded-2xl p-5 shadow-card border border-surface-border">
+                    ['users', clientUsers.length, Users],
+                    ['reports', reportStats.total, FileText],
+                    ['pendingReview', reportStats.pending_review, ShieldCheck],
+                    ['approved', reportStats.approved, BarChart3],
+                    ['payments', paidCount, CreditCard],
+                  ].map(([key, value, Icon]) => (
+                    <div key={key} className="bg-white dark:bg-surface-card rounded-2xl p-5 shadow-card border border-surface-border">
                       <div className="flex items-center gap-2 text-xs text-ink-muted mb-2">
                         <Icon className="w-4 h-4 text-brand" />
-                        {label}
+                        {t(`stats.${key}`)}
                       </div>
                       <p className="font-display text-3xl font-semibold text-ink">{value}</p>
                     </div>
@@ -543,27 +554,27 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                 </div>
                 {reportStats.pending_review > 0 && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <p className="text-sm text-amber-800 font-medium">{reportStats.pending_review} report(s) waiting for review</p>
-                    <button onClick={() => changeTab('review')} className="btn-primary text-sm">Review reports</button>
+                    <p className="text-sm text-amber-800 font-medium">{t('pendingBanner', { count: reportStats.pending_review })}</p>
+                    <button onClick={() => changeTab('review')} className="btn-primary text-sm">{t('reviewReports')}</button>
                   </div>
                 )}
                 <div className="grid lg:grid-cols-2 gap-4">
                   <section className="bg-white dark:bg-surface-card rounded-2xl p-5 shadow-card border border-surface-border">
-                    <h2 className="font-display text-lg font-semibold text-ink mb-4">Recent clients</h2>
+                    <h2 className="font-display text-lg font-semibold text-ink mb-4">{t('recentClients')}</h2>
                     <div className="space-y-3">
                       {clientUsers.slice(0, 5).map((item) => (
                         <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface-warm dark:bg-surface-raised border border-surface-border p-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-ink truncate">{displayName(item)}</p>
+                            <p className="text-sm font-semibold text-ink truncate">{displayName(item, t)}</p>
                             <p className="text-xs text-ink-muted truncate">{item.email}</p>
                           </div>
-                          <span className="text-xs text-ink-muted">{reportCountByUser[item.id] || 0} reports</span>
+                          <span className="text-xs text-ink-muted">{t('reportCount', { count: reportCountByUser[item.id] || 0 })}</span>
                         </div>
                       ))}
                     </div>
                   </section>
                   <section className="bg-white dark:bg-surface-card rounded-2xl p-5 shadow-card border border-surface-border">
-                    <h2 className="font-display text-lg font-semibold text-ink mb-4">Latest reports</h2>
+                    <h2 className="font-display text-lg font-semibold text-ink mb-4">{t('latestReports')}</h2>
                     <div className="space-y-3">
                       {visibleAssessments.slice(0, 5).map((assessment) => renderReportRow(assessment, { showStatus: true }))}
                     </div>
@@ -576,29 +587,29 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
               <section className="bg-white dark:bg-surface-card rounded-2xl shadow-card border border-surface-border overflow-hidden">
                 <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
                   <div>
-                    <h2 className="font-display text-lg font-semibold text-ink">Registered users</h2>
-                    <p className="text-xs text-ink-muted">{users.length} accounts in MongoDB `myface.users`</p>
+                    <h2 className="font-display text-lg font-semibold text-ink">{t('users.title')}</h2>
+                    <p className="text-xs text-ink-muted">{t('users.subtitle', { count: users.length })}</p>
                   </div>
                 </div>
                 {users.length === 0 ? (
-                  <div className="p-8"><EmptyState title="No users yet" text="Client registrations will appear here." /></div>
+                  <div className="p-8"><EmptyState title={t('users.emptyTitle')} text={t('users.emptyText')} /></div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead className="bg-surface-warm dark:bg-surface-raised text-left text-xs text-ink-muted">
                         <tr>
-                          <th className="px-5 py-3 font-semibold">Name</th>
-                          <th className="px-5 py-3 font-semibold">Email</th>
-                          <th className="px-5 py-3 font-semibold">Role</th>
-                          <th className="px-5 py-3 font-semibold">Reports</th>
-                          <th className="px-5 py-3 font-semibold">Joined</th>
-                          <th className="px-5 py-3 font-semibold text-right">Actions</th>
+                          <th className="px-5 py-3 font-semibold">{t('users.columns.name')}</th>
+                          <th className="px-5 py-3 font-semibold">{t('users.columns.email')}</th>
+                          <th className="px-5 py-3 font-semibold">{t('users.columns.role')}</th>
+                          <th className="px-5 py-3 font-semibold">{t('users.columns.reports')}</th>
+                          <th className="px-5 py-3 font-semibold">{t('users.columns.joined')}</th>
+                          <th className="px-5 py-3 font-semibold text-right">{t('users.columns.actions')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {users.map((item) => (
                           <tr key={item.id} className="border-t border-surface-border">
-                            <td className="px-5 py-3 font-medium text-ink">{displayName(item)}</td>
+                            <td className="px-5 py-3 font-medium text-ink">{displayName(item, t)}</td>
                             <td className="px-5 py-3 text-ink-secondary">{item.email}</td>
                             <td className="px-5 py-3">
                               <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold uppercase ${
@@ -606,7 +617,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                                   ? 'bg-brand-50 text-brand border-brand/20'
                                   : 'bg-surface-warm text-ink-muted border-surface-border'
                               }`}>
-                                {item.role || 'user'}
+                                {item.role === 'admin' ? t('users.roleAdmin') : t('users.roleUser')}
                               </span>
                             </td>
                             <td className="px-5 py-3">{reportCountByUser[item.id] || 0}</td>
@@ -619,7 +630,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
                                 >
                                   {deletingId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                                  Delete
+                                  {t('actions.delete')}
                                 </button>
                               )}
                             </td>
@@ -635,8 +646,8 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
             {activeTab === 'review' && (
               <section className="space-y-4">
                 <div>
-                  <h2 className="font-display text-lg font-semibold text-ink">Review reports</h2>
-                  <p className="text-xs text-ink-muted">Click Open to edit AI narrative, save, then approve for the client.</p>
+                  <h2 className="font-display text-lg font-semibold text-ink">{t('review.title')}</h2>
+                  <p className="text-xs text-ink-muted">{t('review.subtitle')}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {['all', ...REPORT_WORKFLOW_STATUSES.map((s) => s.value)].map((filter) => (
@@ -649,12 +660,12 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                           : 'bg-white dark:bg-surface-card border-surface-border text-ink-secondary'
                       }`}
                     >
-                      {filter === 'all' ? 'All' : filter.replace('_', ' ')}
+                      {filter === 'all' ? t('filters.all') : t(`status.${filter === 'pending_review' ? 'pendingReview' : filter}`)}
                     </button>
                   ))}
                 </div>
                 {filteredReports.length === 0 ? (
-                  <EmptyState title="No reports" text="No assessments match this filter." />
+                  <EmptyState title={t('review.emptyTitle')} text={t('review.emptyText')} />
                 ) : (
                   <div className="space-y-3">
                     {filteredReports.map((assessment) => renderReportRow(assessment, { showStatus: reportFilter === 'all' }))}
@@ -666,33 +677,33 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
             {activeTab === 'payments' && (
               <section className="bg-white dark:bg-surface-card rounded-2xl shadow-card border border-surface-border overflow-hidden">
                 <div className="px-5 py-4 border-b border-surface-border">
-                  <h2 className="font-display text-lg font-semibold text-ink">Payment records</h2>
-                  <p className="text-xs text-ink-muted">Stripe and PayPal checkout history</p>
+                  <h2 className="font-display text-lg font-semibold text-ink">{t('payments.title')}</h2>
+                  <p className="text-xs text-ink-muted">{t('payments.subtitle')}</p>
                 </div>
                 {payments.length === 0 ? (
-                  <div className="p-8"><EmptyState title="No payments yet" text="Completed checkouts will appear here." /></div>
+                  <div className="p-8"><EmptyState title={t('payments.emptyTitle')} text={t('payments.emptyText')} /></div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead className="bg-surface-warm dark:bg-surface-raised text-left text-xs text-ink-muted">
                         <tr>
-                          <th className="px-5 py-3 font-semibold">Client</th>
-                          <th className="px-5 py-3 font-semibold">Provider</th>
-                          <th className="px-5 py-3 font-semibold">Amount</th>
-                          <th className="px-5 py-3 font-semibold">Status</th>
-                          <th className="px-5 py-3 font-semibold">Date</th>
+                          <th className="px-5 py-3 font-semibold">{t('payments.columns.client')}</th>
+                          <th className="px-5 py-3 font-semibold">{t('payments.columns.provider')}</th>
+                          <th className="px-5 py-3 font-semibold">{t('payments.columns.amount')}</th>
+                          <th className="px-5 py-3 font-semibold">{t('payments.columns.status')}</th>
+                          <th className="px-5 py-3 font-semibold">{t('payments.columns.date')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {payments.map((payment) => (
                           <tr key={payment.id} className="border-t border-surface-border">
                             <td className="px-5 py-3">
-                              <p className="font-medium text-ink">{displayName(userById[payment.userId])}</p>
+                              <p className="font-medium text-ink">{displayName(userById[payment.userId], t)}</p>
                               <p className="text-xs text-ink-muted">{userById[payment.userId]?.email || payment.userId || '—'}</p>
                             </td>
                             <td className="px-5 py-3 capitalize">{payment.provider}</td>
                             <td className="px-5 py-3 font-display font-semibold text-brand">{money(payment.amountCents, payment.currency)}</td>
-                            <td className="px-5 py-3"><StatusBadge status={payment.status} /></td>
+                            <td className="px-5 py-3"><StatusBadge status={payment.status} t={t} /></td>
                             <td className="px-5 py-3 text-ink-muted">{formatHistoryDate(payment.createdAt)}</td>
                           </tr>
                         ))}
@@ -705,9 +716,9 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
 
             {activeTab === 'settings' && (
               <section className="bg-white dark:bg-surface-card rounded-2xl p-6 shadow-card border border-surface-border max-w-xl">
-                <h2 className="font-display text-lg font-semibold text-ink mb-1">Premium report price</h2>
-                <p className="text-xs text-ink-muted mb-5">Used for Stripe and PayPal checkout. Default is $0.50 for testing.</p>
-                <label className="block text-xs font-semibold text-ink-secondary mb-2">Price (USD)</label>
+                <h2 className="font-display text-lg font-semibold text-ink mb-1">{t('pricing.title')}</h2>
+                <p className="text-xs text-ink-muted mb-5">{t('pricing.description')}</p>
+                <label className="block text-xs font-semibold text-ink-secondary mb-2">{t('pricing.priceLabel')}</label>
                 <input
                   type="number"
                   min="0.01"
@@ -717,7 +728,8 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                   className="w-full rounded-xl border border-surface-border bg-white dark:bg-surface-raised px-4 py-3 text-sm text-ink mb-4"
                 />
                 <p className="text-xs text-ink-muted mb-4">
-                  Checkout charge: <span className="font-semibold text-brand">{money(Math.round((Number.parseFloat(priceInput) || 0) * 100), pricing.currency || 'usd')}</span>
+                  {t('pricing.checkoutCharge')}{' '}
+                  <span className="font-semibold text-brand">{money(Math.round((Number.parseFloat(priceInput) || 0) * 100), pricing.currency || 'usd')}</span>
                 </p>
                 {pricingMessage && (
                   <div className="mb-4 rounded-xl border border-surface-border bg-surface-warm px-3 py-2 text-xs text-ink-secondary">
@@ -730,7 +742,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                   className="btn-primary text-sm disabled:opacity-50"
                 >
                   {pricingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Save price
+                  {t('pricing.save')}
                 </button>
               </section>
             )}
@@ -741,7 +753,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
         open={!!confirmState}
         title={confirmState?.title || ''}
         message={confirmState?.message || ''}
-        confirmLabel={confirmState?.confirmLabel || 'Confirm'}
+        confirmLabel={confirmState?.confirmLabel || tCommon('confirm')}
         danger={confirmState?.danger}
         loading={!!deletingId || !!resetting}
         onConfirm={() => confirmState?.onConfirm?.()}

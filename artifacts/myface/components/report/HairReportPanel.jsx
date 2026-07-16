@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { resolveFeatureHero } from '../../utils/featureParsing'
 import {
@@ -37,6 +38,7 @@ export function HairReportPanel({
   narrative: _narrative,
   imageSrc = null,
 }) {
+  const t = useTranslations('Report')
   const h = hair || {}
   const heroImage = resolveFeatureHero('hair', h, featureParsing) || imageSrc || h.imageSrc
 
@@ -76,7 +78,7 @@ export function HairReportPanel({
     }
   }, [featureParsing, h.densityEstimate, h.hairline, h.foreheadExposure, h.coverageEstimate, h.densityPct])
 
-  const landmark = 'Landmark-based'
+  const landmark = t('common.landmarkBased')
   const slides = []
   if (metrics.foreheadWidthMm != null) {
     slides.push({
@@ -134,10 +136,10 @@ export function HairReportPanel({
   }
 
   const cards = [
-    { label: 'Temple Width', value: metrics.templeWidthClass },
-    { label: 'Hair Density', value: metrics.densityClass },
-    { label: 'Hairline', value: metrics.hairlineClass },
-    { label: 'Forehead Exposure', value: metrics.foreheadExposureClass },
+    { label: t('hair.templeWidth'), value: metrics.templeWidthClass },
+    { label: t('hair.density'), value: metrics.densityClass },
+    { label: t('hair.hairline'), value: metrics.hairlineClass },
+    { label: t('hair.foreheadExposure'), value: metrics.foreheadExposureClass },
   ]
 
   const left = [
@@ -173,33 +175,28 @@ export function HairReportPanel({
   return (
     <div className="space-y-8">
       <ReportSectionHeading
-        title="Summary of your"
-        accent="hair"
-        subtitle={
-          <>
-            Hairline and forehead geometry frame the upper face and contribute to overall{' '}
-            <strong className="text-ink font-semibold">harmony</strong>.
-          </>
-        }
+        title={t('common.summaryOfYour')}
+        accent={t('nav.hair').toLowerCase()}
+        subtitle={t('hair.subtitle')}
       />
 
       {heroImage && (
         <FeatureHeroFrame>
           <img
             src={heroImage}
-            alt="Hair"
+            alt={t('hair.heroAlt')}
             className="max-h-48 w-auto object-contain rounded-xl"
           />
         </FeatureHeroFrame>
       )}
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">Summary of your hair</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('hair.summaryTitle')}</p>
         <FeatureSummaryGrid cards={cards} slides={slides} />
       </div>
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">All Hair Metrics</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('hair.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
     </div>

@@ -1,7 +1,9 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { FaceImageFrame } from './FaceImageFrame'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
-/* ── Reusable metric grid card ── */
 function MetricCard({ label, value, note }) {
   return (
     <div className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-3">
@@ -12,56 +14,23 @@ function MetricCard({ label, value, note }) {
   )
 }
 
-/* ── Score scale bar (vertical style) ── */
-function ScoreScale({ score, scoreMax = 100, scaleLeft, scaleRight, scaleMarkerPct, rangeHighlight }) {
-  return (
-    <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-      <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">Score</p>
-      <div className="flex items-end gap-3 mb-4">
-        <span className="text-4xl font-display font-bold text-brand">{score}</span>
-        <span className="text-sm text-ink-muted mb-1">/ {scoreMax}</span>
-      </div>
-      <div className="relative h-2 rounded-full bg-surface-border mb-2">
-        {rangeHighlight && (
-          <div
-            className="absolute top-0 bottom-0 rounded-full bg-brand/20"
-            style={{ left: `${rangeHighlight.left}%`, width: `${rangeHighlight.width}%` }}
-          />
-        )}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-brand shadow-glow"
-          style={{ left: `calc(${scaleMarkerPct}% - 7px)` }}
-        />
-      </div>
-      <div className="flex justify-between text-[10px] text-ink-faint font-sans mb-4">
-        <span>{scaleLeft}</span>
-        <span>{scaleRight}</span>
-      </div>
-      <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-2">Explanation</p>
-      <p className="text-sm text-ink-secondary leading-relaxed font-sans">{score.explanation || ''}</p>
-    </div>
-  )
-}
-
-/* ── Main FeatureSection ── */
 export function FeatureSection({ title, subtitle, score, scoreMax = 100, scoreLabel, scaleLeft, scaleRight, scaleMarkerPct, rangeHighlight, explanation, imageSrc, overlay, imageAspect = 'auto', metrics = [], children }) {
+  const t = useTranslations('Report')
+
   return (
     <div className="pr-2 space-y-6">
-      {/* Header */}
       <div>
         <h3 className="font-display text-lg font-semibold text-ink mb-1">{title}</h3>
         {subtitle && <p className="text-[10px] text-ink-muted font-sans mb-4">{subtitle}</p>}
       </div>
 
-      {/* Image */}
       {imageSrc && (
         <FaceImageFrame src={imageSrc} aspect={imageAspect} overlay={overlay} />
       )}
 
-      {/* Score card */}
       {score != null && (
         <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-          <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">Score</p>
+          <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">{t('common.score')}</p>
           <div className="flex items-end gap-3 mb-4">
             <span className="text-4xl font-display font-bold text-brand">{score}</span>
             <span className="text-sm text-ink-muted mb-1">/ {scoreMax}</span>
@@ -91,18 +60,17 @@ export function FeatureSection({ title, subtitle, score, scoreMax = 100, scoreLa
           )}
           {explanation && (
             <>
-              <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-2">Explanation</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-2">{t('common.explanation')}</p>
               <p className="text-sm text-ink-secondary leading-relaxed font-sans">{explanation}</p>
             </>
           )}
         </div>
       )}
 
-      {/* Metrics grid */}
       {metrics.length > 0 && (
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3 font-sans">
-            Measurements
+            {t('common.measurements')}
           </p>
           <div className="grid grid-cols-2 gap-2">
             {metrics.map((m) => (
@@ -112,21 +80,21 @@ export function FeatureSection({ title, subtitle, score, scoreMax = 100, scoreLa
         </div>
       )}
 
-      {/* Extra children content */}
       {children}
     </div>
   )
 }
 
-/* ── Protocol/Recommendation Section ── */
 export function ProtocolSection({ recommendations = [] }) {
+  const t = useTranslations('Report')
+
   if (!recommendations.length) return null
 
   return (
     <div className="pr-2 space-y-6">
       <div>
-        <h3 className="font-display text-lg font-semibold text-ink mb-1">Personalized Protocol</h3>
-        <p className="text-[10px] text-ink-muted font-sans mb-4">AI-generated recommendations based on your analysis</p>
+        <h3 className="font-display text-lg font-semibold text-ink mb-1">{t('featureSection.personalizedProtocol')}</h3>
+        <p className="text-[10px] text-ink-muted font-sans mb-4">{t('featureSection.protocolSubtitle')}</p>
       </div>
 
       <div className="space-y-3">

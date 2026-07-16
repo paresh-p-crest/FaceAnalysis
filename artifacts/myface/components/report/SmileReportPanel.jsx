@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { resolveFeatureHero } from '../../utils/featureParsing'
 import {
@@ -49,6 +50,7 @@ export function SmileReportPanel({
   narrative: _narrative,
   imageSrc = null,
 }) {
+  const t = useTranslations('Report')
   const s = smile || {}
   const heroImage = resolveFeatureHero('smile', s, featureParsing) || imageSrc || s.imageSrc
 
@@ -71,16 +73,16 @@ export function SmileReportPanel({
     }
   }, [featureParsing, s.mouthWidthClass, s.curvature])
 
-  const landmark = 'Landmark-based'
+  const landmark = t('common.landmarkBased')
   const slides = []
   if (metrics.upperArc != null) {
     slides.push({
       id: 'upper',
-      titleLead: 'Upper Smile Arc',
-      titleAccent: 'Curvature',
-      body: 'Sagitta / chord ratio of the upper smile arc. Higher = more upturned upper lip smile curve.',
+      titleLead: t('smile.slides.upper.titleLead'),
+      titleAccent: t('smile.slides.upper.titleAccent'),
+      body: t('smile.slides.upper.body'),
       meter: {
-        metricLabel: 'Upper Smile Arc',
+        metricLabel: t('smile.slides.upper.metricLabel'),
         sourceLabel: landmark,
         valueText: fmt(metrics.upperArc, 4),
         valueNum: metrics.upperArc,
@@ -94,11 +96,11 @@ export function SmileReportPanel({
   if (metrics.lowerArc != null) {
     slides.push({
       id: 'lower',
-      titleLead: 'Lower Smile Arc',
-      titleAccent: 'Curvature',
-      body: 'Sagitta / chord ratio for the lower smile arc (lower lip). Indicates how curved the lower smile appears.',
+      titleLead: t('smile.slides.lower.titleLead'),
+      titleAccent: t('smile.slides.lower.titleAccent'),
+      body: t('smile.slides.lower.body'),
       meter: {
-        metricLabel: 'Lower Smile Arc',
+        metricLabel: t('smile.slides.lower.metricLabel'),
         sourceLabel: landmark,
         valueText: fmt(metrics.lowerArc, 4),
         valueNum: metrics.lowerArc,
@@ -112,11 +114,11 @@ export function SmileReportPanel({
   if (metrics.smileWidthMm != null) {
     slides.push({
       id: 'width',
-      titleLead: 'Smile Width',
-      titleAccent: '(mm)',
-      body: 'Mouth corner-to-corner width at rest. Typical range 40–60 mm.',
+      titleLead: t('smile.slides.width.titleLead'),
+      titleAccent: t('smile.slides.width.titleAccent'),
+      body: t('smile.slides.width.body'),
       meter: {
-        metricLabel: 'Smile Width',
+        metricLabel: t('smile.slides.width.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.smileWidthMm)} mm`,
         valueNum: metrics.smileWidthMm,
@@ -129,57 +131,52 @@ export function SmileReportPanel({
   }
 
   const cards = [
-    { label: 'Mouth Width (Smiling)', value: metrics.mouthWidthClass },
-    { label: 'Smile Shape', value: metrics.smileShapeClass },
-    { label: 'Teeth Exposure', value: metrics.teethExposureClass },
-    { label: 'Teeth Color', value: metrics.teethColorClass },
+    { label: t('smile.mouthWidth'), value: metrics.mouthWidthClass },
+    { label: t('smile.smileShape'), value: metrics.smileShapeClass },
+    { label: t('smile.teethExposure'), value: metrics.teethExposureClass },
+    { label: t('smile.teethColor'), value: metrics.teethColorClass },
   ]
 
   const left = [
-    { label: 'Upper Smile Arc Curvature', value: fmt(metrics.upperArc, 4) },
-    { label: 'Lower Smile Arc Curvature', value: fmt(metrics.lowerArc, 4) },
-    { label: 'Mouth Width Class', value: metrics.mouthWidthClass },
-    { label: 'Teeth Exposure', value: metrics.teethExposureClass },
+    { label: t('smile.metrics.upperArc'), value: fmt(metrics.upperArc, 4) },
+    { label: t('smile.metrics.lowerArc'), value: fmt(metrics.lowerArc, 4) },
+    { label: t('smile.metrics.mouthWidthClass'), value: metrics.mouthWidthClass },
+    { label: t('smile.teethExposure'), value: metrics.teethExposureClass },
   ]
   const right = [
     {
-      label: 'Smile Width',
+      label: t('smile.metrics.smileWidth'),
       value: metrics.smileWidthMm != null ? `${fmt(metrics.smileWidthMm)} mm` : null,
     },
-    { label: 'Smile Shape', value: metrics.smileShapeClass },
-    { label: 'Teeth Color', value: metrics.teethColorClass },
+    { label: t('smile.smileShape'), value: metrics.smileShapeClass },
+    { label: t('smile.teethColor'), value: metrics.teethColorClass },
   ]
 
   return (
     <div className="space-y-8">
       <ReportSectionHeading
-        title="Summary of your"
-        accent="smile"
-        subtitle={
-          <>
-            Mouth width and smile-arc curvature shape expression and lower-face{' '}
-            <strong className="text-ink font-semibold">harmony</strong>.
-          </>
-        }
+        title={t('common.summaryOfYour')}
+        accent={t('nav.smile').toLowerCase()}
+        subtitle={t('smile.subtitle')}
       />
 
       {heroImage && (
         <FeatureHeroFrame>
           <img
             src={heroImage}
-            alt="Smile"
+            alt={t('smile.heroAlt')}
             className="max-h-48 w-auto object-contain rounded-xl"
           />
         </FeatureHeroFrame>
       )}
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">Summary of your smile</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('smile.summaryTitle')}</p>
         <FeatureSummaryGrid cards={cards} slides={slides} />
       </div>
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">All Smile Metrics</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('smile.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
     </div>

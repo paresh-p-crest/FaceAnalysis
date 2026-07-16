@@ -1,11 +1,11 @@
-import { ChevronLeft, ChevronRight, ScanFace, CheckCircle2, Shield, Sparkles } from 'lucide-react'
+'use client'
+
+import { ChevronLeft, ChevronRight, CheckCircle2, Shield, Sparkles } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { ONBOARDING_STEPS } from '../utils/onboarding'
 
-const TRUST_ITEMS = [
-  { icon: CheckCircle2, text: 'Clinically-informed analysis' },
-  { icon: Shield, text: 'Your photos are never stored' },
-  { icon: Sparkles, text: 'AI-powered, dermatologist-reviewed' },
-]
+const TRUST_ITEM_KEYS = ['clinical', 'photosNeverStored', 'aiPowered']
+const TRUST_ICONS = { clinical: CheckCircle2, photosNeverStored: Shield, aiPowered: Sparkles }
 
 export function OnboardingLayout({
   stepIndex,
@@ -17,11 +17,16 @@ export function OnboardingLayout({
   footerHint,
   selectionLabel,
   onContinue,
-  continueLabel = 'Continue',
+  continueLabel,
   continueDisabled = false,
   hideFooter = false,
 }) {
-  const stepLabel = `STEP ${stepIndex + 1} OF ${ONBOARDING_STEPS.length}`
+  const t = useTranslations('Onboarding.layout')
+  const tTrust = useTranslations('Onboarding.trust')
+  const tSteps = useTranslations('Onboarding.steps')
+
+  const stepLabel = t('stepOf', { current: stepIndex + 1, total: ONBOARDING_STEPS.length })
+  const resolvedContinueLabel = continueLabel ?? t('continue')
 
   return (
     <div className="min-h-screen flex animate-fade-up">
@@ -38,12 +43,15 @@ export function OnboardingLayout({
         </div>
 
         <div className="mt-auto space-y-4">
-          {TRUST_ITEMS.map(({ icon: Icon, text }) => (
-            <div key={text} className="flex items-center gap-3 text-xs text-ink-muted">
-              <Icon className="w-4 h-4 text-brand shrink-0" />
-              <span>{text}</span>
-            </div>
-          ))}
+          {TRUST_ITEM_KEYS.map((key) => {
+            const Icon = TRUST_ICONS[key]
+            return (
+              <div key={key} className="flex items-center gap-3 text-xs text-ink-muted">
+                <Icon className="w-4 h-4 text-brand shrink-0" />
+                <span>{tTrust(key)}</span>
+              </div>
+            )
+          })}
         </div>
       </aside>
 
@@ -58,7 +66,7 @@ export function OnboardingLayout({
           {showBack && onBack && (
             <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink transition-colors mb-6">
               <ChevronLeft className="w-4 h-4" />
-              Back
+              {t('back')}
             </button>
           )}
 
@@ -86,7 +94,7 @@ export function OnboardingLayout({
                         active ? 'text-brand font-medium' : done ? 'text-ink-secondary' : 'text-ink-muted'
                       }`}
                     >
-                      {step.label}
+                      {tSteps(step.id === 'upload' ? 'uploadPhoto' : step.id)}
                     </span>
                   </div>
                   {i < ONBOARDING_STEPS.length - 1 && (
@@ -111,7 +119,7 @@ export function OnboardingLayout({
               disabled={continueDisabled}
               className="btn-primary text-sm disabled:opacity-40 disabled:pointer-events-none shrink-0"
             >
-              {continueLabel}
+              {resolvedContinueLabel}
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

@@ -18,6 +18,100 @@ import {
   FACE_OVAL,
 } from './faceCrop'
 
+/** i18n keys under CvReport.labels — translate at display via translateCvLabel(key, t). */
+export const CV_LABEL = {
+  harmonious: 'harmonious',
+  balanced: 'balanced',
+  distinctive: 'distinctive',
+  strong: 'strong',
+  defined: 'defined',
+  soft: 'soft',
+  wellProportioned: 'wellProportioned',
+  expressive: 'expressive',
+  subtle: 'subtle',
+  elegant: 'elegant',
+  compact: 'compact',
+  proportioned: 'proportioned',
+  clear: 'clear',
+  goodCondition: 'goodCondition',
+  needsAttention: 'needsAttention',
+  natural: 'natural',
+  healthy: 'healthy',
+  monitor: 'monitor',
+  exceptional: 'exceptional',
+  aboveAverage: 'aboveAverage',
+  average: 'average',
+  belowAverage: 'belowAverage',
+  needsImprovement: 'needsImprovement',
+  highlySymmetric: 'highlySymmetric',
+  quiteSymmetric: 'quiteSymmetric',
+  noticeableAsymmetry: 'noticeableAsymmetry',
+  wellBalanced: 'wellBalanced',
+  goodBalance: 'goodBalance',
+  slightVariation: 'slightVariation',
+  asymmetric: 'asymmetric',
+  symmetric: 'symmetric',
+  imbalanced: 'imbalanced',
+  idealBalance: 'idealBalance',
+  hyperFeminine: 'hyperFeminine',
+  hyperMasculine: 'hyperMasculine',
+  veryMasculine: 'veryMasculine',
+  masculine: 'masculine',
+  moderate: 'moderate',
+  feminine: 'feminine',
+  veryFeminine: 'veryFeminine',
+  narrow: 'narrow',
+  wide: 'wide',
+  oval: 'oval',
+  square: 'square',
+  round: 'round',
+  heart: 'heart',
+  oblong: 'oblong',
+  long: 'long',
+  short: 'short',
+  normal: 'normal',
+  regionForehead: 'regionForehead',
+  regionLeftCheek: 'regionLeftCheek',
+  regionRightCheek: 'regionRightCheek',
+  regionNoseBridge: 'regionNoseBridge',
+  regionChin: 'regionChin',
+  regionJawLine: 'regionJawLine',
+  regionEyes: 'regionEyes',
+  regionBrows: 'regionBrows',
+  regionMouth: 'regionMouth',
+  regionJaw: 'regionJaw',
+  ratioNasoAural: 'ratioNasoAural',
+  ratioOrbitoNasal: 'ratioOrbitoNasal',
+  ratioNasoOral: 'ratioNasoOral',
+  ratioOrbital: 'ratioOrbital',
+  earGreaterNose: 'earGreaterNose',
+  earLessNose: 'earLessNose',
+  earApproxNose: 'earApproxNose',
+  noseGreaterEye: 'noseGreaterEye',
+  noseLessEye: 'noseLessEye',
+  noseApproxEye: 'noseApproxEye',
+  mouthGreaterNose: 'mouthGreaterNose',
+  mouthLessNose: 'mouthLessNose',
+  mouthApproxNose: 'mouthApproxNose',
+  spacingGreaterEye: 'spacingGreaterEye',
+  spacingLessEye: 'spacingLessEye',
+  spacingEqualEye: 'spacingEqualEye',
+  idealEarNose: 'idealEarNose',
+  idealNoseEye: 'idealNoseEye',
+  idealMouthNose: 'idealMouthNose',
+  idealSpacingEye: 'idealSpacingEye',
+}
+
+/** Resolve a CvReport.labels key via next-intl t function (namespace CvReport). */
+export function translateCvLabel(key, t) {
+  if (!key || !t) return key || ''
+  try {
+    return t(`labels.${key}`)
+  } catch {
+    return key
+  }
+}
+
 /* ── Landmark index groups for new feature crops ── */
 const NOSE_BRIDGE = [6, 197, 195, 5, 4, 1, 2, 98, 327]
 const NOSE_TIP = [1, 2, 98, 327, 48, 278, 44, 274]
@@ -63,7 +157,7 @@ function noseMetrics(landmarks) {
 
   return {
     score,
-    scoreLabel: score >= 80 ? 'Harmonious' : score >= 70 ? 'Balanced' : 'Distinctive',
+    scoreLabel: score >= 80 ? CV_LABEL.harmonious : score >= 70 ? CV_LABEL.balanced : CV_LABEL.distinctive,
     width: widthClass,
     widthLengthRatio: widthLengthRatio.toFixed(2),
     noseRatio: noseRatio.toFixed(2),
@@ -107,7 +201,7 @@ function lipMetrics(landmarks) {
 
   return {
     score,
-    scoreLabel: score >= 82 ? 'Harmonious' : score >= 72 ? 'Balanced' : 'Distinctive',
+    scoreLabel: score >= 82 ? CV_LABEL.harmonious : score >= 72 ? CV_LABEL.balanced : CV_LABEL.distinctive,
     fullness,
     philtrum: philtrumClass,
     lipWidthRatio: lipWidthRatio.toFixed(2),
@@ -154,7 +248,7 @@ function jawChinMetrics(landmarks) {
 
   return {
     score,
-    scoreLabel: score >= 80 ? 'Strong' : score >= 70 ? 'Defined' : 'Soft',
+    scoreLabel: score >= 80 ? CV_LABEL.strong : score >= 70 ? CV_LABEL.defined : CV_LABEL.soft,
     jawShape,
     chinType,
     faceRatio: faceRatio.toFixed(2),
@@ -224,7 +318,7 @@ function jawMetrics(landmarks) {
 
   return {
     score,
-    scoreLabel: score >= 85 ? 'Strong' : score >= 70 ? 'Defined' : 'Soft',
+    scoreLabel: score >= 85 ? CV_LABEL.strong : score >= 70 ? CV_LABEL.defined : CV_LABEL.soft,
     jawWidth: jawWidthPct,
     jawWidthClass,
     jawAngle: avgAngle.toFixed(1),
@@ -290,7 +384,7 @@ function chinMetrics(landmarks) {
 
   return {
     score,
-    scoreLabel: score >= 85 ? 'Well-proportioned' : score >= 70 ? 'Balanced' : 'Soft',
+    scoreLabel: score >= 85 ? CV_LABEL.wellProportioned : score >= 70 ? CV_LABEL.balanced : CV_LABEL.soft,
     chinHeight: chinHeightPct,
     chinHeightClass,
     projection,
@@ -354,7 +448,7 @@ function smileMetrics(landmarks) {
 
   return {
     score,
-    scoreLabel: score >= 85 ? 'Expressive' : score >= 70 ? 'Balanced' : 'Subtle',
+    scoreLabel: score >= 85 ? CV_LABEL.expressive : score >= 70 ? CV_LABEL.balanced : CV_LABEL.subtle,
     mouthWidthRatio,
     mouthWidthClass,
     curvature,
@@ -414,7 +508,7 @@ function neckMetrics(landmarks) {
 
   return {
     score,
-    scoreLabel: score >= 85 ? 'Elegant' : score >= 70 ? 'Balanced' : 'Compact',
+    scoreLabel: score >= 85 ? CV_LABEL.elegant : score >= 70 ? CV_LABEL.balanced : CV_LABEL.compact,
     neckWidth: neckWidthPct,
     neckWidthClass,
     neckLength: neckLengthPct,
@@ -474,7 +568,7 @@ function earMetrics(landmarks) {
 
   return {
     score,
-    scoreLabel: score >= 85 ? 'Proportioned' : score >= 70 ? 'Balanced' : 'Distinctive',
+    scoreLabel: score >= 85 ? CV_LABEL.proportioned : score >= 70 ? CV_LABEL.balanced : CV_LABEL.distinctive,
     earSize: avgEarSize,
     earSizeClass,
     earSymmetry,
@@ -554,7 +648,7 @@ async function skinQualityMetrics(landmarks, imageSrc, metrics) {
     ])
   } catch {
     return {
-      score: 75, scoreLabel: 'Good condition',
+      score: 75, scoreLabel: CV_LABEL.goodCondition,
       tone: 'Even', texture: 'Moderate', clarity: 'Moderate',
       redness: 'Normal', brightness: '0', underEyeHealth: 'Good', underEyeBrightness: '0',
       regions: [],
@@ -568,12 +662,12 @@ async function skinQualityMetrics(landmarks, imageSrc, metrics) {
 
   // Per-region data
   const regions = [
-    { name: 'Forehead', brightness: safeRound(forehead.brightness), redness: parseFloat(safeFixed(forehead.redness, 1)) },
-    { name: 'Left cheek', brightness: safeRound(leftCheek.brightness), redness: parseFloat(safeFixed(leftCheek.redness, 1)) },
-    { name: 'Right cheek', brightness: safeRound(rightCheek.brightness), redness: parseFloat(safeFixed(rightCheek.redness, 1)) },
-    { name: 'Nose bridge', brightness: safeRound(noseBridge.brightness), redness: parseFloat(safeFixed(noseBridge.redness, 1)) },
-    { name: 'Chin', brightness: safeRound(chin.brightness), redness: parseFloat(safeFixed(chin.redness, 1)) },
-    { name: 'Jaw line', brightness: safeRound(jaw.brightness), redness: parseFloat(safeFixed(jaw.redness, 1)) },
+    { name: CV_LABEL.regionForehead, brightness: safeRound(forehead.brightness), redness: parseFloat(safeFixed(forehead.redness, 1)) },
+    { name: CV_LABEL.regionLeftCheek, brightness: safeRound(leftCheek.brightness), redness: parseFloat(safeFixed(leftCheek.redness, 1)) },
+    { name: CV_LABEL.regionRightCheek, brightness: safeRound(rightCheek.brightness), redness: parseFloat(safeFixed(rightCheek.redness, 1)) },
+    { name: CV_LABEL.regionNoseBridge, brightness: safeRound(noseBridge.brightness), redness: parseFloat(safeFixed(noseBridge.redness, 1)) },
+    { name: CV_LABEL.regionChin, brightness: safeRound(chin.brightness), redness: parseFloat(safeFixed(chin.redness, 1)) },
+    { name: CV_LABEL.regionJawLine, brightness: safeRound(jaw.brightness), redness: parseFloat(safeFixed(jaw.redness, 1)) },
   ]
 
   // Skin tone classification
@@ -649,7 +743,7 @@ async function skinQualityMetrics(landmarks, imageSrc, metrics) {
 
   return {
     score,
-    scoreLabel: score >= 85 ? 'Clear' : score >= 70 ? 'Good condition' : 'Needs attention',
+    scoreLabel: score >= 85 ? CV_LABEL.clear : score >= 70 ? CV_LABEL.goodCondition : CV_LABEL.needsAttention,
     skinTone,
     tone,
     texture,
@@ -793,7 +887,7 @@ function dimorphismMetrics(landmarks, metrics) {
   const weightedSum = allScores.reduce((s, v, i) => s + v * weights[i], 0)
   const weightTotal = weights.reduce((a, b) => a + b, 0)
   const overallScore = Math.round(weightedSum / weightTotal)
-  const overallLabel = overallScore >= 80 ? 'Very Masculine' : overallScore >= 60 ? 'Masculine' : overallScore >= 40 ? 'Moderate' : overallScore >= 20 ? 'Feminine' : 'Very Feminine'
+  const overallLabel = overallScore >= 80 ? CV_LABEL.veryMasculine : overallScore >= 60 ? CV_LABEL.masculine : overallScore >= 40 ? CV_LABEL.moderate : overallScore >= 20 ? CV_LABEL.feminine : CV_LABEL.veryFeminine
 
   const browSet =
     browEyeGap < 0.1 ? 'low-set' : browEyeGap > 0.16 ? 'higher-set' : 'moderately set'
@@ -875,8 +969,8 @@ function dimorphismMetrics(landmarks, metrics) {
   return {
     overallScore,
     overallLabel,
-    scaleLeft: 'Hyper Feminine',
-    scaleRight: 'Hyper Masculine',
+    scaleLeft: CV_LABEL.hyperFeminine,
+    scaleRight: CV_LABEL.hyperMasculine,
     explanation:
       `Your overall dimorphism reads as ${overallLabel.toLowerCase()} (${overallScore}/100). ` +
       `The strongest measured drivers are ${topDrivers.join(', ')}.`,
@@ -916,11 +1010,11 @@ function overallScore(cvReport, eyeAnalysis, metrics) {
 }
 
 function overallLabel(score) {
-  if (score >= 90) return 'Exceptional'
-  if (score >= 82) return 'Above Average'
-  if (score >= 74) return 'Average'
-  if (score >= 65) return 'Below Average'
-  return 'Needs Improvement'
+  if (score >= 90) return CV_LABEL.exceptional
+  if (score >= 82) return CV_LABEL.aboveAverage
+  if (score >= 74) return CV_LABEL.average
+  if (score >= 65) return CV_LABEL.belowAverage
+  return CV_LABEL.needsImprovement
 }
 
 function faceShapeFromLandmarks(landmarks, imageSize = null) {
@@ -1053,10 +1147,10 @@ const SYMMETRY_MIRROR_PAIRS = [
 ]
 
 const SYMMETRY_REGION_DEFS = [
-  { id: 'eyes', label: 'Eyes', pairs: [[33, 263], [133, 362], [159, 386], [145, 374]] },
-  { id: 'brows', label: 'Brows', pairs: [[105, 334]] },
-  { id: 'mouth', label: 'Mouth', pairs: [[61, 291]] },
-  { id: 'jaw', label: 'Jaw', pairs: [[234, 454], [127, 356]] },
+  { id: 'eyes', label: CV_LABEL.regionEyes, pairs: [[33, 263], [133, 362], [159, 386], [145, 374]] },
+  { id: 'brows', label: CV_LABEL.regionBrows, pairs: [[105, 334]] },
+  { id: 'mouth', label: CV_LABEL.regionMouth, pairs: [[61, 291]] },
+  { id: 'jaw', label: CV_LABEL.regionJaw, pairs: [[234, 454], [127, 356]] },
 ]
 
 function pairDeviationPct(landmarks, li, ri, nose, faceH) {
@@ -1104,10 +1198,10 @@ function symmetryRegions(landmarks) {
 }
 
 function symmetryLabel(score) {
-  if (score >= 85) return 'Highly Symmetric'
-  if (score >= 74) return 'Quite Symmetric'
-  if (score >= 64) return 'Balanced'
-  return 'Noticeable asymmetry'
+  if (score >= 85) return CV_LABEL.highlySymmetric
+  if (score >= 74) return CV_LABEL.quiteSymmetric
+  if (score >= 64) return CV_LABEL.balanced
+  return CV_LABEL.noticeableAsymmetry
 }
 
 function symmetryExplanation(score, label, regions = []) {
@@ -1206,7 +1300,7 @@ function proportionsFromLandmarks(landmarks, metrics) {
     upperThird: upper.toFixed(2),
     middleThird: middle.toFixed(2),
     lowerThird: lower.toFixed(2),
-    label: finalScore >= 80 ? 'Well balanced' : finalScore >= 70 ? 'Good balance' : 'Slight variation',
+    label: finalScore >= 80 ? CV_LABEL.wellBalanced : finalScore >= 70 ? CV_LABEL.goodBalance : CV_LABEL.slightVariation,
     explanation: thirdsExplanation(upper, middle, lower),
   }
 }
@@ -1242,42 +1336,42 @@ function proportionRatios(landmarks) {
   // 1. Naso-Aural Ratio — ear height : nose height (ideal ≈ 1.00)
   const nasoAuralYour = noseHeight > 0.001 ? earHeight / noseHeight : 1
   const nasoAuralIdeal = 1.0
-  const nasoAuralYourLabel = nasoAuralYour > 1.05 ? 'Ear > Nose' : nasoAuralYour < 0.95 ? 'Ear < Nose' : 'Ear ≈ Nose'
+  const nasoAuralYourLabel = nasoAuralYour > 1.05 ? CV_LABEL.earGreaterNose : nasoAuralYour < 0.95 ? CV_LABEL.earLessNose : CV_LABEL.earApproxNose
 
   // 2. Orbito-Nasal Ratio — nose width : inner eye spacing (ideal ≈ 1.00)
   const orbitoNasalYour = innerEyeSpacing > 0.001 ? noseWidth / innerEyeSpacing : 1
   const orbitoNasalIdeal = 1.0
-  const orbitoNasalYourLabel = orbitoNasalYour > 1.05 ? 'Nose > Eye' : orbitoNasalYour < 0.95 ? 'Nose < Eye' : 'Nose ≈ Eye'
+  const orbitoNasalYourLabel = orbitoNasalYour > 1.05 ? CV_LABEL.noseGreaterEye : orbitoNasalYour < 0.95 ? CV_LABEL.noseLessEye : CV_LABEL.noseApproxEye
 
   // 3. Naso-Oral Proportion — mouth width : nose width (ideal ≈ 1.50–1.60)
   const nasoOralYour = noseWidth > 0.001 ? mouthWidth / noseWidth : 1
   const nasoOralIdeal = 1.6
   // Label compares mouth vs nose (not vs the 1.6 ideal)
-  const nasoOralYourLabel = nasoOralYour > 1.05 ? 'Mouth > Nose' : nasoOralYour < 0.95 ? 'Mouth < Nose' : 'Mouth ≈ Nose'
+  const nasoOralYourLabel = nasoOralYour > 1.05 ? CV_LABEL.mouthGreaterNose : nasoOralYour < 0.95 ? CV_LABEL.mouthLessNose : CV_LABEL.mouthApproxNose
 
   // 4. Orbital Proportion — inter-eye spacing vs eye width (ideal ≈ 1.00)
   const orbitalYour = eyeWidth > 0.001 ? innerEyeSpacing / eyeWidth : 1
   const orbitalIdeal = 1.0
-  const orbitalYourLabel = orbitalYour > 1.05 ? 'Spacing > Eye' : orbitalYour < 0.95 ? 'Spacing < Eye' : 'Spacing = Eye'
+  const orbitalYourLabel = orbitalYour > 1.05 ? CV_LABEL.spacingGreaterEye : orbitalYour < 0.95 ? CV_LABEL.spacingLessEye : CV_LABEL.spacingEqualEye
 
   return {
     nasoAural: {
-      ratioLabel: 'NASO-AURAL RATIO',
+      ratioLabel: CV_LABEL.ratioNasoAural,
       yourValue: nasoAuralYour,
       idealValue: nasoAuralIdeal,
       yourLabel: nasoAuralYourLabel,
-      idealLabel: 'Ear = Nose',
+      idealLabel: CV_LABEL.idealEarNose,
       expectation: 'Generally, the ears are expected to be roughly the same height as the nose.',
       explanation: 'Upload a side-profile photo for an accurate naso-aural measurement. Front-facing estimates are not clinically meaningful for this ratio.',
       dataSource: 'front_estimate',
       requiresProfile: true,
     },
     orbitoNasal: {
-      ratioLabel: 'ORBITO-NASAL RATIO',
+      ratioLabel: CV_LABEL.ratioOrbitoNasal,
       yourValue: orbitoNasalYour,
       idealValue: orbitoNasalIdeal,
       yourLabel: orbitoNasalYourLabel,
-      idealLabel: 'Nose = Eye',
+      idealLabel: CV_LABEL.idealNoseEye,
       expectation: 'Generally, the outer edges of the nostrils are expected to align with the inner corners of the eyes.',
       explanation:
         `Your orbito-nasal ratio is ${orbitoNasalYour.toFixed(2)} (reference ≈ ${orbitoNasalIdeal.toFixed(2)}). ` +
@@ -1288,11 +1382,11 @@ function proportionRatios(landmarks) {
             : 'Nose width aligns closely with inner-eye spacing.'),
     },
     nasoOral: {
-      ratioLabel: 'NASO-ORAL PROPORTION',
+      ratioLabel: CV_LABEL.ratioNasoOral,
       yourValue: nasoOralYour,
       idealValue: nasoOralIdeal,
       yourLabel: nasoOralYourLabel,
-      idealLabel: 'Mouth > Nose',
+      idealLabel: CV_LABEL.idealMouthNose,
       expectation: 'Generally, the width of the mouth is expected to be about 50–60% wider than the width of the nasal base.',
       explanation:
         `Your mouth-to-nose ratio is ${nasoOralYour.toFixed(2)} (reference ≈ ${nasoOralIdeal.toFixed(2)}). ` +
@@ -1303,11 +1397,11 @@ function proportionRatios(landmarks) {
             : 'Mouth width sits near the expected range relative to the nasal base.'),
     },
     orbital: {
-      ratioLabel: 'ORBITAL PROPORTION',
+      ratioLabel: CV_LABEL.ratioOrbital,
       yourValue: orbitalYour,
       idealValue: orbitalIdeal,
       yourLabel: orbitalYourLabel,
-      idealLabel: 'Spacing = Eye',
+      idealLabel: CV_LABEL.idealSpacingEye,
       expectation: 'Generally, the space between the eyes is expected to be equal to the width of one eye.',
       explanation:
         `Your inter-eye spacing to eye-width ratio is ${orbitalYour.toFixed(2)} (reference ≈ ${orbitalIdeal.toFixed(2)}), ` +
@@ -1597,7 +1691,7 @@ function cheekMetrics(landmarks) {
 
   return {
     score,
-    scoreLabel: score >= 85 ? 'Strong' : score >= 70 ? 'Defined' : 'Soft',
+    scoreLabel: score >= 85 ? CV_LABEL.strong : score >= 70 ? CV_LABEL.defined : CV_LABEL.soft,
     cheekWidth: cheekWidthPct,
     cheekWidthClass,
     cheekboneHeight: avgCheekboneHeight,
@@ -1839,7 +1933,7 @@ async function browPixelAnalysis(landmarks, imageSrc) {
 async function hairPixelAnalysis(landmarks, topHeadSrc) {
   if (!topHeadSrc) {
     return {
-      score: 78, scoreLabel: 'Natural', hairline: 'Average',
+      score: 78, scoreLabel: CV_LABEL.natural, hairline: CV_LABEL.average,
       densityEstimate: 'Moderate', coverageEstimate: 'Good', foreheadExposure: 'Moderate',
       hairColor: 'Dark', hairColorHex: '#2a1a0a', textureType: 'Unknown',
       thinningArea: 'None detected', crownVisibility: 'N/A',
@@ -1965,7 +2059,7 @@ async function hairPixelAnalysis(landmarks, topHeadSrc) {
 
     return {
       score,
-      scoreLabel: score >= 85 ? 'Healthy' : score >= 70 ? 'Natural' : 'Monitor',
+      scoreLabel: score >= 85 ? CV_LABEL.healthy : score >= 70 ? CV_LABEL.natural : CV_LABEL.monitor,
       hairline,
       densityEstimate,
       coverageEstimate,
@@ -1980,7 +2074,7 @@ async function hairPixelAnalysis(landmarks, topHeadSrc) {
     }
   } catch {
     return {
-      score: 78, scoreLabel: 'Natural', hairline: 'Average',
+      score: 78, scoreLabel: CV_LABEL.natural, hairline: CV_LABEL.average,
       densityEstimate: 'Moderate', coverageEstimate: 'Good', foreheadExposure: 'Moderate',
       hairColor: 'Dark', hairColorHex: '#2a1a0a', textureType: 'Unknown',
       thinningArea: 'None detected', crownVisibility: 'N/A',
@@ -2266,8 +2360,8 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
     symmetry: {
       score: symScore,
       scoreLabel: symLabel,
-      scaleLeft: 'Asymmetric',
-      scaleRight: 'Symmetric',
+      scaleLeft: CV_LABEL.asymmetric,
+      scaleRight: CV_LABEL.symmetric,
       scaleMarkerPct: symScore,
       rangeHighlight: { left: 70, width: 28 },
       explanation: symmetryExplanation(symScore, symLabel, symRegions),
@@ -2279,8 +2373,8 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
     proportions: {
       score: prop.score,
       scoreLabel: prop.label,
-      scaleLeft: 'Imbalanced',
-      scaleRight: 'Ideal balance',
+      scaleLeft: CV_LABEL.imbalanced,
+      scaleRight: CV_LABEL.idealBalance,
       scaleMarkerPct: prop.score,
       rangeHighlight: { left: 65, width: 25 },
       upperThird: prop.upperThird,
@@ -2299,7 +2393,7 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
     },
     eyes: {
       score: 80,
-      scoreLabel: 'Balanced',
+      scoreLabel: CV_LABEL.balanced,
     },
     eyebrows: {
       crop: browsData.crop,

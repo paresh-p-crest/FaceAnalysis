@@ -3,6 +3,56 @@
  * Analysis runs on Python FastAPI + PostgreSQL.
  */
 
+/** Stable error codes mapped to messages/Errors namespace keys. UI: translateApiError(err, tErrors). */
+export const ERROR_KEYS = {
+  CREATE_DRAFT_FAILED: 'createDraftFailed',
+  UPLOAD_PHOTO_FAILED: 'uploadPhotoFailed',
+  REMOVE_PHOTO_FAILED: 'removePhotoFailed',
+  SUBMIT_ASSESSMENT_FAILED: 'submitAssessmentFailed',
+  RETRY_PIPELINE_FAILED: 'retryPipelineFailed',
+  LOAD_ASSESSMENT_FAILED: 'loadAssessmentFailed',
+  LOAD_MY_ASSESSMENTS_FAILED: 'loadMyAssessmentsFailed',
+  LOAD_ASSESSMENTS_FAILED: 'loadAssessmentsFailed',
+  UPDATE_STATUS_FAILED: 'updateStatusFailed',
+  SAVE_ADMIN_REVIEW_FAILED: 'saveAdminReviewFailed',
+  DELETE_ASSESSMENT_FAILED: 'deleteAssessmentFailed',
+  CLEAR_ASSESSMENTS_FAILED: 'clearAssessmentsFailed',
+  CLEAR_PAYMENTS_FAILED: 'clearPaymentsFailed',
+  GENERATE_NARRATIVE_FAILED: 'generateNarrativeFailed',
+  LOAD_PROTOCOL_FAILED: 'loadProtocolFailed',
+  GENERATE_PROTOCOL_FAILED: 'generateProtocolFailed',
+  GENERATE_PROTOCOL_SECTION_FAILED: 'generateProtocolSectionFailed',
+  GENERATE_PROJECTED_AFTER_FAILED: 'generateProjectedAfterFailed',
+  GENERATE_VISUALS_FAILED: 'generateVisualsFailed',
+  LOAD_ASSISTANT_FAILED: 'loadAssistantFailed',
+  ASSISTANT_UNAVAILABLE: 'assistantUnavailable',
+  DOWNLOAD_PDF_FAILED: 'downloadPdfFailed',
+  LOAD_PAYMENT_CONFIG_FAILED: 'loadPaymentConfigFailed',
+  LOAD_PAYMENTS_FAILED: 'loadPaymentsFailed',
+  LOAD_USERS_FAILED: 'loadUsersFailed',
+  STRIPE_CHECKOUT_FAILED: 'stripeCheckoutFailed',
+  STRIPE_CONFIRM_FAILED: 'stripeConfirmFailed',
+  PAYPAL_CHECKOUT_FAILED: 'paypalCheckoutFailed',
+  PAYPAL_CAPTURE_FAILED: 'paypalCaptureFailed',
+  LOAD_PRICING_FAILED: 'loadPricingFailed',
+  UPDATE_PRICING_FAILED: 'updatePricingFailed',
+  DELETE_USER_FAILED: 'deleteUserFailed',
+}
+
+function apiError(code, detail = null, status = null) {
+  const err = new Error(code)
+  err.code = code
+  err.detail = typeof detail === 'string' ? detail : detail?.message || null
+  if (status != null) err.status = status
+  return err
+}
+
+function throwApiError(res, data, code) {
+  const detail = data?.detail
+  const serverMsg = typeof detail === 'string' ? detail : detail?.message || null
+  throw apiError(code, serverMsg, res.status)
+}
+
 export function getApiBaseUrl() {
   const url = process.env.NEXT_PUBLIC_API_URL || ''
   const clean = url.replace(/\/$/, '')
@@ -46,7 +96,7 @@ export async function createAssessmentDraft(scanId = null) {
     body: JSON.stringify({ scanId: scanId || undefined }),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to create analysis draft')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.CREATE_DRAFT_FAILED)
   return data
 }
 
@@ -65,7 +115,7 @@ export async function uploadAssessmentPhoto(assessmentId, poseId, file) {
     body: form,
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to upload photo')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.UPLOAD_PHOTO_FAILED)
   return data
 }
 
@@ -76,7 +126,7 @@ export async function deleteAssessmentPhoto(assessmentId, poseId) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to remove photo')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.REMOVE_PHOTO_FAILED)
   return data
 }
 
@@ -92,7 +142,7 @@ export async function submitAssessment(assessmentId, { answers = {}, provider = 
     body: JSON.stringify({ answers: answers || {}, provider }),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to submit analysis')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.SUBMIT_ASSESSMENT_FAILED)
   return data
 }
 
@@ -104,7 +154,7 @@ export async function retryAssessmentPipeline(assessmentId) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to retry pipeline')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.RETRY_PIPELINE_FAILED)
   return data
 }
 
@@ -114,7 +164,7 @@ export async function fetchAssessment(assessmentId) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to load assessment')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_ASSESSMENT_FAILED)
   return data
 }
 
@@ -142,7 +192,7 @@ export async function fetchMyAssessments(limit = 20) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to load your assessments')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_MY_ASSESSMENTS_FAILED)
   return data.items || []
 }
 
@@ -152,7 +202,7 @@ export async function fetchAdminAssessments(limit = 50) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to load assessments')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_ASSESSMENTS_FAILED)
   return data.items || []
 }
 
@@ -167,7 +217,7 @@ export async function updateAssessmentStatus(assessmentId, status) {
     body: JSON.stringify({ status }),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to update report status')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.UPDATE_STATUS_FAILED)
   return data
 }
 
@@ -182,7 +232,7 @@ export async function updateAssessmentAdminReview(assessmentId, payload) {
     body: JSON.stringify(payload),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to save admin review')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.SAVE_ADMIN_REVIEW_FAILED)
   return data
 }
 
@@ -193,7 +243,7 @@ export async function deleteAssessment(assessmentId) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to delete assessment')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.DELETE_ASSESSMENT_FAILED)
   return data
 }
 
@@ -204,7 +254,7 @@ export async function deleteAllAssessments() {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to clear assessments')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.CLEAR_ASSESSMENTS_FAILED)
   return data
 }
 
@@ -215,7 +265,7 @@ export async function deleteAllPayments() {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to clear payments')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.CLEAR_PAYMENTS_FAILED)
   return data
 }
 
@@ -227,7 +277,7 @@ export async function generateAssessmentNarrative(assessmentId, { force = false 
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to generate AI narrative')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.GENERATE_NARRATIVE_FAILED)
   return data
 }
 
@@ -237,11 +287,7 @@ export async function fetchAssessmentProtocol(assessmentId) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const err = new Error(data.detail || 'Failed to load protocol')
-    err.status = res.status
-    throw err
-  }
+  if (!res.ok) throw apiError(ERROR_KEYS.LOAD_PROTOCOL_FAILED, data?.detail, res.status)
   return data
 }
 
@@ -253,7 +299,7 @@ export async function generateAssessmentProtocol(assessmentId, { force = false }
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to generate AI protocol')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.GENERATE_PROTOCOL_FAILED)
   return data
 }
 
@@ -268,7 +314,7 @@ export async function generateAssessmentProtocolSection(assessmentId, sectionId)
     body: JSON.stringify({ sectionId }),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to generate protocol section')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.GENERATE_PROTOCOL_SECTION_FAILED)
   return data
 }
 
@@ -279,7 +325,7 @@ export async function generateProjectedAfter(assessmentId) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to generate projected AFTER image')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.GENERATE_PROJECTED_AFTER_FAILED)
   return data
 }
 
@@ -310,7 +356,7 @@ export async function generateAssessmentVisuals(assessmentId, variants = ['hair'
     body: JSON.stringify({ variants }),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to generate AI visuals')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.GENERATE_VISUALS_FAILED)
   return data
 }
 
@@ -320,7 +366,7 @@ export async function fetchAssistantConversation(assessmentId) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to load assistant conversation')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_ASSISTANT_FAILED)
   return data
 }
 
@@ -337,13 +383,9 @@ export async function sendAssistantMessage(assessmentId, message) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     const detail = data.detail
-    const msg = typeof detail === 'string'
-      ? detail
-      : (detail?.message || 'Beauty Assistant is not working right now. Please try again later.')
-    const err = new Error(msg)
-    err.status = res.status
-    err.code = typeof detail === 'object' ? detail?.code : undefined
-    throw err
+    const serverMsg = typeof detail === 'string' ? detail : detail?.message || null
+    const code = typeof detail === 'object' && detail?.code ? detail.code : ERROR_KEYS.ASSISTANT_UNAVAILABLE
+    throw apiError(code, serverMsg, res.status)
   }
   return data
 }
@@ -355,7 +397,7 @@ export async function downloadAssessmentPdf(assessmentId) {
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    throw new Error(data.detail || 'Failed to download report PDF')
+    throwApiError(res, data, ERROR_KEYS.DOWNLOAD_PDF_FAILED)
   }
 
   const blob = await res.blob()
@@ -380,7 +422,7 @@ export async function fetchPaymentConfig() {
   const base = getApiBaseUrl()
   const res = await fetch(`${base}/api/payments/config`)
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to load payment configuration')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_PAYMENT_CONFIG_FAILED)
   return data
 }
 
@@ -390,7 +432,7 @@ export async function fetchMyPayments(limit = 20) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to load payments')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_PAYMENTS_FAILED)
   return data.items || []
 }
 
@@ -400,7 +442,7 @@ export async function fetchAdminPayments(limit = 50) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to load payments')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_PAYMENTS_FAILED)
   return data.items || []
 }
 
@@ -410,7 +452,7 @@ export async function fetchAdminUsers(limit = 100) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to load users')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_USERS_FAILED)
   return data.items || []
 }
 
@@ -425,7 +467,7 @@ export async function createStripeCheckout(payload = {}) {
     body: JSON.stringify(payload),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to start Stripe checkout')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.STRIPE_CHECKOUT_FAILED)
   return data
 }
 
@@ -440,7 +482,7 @@ export async function confirmStripeCheckout(sessionId) {
     body: JSON.stringify({ sessionId }),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to confirm Stripe checkout')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.STRIPE_CONFIRM_FAILED)
   return data
 }
 
@@ -455,7 +497,7 @@ export async function createPayPalOrder(payload = {}) {
     body: JSON.stringify(payload),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to start PayPal checkout')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.PAYPAL_CHECKOUT_FAILED)
   return data
 }
 
@@ -470,7 +512,7 @@ export async function capturePayPalOrder(orderId) {
     body: JSON.stringify({ orderId }),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to capture PayPal order')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.PAYPAL_CAPTURE_FAILED)
   return data
 }
 
@@ -480,7 +522,7 @@ export async function fetchAdminPricing() {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to load pricing')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_PRICING_FAILED)
   return data.product
 }
 
@@ -495,7 +537,7 @@ export async function updateAdminPricing(payload) {
     body: JSON.stringify(payload),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to update pricing')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.UPDATE_PRICING_FAILED)
   return data.product
 }
 
@@ -506,6 +548,6 @@ export async function deleteAdminUser(userId) {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Failed to delete user')
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.DELETE_USER_FAILED)
   return data
 }

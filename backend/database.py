@@ -58,25 +58,33 @@ def is_db_configured() -> bool:
     return bool(get_database_url())
 
 
+def _needs_ssl(raw_url: str, *, using_pg_vars: bool) -> bool:
+    """SSL for managed remote Postgres; off for local / Replit PG* / sslmode=disable."""
+    if using_pg_vars:
+        return False
+    if "sslmode=disable" in raw_url:
+        return False
+    from urllib.parse import urlparse
+
+    host = (urlparse(raw_url).hostname or "").lower()
+    if host in ("localhost", "127.0.0.1", "::1"):
+        return False
+    return bool(raw_url)
+
+
 async def connect_db() -> None:
     """Connect on app startup and ensure schema exists (greenfield create_all)."""
     global _engine, _session_factory
     url = get_database_url()
     if not url:
         return
-    # SSL: off for Replit's internal Postgres (built from PG* vars), on for a
-    # managed/remote DATABASE_URL (e.g. Neon) unless it explicitly disables SSL.
     raw_url = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or ""
     using_pg_vars = bool(
         os.environ.get("PGHOST")
         and os.environ.get("PGUSER")
         and os.environ.get("PGDATABASE")
     )
-    if using_pg_vars:
-        needs_ssl = False
-    else:
-        needs_ssl = "sslmode=disable" not in raw_url
-    connect_args = {"ssl": True} if needs_ssl else {}
+    connect_args = {"ssl": True} if _needs_ssl(raw_url, using_pg_vars=using_pg_vars) else {}
     _engine = create_async_engine(url, pool_pre_ping=True, connect_args=connect_args)
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
     async with _engine.begin() as conn:

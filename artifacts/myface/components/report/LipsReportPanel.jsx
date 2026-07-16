@@ -1,6 +1,8 @@
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
+import { DetailCarousel, FeatureHeroFrame, MetricsColumn, SummaryLabelCard } from './FeatureSummaryUi'
 import { resolveFeatureHero } from '../../utils/featureParsing'
 
 function textOrNull(v) {
@@ -27,13 +29,6 @@ function formatDeg(n) {
   return `${n.toFixed(2)}°`
 }
 
-function markerPct(value, min, max) {
-  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || max === min) {
-    return 50
-  }
-  return Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
-}
-
 function classifyFullness(mouthMm, cvFullness) {
   const fromCv = textOrNull(cvFullness)
   if (fromCv === 'Thin') return 'Thin / Narrow'
@@ -54,62 +49,9 @@ function classifyWidth(mouthMm) {
 
 function classifyProportions(cupidDeg) {
   if (!Number.isFinite(cupidDeg)) return null
-  // Lower angle = more peaked; higher = flatter
   if (cupidDeg < 120) return 'Peaked / Defined'
   if (cupidDeg > 145) return 'Flat / Subtle'
   return 'Moderate Arch'
-}
-
-function SummaryLabelCard({ label, value }) {
-  return (
-    <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4 sm:p-5 shadow-sm min-w-0">
-      <p className="qoves-report-mono-label mb-2">{label}</p>
-      <p className="text-base sm:text-lg font-display font-bold text-ink">{value ?? '—'}</p>
-    </div>
-  )
-}
-
-function RangeMeter({
-  metricLabel,
-  sourceLabel,
-  valueText,
-  valueNum,
-  rangeMin,
-  rangeMax,
-  rangeMinLabel,
-  rangeMaxLabel,
-  formatRange,
-}) {
-  const hasRange =
-    Number.isFinite(valueNum) && Number.isFinite(rangeMin) && Number.isFinite(rangeMax)
-  const pct = hasRange ? markerPct(valueNum, rangeMin, rangeMax) : null
-  const fmt = formatRange || ((n) => String(n))
-
-  return (
-    <div className="mt-4 space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="qoves-report-mono-label">{metricLabel}</p>
-        {sourceLabel && <p className="qoves-report-mono-label">{sourceLabel}</p>}
-      </div>
-      {valueText && (
-        <p className="text-2xl sm:text-3xl font-display font-bold text-ink tabular-nums">{valueText}</p>
-      )}
-      {hasRange && (
-        <>
-          <div className="relative h-2 rounded-full bg-surface-border mt-2">
-            <div
-              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-ink border-2 border-white shadow-sm"
-              style={{ left: `calc(${pct}% - 6px)` }}
-            />
-          </div>
-          <div className="flex justify-between text-[11px] text-ink-muted font-sans tabular-nums">
-            <span>{rangeMinLabel ?? fmt(rangeMin)}</span>
-            <span>{rangeMaxLabel ?? fmt(rangeMax)}</span>
-          </div>
-        </>
-      )}
-    </div>
-  )
 }
 
 function buildLipMetrics(lips, featureParsing) {
@@ -124,12 +66,12 @@ function buildLipMetrics(lips, featureParsing) {
     fullnessLabel: classifyFullness(mouthMm, lips.fullness),
     widthLabel: classifyWidth(mouthMm) || textOrNull(lips.fullness),
     proportionsLabel: classifyProportions(cupidDeg),
-    healthLabel: 'N/A', // not measurable from geometry alone
+    healthLabel: 'N/A',
   }
 }
 
-function buildDetailSlides(metrics) {
-  const landmark = 'Landmark-based'
+function buildDetailSlides(metrics, t) {
+  const landmark = t('common.landmarkBased')
   const slides = []
 
   if (metrics.mouthMm != null) {
@@ -147,7 +89,6 @@ function buildDetailSlides(metrics) {
         rangeMax: 65,
         rangeMinLabel: '35 mm',
         rangeMaxLabel: '65 mm',
-        formatRange: formatMm,
       },
     })
   }
@@ -167,7 +108,6 @@ function buildDetailSlides(metrics) {
         rangeMax: 140,
         rangeMinLabel: '90°',
         rangeMaxLabel: '140°',
-        formatRange: (n) => `${Math.round(n)}°`,
       },
     })
   }
@@ -187,7 +127,6 @@ function buildDetailSlides(metrics) {
         rangeMax: 20,
         rangeMinLabel: '10 mm',
         rangeMaxLabel: '20 mm',
-        formatRange: formatMm,
       },
     })
   }
@@ -210,128 +149,48 @@ function buildAllMetricsRows(metrics) {
   return { left, right }
 }
 
-function DetailCarousel({ slides }) {
-  const [idx, setIdx] = useState(0)
-  if (!slides.length) return null
-
-  const active = slides[Math.min(idx, slides.length - 1)]
-  const multi = slides.length > 1
-
-  return (
-    <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4 sm:p-5 shadow-sm h-full min-w-0">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <h4 className="font-display text-base font-bold text-ink tracking-tight">
-          {active.titleLead}{' '}
-          <span className="text-ink-muted font-semibold">{active.titleAccent}</span>
-        </h4>
-        {multi && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              aria-label="Previous detail"
-              onClick={() => setIdx((i) => Math.max(0, i - 1))}
-              disabled={idx === 0}
-              className="p-1 rounded-lg border border-surface-border disabled:opacity-30 text-ink-muted hover:text-ink"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-1 px-1">
-              {slides.map((s, i) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  aria-label={`Go to ${s.titleLead} ${s.titleAccent}`}
-                  onClick={() => setIdx(i)}
-                  className={`rounded-full transition-all ${
-                    i === idx
-                      ? 'w-2 h-2 bg-ink'
-                      : 'w-1.5 h-1.5 bg-surface-border hover:bg-ink-muted'
-                  }`}
-                />
-              ))}
-            </div>
-            <button
-              type="button"
-              aria-label="Next detail"
-              onClick={() => setIdx((i) => Math.min(slides.length - 1, i + 1))}
-              disabled={idx >= slides.length - 1}
-              className="p-1 rounded-lg border border-surface-border disabled:opacity-30 text-ink-muted hover:text-ink"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-      </div>
-      <p className="text-sm text-ink-muted font-sans leading-relaxed">{active.body}</p>
-      {active.meter && <RangeMeter {...active.meter} />}
-    </div>
-  )
-}
-
-function MetricsColumn({ rows }) {
-  return (
-    <dl className="space-y-3">
-      {rows.map((row) => (
-        <div key={row.label} className="flex items-baseline justify-between gap-4">
-          <dt className="text-sm text-brand font-medium">{row.label}</dt>
-          <dd className="text-sm font-display font-bold text-ink tabular-nums text-right shrink-0">
-            {row.value ?? '—'}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  )
-}
-
 export function LipsReportPanel({ lips, featureParsing = null, narrative: _narrative = null }) {
+  const t = useTranslations('Report')
   if (!lips) return null
 
-  // Keep existing hero resolution — do not change image source.
   const heroImage = resolveFeatureHero('lips', lips, featureParsing) || lips.imageSrc
   const metrics = buildLipMetrics(lips, featureParsing)
-  const slides = buildDetailSlides(metrics)
+  const slides = buildDetailSlides(metrics, t)
   const { left, right } = buildAllMetricsRows(metrics)
 
   return (
     <div className="space-y-8">
       <ReportSectionHeading
-        title="Summary of your"
-        accent="lips"
-        subtitle={
-          <>
-            The lips frame expression and proportion in the lower face and contribute to overall{' '}
-            <strong className="text-ink font-semibold">harmony</strong>.
-          </>
-        }
+        title={t('common.summaryOfYour')}
+        accent={t('nav.lips').toLowerCase()}
+        subtitle={t('lips.subtitle')}
       />
 
       {heroImage && (
-        <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-6 sm:p-8 flex items-center justify-center shadow-sm">
+        <FeatureHeroFrame>
           <img
             src={heroImage}
-            alt="Lips"
+            alt={t('lips.heroAlt')}
             className="max-h-48 w-auto object-contain rounded-xl"
           />
-        </div>
+        </FeatureHeroFrame>
       )}
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">
-          Summary of your lips
-        </p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('lips.summaryTitle')}</p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div className="grid grid-cols-2 gap-3">
-            <SummaryLabelCard label="Lip Fullness" value={metrics.fullnessLabel} />
-            <SummaryLabelCard label="Lip Width" value={metrics.widthLabel} />
-            <SummaryLabelCard label="Lip Proportions" value={metrics.proportionsLabel} />
-            <SummaryLabelCard label="Lip Health" value={metrics.healthLabel} />
+            <SummaryLabelCard label={t('lips.fullness')} value={metrics.fullnessLabel} />
+            <SummaryLabelCard label={t('lips.width')} value={metrics.widthLabel} />
+            <SummaryLabelCard label={t('lips.proportions')} value={metrics.proportionsLabel} />
+            <SummaryLabelCard label={t('lips.health')} value={metrics.healthLabel} />
           </div>
           <DetailCarousel slides={slides} />
         </div>
       </div>
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">All Lip Metrics</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('lips.allMetrics')}</p>
         <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-5 sm:p-6 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
             <MetricsColumn rows={left} />

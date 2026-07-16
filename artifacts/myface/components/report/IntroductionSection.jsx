@@ -1,48 +1,44 @@
-import { INTRODUCTION_PARAGRAPHS } from '../../utils/qovesProtocolModel'
+'use client'
+
+import { useTranslations } from 'next-intl'
+import { INTRODUCTION_PARAGRAPH_KEYS } from '../../utils/qovesProtocolModel'
 import { ReportSectionHeading } from './ReportSectionHeading'
 
-const WHAT_TO_EXPECT = [
-  {
-    title: 'Comprehensive Insights',
-    body: 'Understand your facial features and how they impact your overall appearance.',
-  },
-  {
-    title: 'Visualisation',
-    body: 'See how subtle, measurement-guided changes could impact your overall appearance.',
-  },
-  {
-    title: 'As Personalised As It Gets',
-    body: 'Every assessment accounts for your personal demographics for the most relevant insights.',
-  },
+const WHAT_TO_EXPECT_KEYS = [
+  { titleKey: 'intro.expectComprehensiveTitle', bodyKey: 'intro.expectComprehensiveBody' },
+  { titleKey: 'intro.expectVisualisationTitle', bodyKey: 'intro.expectVisualisationBody' },
+  { titleKey: 'intro.expectPersonalisedTitle', bodyKey: 'intro.expectPersonalisedBody' },
 ]
 
 export function IntroductionSection() {
+  const t = useTranslations('Report')
+
   return (
     <div className="space-y-8">
       <ReportSectionHeading
-        title="Every Glow-Up Starts By"
-        accent="Understanding One's Face"
-        subtitle="This aesthetic assessment uses technology and expert analysis to help you understand your features and explore non-surgical appearance improvements."
+        title={t('intro.title')}
+        accent={t('intro.accent')}
+        subtitle={t('intro.subtitle')}
       />
 
       <div className="space-y-4 text-sm text-ink-secondary leading-relaxed font-sans max-w-3xl">
-        {INTRODUCTION_PARAGRAPHS.map((para, i) => (
-          <p key={i}>{para}</p>
+        {INTRODUCTION_PARAGRAPH_KEYS.map((key) => (
+          <p key={key}>{t(key)}</p>
         ))}
       </div>
 
       <div>
-        <h3 className="font-display text-lg font-bold text-ink mb-4">What to Expect</h3>
+        <h3 className="font-display text-lg font-bold text-ink mb-4">{t('common.whatToExpect')}</h3>
         <div className="space-y-3">
-          {WHAT_TO_EXPECT.map((item, i) => (
+          {WHAT_TO_EXPECT_KEYS.map((item, i) => (
             <div
-              key={item.title}
+              key={item.titleKey}
               className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4 flex gap-4"
             >
               <span className="font-display text-lg font-bold text-brand shrink-0">{i + 1}</span>
               <div>
-                <p className="font-semibold text-ink text-sm mb-1">{item.title}</p>
-                <p className="text-sm text-ink-muted leading-relaxed">{item.body}</p>
+                <p className="font-semibold text-ink text-sm mb-1">{t(item.titleKey)}</p>
+                <p className="text-sm text-ink-muted leading-relaxed">{t(item.bodyKey)}</p>
               </div>
             </div>
           ))}
@@ -50,12 +46,9 @@ export function IntroductionSection() {
       </div>
 
       <div className="space-y-3 text-sm text-ink-secondary leading-relaxed font-sans max-w-3xl">
-        <p className="font-semibold text-ink">Data Usage:</p>
-        <p>
-          Your images are used only to deliver this assessment. Analysis is confidential and stored securely.
-          Please refer to the Disclaimer section for full terms.
-        </p>
-        <p>We aim to empower you with knowledge you can trust. Let&apos;s begin your journey.</p>
+        <p className="font-semibold text-ink">{t('common.dataUsage')}</p>
+        <p>{t('intro.dataUsageBody')}</p>
+        <p>{t('intro.journeyStart')}</p>
       </div>
     </div>
   )

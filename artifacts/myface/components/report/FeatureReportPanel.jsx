@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { FeatureProseBlock } from './FeatureProseBlock'
 import { mergeMetricSections, resolveFeatureHero } from '../../utils/featureParsing'
@@ -17,18 +20,6 @@ function MetricCard({ label, value, tooltip }) {
   )
 }
 
-/**
- * Generic Qoves-style feature report panel.
- * @param {object} props
- * @param {string} props.title - Section heading
- * @param {object} props.data - The feature data object (must have score, scoreLabel, explanation)
- * @param {Array<{title: string, metrics: Array<{label: string, value: string, tooltip?: string}>}>} props.sections - Sections to render
- * @param {string} [props.imageSrc] - Optional cropped image
- * @param {string} [props.imageAlt] - Alt text for image
- * @param {import('react').ReactNode} [props.photoOverlay] - Optional SVG overlay on the hero
- * @param {import('react').ReactNode} [props.heroSlot] - Optional full hero node (replaces img)
- * @param {Array<{label: string, value: string}>} [props.extraMetrics] - Metrics shown in the overall score card
- */
 export function FeatureReportPanel({
   title,
   featureName,
@@ -43,6 +34,8 @@ export function FeatureReportPanel({
   featureId = null,
   featureParsing = null,
 }) {
+  const t = useTranslations('Report')
+
   if (!data) return null
 
   const resolvedImage = resolveFeatureHero(featureId, data, featureParsing) || imageSrc
@@ -59,9 +52,9 @@ export function FeatureReportPanel({
   return (
     <div className="space-y-6">
       <ReportSectionHeading
-        title="Summary of your"
+        title={t('common.summaryOfYour')}
         accent={accent}
-        subtitle="Facial landmark balance from your photos"
+        subtitle={t('featureReport.subtitle')}
       />
       {(heroSlot || resolvedImage) ? (
         <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-6 flex items-center justify-center">
@@ -92,9 +85,8 @@ export function FeatureReportPanel({
         </div>
       )}
 
-      {/* Overall Score */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-        <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">Overall Score</p>
+        <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">{t('common.overallScore')}</p>
         <div className="flex items-end gap-3 mb-4">
           <span className="text-4xl font-display font-bold text-brand">{data.score}</span>
           <span className="text-sm text-ink-muted mb-1">/ 100</span>
@@ -108,8 +100,8 @@ export function FeatureReportPanel({
           />
         </div>
         <div className="flex justify-between text-[10px] text-ink-faint font-sans mb-3">
-          <span>Needs attention</span>
-          <span>Optimal</span>
+          <span>{t('common.needsAttention')}</span>
+          <span>{t('common.optimal')}</span>
         </div>
         {extraMetrics && extraMetrics.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
@@ -120,7 +112,6 @@ export function FeatureReportPanel({
         )}
       </div>
 
-      {/* Sub-sections — metrics only (no duplicate prose) */}
       {resolvedSections?.map((section, idx) => (
         <div key={idx} className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
           <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">{section.title}</p>

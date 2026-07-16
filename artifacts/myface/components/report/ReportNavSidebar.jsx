@@ -1,4 +1,7 @@
+'use client'
+
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronDown, ChevronRight, Menu } from 'lucide-react'
 import {
   REPORT_NAV_GROUPS,
@@ -6,7 +9,7 @@ import {
   findNavGroupForSection,
 } from './reportNavConfig'
 
-function NavGroup({ label, items, activeId, onSelect, defaultOpen = false }) {
+function NavGroup({ label, items, activeId, onSelect, defaultOpen = false, t }) {
   const hasActive = items.some((item) => item.id === activeId)
   const [open, setOpen] = useState(defaultOpen || hasActive)
 
@@ -34,7 +37,7 @@ function NavGroup({ label, items, activeId, onSelect, defaultOpen = false }) {
               onClick={() => onSelect(item.id)}
               className={`qoves-report-nav-item ${activeId === item.id ? 'qoves-report-nav-item--active' : ''}`}
             >
-              {item.label}
+              {t(item.labelKey)}
             </button>
           ))}
         </div>
@@ -49,6 +52,7 @@ export function ReportNavSidebar({
   showAiVisuals = true,
   showAssistant = true,
 }) {
+  const t = useTranslations('Report')
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const toolItems = useMemo(() => {
@@ -63,11 +67,11 @@ export function ReportNavSidebar({
   const activeLabel = useMemo(() => {
     for (const group of REPORT_NAV_GROUPS) {
       const hit = group.items.find((item) => item.id === activeId)
-      if (hit) return hit.label
+      if (hit) return t(hit.labelKey)
     }
     const tool = toolItems.find((item) => item.id === activeId)
-    return tool?.label || 'Report'
-  }, [activeId, toolItems])
+    return tool ? t(tool.labelKey) : t('nav.report')
+  }, [activeId, toolItems, t])
 
   const handleSelect = (id) => {
     onSelect(id)
@@ -80,11 +84,12 @@ export function ReportNavSidebar({
         {REPORT_NAV_GROUPS.map((group) => (
           <NavGroup
             key={group.id}
-            label={group.label}
+            label={t(group.labelKey)}
             items={group.items}
             activeId={activeId}
             onSelect={handleSelect}
             defaultOpen={activeGroup === group.id || group.id === 'features'}
+            t={t}
           />
         ))}
       </div>
@@ -92,7 +97,7 @@ export function ReportNavSidebar({
       {toolItems.length > 0 && (
         <div className="pt-4 mt-4 border-t border-surface-border shrink-0">
           <p className="text-[10px] uppercase tracking-wider text-ink-muted font-semibold mb-2 px-2">
-            Tools
+            {t('nav.tools')}
           </p>
           <div className="space-y-0.5">
             {toolItems.map((item) => (
@@ -102,7 +107,7 @@ export function ReportNavSidebar({
                 onClick={() => handleSelect(item.id)}
                 className={`qoves-report-nav-item ${activeId === item.id ? 'qoves-report-nav-item--active' : ''}`}
               >
-                {item.label}
+                {t(item.labelKey)}
               </button>
             ))}
           </div>
@@ -134,7 +139,7 @@ export function ReportNavSidebar({
 
       <div className="hidden lg:flex flex-col h-full min-h-0">
         <p className="text-[10px] uppercase tracking-wider text-ink-muted font-semibold mb-4 px-2 shrink-0">
-          Report
+          {t('nav.report')}
         </p>
         {navBody}
       </div>

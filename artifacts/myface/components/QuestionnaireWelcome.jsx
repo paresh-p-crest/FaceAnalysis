@@ -1,12 +1,17 @@
-import { Fingerprint, Clock, Scan } from 'lucide-react'
+'use client'
 
-const STATS = [
-  { icon: Fingerprint, value: '468+', label: 'Facial landmarks' },
-  { icon: Clock, value: '5 min', label: 'Full assessment' },
-  { icon: Scan, value: '100%', label: 'Personalized' },
-]
+import { Fingerprint, Clock, Scan } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
+  const t = useTranslations('Questionnaire.welcome')
+
+  const STATS = [
+    { icon: Fingerprint, value: '468+', label: t('statsLandmarks') },
+    { icon: Clock, value: '5 min', label: t('statsDuration') },
+    { icon: Scan, value: '100%', label: t('statsPersonalized') },
+  ]
+
   return (
     <div className="min-h-screen flex bg-surface-card dark:bg-surface animate-fade-up">
       {/* Left Column: Welcome */}
@@ -18,22 +23,21 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
               onClick={onBackToDashboard}
               className="flex items-center gap-1 text-xs font-semibold text-ink-muted hover:text-ink transition-colors uppercase tracking-wider"
             >
-              ← Back to Dashboard
+              {t('backToDashboard')}
             </button>
           ) : (
             <span aria-hidden className="w-px h-px" />
           )}
-          {/* <span className="font-serif font-bold text-ink text-xl tracking-tight">MyFace</span> */}
         </div>
 
         {/* Content */}
         <div className="my-auto py-12 max-w-lg space-y-8">
           <div>
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-ink leading-tight tracking-tight">
-              Your personalized facial analysis starts here
+              {t('title')}
             </h1>
             <p className="text-ink-muted text-sm leading-relaxed mt-4">
-              Answer a few quick questions so we can tailor your report to your goals, skin concerns, and demographics. Then upload a photo for AI-powered analysis.
+              {t('description')}
             </p>
           </div>
 
@@ -51,12 +55,12 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
         {/* Start Button */}
         <div>
           <button onClick={onBegin} className="btn-primary w-full flex items-center px-6 py-4 text-sm">
-            <span className="flex-1 text-left">Get Started</span>
+            <span className="flex-1 text-left">{t('getStarted')}</span>
             <span className="text-white/40 mr-4">|</span>
             <span>→</span>
           </button>
           <p className="text-[11px] text-ink-muted text-center mt-3">
-            Takes about 5 minutes
+            {t('durationHint')}
           </p>
         </div>
       </div>
@@ -69,13 +73,13 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
 
         <div className="space-y-6 max-w-xl text-left relative z-10">
           <div className="inline-block px-3 py-1 rounded-full border border-white/20 text-white/80 text-[10px] uppercase tracking-wider bg-white/5 backdrop-blur-md">
-            Complete the questionnaire
+            {t('sidebarBadge')}
           </div>
-          <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight">
-            Onboarding<br />Questions
+          <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight whitespace-pre-line">
+            {t('sidebarTitle')}
           </h1>
           <p className="text-sm text-slate-300 leading-relaxed max-w-md">
-            Please answer the following questions to help us customize your MyFace journey.
+            {t('sidebarDescription')}
           </p>
         </div>
       </div>

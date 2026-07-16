@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 /** Shared Qoves-style UI used by Lips/Nose/Eyes — keep panels visually identical. */
@@ -63,6 +64,7 @@ export function RangeMeter({
 }
 
 export function DetailCarousel({ slides }) {
+  const t = useTranslations('Report')
   const [idx, setIdx] = useState(0)
   if (!slides.length) return null
 
@@ -80,7 +82,7 @@ export function DetailCarousel({ slides }) {
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
-              aria-label="Previous detail"
+              aria-label={t('common.previousDetail')}
               onClick={() => setIdx((i) => Math.max(0, i - 1))}
               disabled={idx === 0}
               className="p-1 rounded-lg border border-surface-border disabled:opacity-30 text-ink-muted hover:text-ink"
@@ -92,7 +94,7 @@ export function DetailCarousel({ slides }) {
                 <button
                   key={s.id}
                   type="button"
-                  aria-label={`Go to ${s.titleLead} ${s.titleAccent}`}
+                  aria-label={t('common.goToDetail', { lead: s.titleLead, accent: s.titleAccent })}
                   onClick={() => setIdx(i)}
                   className={`rounded-full transition-all ${
                     i === idx
@@ -104,7 +106,7 @@ export function DetailCarousel({ slides }) {
             </div>
             <button
               type="button"
-              aria-label="Next detail"
+              aria-label={t('common.nextDetail')}
               onClick={() => setIdx((i) => Math.min(slides.length - 1, i + 1))}
               disabled={idx >= slides.length - 1}
               className="p-1 rounded-lg border border-surface-border disabled:opacity-30 text-ink-muted hover:text-ink"

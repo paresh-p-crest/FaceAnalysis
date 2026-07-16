@@ -1,6 +1,9 @@
-import { useEffect, useRef } from 'react'
+'use client'
+
+import { useTranslations } from 'next-intl'
 
 export default function ScoreRing({ value, max = 100, size = 120, strokeWidth = 8, label, color }) {
+  const t = useTranslations('Shared.scoreRing')
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const pct = Math.min(100, Math.max(0, (value / max) * 100))
@@ -35,7 +38,7 @@ export default function ScoreRing({ value, max = 100, size = 120, strokeWidth = 
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={`text-2xl font-display font-bold ${colorClass}`}>{value}</span>
-          <span className="text-[10px] text-ink-muted">/ {max}</span>
+          <span className="text-[10px] text-ink-muted">{t('outOf', { max })}</span>
         </div>
       </div>
       {label && <span className="text-xs font-medium text-ink-secondary">{label}</span>}

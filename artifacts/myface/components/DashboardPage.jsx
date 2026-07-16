@@ -1,10 +1,12 @@
+'use client'
+
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { dedupeAssessments } from '../utils/assessmentDedupe'
 import {
   isReportApproved,
   normalizeReportStatus,
   formatReportStatusLabel,
-  clientAwaitingReviewMessage,
   userReportReady,
 } from '../utils/reportWorkflow'
 import {
@@ -36,8 +38,7 @@ const STATUS_STYLE = {
   created: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
 }
 
-function StatusBadge({ status, assessment }) {
-  // Assessments show a neutral, user-facing readiness (live status is admin-only).
+function StatusBadge({ status, assessment, readyLabel, inPreparationLabel }) {
   if (assessment) {
     const ready = userReportReady(assessment)
     return (
@@ -46,7 +47,7 @@ function StatusBadge({ status, assessment }) {
           ready ? STATUS_STYLE.approved : STATUS_STYLE.pending_review
         }`}
       >
-        {ready ? 'Ready' : 'In preparation'}
+        {ready ? readyLabel : inPreparationLabel}
       </span>
     )
   }
@@ -123,6 +124,19 @@ function MetricBar({ label, score, descriptor }) {
   )
 }
 
+function ReportActionButton({ ready, opening, t }) {
+  if (!ready) return t('inPreparation')
+  if (opening) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        {t('opening')}
+      </span>
+    )
+  }
+  return t('openReport')
+}
+
 export default function DashboardPage({
   user,
   onStartAssessment,
@@ -131,6 +145,7 @@ export default function DashboardPage({
   onViewCloudItem,
   openingReportId = null,
 }) {
+  const t = useTranslations('Dashboard')
   const [assessments, setAssessments] = useState([])
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(false)
@@ -150,7 +165,7 @@ export default function DashboardPage({
       setAssessments(dedupeAssessments(nextAssessments))
       setPayments(nextPayments)
     } catch (err) {
-      setError(err.message || 'Could not load dashboard')
+      setError(err.message || t('loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -210,16 +225,27 @@ export default function DashboardPage({
     }
   }, [approvedScoreSource])
 
+  const onboardingSteps = [
+    ['01', t('stepQuestionnaire'), t('stepQuestionnaireDesc')],
+    ['02', t('stepPhotoScan'), t('stepPhotoScanDesc')],
+    ['03', t('stepReport'), t('stepReportDesc')],
+  ]
+
+  const pipelineStats = [
+    [t('pendingReview'), reportStats.pending_review],
+    [t('dermatologistApproved'), reportStats.approved],
+  ]
+
   return (
     <div className="min-h-screen px-3 sm:px-4 md:px-6 pb-10 site-navbar-offset animate-fade-up font-sans bg-surface text-ink">
       <div className="max-w-[1440px] mx-auto">
         <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-7 md:mb-8">
           <div className="min-w-0">
             <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-ink leading-tight">
-              Your Dashboard
+              {t('title')}
             </h1>
             <p className="mt-1.5 text-base text-ink-muted leading-snug max-w-xl">
-              Review assessments, track scores, and open your latest facial analysis report.
+              {t('subtitle')}
             </p>
           </div>
           <div className="flex items-center gap-2.5 shrink-0">
@@ -234,10 +260,10 @@ export default function DashboardPage({
               ) : (
                 <RefreshCw className="w-3.5 h-3.5" />
               )}
-              Refresh
+              {t('refresh')}
             </button>
             <button type="button" onClick={onStartAssessment} className="btn-primary text-sm px-5 py-2.5 shadow-brand">
-              Start New Analysis
+              {t('startNewAnalysis')}
             </button>
           </div>
         </header>
@@ -250,30 +276,30 @@ export default function DashboardPage({
 
         {!isBackendApiEnabled() ? (
           <EmptyState
-            title="Backend API required"
-            text="Set NEXT_PUBLIC_API_URL to load cloud reports and payments."
+            title={t('backendRequiredTitle')}
+            text={t('backendRequiredText')}
           />
         ) : (
           <div className="space-y-6 md:space-y-7">
-            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 md:gap-4" aria-label="Account summary">
+            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 md:gap-4" aria-label={t('accountSummary')}>
               <KpiCard
                 icon={FileText}
-                label="Reports"
+                label={t('kpiReports')}
                 value={reportStats.total}
-                descriptor="Cloud assessments saved"
+                descriptor={t('kpiReportsDesc')}
               />
               <KpiCard
                 icon={BarChart3}
-                label="Latest Score"
+                label={t('kpiLatestScore')}
                 value={latestScore ?? '—'}
-                descriptor={latestScore != null ? 'Overall harmony / 100' : 'Available after approval'}
+                descriptor={latestScore != null ? t('kpiLatestScoreDesc') : t('kpiLatestScoreEmpty')}
                 emphasize
               />
               <KpiCard
                 icon={CreditCard}
-                label="Payments"
+                label={t('kpiPayments')}
                 value={paidCount}
-                descriptor="Completed payments"
+                descriptor={t('kpiPaymentsDesc')}
               />
             </section>
 
@@ -281,17 +307,16 @@ export default function DashboardPage({
               <div className="space-y-5 md:space-y-6 min-w-0">
                 <section className="rounded-3xl border border-surface-border bg-brand-100/50 dark:bg-brand-50 dark:border-brand/20 p-7 sm:p-9 shadow-soft">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-brand mb-3">
-                    Scientific Analysis
+                    {t('scientificAnalysis')}
                   </p>
 
                   {latestAssessment ? (
                     <>
                       <h2 className="font-display text-2xl sm:text-3xl font-semibold text-ink tracking-tight leading-tight max-w-lg">
-                        Attractiveness & Facial Harmony
+                        {t('attractivenessTitle')}
                       </h2>
                       <p className="mt-3 text-sm sm:text-[15px] text-ink-secondary leading-relaxed max-w-xl">
-                        Face scanned against 468+ landmarks. Scores reflect symmetry, golden-ratio
-                        proportions, and structural balance. Open the report for the full assessment.
+                        {t('attractivenessDesc')}
                       </p>
                       <div className="mt-6 flex flex-col sm:flex-row gap-2.5">
                         <button
@@ -301,14 +326,14 @@ export default function DashboardPage({
                           className="btn-primary text-sm px-5 py-2.5 disabled:opacity-60"
                         >
                           {!userReportReady(latestAssessment) ? (
-                            'In preparation'
+                            t('inPreparation')
                           ) : openingReportId === latestAssessment.id ? (
                             <span className="inline-flex items-center gap-1.5">
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              Opening…
+                              {t('opening')}
                             </span>
                           ) : (
-                            'Open Latest Report'
+                            t('openLatestReport')
                           )}
                         </button>
                         <button
@@ -316,25 +341,20 @@ export default function DashboardPage({
                           onClick={onStartAssessment}
                           className="btn-ghost text-sm px-5 py-2.5"
                         >
-                          Start New Analysis
+                          {t('startNewAnalysis')}
                         </button>
                       </div>
                     </>
                   ) : (
                     <>
                       <h2 className="font-display text-2xl sm:text-3xl font-semibold text-ink tracking-tight leading-tight max-w-lg">
-                        Begin Your Facial Assessment
+                        {t('beginAssessmentTitle')}
                       </h2>
                       <p className="mt-3 text-sm sm:text-[15px] text-ink-secondary leading-relaxed max-w-xl">
-                        Complete the questionnaire, upload calibrated photos, and receive a structured
-                        report on symmetry, proportions, and facial structure.
+                        {t('beginAssessmentDesc')}
                       </p>
                       <ol className="mt-5 grid sm:grid-cols-3 gap-3">
-                        {[
-                          ['01', 'Questionnaire', 'Clinical intake'],
-                          ['02', 'Photo Scan', '468+ landmarks'],
-                          ['03', 'Report', 'Harmony metrics'],
-                        ].map(([step, title, desc]) => (
+                        {onboardingSteps.map(([step, title, desc]) => (
                           <li
                             key={step}
                             className="rounded-2xl border border-surface-border/80 bg-surface-card/70 dark:bg-surface-card/40 px-3.5 py-3"
@@ -353,7 +373,7 @@ export default function DashboardPage({
                           onClick={onStartAssessment}
                           className="btn-primary text-sm px-5 py-2.5"
                         >
-                          Start New Analysis
+                          {t('startNewAnalysis')}
                         </button>
                       </div>
                     </>
@@ -363,9 +383,9 @@ export default function DashboardPage({
                 <section className="rounded-2xl border border-surface-border bg-surface-card shadow-soft overflow-hidden">
                   <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-surface-border">
                     <div>
-                      <h2 className="font-display text-lg font-semibold text-ink">Recent Assessments</h2>
+                      <h2 className="font-display text-lg font-semibold text-ink">{t('recentAssessments')}</h2>
                       <p className="text-xs text-ink-muted mt-0.5">
-                        Review status and open approved reports.
+                        {t('recentAssessmentsDesc')}
                       </p>
                     </div>
                     <button
@@ -374,20 +394,20 @@ export default function DashboardPage({
                       className="btn-ghost text-xs px-3.5 py-2 shrink-0"
                     >
                       <History className="w-3.5 h-3.5" />
-                      View History
+                      {t('viewHistory')}
                     </button>
                   </div>
 
                   {loading ? (
                     <div className="py-14 text-center">
                       <Loader2 className="w-6 h-6 text-brand animate-spin mx-auto mb-3" />
-                      <p className="text-sm text-ink-muted">Loading assessments…</p>
+                      <p className="text-sm text-ink-muted">{t('loadingAssessments')}</p>
                     </div>
                   ) : assessments.length === 0 ? (
                     <div className="p-5 sm:p-6">
                       <EmptyState
-                        title="No assessments yet"
-                        text="Run a backend-connected analysis to populate this table."
+                        title={t('noAssessmentsTitle')}
+                        text={t('noAssessmentsText')}
                       />
                     </div>
                   ) : (
@@ -397,19 +417,19 @@ export default function DashboardPage({
                           <thead>
                             <tr className="border-b border-surface-border bg-surface-warm/60 dark:bg-surface-raised/30">
                               <th className="px-6 py-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                                Assessment
+                                {t('tableAssessment')}
                               </th>
                               <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                                Date
+                                {t('tableDate')}
                               </th>
                               <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                                Score
+                                {t('tableScore')}
                               </th>
                               <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                                Status
+                                {t('tableStatus')}
                               </th>
                               <th className="px-6 py-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted text-right">
-                                Action
+                                {t('tableAction')}
                               </th>
                             </tr>
                           </thead>
@@ -447,7 +467,12 @@ export default function DashboardPage({
                                     </span>
                                   </td>
                                   <td className="px-4 py-3">
-                                    <StatusBadge status={assessment.status} assessment={assessment} />
+                                    <StatusBadge
+                                      status={assessment.status}
+                                      assessment={assessment}
+                                      readyLabel={t('ready')}
+                                      inPreparationLabel={t('inPreparation')}
+                                    />
                                   </td>
                                   <td className="px-6 py-3 text-right">
                                     <button
@@ -456,16 +481,11 @@ export default function DashboardPage({
                                       disabled={openingReportId === assessment.id || !ready}
                                       className="btn-ghost text-xs px-3.5 py-1.5 opacity-80 group-hover:opacity-100 disabled:opacity-60"
                                     >
-                                      {!ready ? (
-                                        'In preparation'
-                                      ) : openingReportId === assessment.id ? (
-                                        <span className="inline-flex items-center gap-1.5">
-                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                          Opening…
-                                        </span>
-                                      ) : (
-                                        'Open Report'
-                                      )}
+                                      <ReportActionButton
+                                        ready={ready}
+                                        opening={openingReportId === assessment.id}
+                                        t={t}
+                                      />
                                     </button>
                                   </td>
                                 </tr>
@@ -489,17 +509,22 @@ export default function DashboardPage({
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <p className="font-display text-sm font-semibold text-ink">
-                                    Assessment {assessment.id.slice(-6).toUpperCase()}
+                                    {t('assessmentLabel', { id: assessment.id.slice(-6).toUpperCase() })}
                                   </p>
                                   <p className="text-[11px] text-ink-muted mt-0.5">
                                     {formatHistoryDate(assessment.createdAt)}
                                   </p>
                                 </div>
-                                <StatusBadge status={assessment.status} assessment={assessment} />
+                                <StatusBadge
+                                  status={assessment.status}
+                                  assessment={assessment}
+                                  readyLabel={t('ready')}
+                                  inPreparationLabel={t('inPreparation')}
+                                />
                               </div>
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-sm text-ink-secondary">
-                                  Score{' '}
+                                  {t('scoreLabel')}{' '}
                                   <span className="font-display font-semibold text-ink tabular-nums">
                                     {score}
                                     {approved && score !== '—' ? '/100' : ''}
@@ -511,7 +536,11 @@ export default function DashboardPage({
                                   disabled={openingReportId === assessment.id || !ready}
                                   className="btn-ghost text-xs px-3.5 py-1.5 disabled:opacity-60"
                                 >
-                                  {!ready ? 'In preparation' : openingReportId === assessment.id ? 'Opening…' : 'Open Report'}
+                                  <ReportActionButton
+                                    ready={ready}
+                                    opening={openingReportId === assessment.id}
+                                    t={t}
+                                  />
                                 </button>
                               </div>
                             </div>
@@ -526,10 +555,10 @@ export default function DashboardPage({
               <aside className="space-y-5 md:space-y-6 min-w-0">
                 <section className="rounded-2xl border border-surface-border bg-surface-card shadow-soft p-5 sm:p-6">
                   <div className="flex items-center justify-between gap-2 mb-4">
-                    <h2 className="font-display text-lg font-semibold text-ink">Harmony & Proportions</h2>
+                    <h2 className="font-display text-lg font-semibold text-ink">{t('harmonyTitle')}</h2>
                     {extractedMetrics.locked && (
                       <span className="text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-                        Awaiting Review
+                        {t('awaitingReview')}
                       </span>
                     )}
                   </div>
@@ -537,10 +566,10 @@ export default function DashboardPage({
                   {extractedMetrics.locked ? (
                     <div className="rounded-2xl border border-amber-200/80 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/30 px-4 py-5 text-center">
                       <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">
-                        Scores hidden until approval
+                        {t('scoresHiddenTitle')}
                       </p>
                       <p className="text-xs text-amber-700/80 dark:text-amber-400/80 leading-relaxed">
-                        {clientAwaitingReviewMessage()}
+                        {t('awaitingReviewMessage')}
                       </p>
                     </div>
                   ) : (
@@ -552,33 +581,33 @@ export default function DashboardPage({
                           </span>
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-ink">Overall Facial Harmony</p>
+                          <p className="text-sm font-semibold text-ink">{t('overallHarmony')}</p>
                           <p className="text-[11px] text-ink-muted mt-0.5 leading-snug">
-                            Composite of symmetry, ratios, and structure
+                            {t('overallHarmonyDesc')}
                           </p>
                         </div>
                       </div>
 
                       <div className="space-y-4">
                         <MetricBar
-                          label="Facial Symmetry"
+                          label={t('metricSymmetry')}
                           score={extractedMetrics.symmetry}
-                          descriptor="Horizontal and vertical balance"
+                          descriptor={t('metricSymmetryDesc')}
                         />
                         <MetricBar
-                          label="Golden Ratio Harmony"
+                          label={t('metricGoldenRatio')}
                           score={extractedMetrics.proportions}
-                          descriptor="Geometric facial proportions"
+                          descriptor={t('metricGoldenRatioDesc')}
                         />
                         <MetricBar
-                          label="Skin Health & Structure"
+                          label={t('metricSkin')}
                           score={extractedMetrics.skin}
-                          descriptor="Tone, texture, and surface quality"
+                          descriptor={t('metricSkinDesc')}
                         />
                         <MetricBar
-                          label="Jawline & Proportions"
+                          label={t('metricJawline')}
                           score={extractedMetrics.structure}
-                          descriptor="Mandible and chin contours"
+                          descriptor={t('metricJawlineDesc')}
                         />
                       </div>
                     </>
@@ -586,12 +615,9 @@ export default function DashboardPage({
                 </section>
 
                 <section className="rounded-2xl border border-surface-border bg-surface-card shadow-soft p-5">
-                  <h2 className="font-display text-base font-semibold text-ink mb-3">Review Pipeline</h2>
+                  <h2 className="font-display text-base font-semibold text-ink mb-3">{t('reviewPipeline')}</h2>
                   <div className="grid grid-cols-2 gap-3">
-                    {[
-                      ['Pending Review', reportStats.pending_review],
-                      ['Dermatologist Approved', reportStats.approved],
-                    ].map(([label, value]) => (
+                    {pipelineStats.map(([label, value]) => (
                       <div
                         key={label}
                         className="rounded-xl border border-surface-border bg-surface-warm/50 dark:bg-surface-raised/20 px-3.5 py-3"
@@ -608,17 +634,17 @@ export default function DashboardPage({
                 <section className="rounded-2xl border border-surface-border bg-surface-card shadow-soft p-5">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
-                      <h2 className="font-display text-base font-semibold text-ink">Payments</h2>
-                      <p className="text-xs text-ink-muted mt-0.5">Latest billing activity</p>
+                      <h2 className="font-display text-base font-semibold text-ink">{t('payments')}</h2>
+                      <p className="text-xs text-ink-muted mt-0.5">{t('paymentsDesc')}</p>
                     </div>
                     <button type="button" onClick={onBilling} className="btn-ghost text-xs px-3 py-1.5">
                       <Wallet className="w-3.5 h-3.5" />
-                      Billing
+                      {t('billing')}
                     </button>
                   </div>
 
                   {!latestPayment ? (
-                    <EmptyState title="No payments yet" text="Payment captures will appear here." />
+                    <EmptyState title={t('noPaymentsTitle')} text={t('noPaymentsText')} />
                   ) : (
                     <div className="rounded-xl border border-surface-border bg-surface-warm/40 dark:bg-surface-raised/20 px-3.5 py-3 flex items-center justify-between gap-3">
                       <div className="min-w-0">

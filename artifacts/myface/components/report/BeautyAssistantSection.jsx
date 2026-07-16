@@ -1,12 +1,15 @@
+'use client'
+
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import ReactMarkdown from 'react-markdown'
 import { Bot, Loader2, Send, ShieldCheck, User } from 'lucide-react'
 
-const SUGGESTIONS = [
-  'What are my top improvement priorities?',
-  'What should I focus on for skin quality?',
-  'Which hairstyle direction fits my face shape?',
-  'How should I track progress over 30 days?',
+const SUGGESTION_KEYS = [
+  'suggestions.priorities',
+  'suggestions.skin',
+  'suggestions.hairstyle',
+  'suggestions.progress',
 ]
 
 function AssistantMarkdown({ content }) {
@@ -72,6 +75,7 @@ function TypingBubble() {
 }
 
 export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, onSend }) {
+  const t = useTranslations('Assistant')
   const [conversation, setConversation] = useState(null)
   const [pendingUserMessage, setPendingUserMessage] = useState(null)
   const [message, setMessage] = useState('')
@@ -90,7 +94,7 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
       setConversation(await onLoad())
       setPendingUserMessage(null)
     } catch (err) {
-      setError(err.message || 'Could not load assistant')
+      setError(err.message || t('loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -131,7 +135,7 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
       setConversation(updated)
       setPendingUserMessage(null)
     } catch (err) {
-      setError(err.message || 'Assistant unavailable')
+      setError(err.message || t('unavailable'))
       setPendingUserMessage(null)
       setMessage(trimmed)
     } finally {
@@ -147,17 +151,17 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Bot className="w-5 h-5 text-brand" />
-          <h3 className="font-display text-lg font-semibold text-ink">Beauty Assistant</h3>
+          <h3 className="font-display text-lg font-semibold text-ink">{t('title')}</h3>
         </div>
         <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md border bg-brand-50 text-brand border-brand/20 font-semibold">
           <ShieldCheck className="w-3 h-3" />
-          Grounded with your data
+          {t('groundedBadge')}
         </span>
       </div>
 
       {!canUseAssistant && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          Beauty Assistant needs a backend-saved assessment to load.
+          {t('needsBackend')}
         </div>
       )}
 
@@ -176,25 +180,25 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full gap-3">
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
-              <p className="text-sm text-ink-muted">Loading assistant...</p>
+              <p className="text-sm text-ink-muted">{t('loading')}</p>
             </div>
           ) : showEmpty ? (
             <div className="py-6">
               <div className="text-center mb-6">
                 <Bot className="w-10 h-10 text-brand mx-auto mb-3" />
-                <p className="font-display text-ink mb-1">Ask your first question</p>
-                <p className="text-sm text-ink-muted">Start with one of these report-grounded prompts.</p>
+                <p className="font-display text-ink mb-1">{t('emptyTitle')}</p>
+                <p className="text-sm text-ink-muted">{t('emptySubtitle')}</p>
               </div>
               <div className="grid sm:grid-cols-2 gap-2">
-                {SUGGESTIONS.map((item) => (
+                {SUGGESTION_KEYS.map((key) => (
                   <button
-                    key={item}
+                    key={key}
                     type="button"
-                    onClick={() => submit(item)}
+                    onClick={() => submit(t(key))}
                     disabled={!canUseAssistant || sending}
                     className="text-left rounded-xl border border-surface-border bg-white dark:bg-surface-card px-3 py-2 text-xs text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50 disabled:pointer-events-none"
                   >
-                    {item}
+                    {t(key)}
                   </button>
                 ))}
               </div>
@@ -225,9 +229,9 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             disabled={!canUseAssistant}
-            placeholder={sending ? 'Type your next question…' : 'Ask about your report...'}
+            placeholder={sending ? t('placeholderSending') : t('placeholder')}
             className="input-field flex-1"
-            aria-label="Message Beauty Assistant"
+            aria-label={t('inputAria')}
           />
           <button
             type="submit"
@@ -237,12 +241,12 @@ export function BeautyAssistantSection({ assessmentId, canUseAssistant, onLoad, 
             {sending ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Sending
+                {t('sending')}
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                Send
+                {t('send')}
               </>
             )}
           </button>

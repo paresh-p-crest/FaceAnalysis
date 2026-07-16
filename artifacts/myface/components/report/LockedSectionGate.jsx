@@ -1,7 +1,11 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { Lock } from 'lucide-react'
-import { clientAwaitingReviewMessage } from '../../utils/reportWorkflow'
 
 export function LockedSectionGate({ locked, children }) {
+  const t = useTranslations('Report')
+
   if (!locked) return children
 
   return (
@@ -10,9 +14,9 @@ export function LockedSectionGate({ locked, children }) {
         <Lock className="w-7 h-7 text-amber-500" />
       </div>
       <div>
-        <p className="font-display text-lg font-semibold text-ink mb-2">Section locked</p>
+        <p className="font-display text-lg font-semibold text-ink mb-2">{t('locked.title')}</p>
         <p className="text-sm text-ink-muted max-w-md leading-relaxed font-sans">
-          {clientAwaitingReviewMessage()}
+          {t('locked.awaitingReview')}
         </p>
       </div>
     </div>

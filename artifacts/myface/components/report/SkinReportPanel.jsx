@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { safeDisplay } from '../../utils/safeFormat'
 import { FeatureAnalysisPage } from './FeatureAnalysisPage'
 import { FeatureProseBlock } from './FeatureProseBlock'
@@ -54,7 +57,7 @@ function RednessBar({ value, max = 25 }) {
   )
 }
 
-function RegionalBar({ regions }) {
+function RegionalBar({ regions, brightnessLabel, rednessLabel }) {
   if (!regions?.length) return null
   const maxBright = Math.max(...regions.map(r => r.brightness), 1)
   return (
@@ -92,8 +95,8 @@ function RegionalBar({ regions }) {
         )
       })}
       <div className="flex gap-1 text-[9px] text-ink-faint">
-        <span className="flex-1">← Brightness</span>
-        <span className="w-12 text-right">Redness →</span>
+        <span className="flex-1">{brightnessLabel}</span>
+        <span className="w-12 text-right">{rednessLabel}</span>
       </div>
     </div>
   )
@@ -116,35 +119,41 @@ function SymmetryBar({ left, right, leftLabel, rightLabel }) {
 }
 
 export function SkinReportPanel({ skin, narrative = null, featureParsing = null }) {
+  const t = useTranslations('Report')
   if (!skin) return null
 
   const s = skin
   const regions = s.regions || []
-
-  // Find L/R cheek from regions for the symmetry bar
   const lCheek = regions.find(r => r.name === 'Left cheek')?.brightness || 120
   const rCheek = regions.find(r => r.name === 'Right cheek')?.brightness || 120
 
-  // Skin tone color dot
   const toneColors = {
     'Fair': '#fde8cd', 'Light': '#f5d0a9', 'Medium': '#d4a574',
     'Olive': '#b8864e', 'Tan': '#8b6338', 'Deep': '#5a3620',
   }
 
+  const cheekDiff = Math.abs(lCheek - rCheek).toFixed(0)
+  const cheekSymmetryNote =
+    s.tone === 'Even'
+      ? t('skin.cheeksBalanced')
+      : s.tone === 'Slightly uneven'
+        ? t('skin.cheeksMinor', { diff: cheekDiff })
+        : t('skin.cheeksTreatment', { diff: cheekDiff })
+
   return (
     <FeatureAnalysisPage
-      featureName="skin"
-      subtitle="Canvas pixel analysis from 6 facial regions"
+      featureName={t('nav.skin').toLowerCase()}
+      subtitle={t('skin.subtitle')}
       heroImage={resolveFeatureHero('skin', s, featureParsing) || s.imageSrc}
       summaryCards={[
-        { label: 'Skin Tone', value: s.skinTone },
-        { label: 'Texture', value: s.texture },
-        { label: 'Overall Score', value: `${s.score}/100` },
-        ...(s.hydration ? [{ label: 'Hydration', value: s.hydration }] : []),
+        { label: t('skin.skinTone'), value: s.skinTone },
+        { label: t('skin.texture'), value: s.texture },
+        { label: t('common.overallScore'), value: `${s.score}/100` },
+        ...(s.hydration ? [{ label: t('skin.hydration'), value: s.hydration }] : []),
       ]}
       details={[{
-        title: 'Skin Quality Overview',
-        metricLabel: 'Overall Score',
+        title: t('skin.overviewTitle'),
+        metricLabel: t('common.overallScore'),
         metricValue: `${s.score}/100`,
         markerPct: s.score,
         rangeMin: 50,
@@ -152,27 +161,25 @@ export function SkinReportPanel({ skin, narrative = null, featureParsing = null 
       }]}
     >
     <div className="space-y-6">
-      {/* ── Section 1: Skin Tone & Type ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Skin Tone & Type</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">{t('skin.toneAndType')}</p>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full border-2 border-surface-border shadow-sm" style={{ backgroundColor: toneColors[s.skinTone] || '#d4a574' }} />
           <div>
-            <p className="text-base font-medium text-ink">{s.skinTone} skin tone</p>
-            <p className="text-[11px] text-ink-muted">Average brightness: {s.brightness} · {s.texture}</p>
+            <p className="text-base font-medium text-ink">{t('skin.skinToneLabel', { tone: s.skinTone })}</p>
+            <p className="text-[11px] text-ink-muted">{t('skin.avgBrightness', { brightness: s.brightness, texture: s.texture })}</p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <MetricCard label="Tone Uniformity" value={s.tone} tooltip="Left-right cheek brightness balance. Even tone indicates uniform melanin distribution and healthy skin." />
-          <MetricCard label="Texture" value={s.texture} tooltip="Brightness-based hydration estimate. Well-hydrated skin reflects light more evenly, appearing luminous." />
-          <MetricCard label="Clarity" value={s.clarity} tooltip="Combination of redness, tone uniformity, and pigmentation. Good clarity means clear, even-toned skin." />
-          <MetricCard label="Pigmentation" value={s.pigmentation} tooltip="Regional brightness variance across face. Even pigmentation indicates uniform melanin, while variation may suggest sun damage." />
+          <MetricCard label={t('skin.toneUniformity')} value={s.tone} tooltip={t('skin.toneUniformityTooltip')} />
+          <MetricCard label={t('skin.texture')} value={s.texture} tooltip={t('skin.textureTooltip')} />
+          <MetricCard label={t('skin.clarity')} value={s.clarity} tooltip={t('skin.clarityTooltip')} />
+          <MetricCard label={t('skin.pigmentation')} value={s.pigmentation} tooltip={t('skin.pigmentationTooltip')} />
         </div>
       </div>
 
-      {/* ── Section 2: Redness & Sensitivity ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Redness & Sensitivity</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">{t('skin.rednessSensitivity')}</p>
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-ink">{s.redness}</p>
@@ -181,22 +188,21 @@ export function SkinReportPanel({ skin, narrative = null, featureParsing = null 
                 ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
                 : 'text-amber-700 bg-amber-50 border-amber-200'
             }`}>
-              {s.redness === 'Normal' ? 'Healthy' : 'Review'}
+              {s.redness === 'Normal' ? t('common.healthy') : t('common.review')}
             </span>
           </div>
-          <p className="text-[11px] text-ink-muted mb-2">Average redness index across 4 primary zones</p>
+          <p className="text-[11px] text-ink-muted mb-2">{t('skin.avgRednessIndex')}</p>
           <RednessBar value={parseFloat(s.regionalVariance || '0')} max={50} />
         </div>
         <p className="text-xs text-ink-secondary leading-relaxed">
           {s.redness === 'Normal'
-            ? 'No abnormal redness detected across facial regions. Skin appears calm with healthy circulation.'
-            : `${s.redness} detected. Consider anti-inflammatory ingredients like niacinamide, centella asiatica, or azelaic acid to reduce sensitivity.`}
+            ? t('skin.rednessNormal')
+            : t('skin.rednessReview', { level: s.redness })}
         </p>
       </div>
 
-      {/* ── Section 3: Under-Eye Area ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Under-Eye Area</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">{t('skin.underEye')}</p>
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-medium text-ink">{s.underEyeHealth}</p>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
@@ -210,25 +216,24 @@ export function SkinReportPanel({ skin, narrative = null, featureParsing = null 
           </span>
         </div>
         <div className="mb-3">
-          <p className="text-[11px] text-ink-muted mb-2">Under-eye brightness level</p>
+          <p className="text-[11px] text-ink-muted mb-2">{t('skin.underEyeBrightness')}</p>
           <BrightnessBar value={parseInt(s.underEyeBrightness || '120')} max={200} />
           <div className="flex justify-between text-[10px] text-ink-faint font-sans mt-1">
-            <span>Dark</span>
-            <span>Bright</span>
+            <span>{t('common.dark')}</span>
+            <span>{t('common.bright')}</span>
           </div>
         </div>
         <p className="text-xs text-ink-secondary leading-relaxed">
           {s.underEyeHealth === 'Dark circles present'
-            ? 'Darker under-eye pigmentation detected. Could be caused by thin skin, poor sleep, dehydration, or genetic factors. Retinol eye creams and cold compresses may help.'
+            ? t('skin.underEyeDark')
             : s.underEyeHealth === 'Shadowed'
-            ? 'Mild shadowing under the eyes. Adequate sleep, hydration, and vitamin C serums can help brighten the periorbital area.'
-            : `Under-eye area appears ${s.underEyeHealth.toLowerCase()}, indicating good skin thickness and circulation.`}
+            ? t('skin.underEyeShadowed')
+            : t('skin.underEyeHealthy', { health: s.underEyeHealth.toLowerCase() })}
         </p>
       </div>
 
-      {/* ── Section 4: T-Zone & Pore Analysis ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">T-Zone & Pore Analysis</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">{t('skin.tZone')}</p>
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-medium text-ink">{s.poreEstimate}</p>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
@@ -236,38 +241,37 @@ export function SkinReportPanel({ skin, narrative = null, featureParsing = null 
               ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
               : 'text-amber-700 bg-amber-50 border-amber-200'
           }`}>
-            {s.poreEstimate === 'Balanced T-zone' ? 'Balanced' : 'Attention'}
+            {s.poreEstimate === 'Balanced T-zone' ? t('common.balanced') : t('common.attention')}
           </span>
         </div>
         <p className="text-xs text-ink-secondary leading-relaxed">
           {s.poreEstimate === 'Oily T-zone'
-            ? 'The nose bridge shows higher brightness than the forehead, suggesting excess sebum production in the T-zone. Clay masks, salicylic acid, and oil-free moisturizers can help manage oiliness.'
+            ? t('skin.tZoneOily')
             : s.poreEstimate === 'Dry T-zone'
-            ? 'The T-zone shows lower brightness than surrounding areas, suggesting dryness. Consider hydrating serums with hyaluronic acid and a richer moisturizer in this area.'
-            : 'T-zone brightness is balanced with the forehead, indicating well-regulated sebum production across the central face.'}
+            ? t('skin.tZoneDry')
+            : t('skin.tZoneBalanced')}
         </p>
       </div>
 
-      {/* ── Section 5: Regional Analysis ── */}
       {regions.length > 0 && (
         <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Regional Brightness Map</p>
-          <RegionalBar regions={regions} />
+          <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">{t('skin.regionalMap')}</p>
+          <RegionalBar
+            regions={regions}
+            brightnessLabel={t('skin.brightness')}
+            rednessLabel={t('skin.redness')}
+          />
 
-          {/* Left-right symmetry */}
           <div className="mt-4">
-            <p className="text-[11px] text-ink-muted mb-2">Cheek brightness symmetry</p>
-            <SymmetryBar left={lCheek} right={rCheek} leftLabel="L cheek" rightLabel="R cheek" />
-            <p className="text-[10px] text-ink-faint mt-1.5">
-              {s.tone === 'Even' ? 'Cheeks are well-balanced — uniform tone across both sides.' : `Tone difference of ~${Math.abs(lCheek - rCheek).toFixed(0)} brightness units. ${s.tone === 'Slightly uneven' ? 'Minor variation that is typically imperceptible.' : 'Consider even-toning treatments for the darker side.'}`}
-            </p>
+            <p className="text-[11px] text-ink-muted mb-2">{t('skin.cheekSymmetry')}</p>
+            <SymmetryBar left={lCheek} right={rCheek} leftLabel={t('skin.leftCheek')} rightLabel={t('skin.rightCheek')} />
+            <p className="text-[10px] text-ink-faint mt-1.5">{cheekSymmetryNote}</p>
           </div>
         </div>
       )}
 
-      {/* ── Overall Score ── */}
       <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-        <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">Overall Skin Score</p>
+        <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">{t('skin.overallSkinScore')}</p>
         <div className="flex items-end gap-3 mb-4">
           <span className="text-4xl font-display font-bold text-brand">{s.score}</span>
           <span className="text-sm text-ink-muted mb-1">/ 100</span>
@@ -281,8 +285,8 @@ export function SkinReportPanel({ skin, narrative = null, featureParsing = null 
           />
         </div>
         <div className="flex justify-between text-[10px] text-ink-faint font-sans mb-4">
-          <span>Needs care</span>
-          <span>Clear</span>
+          <span>{t('common.needsCare')}</span>
+          <span>{t('common.clear')}</span>
         </div>
       </div>
 

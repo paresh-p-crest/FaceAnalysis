@@ -1,8 +1,12 @@
+'use client'
+
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { CheckCircle2, Loader2, Lock, UserPlus, X } from 'lucide-react'
 import { login, register } from '../utils/authClient'
 
 export default function AuthModal({ open, onClose, onAuthenticated, required = false }) {
+  const t = useTranslations('Auth')
   const [mode, setMode] = useState('login')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -26,7 +30,7 @@ export default function AuthModal({ open, onClose, onAuthenticated, required = f
       onAuthenticated(user)
       if (!required) onClose()
     } catch (err) {
-      setError(err.message || 'Authentication failed')
+      setError(err.message || t('authFailed'))
     } finally {
       setBusy(false)
     }
@@ -55,10 +59,10 @@ export default function AuthModal({ open, onClose, onAuthenticated, required = f
             </div>
             <div>
               <h2 className="font-display text-lg font-semibold text-ink">
-                {isRegister ? 'Create account' : 'Sign in'}
+                {isRegister ? t('createAccount') : t('signIn')}
               </h2>
               <p className="text-xs text-ink-muted mt-1">
-                {isRegister ? 'Default role: user' : 'Continue with your MyFace account'}
+                {isRegister ? t('defaultRoleUser') : t('continueWithAccount')}
               </p>
             </div>
           </div>
@@ -71,8 +75,8 @@ export default function AuthModal({ open, onClose, onAuthenticated, required = f
 
         <div className="flex gap-1 p-1 rounded-xl bg-surface-warm dark:bg-surface-raised border border-surface-border mb-5">
           {[
-            ['login', 'Sign in'],
-            ['register', 'Sign up'],
+            ['login', t('signIn')],
+            ['register', t('signUp')],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -95,7 +99,7 @@ export default function AuthModal({ open, onClose, onAuthenticated, required = f
               <input
                 type="text"
                 autoComplete="given-name"
-                placeholder="First name"
+                placeholder={t('firstName')}
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 className="input-field"
@@ -104,7 +108,7 @@ export default function AuthModal({ open, onClose, onAuthenticated, required = f
               <input
                 type="text"
                 autoComplete="family-name"
-                placeholder="Last name"
+                placeholder={t('lastName')}
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 className="input-field"
@@ -115,7 +119,7 @@ export default function AuthModal({ open, onClose, onAuthenticated, required = f
           <input
             type="email"
             autoComplete="email"
-            placeholder="Email"
+            placeholder={t('email')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="input-field"
@@ -124,7 +128,7 @@ export default function AuthModal({ open, onClose, onAuthenticated, required = f
           <input
             type="password"
             autoComplete={isRegister ? 'new-password' : 'current-password'}
-            placeholder="Password"
+            placeholder={t('password')}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="input-field"
@@ -140,12 +144,12 @@ export default function AuthModal({ open, onClose, onAuthenticated, required = f
         )}
 
         <div className="flex gap-3 mt-6">
-          <button type="button" onClick={onClose} className="btn-ghost flex-1 text-sm">Cancel</button>
+          <button type="button" onClick={onClose} className="btn-ghost flex-1 text-sm">{t('cancel')}</button>
           <button type="submit" disabled={busy} className="btn-primary flex-1 text-sm">
             {busy ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Working</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> {t('working')}</>
             ) : (
-              <><CheckCircle2 className="w-4 h-4" /> {isRegister ? 'Sign up' : 'Sign in'}</>
+              <><CheckCircle2 className="w-4 h-4" /> {isRegister ? t('signUp') : t('signIn')}</>
             )}
           </button>
         </div>

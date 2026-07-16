@@ -1,8 +1,8 @@
 'use client'
 
-import BillingPage from '../../components/BillingPage'
-import PaymentSuccessPage from '../../components/PaymentSuccessPage'
-import { useApp } from '../../components/providers/AppProvider'
+import BillingPage from '../../../components/BillingPage'
+import PaymentSuccessPage from '../../../components/PaymentSuccessPage'
+import { useApp } from '../../../components/providers/AppProvider'
 
 export default function BillingRoutePage() {
   const {

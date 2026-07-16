@@ -1,6 +1,7 @@
 'use client'
 
-import Link from 'next/link'
+import { useTranslations } from 'next-intl'
+import { Link } from '../i18n/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronDown,
@@ -15,6 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import { dashboardPathForUser, isAdminTabPath, logoPathForUser, ROUTES } from '../utils/routes'
+import { LocaleSwitcher } from './LocaleSwitcher'
 
 function NavLink({ icon: Icon, label, href, onClick, active, className = '' }) {
   const classNames = `site-navbar-link ${active ? 'site-navbar-link-active' : ''} ${className}`
@@ -56,12 +58,12 @@ function MobileNavLink({ icon: Icon, label, href, onClick, active }) {
   )
 }
 
-function displayName(user) {
+function displayName(user, accountFallback) {
   if (!user) return ''
   if (user.name && String(user.name).trim()) return String(user.name).trim()
   const email = String(user.email || '')
   const local = email.split('@')[0]
-  return local || email || 'Account'
+  return local || email || accountFallback
 }
 
 export function SiteNavbar({
@@ -76,11 +78,12 @@ export function SiteNavbar({
   onLogo,
   user,
 }) {
+  const t = useTranslations('Nav')
   const [menuOpen, setMenuOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef(null)
   const isAdmin = user?.role === 'admin'
-  const username = displayName(user)
+  const username = displayName(user, t('account'))
 
   const closeMenu = useCallback(() => setMenuOpen(false), [])
   const closeAccount = useCallback(() => setAccountOpen(false), [])
@@ -129,7 +132,7 @@ export function SiteNavbar({
     if (user) {
       items.push({
         key: 'dashboard',
-        label: user.role === 'admin' ? 'Admin Panel' : 'Dashboard',
+        label: user.role === 'admin' ? t('adminPanel') : t('dashboard'),
         icon: user.role === 'admin' ? Shield : LayoutDashboard,
         href: dashboardPathForUser(user),
         onClick: onDashboard,
@@ -139,7 +142,7 @@ export function SiteNavbar({
     if (user) {
       items.push({
         key: 'history',
-        label: 'Analysis History',
+        label: t('analysisHistory'),
         icon: History,
         href: ROUTES.history,
         onClick: onHistory,
@@ -149,7 +152,7 @@ export function SiteNavbar({
     if (user && !isAdmin) {
       items.push({
         key: 'billing',
-        label: 'Billing',
+        label: t('billing'),
         icon: CreditCard,
         href: ROUTES.billing,
         onClick: onBilling,
@@ -157,10 +160,10 @@ export function SiteNavbar({
       })
     }
     if (user && isAdmin) {
-      items.push({ key: 'settings', label: 'API Settings', icon: Settings, onClick: onSettings, active: false })
+      items.push({ key: 'settings', label: t('apiSettings'), icon: Settings, onClick: onSettings, active: false })
     }
     return items
-  }, [user, isAdmin, pathname, onDashboard, onHistory, onBilling, onSettings])
+  }, [user, isAdmin, pathname, onDashboard, onHistory, onBilling, onSettings, t])
 
   const logoHref = logoPathForUser(user)
 
@@ -191,7 +194,7 @@ export function SiteNavbar({
             className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-ink-secondary hover:bg-surface-warm hover:text-brand transition-colors text-left"
           >
             <LogOut className="w-3.5 h-3.5" aria-hidden />
-            Sign out
+            {t('signOut')}
           </button>
         </div>
       )}
@@ -199,7 +202,7 @@ export function SiteNavbar({
   ) : (
     <button type="button" onClick={onAuth} className="site-navbar-btn">
       <User className="w-3.5 h-3.5" aria-hidden />
-      <span>Sign in</span>
+      <span>{t('signIn')}</span>
     </button>
   )
 
@@ -214,7 +217,7 @@ export function SiteNavbar({
           MyFace
         </Link>
 
-        <nav className="hidden md:flex items-center gap-0.5 lg:gap-1 flex-1 justify-center min-w-0" aria-label="Main">
+        <nav className="hidden md:flex items-center gap-0.5 lg:gap-1 flex-1 justify-center min-w-0" aria-label={t('mainNav')}>
           {authReady && user && navItems.map((item) => (
             <NavLink
               key={item.key}
@@ -228,10 +231,12 @@ export function SiteNavbar({
         </nav>
 
         <div className="hidden md:flex items-center gap-1.5 shrink-0">
+          <LocaleSwitcher />
           {accountControl}
         </div>
 
         <div className="flex md:hidden items-center gap-1.5 shrink-0">
+          <LocaleSwitcher compact />
           {!authReady ? (
             <div className="site-navbar-icon-btn min-h-[36px] min-w-[36px] opacity-0 pointer-events-none" aria-hidden />
           ) : user ? (
@@ -241,14 +246,14 @@ export function SiteNavbar({
               onClick={toggleMenu}
               aria-expanded={menuOpen}
               aria-controls="site-navbar-mobile-menu"
-              aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-label={menuOpen ? t('closeMenu') : t('openMenu')}
             >
               {menuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
           ) : (
             <button type="button" onClick={onAuth} className="site-navbar-btn min-h-[36px]">
               <User className="w-3.5 h-3.5" aria-hidden />
-              Sign in
+              {t('signIn')}
             </button>
           )}
         </div>
@@ -269,7 +274,7 @@ export function SiteNavbar({
             </div>
           )}
 
-          <nav className="py-1" aria-label="Mobile">
+          <nav className="py-1" aria-label={t('mobileNav')}>
             {navItems.map((item) => (
               <MobileNavLink
                 key={item.key}
@@ -282,16 +287,19 @@ export function SiteNavbar({
             ))}
           </nav>
 
-          <div className="border-t border-surface-border p-2">
+          <div className="border-t border-surface-border p-2 space-y-1">
+            <div className="px-2 pb-1">
+              <LocaleSwitcher className="w-full [&>button]:w-full [&>button]:justify-between" />
+            </div>
             {user ? (
               <button type="button" onClick={runAndClose(onLogout)} className="site-navbar-mobile-action w-full">
                 <LogOut className="w-4 h-4" />
-                Sign out
+                {t('signOut')}
               </button>
             ) : (
               <button type="button" onClick={runAndClose(onAuth)} className="site-navbar-mobile-action w-full">
                 <User className="w-4 h-4" />
-                Sign in
+                {t('signIn')}
               </button>
             )}
           </div>

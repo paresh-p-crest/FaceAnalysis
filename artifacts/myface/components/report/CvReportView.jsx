@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { EyeReportPanel } from '../EyeReportPanel'
 import { SymmetryOverlay, FaceShapeOverlay } from './FaceImageFrame'
 import { FeatureRegionHero } from './FeatureRegionHero'
@@ -60,6 +63,8 @@ export function CvReportView({
   pdfLoading,
   canDownloadPdf,
 }) {
+  const t = useTranslations('Report')
+
   const narrativeFor = (featureId) =>
     resolveFeatureNarrative(featureNarratives, protocolNarrative, featureId)
 
@@ -87,14 +92,14 @@ export function CvReportView({
   if (activeId === 'faceShape' && cvReport?.faceShape) {
     const fs = cvReport.faceShape
     const primaryMetrics = [
-      fs.midfaceWidth != null && { label: 'Midface Width', value: fs.midfaceWidth },
-      fs.foreheadWidth != null && { label: 'Forehead Width', value: fs.foreheadWidth },
-      fs.lowerThirdWidth != null && { label: 'Lower Third Width', value: fs.lowerThirdWidth },
-      fs.facialLength != null && { label: 'Facial Length', value: fs.facialLength },
+      fs.midfaceWidth != null && { label: t('faceShape.midfaceWidth'), value: fs.midfaceWidth },
+      fs.foreheadWidth != null && { label: t('faceShape.foreheadWidth'), value: fs.foreheadWidth },
+      fs.lowerThirdWidth != null && { label: t('faceShape.lowerThirdWidth'), value: fs.lowerThirdWidth },
+      fs.facialLength != null && { label: t('faceShape.facialLength'), value: fs.facialLength },
     ].filter(Boolean)
     const extraMetrics = [
-      fs.lengthToMidfaceRatio != null && { label: 'Length / Midface', value: fs.lengthToMidfaceRatio },
-      fs.widthHeightRatio != null && { label: 'W / H Ratio', value: fs.widthHeightRatio },
+      fs.lengthToMidfaceRatio != null && { label: t('faceShape.lengthMidface'), value: fs.lengthToMidfaceRatio },
+      fs.widthHeightRatio != null && { label: t('faceShape.widthHeightRatio'), value: fs.widthHeightRatio },
     ].filter(Boolean)
 
     // Prefer front photo + SVG overlay (image-%); fall back to baked imageSrc alone
@@ -102,9 +107,9 @@ export function CvReportView({
     return (
       <div className="space-y-6">
         <ReportSectionHeading
-          title="An overview of your"
-          accent="face shape"
-          subtitle="We've assessed your face shape as a whole, considering natural variations and facial angles."
+          title={t('faceShape.title')}
+          accent={t('faceShape.accent')}
+          subtitle={t('faceShape.subtitle')}
         />
         <AssessmentGridLayout
           photo={photo || fs.imageSrc}
@@ -114,7 +119,7 @@ export function CvReportView({
             <>
               {fs.shape != null && (
                 <div className="qoves-report-metric-card text-center py-5">
-                  <p className="qoves-report-mono-label mb-3">Shape</p>
+                  <p className="qoves-report-mono-label mb-3">{t('common.shape')}</p>
                   <p className="text-3xl font-display font-bold text-ink">{fs.shape}</p>
                 </div>
               )}
@@ -127,7 +132,7 @@ export function CvReportView({
               )}
               {fs.explanation && (
                 <div className="qoves-report-metric-card">
-                  <p className="qoves-report-mono-label mb-2">Explanation</p>
+                  <p className="qoves-report-mono-label mb-2">{t('common.explanation')}</p>
                   <p className="text-sm text-ink-secondary leading-relaxed font-sans">{fs.explanation}</p>
                 </div>
               )}
@@ -145,9 +150,9 @@ export function CvReportView({
     return (
       <div className="space-y-6">
         <ReportSectionHeading
-          title="An overview of your"
-          accent="symmetry"
-          subtitle="We've assessed your facial symmetry as a whole, taking into account natural deviations and facial pose."
+          title={t('symmetry.title')}
+          accent={t('symmetry.accent')}
+          subtitle={t('symmetry.subtitle')}
         />
         <AssessmentGridLayout
           photo={s.imageSrc}
@@ -159,10 +164,10 @@ export function CvReportView({
           photoFit="contain"
           rightCards={
             <>
-              <ReportMetricCard label="Symmetry Score" value={`${s.score}/100`} />
-              <ReportMetricCard label="Classification" value={s.scoreLabel} />
+              <ReportMetricCard label={t('symmetry.symmetryScore')} value={`${s.score}/100`} />
+              <ReportMetricCard label={t('symmetry.classification')} value={s.scoreLabel} />
               <div className="qoves-report-metric-card">
-                <p className="qoves-report-mono-label mb-2">Symmetry Range</p>
+                <p className="qoves-report-mono-label mb-2">{t('symmetry.symmetryRange')}</p>
                 <div className="relative h-2 rounded-full bg-surface-border mt-3 mb-2">
                   {s.rangeHighlight && (
                     <div
@@ -182,7 +187,7 @@ export function CvReportView({
               </div>
               {regions.length > 0 && (
                 <div className="qoves-report-metric-card">
-                  <p className="qoves-report-mono-label mb-3">Regional balance</p>
+                  <p className="qoves-report-mono-label mb-3">{t('symmetry.regionalBalance')}</p>
                   <div className="space-y-3">
                     {regions.map((r) => (
                       <div key={r.id}>
@@ -200,7 +205,7 @@ export function CvReportView({
                     ))}
                   </div>
                   <p className="text-[11px] text-ink-muted mt-3">
-                    Overall score already accounts for natural pose and left–right variation across these regions.
+                    {t('symmetry.regionalNote')}
                   </p>
                 </div>
               )}
@@ -304,7 +309,7 @@ export function CvReportView({
               landmarks={landmarks}
               featureId="chin"
               featureParsing={featureParsing}
-              alt="Your chin"
+              alt={t('ears.yourChinAlt')}
             />
           ) : null
         }
@@ -363,30 +368,30 @@ export function CvReportView({
 
     return (
       <FeatureReportPanel
-        title="Ear Analysis"
+        title={t('ears.title')}
         featureName="ears"
         data={e}
         narrative={narrativeFor('ears')}
         featureId="ears"
         featureParsing={featureParsing}
         imageSrc={earHero}
-        imageAlt="Left profile ear"
+        imageAlt={t('ears.imageAlt')}
         sections={[
           {
-            title: 'Ear Proportions',
+            title: t('ears.proportionsTitle'),
             metrics: [
-              { label: 'Ear size', value: `${e.earSize}× IPD`, tooltip: 'Ear size relative to interpupillary distance. Proportionate ears frame the face without drawing attention.' },
-              { label: 'Size class', value: e.earSizeClass, tooltip: 'Classification of ear size. Balanced ears contribute to harmonious facial framing.' },
-              { label: 'Symmetry', value: e.earSymmetry, tooltip: 'Left-right ear size balance. Symmetric ears indicate balanced facial development.' },
-              { label: 'Size difference', value: `${e.sizeDifference}%`, tooltip: 'Percentage difference between left and right ear size. Under 5% is considered symmetric.' },
+              { label: t('ears.earSize'), value: `${e.earSize}× IPD`, tooltip: t('ears.earSizeTooltip') },
+              { label: t('ears.sizeClass'), value: e.earSizeClass, tooltip: t('ears.sizeClassTooltip') },
+              { label: t('ears.symmetry'), value: e.earSymmetry, tooltip: t('ears.symmetryTooltip') },
+              { label: t('ears.sizeDifference'), value: `${e.sizeDifference}%`, tooltip: t('ears.sizeDifferenceTooltip') },
             ],
           },
           {
-            title: 'Ear Position & Shape',
+            title: t('ears.positionTitle'),
             metrics: [
-              { label: 'Protrusion', value: e.protrusion, tooltip: 'How far the ears project from the head. Moderate protrusion creates a balanced silhouette.' },
-              { label: 'Protrusion depth', value: `${e.earProtrusion}`, tooltip: 'Z-depth measurement of ear protrusion from the facial plane.' },
-              { label: 'Vertical position', value: e.earPosition, tooltip: 'Ear vertical alignment relative to facial features. Mid-set ears align with brow-to-nose base.' },
+              { label: t('ears.protrusion'), value: e.protrusion, tooltip: t('ears.protrusionTooltip') },
+              { label: t('ears.protrusionDepth'), value: `${e.earProtrusion}`, tooltip: t('ears.protrusionDepthTooltip') },
+              { label: t('ears.verticalPosition'), value: e.earPosition, tooltip: t('ears.verticalPositionTooltip') },
             ],
           },
         ]}
@@ -411,7 +416,7 @@ export function CvReportView({
               landmarks={landmarks}
               featureId="cheeks"
               featureParsing={featureParsing}
-              alt="Your cheeks"
+              alt={t('ears.yourCheeksAlt')}
             />
           ) : null
         }

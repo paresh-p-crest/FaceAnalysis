@@ -1,12 +1,10 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { Image, Loader2, Sparkles } from 'lucide-react'
 
-const TYPE_COPY = {
-  hair: 'Hairstyle recommendations based on face shape, hairline, and overall facial balance.',
-  outfit: 'Shoulder-up color and styling concepts for a polished portrait presentation.',
-  aging: 'Gentle healthy-aging preview, intended for educational visualization only.',
-}
-
-function VariantCard({ variant }) {
+function VariantCard({ variant, t }) {
+  const typeCopyKey = `types.${variant.type}`
   return (
     <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised overflow-hidden">
       <div className="aspect-square bg-white dark:bg-surface-card flex items-center justify-center border-b border-surface-border">
@@ -15,9 +13,11 @@ function VariantCard({ variant }) {
         ) : (
           <div className="text-center px-5">
             <Image className="w-8 h-8 text-brand mx-auto mb-3" />
-            <p className="text-sm font-display font-semibold text-ink mb-1">{variant.status === 'blocked' ? 'Generation blocked' : 'Prompt ready'}</p>
+            <p className="text-sm font-display font-semibold text-ink mb-1">
+              {variant.status === 'blocked' ? t('generationBlocked') : t('promptReady')}
+            </p>
             <p className="text-xs text-ink-muted leading-relaxed">
-              {variant.error || 'OpenAI image generation is unavailable for this preview.'}
+              {variant.error || t('imageUnavailable')}
             </p>
           </div>
         )}
@@ -34,10 +34,10 @@ function VariantCard({ variant }) {
           </span>
         </div>
         <p className="text-xs text-ink-muted leading-relaxed mb-3">
-          {TYPE_COPY[variant.type] || 'AI visual concept.'}
+          {t.has(typeCopyKey) ? t(typeCopyKey) : t('types.default')}
         </p>
         <details className="text-[11px] text-ink-muted">
-          <summary className="cursor-pointer text-brand font-semibold">View prompt</summary>
+          <summary className="cursor-pointer text-brand font-semibold">{t('viewPrompt')}</summary>
           <p className="mt-2 leading-relaxed">{variant.prompt}</p>
         </details>
       </div>
@@ -46,6 +46,7 @@ function VariantCard({ variant }) {
 }
 
 export function AiVisualsSection({ aiVisuals, loading, error, onGenerate, canGenerate }) {
+  const t = useTranslations('AiVisuals')
   const variants = aiVisuals?.variants || []
 
   return (
@@ -54,10 +55,10 @@ export function AiVisualsSection({ aiVisuals, loading, error, onGenerate, canGen
         <div>
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="w-5 h-5 text-brand" />
-            <h3 className="font-display text-lg font-semibold text-ink">AI Visual Previews</h3>
+            <h3 className="font-display text-lg font-semibold text-ink">{t('title')}</h3>
           </div>
           <p className="text-sm text-ink-muted leading-relaxed max-w-2xl">
-            Hair, outfit, and healthy-aging concepts are generated as a separate AI layer. They do not change your measured CV report.
+            {t('description')}
           </p>
         </div>
         <button
@@ -65,10 +66,10 @@ export function AiVisualsSection({ aiVisuals, loading, error, onGenerate, canGen
           onClick={onGenerate}
           disabled={!canGenerate || loading}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand text-white hover:bg-brand-dark shadow-brand transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          title={!canGenerate ? 'Available for backend-saved reports' : 'Generate AI visuals'}
+          title={!canGenerate ? t('needsBackend') : t('generateTitle')}
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {variants.length ? 'Regenerate' : 'Generate Visuals'}
+          {variants.length ? t('regenerate') : t('generate')}
         </button>
       </div>
 
@@ -81,13 +82,13 @@ export function AiVisualsSection({ aiVisuals, loading, error, onGenerate, canGen
       {variants.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-surface-border bg-surface-warm dark:bg-surface-raised p-10 text-center">
           <Image className="w-10 h-10 text-brand mx-auto mb-3" />
-          <p className="font-display text-ink mb-1">No AI visuals generated yet</p>
-          <p className="text-sm text-ink-muted">Generate prompt-ready visual concepts, or real images when OpenAI image credits are available.</p>
+          <p className="font-display text-ink mb-1">{t('emptyTitle')}</p>
+          <p className="text-sm text-ink-muted">{t('emptyDescription')}</p>
         </div>
       ) : (
         <div className="grid md:grid-cols-3 gap-4">
           {variants.map((variant) => (
-            <VariantCard key={variant.type} variant={variant} />
+            <VariantCard key={variant.type} variant={variant} t={t} />
           ))}
         </div>
       )}

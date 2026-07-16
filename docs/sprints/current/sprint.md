@@ -98,6 +98,7 @@
 - [x] Nose Features Analysis UI refresh: same layout as Eyebrows/Eyes; hero image source unchanged (status: completed)
 - [x] Eyes Features Analysis UI refresh: same layout as Eyebrows (periorbital hero + 2×2 classifications + numeric carousel + All Metrics) (status: completed)
 - [x] Eyebrows Features Analysis UI refresh: mock layout (header + hero + 2×2 classifications + numeric Peak/Elevation/Apex carousel + All Metrics table); live CV + featureParsing data (status: completed)
+- [x] next-intl en/de: locale routing, UI string catalogs (`messages/en.json` → DE translation source), i18next-parser audit script (status: completed)
 - [ ] Narrative Norwood staging: surface shape-based Hamilton–Norwood reasoning in hair report text (deferred from ADR-032 scope; CV metric already shape-based per ADR-028) (status: planned)
 - [ ] Run backend compile gates and smoke tests for Milestone 1 (status: planned)
 - [ ] Verify frontend build states for questionnaire and uploads (status: planned)

@@ -1,16 +1,23 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { Loader2, X } from 'lucide-react'
 
 export default function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   danger = false,
   loading = false,
   onConfirm,
   onCancel,
 }) {
+  const t = useTranslations('Common')
+  const resolvedConfirmLabel = confirmLabel ?? t('confirm')
+  const resolvedCancelLabel = cancelLabel ?? t('cancel')
+
   if (!open) return null
 
   return (
@@ -19,7 +26,7 @@ export default function ConfirmDialog({
         type="button"
         className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
         onClick={loading ? undefined : onCancel}
-        aria-label="Close dialog"
+        aria-label={t('closeDialog')}
       />
       <div
         role="dialog"
@@ -47,7 +54,7 @@ export default function ConfirmDialog({
             disabled={loading}
             className="px-4 py-2.5 rounded-xl border border-surface-border text-sm font-semibold text-ink-secondary hover:text-ink transition-colors disabled:opacity-50"
           >
-            {cancelLabel}
+            {resolvedCancelLabel}
           </button>
           <button
             type="button"
@@ -58,7 +65,7 @@ export default function ConfirmDialog({
             }`}
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </button>
         </div>
       </div>

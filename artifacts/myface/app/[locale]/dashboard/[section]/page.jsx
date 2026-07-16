@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import AdminPanelPage from '../../../components/AdminPanelPage'
-import { AppBootScreen } from '../../../components/AppBootScreen'
-import { useApp } from '../../../components/providers/AppProvider'
-import { adminTabFromPath, adminTabToPath } from '../../../utils/adminPanel'
-import { ROUTES } from '../../../utils/routes'
+import { useParams } from 'next/navigation'
+import { useRouter } from '../../../../i18n/navigation'
+import AdminPanelPage from '../../../../components/AdminPanelPage'
+import { AppBootScreen } from '../../../../components/AppBootScreen'
+import { useApp } from '../../../../components/providers/AppProvider'
+import { adminTabFromPath, adminTabToPath } from '../../../../utils/adminPanel'
+import { ROUTES } from '../../../../utils/routes'
 
 export default function DashboardAdminSectionPage() {
   const params = useParams()

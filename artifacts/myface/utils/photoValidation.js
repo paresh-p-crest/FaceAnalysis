@@ -80,12 +80,12 @@ function dist(a, b) {
 function checkFaceCount(result) {
   const count = result.faceLandmarks?.length || 0
   if (count === 0) {
-    return { name: 'faceDetected', pass: false, message: 'No face detected — face the camera directly', severity: 'error' }
+    return { name: 'faceDetected', pass: false, messageKey: 'Photo.validation.faceDetected.none', severity: 'error' }
   }
   if (count > 1) {
-    return { name: 'faceDetected', pass: false, message: `${count} faces detected — only one person allowed`, severity: 'error' }
+    return { name: 'faceDetected', pass: false, messageKey: 'Photo.validation.faceDetected.multiple', messageValues: { count }, severity: 'error' }
   }
-  return { name: 'faceDetected', pass: true, message: 'Face detected', severity: 'ok' }
+  return { name: 'faceDetected', pass: true, messageKey: 'Photo.validation.faceDetected.ok', severity: 'ok' }
 }
 
 /**
@@ -105,7 +105,7 @@ function checkPose(landmarks, expectedPose) {
   const faceWidth = dist(leftEdge, rightEdge)
 
   if (faceWidth < 0.01) {
-    return { name: 'correctPose', pass: true, message: 'Pose check inconclusive', severity: 'info' }
+    return { name: 'correctPose', pass: true, messageKey: 'Photo.validation.correctPose.inconclusive', severity: 'info' }
   }
 
   const noseRatio = (nose.x - leftEdge.x) / faceWidth
@@ -113,13 +113,13 @@ function checkPose(landmarks, expectedPose) {
   // Define acceptable ranges per pose
   // noseRatio: 0 = nose far left of image, 0.5 = center, 1 = nose far right of image
   const poseRanges = {
-    front:        { min: 0.35, max: 0.65, label: 'front-facing' },
-    leftProfile:  { min: 0.60, max: 1.0,  label: 'left profile' },
-    rightProfile: { min: 0.0,  max: 0.40, label: 'right profile' },
-    left45:       { min: 0.40, max: 0.85, label: 'left 45°' },
-    right45:      { min: 0.15, max: 0.60, label: 'right 45°' },
-    smile:        { min: 0.30, max: 0.70, label: 'front-facing (smile)' },
-    topHead:      { min: 0.20, max: 0.80, label: 'top-down angle' },
+    front:        { min: 0.35, max: 0.65, labelKey: 'Photo.validation.expectedPose.front' },
+    leftProfile:  { min: 0.60, max: 1.0,  labelKey: 'Photo.validation.expectedPose.leftProfile' },
+    rightProfile: { min: 0.0,  max: 0.40, labelKey: 'Photo.validation.expectedPose.rightProfile' },
+    left45:       { min: 0.40, max: 0.85, labelKey: 'Photo.validation.expectedPose.left45' },
+    right45:      { min: 0.15, max: 0.60, labelKey: 'Photo.validation.expectedPose.right45' },
+    smile:        { min: 0.30, max: 0.70, labelKey: 'Photo.validation.expectedPose.smile' },
+    topHead:      { min: 0.20, max: 0.80, labelKey: 'Photo.validation.expectedPose.topHead' },
   }
 
   const range = poseRanges[expectedPose] || poseRanges.front
@@ -129,16 +129,20 @@ function checkPose(landmarks, expectedPose) {
   const severity = expectedPose === 'front' ? 'error' : 'warning'
 
   if (!inRange) {
-    // Calculate the detected angle
-    const detectedPose = noseRatio > 0.62 ? 'left profile' : noseRatio < 0.38 ? 'right profile' : 'front-facing'
+    const detectedKey = noseRatio > 0.62
+      ? 'Photo.validation.detectedPose.leftProfile'
+      : noseRatio < 0.38
+        ? 'Photo.validation.detectedPose.rightProfile'
+        : 'Photo.validation.detectedPose.frontFacing'
     return {
       name: 'correctPose',
       pass: false,
-      message: `Face is ${detectedPose} — expected ${range.label}`,
+      messageKey: 'Photo.validation.correctPose.wrong',
+      messageValues: { detected: detectedKey, expected: range.labelKey },
       severity,
     }
   }
-  return { name: 'correctPose', pass: true, message: `Pose: ${range.label}`, severity: 'ok' }
+  return { name: 'correctPose', pass: true, messageKey: 'Photo.validation.correctPose.ok', messageValues: { pose: range.labelKey }, severity: 'ok' }
 }
 
 /**
@@ -157,7 +161,7 @@ function checkExpression(landmarks) {
   const mouthOpen = dist(upperLip, lowerLip)
 
   if (mouthWidth < 0.001) {
-    return { name: 'neutralExpression', pass: true, message: 'Expression check inconclusive', severity: 'info' }
+    return { name: 'neutralExpression', pass: true, messageKey: 'Photo.validation.neutralExpression.inconclusive', severity: 'info' }
   }
 
   const openRatio = mouthOpen / mouthWidth
@@ -166,7 +170,7 @@ function checkExpression(landmarks) {
     return {
       name: 'neutralExpression',
       pass: false,
-      message: 'Mouth appears open — please use a neutral expression',
+      messageKey: 'Photo.validation.neutralExpression.mouthOpen',
       severity: 'error',
     }
   }
@@ -181,12 +185,12 @@ function checkExpression(landmarks) {
     return {
       name: 'neutralExpression',
       pass: false,
-      message: 'Expression appears non-neutral — please relax your face',
+      messageKey: 'Photo.validation.neutralExpression.nonNeutral',
       severity: 'warning',
     }
   }
 
-  return { name: 'neutralExpression', pass: true, message: 'Expression neutral', severity: 'ok' }
+  return { name: 'neutralExpression', pass: true, messageKey: 'Photo.validation.neutralExpression.ok', severity: 'ok' }
 }
 
 /**
@@ -216,7 +220,7 @@ function checkEyesOpen(landmarks) {
     return {
       name: 'eyesOpen',
       pass: false,
-      message: 'Eyes appear closed — please keep eyes open',
+      messageKey: 'Photo.validation.eyesOpen.closed',
       severity: 'error',
     }
   }
@@ -224,11 +228,11 @@ function checkEyesOpen(landmarks) {
     return {
       name: 'eyesOpen',
       pass: false,
-      message: 'Eyes may be squinting — try opening them fully',
+      messageKey: 'Photo.validation.eyesOpen.squinting',
       severity: 'warning',
     }
   }
-  return { name: 'eyesOpen', pass: true, message: 'Eyes open', severity: 'ok' }
+  return { name: 'eyesOpen', pass: true, messageKey: 'Photo.validation.eyesOpen.ok', severity: 'ok' }
 }
 
 /**
@@ -363,13 +367,13 @@ function checkGlasses(ctx, w, h, landmarks) {
   const totalSignals = canvasSignals + landmarkSignals
 
   if (totalSignals >= 3) {
-    return { name: 'noGlasses', pass: false, message: 'Glasses detected — please remove for best results', severity: 'error' }
+    return { name: 'noGlasses', pass: false, messageKey: 'Photo.validation.noGlasses.detected', severity: 'error' }
   }
   if (totalSignals >= 2 && canvasSignals >= 1) {
-    return { name: 'noGlasses', pass: false, message: 'Possible glasses detected — remove if possible', severity: 'warning' }
+    return { name: 'noGlasses', pass: false, messageKey: 'Photo.validation.noGlasses.possible', severity: 'warning' }
   }
 
-  return { name: 'noGlasses', pass: true, message: 'No glasses detected', severity: 'ok' }
+  return { name: 'noGlasses', pass: true, messageKey: 'Photo.validation.noGlasses.ok', severity: 'ok' }
 }
 
 /**
@@ -411,7 +415,7 @@ function checkHairCovering(landmarks) {
   const browToNose = noseTip.y - browY
 
   if (browToNose < 0.001) {
-    return { name: 'hairClear', pass: true, message: 'Hair check inconclusive', severity: 'info' }
+    return { name: 'hairClear', pass: true, messageKey: 'Photo.validation.hairClear.inconclusive', severity: 'info' }
   }
 
   const ratio = foreheadToBrow / browToNose
@@ -421,7 +425,7 @@ function checkHairCovering(landmarks) {
     return {
       name: 'hairClear',
       pass: false,
-      message: 'Hair may be covering forehead — please clear hair from face',
+      messageKey: 'Photo.validation.hairClear.covering',
       severity: 'error',
     }
   }
@@ -429,7 +433,7 @@ function checkHairCovering(landmarks) {
     return {
       name: 'hairClear',
       pass: false,
-      message: 'Hair may partially cover your face — push hair back if possible',
+      messageKey: 'Photo.validation.hairClear.partial',
       severity: 'warning',
     }
   }
@@ -443,12 +447,12 @@ function checkHairCovering(landmarks) {
     return {
       name: 'hairClear',
       pass: false,
-      message: 'Forehead appears partially covered — ensure hair is away from face',
+      messageKey: 'Photo.validation.hairClear.foreheadCovered',
       severity: 'warning',
     }
   }
 
-  return { name: 'hairClear', pass: true, message: 'Hair clear', severity: 'ok' }
+  return { name: 'hairClear', pass: true, messageKey: 'Photo.validation.hairClear.ok', severity: 'ok' }
 }
 
 /** Face oval landmark indices */
@@ -480,17 +484,18 @@ function checkFaceCentered(landmarks) {
   const offsetY = Math.abs(faceCY - 0.5)
 
   if (offsetX > 0.18 || offsetY > 0.2) {
-    const horizontal = offsetX > 0.18 ? (faceCX < 0.5 ? 'left' : 'right') : ''
-    const vertical = offsetY > 0.2 ? (faceCY < 0.5 ? 'too high' : 'too low') : ''
-    const dir = [horizontal, vertical].filter(Boolean).join(' and ')
+    const directionKeys = []
+    if (offsetX > 0.18) directionKeys.push(faceCX < 0.5 ? 'Photo.validation.faceCentered.left' : 'Photo.validation.faceCentered.right')
+    if (offsetY > 0.2) directionKeys.push(faceCY < 0.5 ? 'Photo.validation.faceCentered.tooHigh' : 'Photo.validation.faceCentered.tooLow')
     return {
       name: 'faceCentered',
       pass: false,
-      message: `Face is ${dir || 'off-center'} — center your face in the frame`,
+      messageKey: 'Photo.validation.faceCentered.offCenter',
+      messageValues: { directionKeys },
       severity: 'warning',
     }
   }
-  return { name: 'faceCentered', pass: true, message: 'Face centered', severity: 'ok' }
+  return { name: 'faceCentered', pass: true, messageKey: 'Photo.validation.faceCentered.ok', severity: 'ok' }
 }
 
 /**
@@ -516,7 +521,7 @@ function checkFaceSize(landmarks) {
     return {
       name: 'faceSize',
       pass: false,
-      message: 'Face is too small — move closer to the camera',
+      messageKey: 'Photo.validation.faceSize.tooSmall',
       severity: 'error',
     }
   }
@@ -524,11 +529,11 @@ function checkFaceSize(landmarks) {
     return {
       name: 'faceSize',
       pass: false,
-      message: 'Face is small — try moving closer for better accuracy',
+      messageKey: 'Photo.validation.faceSize.small',
       severity: 'warning',
     }
   }
-  return { name: 'faceSize', pass: true, message: 'Face size OK', severity: 'ok' }
+  return { name: 'faceSize', pass: true, messageKey: 'Photo.validation.faceSize.ok', severity: 'ok' }
 }
 
 /* ──────────────────────────────────────────────
@@ -546,11 +551,11 @@ function checkBrightness(ctx, w, h) {
     sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
   }
   const avg = sum / total
-  if (avg < 40) return { name: 'brightness', pass: false, message: 'Image is very dark — use better lighting', severity: 'error' }
-  if (avg < 60) return { name: 'brightness', pass: false, message: 'Image is dark — improve lighting', severity: 'warning' }
-  if (avg > 230) return { name: 'brightness', pass: false, message: 'Image is overexposed — reduce brightness', severity: 'error' }
-  if (avg > 210) return { name: 'brightness', pass: false, message: 'Image is slightly bright', severity: 'warning' }
-  return { name: 'brightness', pass: true, message: 'Brightness OK', severity: 'ok' }
+  if (avg < 40) return { name: 'brightness', pass: false, messageKey: 'Photo.validation.brightness.veryDark', severity: 'error' }
+  if (avg < 60) return { name: 'brightness', pass: false, messageKey: 'Photo.validation.brightness.dark', severity: 'warning' }
+  if (avg > 230) return { name: 'brightness', pass: false, messageKey: 'Photo.validation.brightness.overexposed', severity: 'error' }
+  if (avg > 210) return { name: 'brightness', pass: false, messageKey: 'Photo.validation.brightness.bright', severity: 'warning' }
+  return { name: 'brightness', pass: true, messageKey: 'Photo.validation.brightness.ok', severity: 'ok' }
 }
 
 /**
@@ -579,9 +584,9 @@ function checkBlur(ctx, w, h) {
     }
   }
   const variance = sum / count
-  if (variance < 20) return { name: 'sharpness', pass: false, message: 'Image is very blurry', severity: 'error' }
-  if (variance < 40) return { name: 'sharpness', pass: false, message: 'Image appears slightly blurry', severity: 'warning' }
-  return { name: 'sharpness', pass: true, message: 'Sharpness OK', severity: 'ok' }
+  if (variance < 20) return { name: 'sharpness', pass: false, messageKey: 'Photo.validation.sharpness.veryBlurry', severity: 'error' }
+  if (variance < 40) return { name: 'sharpness', pass: false, messageKey: 'Photo.validation.sharpness.blurry', severity: 'warning' }
+  return { name: 'sharpness', pass: true, messageKey: 'Photo.validation.sharpness.ok', severity: 'ok' }
 }
 
 /**
@@ -590,9 +595,15 @@ function checkBlur(ctx, w, h) {
 function checkDimensions(img) {
   const minPx = 400
   if (img.width < minPx || img.height < minPx) {
-    return { name: 'resolution', pass: false, message: `Too small (${img.width}×${img.height}) — use ${minPx}px+`, severity: 'error' }
+    return {
+      name: 'resolution',
+      pass: false,
+      messageKey: 'Photo.validation.resolution.tooSmall',
+      messageValues: { width: img.width, height: img.height, minPx },
+      severity: 'error',
+    }
   }
-  return { name: 'resolution', pass: true, message: 'Resolution OK', severity: 'ok' }
+  return { name: 'resolution', pass: true, messageKey: 'Photo.validation.resolution.ok', severity: 'ok' }
 }
 
 /* ──────────────────────────────────────────────
@@ -634,7 +645,7 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
         mpChecks.push({
           name: 'faceDetected',
           pass: true,
-          message: 'Face detection limited for this angle — proceeding',
+          messageKey: 'Photo.validation.faceDetected.limitedAngle',
           severity: 'info',
         })
         // Skip all other landmark checks since no landmarks available
@@ -656,7 +667,7 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
           mpChecks.push({
             name: 'neutralExpression',
             pass: true,
-            message: 'Smile expression expected',
+            messageKey: 'Photo.validation.neutralExpression.smileExpected',
             severity: 'ok',
           })
         } else {
@@ -668,7 +679,7 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
           mpChecks.push({
             name: 'eyesOpen',
             pass: true,
-            message: 'Eye check limited for this angle',
+            messageKey: 'Photo.validation.eyesOpen.limitedAngle',
             severity: 'info',
           })
         } else {
@@ -682,7 +693,7 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
           mpChecks.push({
             name: 'hairClear',
             pass: true,
-            message: 'Hair check skipped for top-of-head photo',
+            messageKey: 'Photo.validation.hairClear.skippedTopHead',
             severity: 'info',
           })
         }
@@ -699,14 +710,14 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
       mpChecks.push({
         name: 'mediaPipe',
         pass: true,
-        message: 'Advanced checks unavailable for this angle',
+        messageKey: 'Photo.validation.mediaPipe.unavailableAngle',
         severity: 'info',
       })
     } else {
       mpChecks.push({
         name: 'mediaPipe',
         pass: true,
-        message: 'Advanced checks unavailable — MediaPipe error',
+        messageKey: 'Photo.validation.mediaPipe.error',
         severity: 'info',
       })
     }
@@ -723,7 +734,15 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
     hasError = canvasChecks.some((c) => c.severity === 'error' && !c.pass)
     hasWarning = canvasChecks.some((c) => c.severity === 'warning' && !c.pass)
     // Also check landmark errors but only from checks that actually ran (not "limited" ones)
-    const landmarkErrors = mpChecks.filter((c) => c.severity === 'error' && !c.pass && !c.message.includes('limited') && !c.message.includes('skipped') && !c.message.includes('proceeding'))
+    const landmarkErrors = mpChecks.filter((c) => {
+      if (c.severity !== 'error' || c.pass) return false
+      const skipKeys = new Set([
+        'Photo.validation.faceDetected.limitedAngle',
+        'Photo.validation.eyesOpen.limitedAngle',
+        'Photo.validation.hairClear.skippedTopHead',
+      ])
+      return !skipKeys.has(c.messageKey)
+    })
     hasError = hasError || landmarkErrors.length > 0
   } else {
     hasError = checks.some((c) => c.severity === 'error' && !c.pass)
@@ -734,4 +753,22 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
     overall: hasError ? 'fail' : hasWarning ? 'warn' : 'pass',
     checks,
   }
+}
+
+const NESTED_MSG_KEY_PREFIX = 'Photo.'
+
+/** Resolve a validation check message via next-intl `t`. */
+export function translateValidationMessage(check, t) {
+  if (!check?.messageKey || !t) return check?.message || ''
+  const values = { ...(check.messageValues || {}) }
+  if (values.directionKeys) {
+    values.direction = values.directionKeys.map((key) => t(key)).filter(Boolean).join(' and ')
+    delete values.directionKeys
+  }
+  for (const [key, val] of Object.entries(values)) {
+    if (typeof val === 'string' && val.startsWith(NESTED_MSG_KEY_PREFIX)) {
+      values[key] = t(val)
+    }
+  }
+  return t(check.messageKey, values)
 }

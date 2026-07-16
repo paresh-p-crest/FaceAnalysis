@@ -1,4 +1,7 @@
+'use client'
+
 import { useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Upload,
   Image,
@@ -15,23 +18,26 @@ import { getAllDemoPhotos } from '../utils/demoPhotos'
 import { uploadAssessmentPhoto, deleteAssessmentPhoto } from '../utils/apiClient'
 import { validatePhoto } from '../utils/photoValidation'
 
-const POSES = PHOTO_POSES.map((p) => ({
-  id: p.id,
-  label: p.label,
-  desc: p.hint,
-  required: p.required,
-}))
+const CHECKLIST_ITEM_KEYS = [
+  'glassesHat',
+  'lighting',
+  'background',
+  'hair',
+  'makeup',
+  'clothing',
+  'filters',
+]
 
-const REQUIRED_GUIDELINES = [
-  'Look straight at the camera',
-  'Maintain a neutral expression',
-  'Remove hair and obstructions from the face',
-  'Photo taken from an arm\'s length away',
-  'Only one head should be visible in the image',
-  'The head and neck are not cropped out',
-  'Keep camera focused and not blurry',
-  'Ensure consistent, even lighting',
-  'Ensure a plain, clear background',
+const GUIDELINE_KEYS = [
+  'lookStraight',
+  'neutralExpression',
+  'clearObstructions',
+  'armsLength',
+  'oneHead',
+  'notCropped',
+  'notBlurry',
+  'evenLighting',
+  'plainBackground',
 ]
 
 // Maps each REQUIRED_GUIDELINES index to the validation check name(s) from photoValidation.js
@@ -45,16 +51,6 @@ const GUIDELINE_CHECK_MAP = [
   ['sharpness'],                   // Keep camera focused and not blurry
   ['brightness'],                  // Ensure consistent, even lighting
   [],                              // Ensure a plain, clear background (no CV check)
-]
-
-const CHECKLIST_ITEMS = [
-  'Take off any glasses and hat',
-  'Use natural, even lighting that illuminates your face directly',
-  'Use a plain & white background',
-  'Tie long hair back to clear up the face, neck and ears',
-  'Remove any makeup',
-  'Avoid neck-covering clothes',
-  'Don\'t use filters on the pictures',
 ]
 
 const readAsDataUrl = (fileOrBlob) =>
@@ -74,13 +70,13 @@ const fileFromSrc = async (src, name) => {
 }
 
 /** Overlay shown on the active-pose preview reflecting the per-pose upload state. */
-function UploadStatusOverlay({ state, error, large = false }) {
+function UploadStatusOverlay({ state, error, large = false, t }) {
   if (state === 'validating' || state === 'uploading') {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-black/25">
         <Loader2 className={`${large ? 'w-7 h-7' : 'w-5 h-5'} text-white animate-spin`} />
         <span className="text-[11px] font-semibold text-white tracking-wide">
-          {state === 'validating' ? 'Validating…' : 'Uploading…'}
+          {state === 'validating' ? t('validating') : t('uploading')}
         </span>
       </div>
     )
@@ -88,7 +84,7 @@ function UploadStatusOverlay({ state, error, large = false }) {
   if (state === 'uploaded') {
     return (
       <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow animate-fade-up">
-        <Check className="w-3 h-3" /> Uploaded
+        <Check className="w-3 h-3" /> {t('uploaded')}
       </div>
     )
   }
@@ -96,7 +92,7 @@ function UploadStatusOverlay({ state, error, large = false }) {
     return (
       <div className="absolute inset-x-2 bottom-2 inline-flex items-center gap-1 rounded-lg bg-red-500/90 px-2 py-1 text-[10px] font-semibold text-white shadow">
         <AlertCircle className="w-3 h-3 shrink-0" />
-        <span className="truncate">{error || 'Check photo & re-upload'}</span>
+        <span className="truncate">{error || t('checkPhotoReupload')}</span>
       </div>
     )
   }
@@ -114,6 +110,16 @@ export default function PhotoUpload({
   draftAssessmentId,
   submitError,
 }) {
+  const t = useTranslations('Photo.upload')
+  const tPoses = useTranslations('Photo.poses')
+
+  const POSES = PHOTO_POSES.map((p) => ({
+    id: p.id,
+    label: tPoses(`${p.id}.label`),
+    desc: tPoses(`${p.id}.hint`),
+    required: p.required,
+  }))
+
   const inputRef = useRef(null)
   const filesRef = useRef({})
   const [confirmedChecks, setConfirmedChecks] = useState([false, false, false, false, false, false, false])
@@ -146,7 +152,7 @@ export default function PhotoUpload({
       setPoseState(poseId, 'uploaded')
     } catch (err) {
       setPoseState(poseId, 'error')
-      setUploadErrors((prev) => ({ ...prev, [poseId]: err?.message || 'Upload failed. Re-upload to retry.' }))
+      setUploadErrors((prev) => ({ ...prev, [poseId]: err?.message || t('uploadFailed') }))
     }
   }
 
@@ -165,7 +171,7 @@ export default function PhotoUpload({
       setPoseState(poseId, 'error')
       setUploadErrors((prev) => ({
         ...prev,
-        [poseId]: 'This photo did not pass the quality checks.',
+        [poseId]: t('qualityCheckFailed'),
       }))
       return
     }
@@ -198,7 +204,7 @@ export default function PhotoUpload({
           setPhotos((prev) => ({ ...prev, [pose.id]: dataUrl }))
           setValidation((prev) => ({
             ...prev,
-            [pose.id]: { overall: 'pass', checks: [{ pass: true, message: 'Demo image', severity: 'ok' }] },
+            [pose.id]: { overall: 'pass', checks: [{ pass: true, messageKey: 'demoImage', severity: 'ok' }] },
           }))
           setPoseState(pose.id, 'uploading')
           await uploadAssessmentPhoto(id, pose.id, file)
@@ -207,7 +213,7 @@ export default function PhotoUpload({
       )
       setActivePose('front')
     } catch (err) {
-      alert(err?.message || 'Could not load demo photos')
+      alert(err?.message || t('demoLoadFailed'))
     } finally {
       setLoadingDemos(false)
     }
@@ -270,27 +276,27 @@ export default function PhotoUpload({
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
-              Back
+              {t('back')}
             </button>
 
             <div className="pt-2">
               <span className="text-[10px] font-bold tracking-widest text-[#5e9f8b] uppercase block mb-1">
-                Photo Requirements
+                {t('requirementsLabel')}
               </span>
               <h1 className="font-serif font-bold text-3xl tracking-tight text-slate-900 dark:text-white">
-                Confirmation
+                {t('confirmationTitle')}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-3">
-                Please review and confirm the following photo guidelines to ensure accurate results.
+                {t('confirmationDescription')}
               </p>
             </div>
           </div>
 
           {/* Checklist — MOBILE ONLY (shown inline, hidden on lg where right panel takes over) */}
           <div className="lg:hidden mt-6 space-y-2.5">
-            <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block">Requirements</span>
-            <h3 className="text-slate-900 dark:text-white font-semibold text-sm mb-3">Photo Guidelines Checklist</h3>
-            {CHECKLIST_ITEMS.map((item, idx) => (
+            <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block">{t('requirementsHeading')}</span>
+            <h3 className="text-slate-900 dark:text-white font-semibold text-sm mb-3">{t('checklistTitle')}</h3>
+            {CHECKLIST_ITEM_KEYS.map((itemKey, idx) => (
               <label
                 key={idx}
                 className={`flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer ${
@@ -299,7 +305,7 @@ export default function PhotoUpload({
                     : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                <span className="text-slate-800 dark:text-slate-200 text-xs font-sans leading-snug pr-4">{item}</span>
+                <span className="text-slate-800 dark:text-slate-200 text-xs font-sans leading-snug pr-4">{t(`checklist.${itemKey}`)}</span>
                 <input
                   type="checkbox"
                   checked={confirmedChecks[idx]}
@@ -328,7 +334,7 @@ export default function PhotoUpload({
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
               }`}
             >
-              <span>Next</span>
+              <span>{t('next')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -342,12 +348,12 @@ export default function PhotoUpload({
 
           <div className="max-w-xl w-full bg-white/[0.03] backdrop-blur-md rounded-3xl p-8 border border-white/10 shadow-2xl space-y-6">
             <div>
-              <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block mb-1">Requirements</span>
-              <h3 className="text-white font-serif text-lg font-bold">Photo Guidelines Checklist</h3>
+              <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block mb-1">{t('requirementsHeading')}</span>
+              <h3 className="text-white font-serif text-lg font-bold">{t('checklistTitle')}</h3>
             </div>
 
             <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1.5 scrollbar-thin">
-              {CHECKLIST_ITEMS.map((item, idx) => (
+              {CHECKLIST_ITEM_KEYS.map((itemKey, idx) => (
                 <label
                   key={idx}
                   className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
@@ -356,7 +362,7 @@ export default function PhotoUpload({
                       : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
                   }`}
                 >
-                  <span className="text-white text-xs font-sans leading-snug pr-4">{item}</span>
+                  <span className="text-white text-xs font-sans leading-snug pr-4">{t(`checklist.${itemKey}`)}</span>
                   <input
                     type="checkbox"
                     checked={confirmedChecks[idx]}
@@ -389,15 +395,15 @@ export default function PhotoUpload({
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
-            Back to requirements
+            {t('backToRequirements')}
           </button>
 
           <div>
             <h1 className="font-serif font-bold text-xl tracking-tight text-slate-900 dark:text-white">
-              Upload Your Images
+              {t('uploadTitle')}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
-              You&apos;re almost done! Each photo is validated and saved securely as you add it.
+              {t('uploadDescription')}
             </p>
           </div>
 
@@ -409,7 +415,7 @@ export default function PhotoUpload({
             className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 hover:text-[#5e9f8b] transition-colors disabled:opacity-50"
           >
             <Sparkles className="w-3 h-3" />
-            {loadingDemos ? 'Loading demo photos…' : 'Use demo photos'}
+            {loadingDemos ? t('loadingDemoPhotos') : t('useDemoPhotos')}
           </button>
         </div>
 
@@ -418,18 +424,18 @@ export default function PhotoUpload({
           {/* Required Poses Grid */}
           <div className="space-y-2">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
-              Poses Uploaded ({uploadedRequiredCount}/{requiredCount})
+              {t('posesUploaded', { uploaded: uploadedRequiredCount, total: requiredCount })}
             </span>
             <div className="grid grid-cols-2 gap-2">
               {POSES.map((pose) => {
                 const isActive = activePose === pose.id
                 const st = uploadState[pose.id]
                 const subtitle =
-                  st === 'uploaded' ? 'Uploaded'
-                    : st === 'uploading' ? 'Uploading…'
-                      : st === 'validating' ? 'Checking…'
-                        : st === 'error' ? 'Needs attention'
-                          : 'Pending'
+                  st === 'uploaded' ? t('statusUploaded')
+                    : st === 'uploading' ? t('statusUploading')
+                      : st === 'validating' ? t('statusChecking')
+                        : st === 'error' ? t('statusNeedsAttention')
+                          : t('statusPending')
 
                 return (
                   <button
@@ -465,7 +471,7 @@ export default function PhotoUpload({
           {/* Mobile-only Upload Zone — shown between poses and guidelines on small screens */}
           <div className="lg:hidden space-y-2">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
-              Upload — {activePoseInfo.label}
+              {t('uploadActivePose', { pose: activePoseInfo.label })}
             </span>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">{activePoseInfo.desc}</p>
             <div
@@ -481,10 +487,10 @@ export default function PhotoUpload({
                   <div className="relative">
                     <img
                       src={currentPhoto}
-                      alt="Preview"
+                      alt={t('previewAlt')}
                       className={`w-28 h-36 rounded-xl object-cover shadow-md ${previewFilter} ${previewRing}`}
                     />
-                    <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} />
+                    <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} t={t} />
                     <div className="absolute top-1 right-1 flex gap-1">
                       <button
                         onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
@@ -507,8 +513,8 @@ export default function PhotoUpload({
                     <Upload className="w-4 h-4 text-[#5e9f8b]" />
                   </div>
                   <div className="text-center">
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Tap to upload photo</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">JPG, PNG, WEBP</p>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('tapToUpload')}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t('fileTypesShort')}</p>
                   </div>
                 </>
               )}
@@ -519,20 +525,20 @@ export default function PhotoUpload({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
-                Required
+                {t('required')}
               </span>
               {activeState === 'validating' && (
                 <span className="flex items-center gap-1 text-[10px] text-[#5e9f8b]">
                   <span className="w-2.5 h-2.5 rounded-full border border-[#5e9f8b] border-t-transparent animate-spin" />
-                  Checking…
+                  {t('checking')}
                 </span>
               )}
             </div>
             <ul className="space-y-1.5 border border-slate-100 dark:border-slate-800 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-950/20 max-h-[180px] overflow-y-auto lg:max-h-none lg:overflow-visible">
-              {REQUIRED_GUIDELINES.map((item, idx) => {
+              {GUIDELINE_KEYS.map((guidelineKey, idx) => {
                 const status = getGuidelineStatus(idx)
                 return (
-                  <li key={idx} className="flex items-start gap-2 text-[11px] leading-normal">
+                  <li key={guidelineKey} className="flex items-start gap-2 text-[11px] leading-normal">
                     {status === 'idle' && <span className="text-slate-300 dark:text-slate-600 shrink-0 font-bold mt-px">○</span>}
                     {status === 'pending' && <span className="w-2.5 h-2.5 rounded-full border border-[#5e9f8b] border-t-transparent animate-spin shrink-0 mt-0.5" />}
                     {status === 'pass' && <span className="text-[#5e9f8b] font-bold shrink-0">✓</span>}
@@ -542,7 +548,7 @@ export default function PhotoUpload({
                       status === 'fail' ? 'text-red-500 dark:text-red-400' :
                       status === 'warn' ? 'text-amber-600 dark:text-amber-400' :
                       'text-slate-600 dark:text-slate-400'
-                    }>{item}</span>
+                    }>{t(`guidelines.${guidelineKey}`)}</span>
                   </li>
                 )
               })}
@@ -561,7 +567,7 @@ export default function PhotoUpload({
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
             }`}
           >
-            <span>Continue</span>
+            <span>{t('continue')}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
           {submitError && (
@@ -570,8 +576,8 @@ export default function PhotoUpload({
           {!canAnalyze && !submitError && (
             <p className="text-[9px] text-slate-400 dark:text-slate-500 text-center mt-2">
               {!allRequiredUploaded
-                ? `* Upload all ${requiredCount} required photos to continue (${uploadedRequiredCount}/${requiredCount})`
-                : '* Finishing upload…'}
+                ? t('uploadAllRequired', { count: requiredCount, uploaded: uploadedRequiredCount })
+                : t('finishingUpload')}
             </p>
           )}
         </div>
@@ -587,7 +593,7 @@ export default function PhotoUpload({
         <div className="max-w-xl w-full mx-auto my-auto space-y-6">
           <div className="text-center space-y-1.5">
             <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block">
-              Active Pose
+              {t('activePose')}
             </span>
             <h2 className="text-white font-serif text-2xl font-bold">{activePoseInfo.label}</h2>
             <p className="text-xs text-slate-400 font-sans max-w-sm mx-auto">
@@ -625,23 +631,23 @@ export default function PhotoUpload({
                 <div className="relative">
                   <img
                     src={currentPhoto}
-                    alt="Upload preview"
+                    alt={t('uploadPreviewAlt')}
                     className={`w-48 h-60 rounded-2xl object-cover shadow-2xl border border-white/10 ${previewFilter} ${previewRing}`}
                   />
-                  <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} large />
+                  <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} large t={t} />
                 </div>
                 <div className="absolute top-2 right-12 flex gap-1.5">
                   <button
                     onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
                     className="w-8 h-8 rounded-lg bg-black/70 backdrop-blur-sm shadow-soft flex items-center justify-center text-white hover:text-[#5e9f8b] transition-colors"
-                    title="Change Photo"
+                    title={t('changePhoto')}
                   >
                     <Image className="w-4 h-4" />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); removePhoto(activePose) }}
                     className="w-8 h-8 rounded-lg bg-black/70 backdrop-blur-sm shadow-soft flex items-center justify-center text-white hover:text-red-500 transition-colors"
-                    title="Delete Photo"
+                    title={t('deletePhoto')}
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -654,10 +660,10 @@ export default function PhotoUpload({
                 </div>
                 <div>
                   <p className="text-white text-xs font-semibold">
-                    Drag and drop or Choose file upload
+                    {t('dragDropOrChoose')}
                   </p>
                   <p className="text-slate-450 text-[10px] mt-1">
-                    Supports JPG, PNG, WEBP files
+                    {t('fileTypesLong')}
                   </p>
                 </div>
               </div>

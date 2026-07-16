@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter } from '../../i18n/navigation'
 import { STAGES, INITIAL_ANSWERS } from '../../utils/constants'
 import {
   ANALYSIS_STEPS,

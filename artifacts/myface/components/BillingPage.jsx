@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { CreditCard, Loader2, RefreshCw, Wallet } from 'lucide-react'
 import {
   createPayPalOrder,
@@ -37,16 +38,16 @@ function StatusBadge({ status }) {
   )
 }
 
-function ProviderButton({ provider, configured, loading, onClick }) {
+function ProviderButton({ provider, configured, loading, onClick, t }) {
   const Icon = provider === 'stripe' ? CreditCard : Wallet
-  const label = provider === 'stripe' ? 'Pay with Stripe' : 'Pay with PayPal'
+  const label = provider === 'stripe' ? t('payWithStripe') : t('payWithPayPal')
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!configured || loading}
       className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold bg-brand text-white hover:bg-brand-dark shadow-brand transition-colors disabled:opacity-50 disabled:pointer-events-none w-full"
-      title={!configured ? `${provider} is not configured in backend environment` : label}
+      title={!configured ? t('providerNotConfigured', { provider }) : label}
     >
       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icon className="w-4 h-4" />}
       {label}
@@ -55,6 +56,7 @@ function ProviderButton({ provider, configured, loading, onClick }) {
 }
 
 export default function BillingPage({ user, message = '' }) {
+  const t = useTranslations('Billing')
   const [config, setConfig] = useState(null)
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -71,7 +73,7 @@ export default function BillingPage({ user, message = '' }) {
         setPayments(await fetchMyPayments(20))
       }
     } catch (err) {
-      setError(err.message || 'Could not load billing')
+      setError(err.message || t('loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -91,7 +93,7 @@ export default function BillingPage({ user, message = '' }) {
       const result = await createStripeCheckout()
       if (result.checkoutUrl) window.location.href = result.checkoutUrl
     } catch (err) {
-      setError(err.message || 'Stripe checkout failed')
+      setError(err.message || t('stripeCheckoutFailed'))
       setBusy('')
     }
   }
@@ -104,7 +106,7 @@ export default function BillingPage({ user, message = '' }) {
       const result = await createPayPalOrder()
       if (result.approveUrl) window.location.href = result.approveUrl
     } catch (err) {
-      setError(err.message || 'PayPal checkout failed')
+      setError(err.message || t('paypalCheckoutFailed'))
       setBusy('')
     }
   }
@@ -120,8 +122,8 @@ export default function BillingPage({ user, message = '' }) {
               <CreditCard className="w-5 h-5 text-brand" />
             </div>
             <div className="min-w-0">
-              <h1 className="font-display text-xl sm:text-2xl font-semibold text-ink tracking-tight">Billing</h1>
-              <p className="text-sm text-ink-muted font-sans">Premium report payment collection</p>
+              <h1 className="font-display text-xl sm:text-2xl font-semibold text-ink tracking-tight">{t('title')}</h1>
+              <p className="text-sm text-ink-muted font-sans">{t('subtitle')}</p>
             </div>
           </div>
           <button
@@ -131,7 +133,7 @@ export default function BillingPage({ user, message = '' }) {
             className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium border border-surface-border bg-white dark:bg-surface-card text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50 w-full sm:w-auto"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            Refresh
+            {t('refresh')}
           </button>
         </div>
 
@@ -149,17 +151,17 @@ export default function BillingPage({ user, message = '' }) {
 
         {needsBackend ? (
           <div className="bg-white dark:bg-surface-card rounded-2xl p-6 sm:p-8 text-center shadow-card border border-surface-border">
-            <p className="font-display text-ink mb-1">Backend API required</p>
-            <p className="text-sm text-ink-muted font-sans">Set `NEXT_PUBLIC_API_URL` to use payment collection.</p>
+            <p className="font-display text-ink mb-1">{t('backendRequiredTitle')}</p>
+            <p className="text-sm text-ink-muted font-sans">{t('backendRequiredText')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-4 sm:gap-6">
             <div className="bg-white dark:bg-surface-card rounded-2xl p-5 sm:p-6 shadow-card border border-surface-border">
               <p className="text-[10px] uppercase tracking-wider text-ink-muted font-sans font-semibold mb-3">
-                Current Product
+                {t('currentProduct')}
               </p>
-              <h2 className="font-display text-xl font-semibold text-ink mb-2">{product?.name || 'MyFace Premium Report'}</h2>
-              <p className="text-sm text-ink-muted leading-relaxed mb-5">{product?.description || 'Full report workflow access.'}</p>
+              <h2 className="font-display text-xl font-semibold text-ink mb-2">{product?.name || t('defaultProductName')}</h2>
+              <p className="text-sm text-ink-muted leading-relaxed mb-5">{product?.description || t('defaultProductDesc')}</p>
               <div className="text-3xl font-display font-bold text-brand mb-5">
                 {money(product?.amountCents || 0, product?.currency || 'usd')}
               </div>
@@ -169,20 +171,22 @@ export default function BillingPage({ user, message = '' }) {
                   configured={!!config?.stripe?.configured}
                   loading={busy === 'stripe'}
                   onClick={startStripe}
+                  t={t}
                 />
                 <ProviderButton
                   provider="paypal"
                   configured={!!config?.paypal?.configured}
                   loading={busy === 'paypal'}
                   onClick={startPayPal}
+                  t={t}
                 />
               </div>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-ink-muted">
                 <div className="rounded-xl bg-surface-warm border border-surface-border p-3">
-                  Stripe: {config?.stripe?.configured ? 'configured' : 'missing keys'}
+                  {t('stripeLabel')}: {config?.stripe?.configured ? t('stripeConfigured') : t('stripeMissingKeys')}
                 </div>
                 <div className="rounded-xl bg-surface-warm border border-surface-border p-3">
-                  PayPal: {config?.paypal?.configured ? 'configured' : 'missing keys'}
+                  {t('paypalLabel')}: {config?.paypal?.configured ? t('paypalConfigured') : t('paypalMissingKeys')}
                 </div>
               </div>
             </div>
@@ -190,19 +194,19 @@ export default function BillingPage({ user, message = '' }) {
             <div className="bg-white dark:bg-surface-card rounded-2xl p-5 sm:p-6 shadow-card border border-surface-border">
               <div className="flex items-center justify-between mb-4 gap-2">
                 <p className="text-[10px] uppercase tracking-wider text-ink-muted font-sans font-semibold">
-                  Recent Payments
+                  {t('recentPayments')}
                 </p>
-                <span className="text-xs text-ink-muted shrink-0">{payments.length} records</span>
+                <span className="text-xs text-ink-muted shrink-0">{t('records', { count: payments.length })}</span>
               </div>
               {loading ? (
                 <div className="py-10 text-center">
                   <Loader2 className="w-6 h-6 text-brand animate-spin mx-auto mb-3" />
-                  <p className="text-sm text-ink-muted">Loading payments...</p>
+                  <p className="text-sm text-ink-muted">{t('loadingPayments')}</p>
                 </div>
               ) : payments.length === 0 ? (
                 <div className="py-10 text-center border border-dashed border-surface-border rounded-2xl px-4">
-                  <p className="font-display text-ink mb-1">No payments yet</p>
-                  <p className="text-sm text-ink-muted">Completed checkouts will appear here.</p>
+                  <p className="font-display text-ink mb-1">{t('noPaymentsTitle')}</p>
+                  <p className="text-sm text-ink-muted">{t('noPaymentsText')}</p>
                 </div>
               ) : (
                 <div className="space-y-3">

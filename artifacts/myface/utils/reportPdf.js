@@ -1,3 +1,4 @@
+import { defaultPdfT, createPdfTranslator } from './pdfI18n'
 import { jsPDF } from 'jspdf'
 import { normalizeToJpegDataUrl } from './aestheticProjection'
 import {
@@ -55,12 +56,17 @@ const SUMMARY_CARD_MIN_H = 110
 const PAGE_BOTTOM = PAGE_H - 56
 
 const EVIDENCE_TIER_LABELS = {
-  lifestyle: 'Routine / Topical',
-  otc: 'Non-invasive / OTC',
-  refer_clinician: 'See clinician',
+  lifestyle: 'evidenceLifestyle',
+  otc: 'evidenceOtc',
+  refer_clinician: 'evidenceReferClinician',
 }
 
-function wrapSubsectionText(doc, sub, x, y, maxW, lineH = 11.5) {
+function evidenceTierLabel(tier, pdfT) {
+  const key = EVIDENCE_TIER_LABELS[tier]
+  return key ? pdfT(key) : tier
+}
+
+function wrapSubsectionText(doc, sub, x, y, maxW, lineH = 11.5, pdfT = defaultPdfT) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   setInk(doc)
@@ -73,7 +79,7 @@ function wrapSubsectionText(doc, sub, x, y, maxW, lineH = 11.5) {
     doc.setFont('helvetica', 'italic')
     doc.setFontSize(7)
     setMuted(doc)
-    doc.text(`Recommendation tier: ${EVIDENCE_TIER_LABELS[sub.evidenceTier]}`, x, nextY + 4)
+    doc.text(`${pdfT('recommendationTier')}: ${evidenceTierLabel(sub.evidenceTier, pdfT)}`, x, nextY + 4)
     nextY += 12
   }
   return nextY
@@ -119,19 +125,19 @@ function setWhite(doc) {
   doc.setTextColor(255, 255, 255)
 }
 
-function addFooter(doc, pageNum) {
+function addFooter(doc, pageNum, pdfT = defaultPdfT) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
-  doc.text('MyFace · Confidential Facial Analysis', MARGIN, PAGE_H - 28)
-  doc.text(`Page ${pageNum}`, PAGE_W - MARGIN, PAGE_H - 28, { align: 'right' })
+  doc.text(pdfT('footerConfidential'), MARGIN, PAGE_H - 28)
+  doc.text(pdfT('pageNumber', { page: pageNum }), PAGE_W - MARGIN, PAGE_H - 28, { align: 'right' })
 }
 
-function drawPageNumber(doc, num) {
+function drawPageNumber(doc, num, pdfT = defaultPdfT) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   setMuted(doc)
-  doc.text(`PAGE / ${String(num).padStart(2, '0')}`, PAGE_W - MARGIN, 40, { align: 'right' })
+  doc.text(pdfT('pageHeader', { page: String(num).padStart(2, '0') }), PAGE_W - MARGIN, 40, { align: 'right' })
 }
 
 function drawBrandBar(doc) {
@@ -139,20 +145,18 @@ function drawBrandBar(doc) {
   doc.rect(0, 0, PAGE_W, 4, 'F')
 }
 
-function drawHeader(doc, pageNum) {
+function drawHeader(doc, pageNum, pdfT = defaultPdfT) {
   drawBrandBar(doc)
-  
-  // Top-left: MYFACE branding text
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   setInk(doc)
-  doc.text('MYFACE', MARGIN, 40)
+  doc.text(pdfT('brandHeader'), MARGIN, 40)
 
-  // Top-right: PAGE  /  XX
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
-  doc.text('PAGE  /', PAGE_W - MARGIN - 18, 40, { align: 'right' })
+  doc.text(pdfT('pagePrefix'), PAGE_W - MARGIN - 18, 40, { align: 'right' })
   doc.setFont('helvetica', 'bold')
   setInk(doc)
   doc.text(String(pageNum).padStart(2, '0'), PAGE_W - MARGIN, 40, { align: 'right' })
@@ -356,7 +360,7 @@ function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false) {
   return { w, h, ox, oy }
 }
 
-function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IMAGE_TEXT_GAP } = {}) {
+function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IMAGE_TEXT_GAP, pdfT = defaultPdfT } = {}) {
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.roundedRect(x, y, w, h, 6, 6, 'F')
   doc.setDrawColor(229, 231, 235)
@@ -370,7 +374,7 @@ function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IM
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     setMuted(doc)
-    doc.text('Projected image pending', x + w / 2, y + h / 2, { align: 'center' })
+    doc.text(pdfT('projectedImagePending'), x + w / 2, y + h / 2, { align: 'center' })
   }
 
   if (tag) {
@@ -1340,8 +1344,11 @@ export async function downloadMyFacePdf({
   user = null,
   projectedAfter = null,
   projectedAnalysis = null,
+  pdfT = defaultPdfT,
+  pdfMessages = null,
 }) {
-  if (!photo || !cvReport) throw new Error('Photo and analysis data required for PDF export')
+  if (!photo || !cvReport) throw new Error(pdfT('missingData'))
+  const t = pdfMessages ? createPdfTranslator(pdfMessages) : pdfT
 
   const photoJpeg = await normalizeToJpegDataUrl(photo)
   const afterUrl = resolveProjectedAfterUrl(projectedAfter)
@@ -1467,7 +1474,7 @@ export async function downloadMyFacePdf({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   setWhite(doc)
-  doc.text('MYFACE', MARGIN, 72)
+  doc.text(t('brandHeader'), MARGIN, 72)
   
   doc.setDrawColor(58, 74, 90) // accent dark blue-gray line
   doc.setLineWidth(1)
@@ -1477,17 +1484,16 @@ export async function downloadMyFacePdf({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(38)
   doc.setTextColor(255, 255, 255)
-  doc.text('Aesthetic', MARGIN, 370)
-  
+  doc.text(t('coverAesthetic'), MARGIN, 370)
+
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(181, 199, 211) // hex #B5C7D3 light slate/grey
-  doc.text('Protocol', MARGIN, 415)
-  
-  // Metadata Section — prepared for + edition only (no date)
+  doc.setTextColor(181, 199, 211)
+  doc.text(t('coverProtocol'), MARGIN, 415)
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(180, 190, 200)
-  doc.text('PREPARED FOR', MARGIN, 480)
+  doc.text(t('preparedFor'), MARGIN, 480)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   doc.setTextColor(255, 255, 255)
@@ -1496,7 +1502,7 @@ export async function downloadMyFacePdf({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(180, 190, 200)
-  doc.text('EDITION', MARGIN + 220, 480)
+  doc.text(t('edition'), MARGIN + 220, 480)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   doc.setTextColor(255, 255, 255)
@@ -1510,18 +1516,18 @@ export async function downloadMyFacePdf({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   doc.setTextColor(140, 150, 160)
-  doc.text('MYFACE.CLUB', MARGIN, PAGE_H - 62)
-  
+  doc.text(t('siteUrl'), MARGIN, PAGE_H - 62)
+
   doc.setFont('helvetica', 'normal')
-  doc.text('CONFIDENTIAL AESTHETIC PROTOCOL', PAGE_W - MARGIN, PAGE_H - 62, { align: 'right' })
+  doc.text(t('coverFooter'), PAGE_W - MARGIN, PAGE_H - 62, { align: 'right' })
 
   // Increment page count
   pageNum++
 
   // ── Page 2: Disclaimer + Privacy (two columns) ──
   doc.addPage()
-  drawHeader(doc, 2)
-  y = drawSplitTitle(doc, MARGIN, 85, 'Disclaimer', 'Policy', 26)
+  drawHeader(doc, 2, t)
+  y = drawSplitTitle(doc, MARGIN, 85, t('disclaimer'), t('policy'), 26)
 
   // Draw vertical separator line down the middle
   doc.setDrawColor(236, 236, 236) // #ECECEC
@@ -1533,8 +1539,8 @@ export async function downloadMyFacePdf({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   setInk(doc)
-  doc.text('Disclaimer Policy', MARGIN, columnHeaderY)
-  doc.text('Privacy Policy', MARGIN + COL_W + COL_GAP, columnHeaderY)
+  doc.text(t('disclaimerPolicy'), MARGIN, columnHeaderY)
+  doc.text(t('privacyPolicy'), MARGIN + COL_W + COL_GAP, columnHeaderY)
 
   // Draw paragraphs
   let leftY = columnHeaderY + 18
@@ -1564,10 +1570,10 @@ export async function downloadMyFacePdf({
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
-  doc.text('Read the full privacy policy ', MARGIN + COL_W + COL_GAP, rightY)
-  
-  const linkText = 'here (myface.club)'
-  const prefixW = doc.getTextWidth('Read the full privacy policy ')
+  doc.text(t('readPrivacyPrefix'), MARGIN + COL_W + COL_GAP, rightY)
+
+  const linkText = t('privacyLink')
+  const prefixW = doc.getTextWidth(t('readPrivacyPrefix') + ' ')
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(94, 159, 139) // brand color `#5e9f8b`
   doc.text(linkText, MARGIN + COL_W + COL_GAP + prefixW, rightY)
@@ -1584,13 +1590,13 @@ export async function downloadMyFacePdf({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   setInk(doc)
-  doc.text('MyFace Inc', MARGIN + COL_W + COL_GAP, signatureY)
-  
+  doc.text(t('companyName'), MARGIN + COL_W + COL_GAP, signatureY)
+
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
-  doc.text('The following report was commissioned for', MARGIN + COL_W + COL_GAP, signatureY + 12)
-  doc.text(`${clientName} on ${monthLabel}.`, MARGIN + COL_W + COL_GAP, signatureY + 24)
+  doc.text(t('commissionedFor'), MARGIN + COL_W + COL_GAP, signatureY + 12)
+  doc.text(t('commissionedOn', { name: clientName, month: monthLabel }), MARGIN + COL_W + COL_GAP, signatureY + 24)
 
   pageNum++
 
@@ -1847,7 +1853,7 @@ export async function downloadMyFacePdf({
   closingCols.right.forEach((para) => {
     rightY = wrapText(doc, para, MARGIN + COL_W + COL_GAP, rightY, COL_W, 11) + 10
   })
-  addFooter(doc, pageNum++)
+  addFooter(doc, pageNum++, t)
 
   const safeName = clientName.replace(/[^\w\s-]/g, '').trim() || 'Client'
   doc.save(`MyFace-Protocol-${safeName.replace(/\s+/g, '-')}.pdf`)
@@ -1855,3 +1861,5 @@ export async function downloadMyFacePdf({
     coverCropSession = null
   }
 }
+
+export { createPdfTranslator, defaultPdfT } from './pdfI18n'

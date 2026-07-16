@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { RotateCcw, Loader2, AlertTriangle, Download, Lock, ShieldCheck, X, Sparkles, ImagePlus } from 'lucide-react'
 import { saveHistoryEntry, createHistoryId, loadHistory } from '../utils/historyStorage'
 import {
@@ -15,7 +16,6 @@ import { resolveProjectedAfterUrl } from '../utils/projectedAfter'
 import {
   canClientViewFullReport,
   canDownloadReportPdf,
-  clientAwaitingReviewMessage,
   isDevAutoApproveEnabled,
   isReportApproved,
   isAssessmentProcessing,
@@ -55,17 +55,18 @@ function getCvLabel(analysis, metrics) {
   return '—'
 }
 
-const STATUS_META = {
-  pending_review: { label: 'Pending review', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  approved: { label: 'Approved', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+const STATUS_META_KEYS = {
+  pending_review: { labelKey: 'shell.pendingReview', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  approved: { labelKey: 'shell.approved', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 }
 
 function StatusBadge({ status }) {
+  const t = useTranslations('Report')
   const normalized = normalizeReportStatus(status)
-  const meta = STATUS_META[normalized] || STATUS_META.pending_review
+  const meta = STATUS_META_KEYS[normalized] || STATUS_META_KEYS.pending_review
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-semibold ${meta.className}`}>
-      {meta.label}
+      {t(meta.labelKey)}
     </span>
   )
 }
@@ -82,6 +83,7 @@ export default function Report({
   user,
   onClose,
 }) {
+  const t = useTranslations('Report')
   const [protocolNarrative, setProtocolNarrative] = useState(null)
   const [featureNarratives, setFeatureNarratives] = useState(null)
   const [featureParsing, setFeatureParsing] = useState(null)
@@ -221,7 +223,7 @@ export default function Report({
       }
     } catch (err) {
       console.error('PDF export failed:', err)
-      alert(err?.message || 'Failed to generate PDF. Please try again.')
+      alert(err?.message || t('shell.pdfFailed'))
     } finally {
       setPdfLoading(false)
     }
@@ -451,10 +453,10 @@ export default function Report({
       <div className="min-h-screen px-4 sm:px-6 py-8 animate-fade-up font-sans pt-16 bg-surface">
         <div className="max-w-xl mx-auto mt-12">
           <div className="bg-white dark:bg-surface-card rounded-3xl p-8 shadow-card border border-surface-border">
-            <ErrorPanel title="Analysis failed" message={displayAnalysis?.error || 'Analysis could not be completed.'} />
+            <ErrorPanel title={t('shell.analysisFailed')} message={displayAnalysis?.error || t('shell.analysisFailedMessage')} />
             <button onClick={onRestart} className="btn-primary w-full mt-3 text-sm font-display">
               <RotateCcw className="w-4 h-4" />
-              Try Again
+              {t('shell.tryAgain')}
             </button>
           </div>
         </div>
@@ -466,12 +468,12 @@ export default function Report({
     <div className="h-full min-h-0 flex flex-col animate-fade-up font-sans bg-surface text-ink relative">
       {isDevAutoApproveEnabled && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[9998] rounded-full border-2 border-amber-400 bg-amber-500 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-900 shadow-lg shadow-amber-500/30">
-          DEV: Admin approval bypassed
+          {t('shell.devBypass')}
         </div>
       )}
 
       <div className="flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 py-3 border-b border-surface-border bg-surface-card shrink-0">
-        <h2 className="font-display text-sm font-semibold text-ink truncate min-w-0">Facial Analysis Report</h2>
+        <h2 className="font-display text-sm font-semibold text-ink truncate min-w-0">{t('shell.title')}</h2>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end">
           {showAdminTools && (
             <>
@@ -486,8 +488,8 @@ export default function Report({
                 title="Edit PDF narrative (admin)"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline sm:inline">Edit PDF narrative</span>
-                <span className="sm:hidden">Narrative</span>
+                <span className="hidden xs:inline sm:inline">{t('shell.editPdfNarrative')}</span>
+                <span className="sm:hidden">{t('shell.narrative')}</span>
               </button>
               <button
                 type="button"
@@ -500,7 +502,7 @@ export default function Report({
                 title="Generate projected AFTER (admin)"
               >
                 <ImagePlus className="w-3.5 h-3.5" />
-                <span>Edit After Image</span>
+                <span>{t('shell.editAfterImage')}</span>
               </button>
             </>
           )}
@@ -512,7 +514,7 @@ export default function Report({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium font-display bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
             >
               {statusUpdating === 'approved' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-              Approve
+              {t('shell.approve')}
             </button>
           )}
           {showQovesReport && (
@@ -521,10 +523,10 @@ export default function Report({
               onClick={handleDownloadPdf}
               disabled={pdfLoading || !canDownloadPdf}
               className="btn-primary text-xs px-4 py-2 shadow-brand"
-              title={!canDownloadPdf ? 'PDF download is available after admin approval' : 'Download PDF'}
+              title={!canDownloadPdf ? t('shell.pdfAfterApproval') : t('shell.downloadPdf')}
             >
               {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              PDF
+              {t('shell.pdf')}
             </button>
           )}
           {onClose && (
@@ -532,7 +534,7 @@ export default function Report({
               type="button"
               onClick={onClose}
               className="inline-flex items-center justify-center min-h-[36px] min-w-[36px] rounded-xl text-ink-muted hover:text-ink hover:bg-surface-warm transition-colors"
-              aria-label="Close report"
+              aria-label={t('shell.closeReport')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -543,7 +545,7 @@ export default function Report({
       <div className="flex-1 min-h-0 flex flex-col px-3 sm:px-4 pb-3 pt-3">
         {displayAnalysis?.protocolWarnings?.length > 0 && (
           <div className="mb-3 shrink-0 p-4 rounded-2xl bg-amber-50 border border-amber-200">
-            <p className="text-sm font-display font-semibold text-amber-700 mb-2">Protocol warnings</p>
+            <p className="text-sm font-display font-semibold text-amber-700 mb-2">{t('shell.protocolWarnings')}</p>
             <ul className="space-y-1.5">
               {displayAnalysis.protocolWarnings.map((w) => (
                 <li key={w.id} className="text-xs text-amber-600 font-sans">• {w.message}</li>
@@ -557,8 +559,8 @@ export default function Report({
             <div className="flex items-start gap-3">
               <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-display font-semibold text-amber-800 mb-1">Report under review</p>
-                <p className="text-xs text-amber-700 font-sans leading-relaxed">{clientAwaitingReviewMessage()}</p>
+                <p className="text-sm font-display font-semibold text-amber-800 mb-1">{t('shell.reportUnderReview')}</p>
+                <p className="text-xs text-amber-700 font-sans leading-relaxed">{t('locked.awaitingReview')}</p>
               </div>
             </div>
           </div>
@@ -618,22 +620,22 @@ export default function Report({
           <div className="max-w-lg mx-auto px-4">
             <div className="bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border text-center">
               <Loader2 className="w-8 h-8 text-brand animate-spin mx-auto mb-4" />
-              <p className="font-display text-base font-semibold text-ink mb-2">Your analysis is being prepared</p>
-              <p className="text-sm text-ink-muted">We&apos;ll email you when it&apos;s ready — you may close this tab safely.</p>
+              <p className="font-display text-base font-semibold text-ink mb-2">{t('shell.analysisPreparing')}</p>
+              <p className="text-sm text-ink-muted">{t('shell.analysisPreparingHint')}</p>
             </div>
           </div>
         ) : cvPending ? (
           <div className="max-w-lg mx-auto px-4">
             <div className="bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border text-center">
               <Loader2 className="w-8 h-8 text-brand animate-spin mx-auto mb-4" />
-              <p className="text-sm text-ink-muted">Building structured report from landmarks…</p>
+              <p className="text-sm text-ink-muted">{t('shell.buildingReport')}</p>
             </div>
           </div>
         ) : (
           <div className="max-w-lg mx-auto px-4">
             <ErrorPanel
-              title="Report unavailable"
-              message={displayAnalysis?.error || 'No analysis data was returned. Upload all 7 required photos and run analysis again.'}
+              title={t('shell.reportUnavailable')}
+              message={displayAnalysis?.error || t('shell.reportUnavailableMessage')}
             />
           </div>
         )}
@@ -650,9 +652,9 @@ export default function Report({
 
       <ConfirmDialog
         open={approveConfirmOpen}
-        title="Approve report?"
-        message="This releases the full report and PDF download to the client. This action cannot be undone."
-        confirmLabel="Approve"
+        title={t('shell.approveTitle')}
+        message={t('shell.approveMessage')}
+        confirmLabel={t('shell.approve')}
         onConfirm={confirmAdminApprove}
         onCancel={() => setApproveConfirmOpen(false)}
       />

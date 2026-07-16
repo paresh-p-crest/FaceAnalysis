@@ -6,8 +6,18 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Added
+- **Locale switcher dropdown** — `LocaleSwitcher` in site navbar (desktop/mobile) and analysis flow; switches `/en/...` ↔ `/de/...` via next-intl router while keeping the current page path.
+- **next-intl en/de locale routing** — `artifacts/myface` App Router now serves `/en/...` and `/de/...` via middleware locale detection, `app/[locale]/` segment, and `NextIntlClientProvider`. Message catalogs live in `messages/en.json` (source for translation) and `messages/de.json` (German placeholders). Run `pnpm --filter @workspace/myface run i18n:extract` to audit flat `t()` keys into `messages/en.extracted.json`.
+### Changed
+- **Onboarding flow i18n** — Questionnaire welcome, questionnaire wizard, photo upload/protocol, analysis preparing screen, onboarding layout, and shared `onboarding.js` / `photoValidation.js` utils now use `next-intl` with keys under `Onboarding`, `Questionnaire`, `Photo`, and `Analysis` in `messages/en.json` and `messages/de.json` (German file uses English placeholders for new keys). MyFace brand name stays untranslated.
+### Added
+- **Report UI i18n namespace** — Converted report navigation (`labelKey` in `reportNavConfig.js`, translated in `ReportNavSidebar`), intro/disclaimer/executive summary, proportions/dimorphism/averageness, shell chrome (`Report.jsx`), protocol side rail, locked gate, and static paragraphs in `qovesProtocolModel.js` to next-intl `Report` namespace in `artifacts/myface/messages/en.json` and `de.json`.
+- **Admin/Errors/Pdf/CvReport/Shared i18n namespaces** — Converted admin panel, review panel, pipeline status, shared score widgets, `apiClient` error codes, CV report label keys, and PDF chrome strings to next-intl (`messages/en.json`, `messages/de.json`).
+### Changed
+- **Report feature panel i18n** — Chin, Smile, Neck, Brow, Eye, Skin, Nose, Lips, Hair, and Cheek report panels in `artifacts/myface` now use `useTranslations('Report')` for static UI chrome; added minimal `nose`/`lips`/`hair`/`cheek` keys to `messages/en.json` and `messages/de.json`.
 - **Chin & cheek filled highlights on interactive report heroes** — Cheeks and Chin tabs keep the existing hero image and overlay notebook-style fills via `featureRegionOverlays.js` / `FeatureRegionHero`. Chin fill is geometric (top below the labiomental fold, bottom extended past menton 152) so goatee / soft-tissue chin tip is covered — MediaPipe 152 alone sits too high on bearded faces.
 ### Fixed
+- **Local Postgres startup — SSL rejected** — `connect_db` no longer forces `ssl=True` for `localhost` / `127.0.0.1` / `::1` DATABASE_URL hosts (local Postgres typically has no TLS). Still uses SSL for remote managed URLs unless `sslmode=disable` or Replit `PG*` vars.
 - **Naso-aural overlay disabled** — Ear (naso-aural) tab shows the profile photo with ratio stats only; measurement brackets deferred until profile mapping is reliable.
 - **Orbital proportion bar eye length** — frontal ratio tabs now render a live face-crop plate paired with crop-space overlays (fixes short spans from image-% guides on a cropped photo). Outer ticks also get a small soft-tissue pad beyond mesh canthi.
 - **Orbital proportion overlay placement** — measurement bar sits on the lower forehead (above the brows), not through the canthi; tick x still marks ex–en–en–ex. Crop/zoom unchanged.
@@ -16,7 +26,7 @@ All notable changes to this project will be documented in this file. The format 
 - **Orbito-nasal proportion overlay** — replaced corner dots + full-height vertical guides with two horizontal measurement bars (inner canthi + alae) and downward end ticks, matching the Qoves span style. Crop/zoom unchanged.
 - **Eyes / Eyebrows hero flash** — panels no longer briefly show the stored eyes-only (or brows) crop before the live zoomed periorbital crop finishes; hero waits for `cropFeatureBefore(…, 'periorbital')` with no sync fallback.
 ### Changed
-- **Proportion feature overlay color** — orbito-nasal / naso-oral / orbital bars match the facial-thirds overview stroke (`rgba(255,255,255,0.92)`, weight `1.15`).
+- **Core shell i18n** — Site navbar, auth modal, dashboard, history, billing, payment success, settings, confirm dialog, and boot screen now use `next-intl` with `Nav`, `Auth`, `Dashboard`, `History`, `Billing`, `Settings`, and `Common` message namespaces in `messages/en.json` and `messages/de.json`.
 - **Proportion span-bar overlays brighter** — orbito-nasal / naso-oral / orbital measurement bars render at full white (`rgba(255,255,255,1)`) with a slightly heavier stroke for readability.
 - **Features Analysis UI alignment** — Cheeks, Jaw, Chin, Hair, Smile, and Neck panels now share the same Lips/Nose shell (`FeatureSummaryUi`: mono-label cards, ink range meter, detail carousel, brand metric columns, white hero frame). Image sources and metric data wiring unchanged.
 - **Neck Features Analysis UI refresh** — new `NeckReportPanel`: same layout as Smile/Hair (header, 2×2 classifications, wide numeric carousel, All Neck Metrics table). Hero image source unchanged (`resolveFeatureHero('neck')` → `imageSrc`). Metrics from `featureParsing.metrics.neck` (neck width mm, neck/jaw width ratio) + `cvReport.neck` width class; Definition / Length / Aging stay N/A from geometry.

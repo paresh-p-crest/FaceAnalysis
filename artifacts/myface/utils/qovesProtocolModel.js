@@ -13,34 +13,48 @@ export const QOVES_PROTOCOL_FEATURES = [
   { id: 'ears', title: 'Ear', page: 15 },
 ]
 
-export const UNDERSTANDING_RESULTS = [
-  'These recommendations focus on key markers of facial health and harmony. The goal is not to change what makes the subject unique, but to understand what works best with the subject\'s existing features.',
-  'MyFace does not rate attractiveness. The assessment highlights what works best for the subject\'s features using objective cephalometric measurements rather than a single universal standard.',
-  'The protocol includes a mix of foundational and more advanced recommendations. Fundamentals such as SPF, sleep, and hydration support the effectiveness of more targeted guidance.',
-  'All recommendations are for informational and aesthetic purposes only. Any in-clinic treatment or prescription product should be discussed with a qualified medical professional.',
+export const UNDERSTANDING_RESULTS_KEYS = [
+  'protocolModel.understandingResults.p1',
+  'protocolModel.understandingResults.p2',
+  'protocolModel.understandingResults.p3',
+  'protocolModel.understandingResults.p4',
 ]
 
-export const DISCLAIMER_PARAGRAPHS = [
-  'This report is provided for general informational and educational purposes only. It discusses topics related to facial aesthetics and wellness. It is not intended to constitute medical, clinical, or professional advice, diagnosis, or treatment of any kind.',
-  'The information in this MyFace report is not a substitute for consultation with a qualified medical or healthcare professional. Readers should always seek appropriately licensed professional advice regarding any medical condition or treatment decision.',
-  'MyFace makes no warranties regarding the accuracy or completeness of this report and disclaims liability arising from reliance on its contents. Any actions taken based on this report are at the reader\'s own risk.',
-  'The purpose of this report is to help the reader understand facial features and how non-surgical recommendations could potentially impact appearance. Any reference to treatments is for informational context only.',
+/** @deprecated Use UNDERSTANDING_RESULTS_KEYS with useTranslations('Report') */
+export const UNDERSTANDING_RESULTS = UNDERSTANDING_RESULTS_KEYS
+
+export const DISCLAIMER_PARAGRAPH_KEYS = [
+  'disclaimer.paragraphs.p1',
+  'disclaimer.paragraphs.p2',
+  'disclaimer.paragraphs.p3',
+  'disclaimer.paragraphs.p4',
 ]
 
-export const PRIVACY_PARAGRAPHS = [
-  'The subject\'s facial images and questionnaire responses are processed solely to generate this personalised assessment report.',
-  'MyFace does not sell biometric data. Access is restricted to authorised reviewers for quality assurance before the report is approved.',
-  'The subject may request deletion of assessment data by contacting support.',
-  'Read the full privacy policy at myface.club.',
+/** @deprecated Use DISCLAIMER_PARAGRAPH_KEYS with useTranslations('Report') */
+export const DISCLAIMER_PARAGRAPHS = DISCLAIMER_PARAGRAPH_KEYS
+
+export const PRIVACY_PARAGRAPH_KEYS = [
+  'disclaimer.privacy.p1',
+  'disclaimer.privacy.p2',
+  'disclaimer.privacy.p3',
+  'disclaimer.privacy.p4',
 ]
 
-export const INTRODUCTION_PARAGRAPHS = [
-  'In this report, MyFace has approached the commissioned facial analysis from a cephalometric point of view, taking soft tissue measurements and comparing them with established scientific reference ranges for facial harmony and proportion.',
-  'This approach makes the report\'s findings less subjective where recommendations may vary from person to person.',
+/** @deprecated Use PRIVACY_PARAGRAPH_KEYS with useTranslations('Report') */
+export const PRIVACY_PARAGRAPHS = PRIVACY_PARAGRAPH_KEYS
+
+export const INTRODUCTION_PARAGRAPH_KEYS = [
+  'intro.paragraphs.p1',
+  'intro.paragraphs.p2',
 ]
 
-export const LIMITATIONS_PARAGRAPH =
-  'Limitations apply: neutral head position, lighting, camera quality, and the absence of radiographic imaging may influence measurements. This report is not a medical diagnosis. Recommendations throughout should be taken as empirical guidelines grounded in the subject\'s facial measurements.'
+/** @deprecated Use INTRODUCTION_PARAGRAPH_KEYS with useTranslations('Report') */
+export const INTRODUCTION_PARAGRAPHS = INTRODUCTION_PARAGRAPH_KEYS
+
+export const LIMITATIONS_PARAGRAPH_KEY = 'protocolModel.limitations'
+
+/** @deprecated Use LIMITATIONS_PARAGRAPH_KEY with useTranslations('Report') */
+export const LIMITATIONS_PARAGRAPH = LIMITATIONS_PARAGRAPH_KEY
 
 /** Split on sentence boundaries without breaking decimal numbers (e.g. 0.28). */
 export function splitSentences(text, max = 4) {
@@ -186,6 +200,11 @@ export function getClientName(answers, user = null) {
   }
 
   return 'Client'
+}
+
+/** Resolve static protocol copy keys via next-intl translate function. */
+export function translateProtocolKeys(keys, t) {
+  return keys.map((key) => (typeof key === 'string' && key.includes('.') ? t(key) : key))
 }
 
 /** Static edition label for cover (no date). */

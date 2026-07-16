@@ -1,6 +1,14 @@
+'use client'
+
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
+import {
+  DetailCarousel,
+  FeatureHeroFrame,
+  MetricsColumn,
+  SummaryLabelCard,
+} from './FeatureSummaryUi'
 import { cropFeatureBefore } from '../../utils/aestheticProjection'
 
 function textOrNull(v) {
@@ -38,55 +46,7 @@ function formatDeg(n) {
   return `${n.toFixed(2)}°`
 }
 
-function markerPct(value, min, max) {
-  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || max === min) {
-    return 50
-  }
-  return Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
-}
-
-function SummaryLabelCard({ label, value }) {
-  return (
-    <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4 sm:p-5 shadow-sm min-w-0">
-      <p className="qoves-report-mono-label mb-2">{label}</p>
-      <p className="text-base sm:text-lg font-display font-bold text-ink">{value ?? '—'}</p>
-    </div>
-  )
-}
-
-function RangeMeter({ metricLabel, sourceLabel, valueText, valueNum, rangeMin, rangeMax, formatRange }) {
-  const hasRange =
-    Number.isFinite(valueNum) && Number.isFinite(rangeMin) && Number.isFinite(rangeMax)
-  const pct = hasRange ? markerPct(valueNum, rangeMin, rangeMax) : null
-
-  return (
-    <div className="mt-4 space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="qoves-report-mono-label">{metricLabel}</p>
-        {sourceLabel && <p className="qoves-report-mono-label">{sourceLabel}</p>}
-      </div>
-      {valueText && (
-        <p className="text-2xl sm:text-3xl font-display font-bold text-ink tabular-nums">{valueText}</p>
-      )}
-      {hasRange && (
-        <>
-          <div className="relative h-2 rounded-full bg-surface-border mt-2">
-            <div
-              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-ink border-2 border-white shadow-sm"
-              style={{ left: `calc(${pct}% - 6px)` }}
-            />
-          </div>
-          <div className="flex justify-between text-[11px] text-ink-muted font-sans tabular-nums">
-            <span>{formatRange(rangeMin)}</span>
-            <span>{formatRange(rangeMax)}</span>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function buildDetailSlides(m, fp) {
+function buildDetailSlides(m, fp, t) {
   const rPeak = parsingValue(fp, 'right_brow_peak_height_mm')
   const lPeak = parsingValue(fp, 'left_brow_peak_height_mm')
   const avgPeak = avg(rPeak, lPeak)
@@ -103,23 +63,24 @@ function buildDetailSlides(m, fp) {
   const lApex = parsingValue(fp, 'left_brow_apex_angle_deg')
   const avgApex = avg(rApex, lApex)
 
-  const landmark = fp?.status === 'ready' ? 'Landmark-based' : null
+  const landmark = fp?.status === 'ready' ? t('common.landmarkBased') : null
   const slides = []
 
   if (peakValue != null) {
     slides.push({
       id: 'peak',
-      titleLead: 'Brow Peak',
-      titleAccent: 'Height',
-      body: 'Vertical distance from the brow peak to the top of the eye — measures how high the brow sits above the eye.',
+      titleLead: t('brow.slides.peak.titleLead'),
+      titleAccent: t('brow.slides.peak.titleAccent'),
+      body: t('brow.slides.peak.body'),
       meter: {
-        metricLabel: 'Brow Peak Vertical Height',
+        metricLabel: t('brow.slides.peak.metricLabel'),
         sourceLabel: landmark,
         valueText: formatMm(peakValue),
         valueNum: peakValue,
         rangeMin: Number.isFinite(peakMin) ? peakMin : null,
         rangeMax: Number.isFinite(peakMax) ? peakMax : null,
-        formatRange: formatMm,
+        rangeMinLabel: Number.isFinite(peakMin) ? formatMm(peakMin) : undefined,
+        rangeMaxLabel: Number.isFinite(peakMax) ? formatMm(peakMax) : undefined,
       },
     })
   }
@@ -127,17 +88,16 @@ function buildDetailSlides(m, fp) {
   if (avgElev != null) {
     slides.push({
       id: 'elevation',
-      titleLead: 'Brow Elevation',
-      titleAccent: 'Ratio',
-      body: 'Brow-to-eye vertical gap divided by inter-pupillary distance. Higher = brow sits further above the eye.',
+      titleLead: t('brow.slides.elevation.titleLead'),
+      titleAccent: t('brow.slides.elevation.titleAccent'),
+      body: t('brow.slides.elevation.body'),
       meter: {
-        metricLabel: 'Brow Elevation Ratio',
+        metricLabel: t('brow.slides.elevation.metricLabel'),
         sourceLabel: landmark,
         valueText: formatRatio(avgElev),
         valueNum: avgElev,
         rangeMin: null,
         rangeMax: null,
-        formatRange: formatRatio,
       },
     })
   }
@@ -145,17 +105,16 @@ function buildDetailSlides(m, fp) {
   if (avgApex != null) {
     slides.push({
       id: 'apex',
-      titleLead: 'Brow Apex',
-      titleAccent: 'Angle',
-      body: 'Angle at the brow peak between inner and outer brow vectors. Smaller angle = sharper, more defined arch.',
+      titleLead: t('brow.slides.apex.titleLead'),
+      titleAccent: t('brow.slides.apex.titleAccent'),
+      body: t('brow.slides.apex.body'),
       meter: {
-        metricLabel: 'Brow Apex Angle',
+        metricLabel: t('brow.slides.apex.metricLabel'),
         sourceLabel: landmark,
         valueText: formatDeg(avgApex),
         valueNum: avgApex,
         rangeMin: null,
         rangeMax: null,
-        formatRange: formatDeg,
       },
     })
   }
@@ -163,7 +122,7 @@ function buildDetailSlides(m, fp) {
   return slides
 }
 
-function buildAllMetricsRows(m, fp) {
+function buildAllMetricsRows(m, fp, t) {
   const rPeak = parsingValue(fp, 'right_brow_peak_height_mm')
   const lPeak = parsingValue(fp, 'left_brow_peak_height_mm')
   const rElev = parsingValue(fp, 'right_brow_elevation_ratio')
@@ -176,98 +135,25 @@ function buildAllMetricsRows(m, fp) {
   const cvPeak = m.peakHeight != null ? parseFloat(m.peakHeight) : null
 
   const left = [
-    { label: 'Right Brow Peak Height', value: formatMm(rPeak) },
-    { label: 'Right Brow Elevation Ratio', value: formatRatio(rElev) },
-    { label: 'Right Brow Apex Angle', value: formatDeg(rApex) },
-    { label: 'Avg Brow Peak Height', value: formatMm(avgPeak ?? cvPeak) },
-    { label: 'Avg Apex Angle', value: formatDeg(avgApex) },
-    { label: 'Tilt Classification', value: textOrNull(m.tilt) },
-    { label: 'Virility Classification', value: textOrNull(m.virility) },
+    { label: t('brow.metrics.rightPeakHeight'), value: formatMm(rPeak) },
+    { label: t('brow.metrics.rightElevation'), value: formatRatio(rElev) },
+    { label: t('brow.metrics.rightApex'), value: formatDeg(rApex) },
+    { label: t('brow.metrics.avgPeakHeight'), value: formatMm(avgPeak ?? cvPeak) },
+    { label: t('brow.metrics.avgApex'), value: formatDeg(avgApex) },
+    { label: t('brow.metrics.tiltClass'), value: textOrNull(m.tilt) },
+    { label: t('brow.metrics.virilityClass'), value: textOrNull(m.virility) },
   ]
 
   const right = [
-    { label: 'Left Brow Peak Height', value: formatMm(lPeak) },
-    { label: 'Left Brow Elevation Ratio', value: formatRatio(lElev) },
-    { label: 'Left Brow Apex Angle', value: formatDeg(lApex) },
-    { label: 'Avg Elevation Ratio', value: formatRatio(avgElev) },
-    { label: 'Position Classification', value: textOrNull(m.position) },
-    { label: 'Shape Classification', value: textOrNull(m.shape) },
+    { label: t('brow.metrics.leftPeakHeight'), value: formatMm(lPeak) },
+    { label: t('brow.metrics.leftElevation'), value: formatRatio(lElev) },
+    { label: t('brow.metrics.leftApex'), value: formatDeg(lApex) },
+    { label: t('brow.metrics.avgElevation'), value: formatRatio(avgElev) },
+    { label: t('brow.metrics.positionClass'), value: textOrNull(m.position) },
+    { label: t('brow.metrics.shapeClass'), value: textOrNull(m.shape) },
   ]
 
   return { left, right }
-}
-
-function DetailCarousel({ slides }) {
-  const [idx, setIdx] = useState(0)
-  if (!slides.length) return null
-
-  const active = slides[Math.min(idx, slides.length - 1)]
-  const multi = slides.length > 1
-
-  return (
-    <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4 sm:p-5 shadow-sm h-full min-w-0">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <h4 className="font-display text-base font-bold text-ink tracking-tight">
-          {active.titleLead}{' '}
-          <span className="text-ink-muted font-semibold">{active.titleAccent}</span>
-        </h4>
-        {multi && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              aria-label="Previous detail"
-              onClick={() => setIdx((i) => Math.max(0, i - 1))}
-              disabled={idx === 0}
-              className="p-1 rounded-lg border border-surface-border disabled:opacity-30 text-ink-muted hover:text-ink"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-1 px-1">
-              {slides.map((s, i) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  aria-label={`Go to ${s.titleLead} ${s.titleAccent}`}
-                  onClick={() => setIdx(i)}
-                  className={`rounded-full transition-all ${
-                    i === idx
-                      ? 'w-2 h-2 bg-ink'
-                      : 'w-1.5 h-1.5 bg-surface-border hover:bg-ink-muted'
-                  }`}
-                />
-              ))}
-            </div>
-            <button
-              type="button"
-              aria-label="Next detail"
-              onClick={() => setIdx((i) => Math.min(slides.length - 1, i + 1))}
-              disabled={idx >= slides.length - 1}
-              className="p-1 rounded-lg border border-surface-border disabled:opacity-30 text-ink-muted hover:text-ink"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-      </div>
-      <p className="text-sm text-ink-muted font-sans leading-relaxed">{active.body}</p>
-      {active.meter && <RangeMeter {...active.meter} />}
-    </div>
-  )
-}
-
-function MetricsColumn({ rows }) {
-  return (
-    <dl className="space-y-3">
-      {rows.map((row) => (
-        <div key={row.label} className="flex items-baseline justify-between gap-4">
-          <dt className="text-sm text-brand font-medium">{row.label}</dt>
-          <dd className="text-sm font-display font-bold text-ink tabular-nums text-right shrink-0">
-            {row.value ?? '—'}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  )
 }
 
 export function BrowReportPanel({
@@ -277,9 +163,9 @@ export function BrowReportPanel({
   photo = null,
   landmarks = null,
 }) {
+  const t = useTranslations('Report')
   const [periHero, setPeriHero] = useState(null)
 
-  // Zoomed eye + eyebrow (periorbital) from front photo — not the brows-only / SegFormer crop.
   useEffect(() => {
     let cancelled = false
     async function run() {
@@ -301,52 +187,43 @@ export function BrowReportPanel({
   if (!eyebrows?.metrics) return null
 
   const m = eyebrows.metrics
-  // Only the live zoomed periorbital crop — no eyes/brows crop fallback (avoids flash).
   const heroImage = periHero
-
-  const slides = buildDetailSlides(m, featureParsing)
-  const { left, right } = buildAllMetricsRows(m, featureParsing)
+  const slides = buildDetailSlides(m, featureParsing, t)
+  const { left, right } = buildAllMetricsRows(m, featureParsing, t)
 
   return (
     <div className="space-y-8">
       <ReportSectionHeading
-        title="Summary of your"
-        accent="eyebrows"
-        subtitle={
-          <>
-            Eyebrows are one of the most important facial features and play a key role in expressing{' '}
-            <strong className="text-ink font-semibold">emotion</strong>.
-          </>
-        }
+        title={t('common.summaryOfYour')}
+        accent={t('nav.eyebrows').toLowerCase()}
+        subtitle={t('brow.subtitle')}
       />
 
       {heroImage && (
-        <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-6 sm:p-8 flex items-center justify-center shadow-sm">
+        <FeatureHeroFrame>
           <img
             src={heroImage}
-            alt="Eyes and eyebrows"
+            alt={t('brow.heroAlt')}
             className="max-h-48 w-auto object-contain rounded-xl"
           />
-        </div>
+        </FeatureHeroFrame>
       )}
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">
-          Summary of your eyebrows
-        </p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('brow.summaryTitle')}</p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div className="grid grid-cols-2 gap-3">
-            <SummaryLabelCard label="Eyebrow Position" value={textOrNull(m.position)} />
-            <SummaryLabelCard label="Eyebrow Tilt" value={textOrNull(m.tilt)} />
-            <SummaryLabelCard label="Eyebrow Virility" value={textOrNull(m.virility)} />
-            <SummaryLabelCard label="Eyebrow Shape" value={textOrNull(m.shape)} />
+            <SummaryLabelCard label={t('brow.position')} value={textOrNull(m.position)} />
+            <SummaryLabelCard label={t('brow.tilt')} value={textOrNull(m.tilt)} />
+            <SummaryLabelCard label={t('brow.virility')} value={textOrNull(m.virility)} />
+            <SummaryLabelCard label={t('brow.shape')} value={textOrNull(m.shape)} />
           </div>
           <DetailCarousel slides={slides} />
         </div>
       </div>
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">All Eyebrow Metrics</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('brow.allMetrics')}</p>
         <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-5 sm:p-6 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
             <MetricsColumn rows={left} />

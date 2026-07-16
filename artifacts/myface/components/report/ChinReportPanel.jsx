@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import {
   AllMetricsTable,
@@ -71,6 +72,7 @@ export function ChinReportPanel({
   heroSlot = null,
   imageSrc = null,
 }) {
+  const t = useTranslations('Report')
   const c = chin || {}
   const heroImage = imageSrc || c.imageSrc
 
@@ -93,16 +95,16 @@ export function ChinReportPanel({
     }
   }, [featureParsing, c.chinWidthClass, c.projection, c.chinShape, c.chinHeightClass])
 
-  const landmark = 'Landmark-based'
+  const landmark = t('common.landmarkBased')
   const slides = []
   if (metrics.widthMm != null) {
     slides.push({
       id: 'width',
-      titleLead: 'Chin Width',
-      titleAccent: '(mm)',
-      body: 'Horizontal distance between lateral chin points. Typical range 37–47 mm.',
+      titleLead: t('chin.slides.width.titleLead'),
+      titleAccent: t('chin.slides.width.titleAccent'),
+      body: t('chin.slides.width.body'),
       meter: {
-        metricLabel: 'Chin Width',
+        metricLabel: t('chin.slides.width.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.widthMm)} mm`,
         valueNum: metrics.widthMm,
@@ -116,11 +118,11 @@ export function ChinReportPanel({
   if (metrics.heightMm != null) {
     slides.push({
       id: 'height',
-      titleLead: 'Chin Vertical',
-      titleAccent: 'Height',
-      body: 'Distance from the lower lip base to the chin tip. Typical range 12–22 mm.',
+      titleLead: t('chin.slides.height.titleLead'),
+      titleAccent: t('chin.slides.height.titleAccent'),
+      body: t('chin.slides.height.body'),
       meter: {
-        metricLabel: 'Chin Vertical Height',
+        metricLabel: t('chin.slides.height.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.heightMm)} mm`,
         valueNum: metrics.heightMm,
@@ -134,11 +136,11 @@ export function ChinReportPanel({
   if (metrics.devMm != null) {
     slides.push({
       id: 'dev',
-      titleLead: 'Midline',
-      titleAccent: 'Deviation',
-      body: 'How far the chin tip deviates from the nasion–nose-tip vertical axis. Ideal ≈ 0 mm.',
+      titleLead: t('chin.slides.dev.titleLead'),
+      titleAccent: t('chin.slides.dev.titleAccent'),
+      body: t('chin.slides.dev.body'),
       meter: {
-        metricLabel: 'Midline Deviation',
+        metricLabel: t('chin.slides.dev.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.devMm)} mm`,
         valueNum: metrics.devMm,
@@ -151,41 +153,36 @@ export function ChinReportPanel({
   }
 
   const cards = [
-    { label: 'Chin Width', value: metrics.widthClass },
-    { label: 'Chin Projection', value: metrics.projectionClass },
-    { label: 'Chin Shape', value: metrics.shapeClass },
-    { label: 'Chin Depth', value: metrics.depthClass },
+    { label: t('chin.width'), value: metrics.widthClass },
+    { label: t('chin.projection'), value: metrics.projectionClass },
+    { label: t('chin.shape'), value: metrics.shapeClass },
+    { label: t('chin.depth'), value: metrics.depthClass },
   ]
 
   const left = [
-    { label: 'Chin Width', value: metrics.widthMm != null ? `${fmt(metrics.widthMm)} mm` : null },
+    { label: t('chin.width'), value: metrics.widthMm != null ? `${fmt(metrics.widthMm)} mm` : null },
     {
-      label: 'Chin Vertical Height',
+      label: t('chin.metrics.verticalHeight'),
       value: metrics.heightMm != null ? `${fmt(metrics.heightMm)} mm` : null,
     },
-    { label: 'Width Classification', value: metrics.widthClass },
-    { label: 'Shape Classification', value: metrics.shapeClass },
+    { label: t('chin.metrics.widthClass'), value: metrics.widthClass },
+    { label: t('chin.metrics.shapeClass'), value: metrics.shapeClass },
   ]
   const right = [
     {
-      label: 'Midline Deviation',
+      label: t('chin.metrics.midlineDeviation'),
       value: metrics.devMm != null ? `${fmt(metrics.devMm)} mm` : null,
     },
-    { label: 'Projection Classification', value: metrics.projectionClass },
-    { label: 'Depth Classification', value: metrics.depthClass },
+    { label: t('chin.metrics.projectionClass'), value: metrics.projectionClass },
+    { label: t('chin.metrics.depthClass'), value: metrics.depthClass },
   ]
 
   return (
     <div className="space-y-8">
       <ReportSectionHeading
-        title="Summary of your"
-        accent="chin"
-        subtitle={
-          <>
-            Chin width, projection, and depth balance the lower face and support overall{' '}
-            <strong className="text-ink font-semibold">harmony</strong>.
-          </>
-        }
+        title={t('common.summaryOfYour')}
+        accent={t('nav.chin').toLowerCase()}
+        subtitle={t('chin.subtitle')}
       />
 
       {(heroSlot || heroImage) && (
@@ -193,7 +190,7 @@ export function ChinReportPanel({
           {heroSlot || (
             <img
               src={heroImage}
-              alt="Chin"
+              alt={t('chin.heroAlt')}
               className="max-h-48 w-auto object-contain rounded-xl"
             />
           )}
@@ -201,12 +198,12 @@ export function ChinReportPanel({
       )}
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">Summary of your chin</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('chin.summaryTitle')}</p>
         <FeatureSummaryGrid cards={cards} slides={slides} />
       </div>
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">All Chin Metrics</p>
+        <p className="font-display text-base font-bold text-ink mb-3">{t('chin.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
     </div>

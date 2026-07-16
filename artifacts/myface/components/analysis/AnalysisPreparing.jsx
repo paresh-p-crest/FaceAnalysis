@@ -1,6 +1,7 @@
 'use client'
 
 import { Calendar, Zap, LayoutDashboard, ScanFace } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 /**
  * Static "analysis preparing" timeline shown right after submit. The live pipeline
@@ -8,16 +9,18 @@ import { Calendar, Zap, LayoutDashboard, ScanFace } from 'lucide-react'
  * page communicates a friendly, fixed set of stage estimates instead.
  */
 const PREPARING_TIMELINE = [
-  { id: 'cv', label: 'Facial Data Processing', days: 5 },
-  { id: 'assessment', label: 'Aesthetic Assessment', days: 8 },
-  { id: 'protocol', label: 'Protocol Preparation', days: 4 },
-  { id: 'review', label: 'Care Team Review', days: 5 },
-  { id: 'finalise', label: 'Report Finalisation', days: 6 },
+  { id: 'cv', days: 5 },
+  { id: 'assessment', days: 8 },
+  { id: 'protocol', days: 4 },
+  { id: 'review', days: 5 },
+  { id: 'finalise', days: 6 },
 ]
 
 const TOTAL_DAYS = PREPARING_TIMELINE.reduce((sum, stage) => sum + stage.days, 0)
 
 export default function AnalysisPreparing({ photo, onGoToDashboard }) {
+  const t = useTranslations('Analysis.preparing')
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-surface">
       <div className="w-full max-w-lg">
@@ -31,10 +34,12 @@ export default function AnalysisPreparing({ photo, onGoToDashboard }) {
             )}
           </div>
           <h1 className="font-display text-2xl font-bold text-ink mb-2">
-            Your analysis is being <span className="text-brand">prepared</span>
+            {t.rich('title', {
+              highlight: () => <span className="text-brand">{t('titleHighlight')}</span>,
+            })}
           </h1>
           <p className="text-sm text-ink-muted leading-relaxed max-w-sm">
-            We&apos;ll email you when it&apos;s ready — you may close this tab safely.
+            {t('description')}
           </p>
         </div>
 
@@ -43,9 +48,9 @@ export default function AnalysisPreparing({ photo, onGoToDashboard }) {
           <div className="rounded-2xl bg-surface-warm dark:bg-surface-raised divide-y divide-surface-border">
             {PREPARING_TIMELINE.map((stage) => (
               <div key={stage.id} className="flex items-center justify-between px-4 py-3.5">
-                <span className="text-sm font-medium text-ink-secondary">{stage.label}</span>
+                <span className="text-sm font-medium text-ink-secondary">{t(`timeline.${stage.id}`)}</span>
                 <span className="text-[11px] font-bold uppercase tracking-wide text-ink-muted">
-                  {stage.days} Days
+                  {t('days', { count: stage.days })}
                 </span>
               </div>
             ))}
@@ -54,7 +59,7 @@ export default function AnalysisPreparing({ photo, onGoToDashboard }) {
           <div className="flex justify-end mt-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 text-brand px-3 py-1.5 text-xs font-bold">
               <Calendar className="w-3.5 h-3.5" />
-              {TOTAL_DAYS} Days left
+              {t('daysLeft', { count: TOTAL_DAYS })}
             </span>
           </div>
         </div>
@@ -66,17 +71,17 @@ export default function AnalysisPreparing({ photo, onGoToDashboard }) {
               <Zap className="w-4 h-4 text-brand" />
             </div>
             <div className="min-w-0">
-              <p className="font-display text-sm font-semibold">Need it sooner?</p>
+              <p className="font-display text-sm font-semibold">{t('expressTitle')}</p>
               <p className="text-xs text-white/70 leading-relaxed mt-0.5">
-                Upgrade to express delivery and get your facial analysis in 24–48 hours.
+                {t('expressDescription')}
               </p>
               <button
                 type="button"
                 disabled
-                title="Coming soon"
+                title={t('comingSoon')}
                 className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white/80 cursor-not-allowed"
               >
-                Upgrade to express delivery
+                {t('expressButton')}
               </button>
             </div>
           </div>
@@ -89,7 +94,7 @@ export default function AnalysisPreparing({ photo, onGoToDashboard }) {
           className="btn-primary w-full mt-6 flex items-center justify-center gap-2"
         >
           <LayoutDashboard className="w-4 h-4" />
-          Go to Dashboard
+          {t('goToDashboard')}
         </button>
       </div>
     </div>

@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import DashboardPage from '../../components/DashboardPage'
-import { AppBootScreen } from '../../components/AppBootScreen'
-import { useApp } from '../../components/providers/AppProvider'
-import { adminTabToPath } from '../../utils/adminPanel'
+import { useRouter } from '../../../i18n/navigation'
+import DashboardPage from '../../../components/DashboardPage'
+import { AppBootScreen } from '../../../components/AppBootScreen'
+import { useApp } from '../../../components/providers/AppProvider'
+import { adminTabToPath } from '../../../utils/adminPanel'
 
 export default function DashboardRoutePage() {
   const router = useRouter()

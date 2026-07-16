@@ -702,3 +702,29 @@ Status: accepted
 ### Consequences
 - Prompt text shape in `aiVisuals.variants[].prompt` changes; API response schema unchanged.
 - Isolation is prompt-level only (not pixel masks); bleed risk remains bounded by single-purpose calls + fence wording.
+
+---
+
+## ADR-036: Frontend i18n with next-intl (en/de path prefixes)
+Date: 2026-07-16  
+Status: accepted  
+
+### Context
+MyFace needs German UI support with SEO-friendly locale URLs, static generation compatibility, and a maintainable translation catalog. The App Router frontend lives in `artifacts/myface` with almost all user-facing copy in client components.
+
+### Decision
+- Use **next-intl** (not i18next runtime) with App Router `[locale]` segment and **always-prefixed** paths (`/en/dashboard`, `/de/analysis`).
+- Locales: **`en`** (default) and **`de`**. Middleware (`createMiddleware`) handles detection; `localePrefix: 'always'`.
+- Messages in nested JSON: `artifacts/myface/messages/en.json` (English source) and `messages/de.json` (German). Namespaces: `Nav`, `Auth`, `Dashboard`, `History`, `Billing`, `Settings`, `Common`, `Onboarding`, `Questionnaire`, `Photo`, `Analysis`, `Report`, `Admin`, `Errors`, `Pdf`, `CvReport`, `Shared`.
+- Client components use `useTranslations('Namespace')`; server metadata uses `getTranslations` / message imports in `app/[locale]/layout.jsx`.
+- In-app navigation via `i18n/navigation.js` (`Link`, `useRouter`, `usePathname`); `utils/routes.js` stays locale-free.
+- Non-React utils return **translation keys** (`labelKey`, `messageKey`, `ERROR_KEYS`); callers call `t()`.
+- **Out of scope for static catalogs:** brand name MyFace, assessment UUIDs, raw backend `detail` strings, GPT/protocol narrative bodies (locale belongs in generation prompts later).
+- **i18next-parser** (devDependency) audits flat `t()` usage via `pnpm --filter @workspace/myface run i18n:extract` → `messages/en.extracted.json`; structured `en.json` remains the translation source file.
+
+### Consequences
+- All app URLs gain a locale prefix; bookmarks and external links must include `/en/` or `/de/`.
+- `generateStaticParams` pre-renders both locales for SSG-compatible pages.
+- German copy ships when `de.json` values are translated; until then English placeholders or `getMessageFallback` apply.
+- PDF export accepts optional `pdfT` / message slice for locale-aware chrome; CV qualitative labels use `translateCvLabel`.
+- API errors expose stable `code` values mapped to `Errors.*` keys in the UI.

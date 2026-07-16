@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { normalizeToJpegDataUrl } from '../../utils/aestheticProjection'
@@ -16,16 +19,16 @@ import {
   buildClosingRecommendations,
   buildFeaturePages,
   buildProtocolContents,
-  DISCLAIMER_PARAGRAPHS,
+  DISCLAIMER_PARAGRAPH_KEYS,
   formatProtocolEditionLabel,
   formatProtocolMonth,
   getClientName,
   getFeatureComparisonData,
-  INTRODUCTION_PARAGRAPHS,
-  LIMITATIONS_PARAGRAPH,
-  PRIVACY_PARAGRAPHS,
+  INTRODUCTION_PARAGRAPH_KEYS,
+  LIMITATIONS_PARAGRAPH_KEY,
+  PRIVACY_PARAGRAPH_KEYS,
   QOVES_PROTOCOL_FEATURES,
-  UNDERSTANDING_RESULTS,
+  UNDERSTANDING_RESULTS_KEYS,
   rewriteToSubjectVoice,
 } from '../../utils/qovesProtocolModel'
 
@@ -177,6 +180,7 @@ export default function QovesProtocolReport({
   pageIndex = 0,
   paginated = false,
 }) {
+  const t = useTranslations('Report')
   const clientName = getClientName(answers, user)
   const edition = formatProtocolEditionLabel()
   const month = formatProtocolMonth()
@@ -300,16 +304,16 @@ export default function QovesProtocolReport({
           <div>
             <h3 className="text-sm font-semibold text-ink font-display mb-3">Disclaimer Policy</h3>
             <div className="space-y-3 text-sm text-ink-secondary leading-relaxed font-sans">
-              {DISCLAIMER_PARAGRAPHS.map((para, i) => (
-                <p key={i}>{para}</p>
+              {DISCLAIMER_PARAGRAPH_KEYS.map((key, i) => (
+                <p key={i}>{t(key)}</p>
               ))}
             </div>
           </div>
           <div>
             <h3 className="text-sm font-semibold text-ink font-display mb-3">Privacy Policy</h3>
             <div className="space-y-3 text-sm text-ink-secondary leading-relaxed font-sans">
-              {PRIVACY_PARAGRAPHS.map((para, i) => (
-                <p key={i}>{para}</p>
+              {PRIVACY_PARAGRAPH_KEYS.map((key, i) => (
+                <p key={i}>{t(key)}</p>
               ))}
             </div>
           </div>
@@ -323,12 +327,12 @@ export default function QovesProtocolReport({
       <SectionBlock key="intro" title="Introduction" page={3}>
         <div className="grid sm:grid-cols-2 gap-8 mt-2">
           <div className="space-y-4 text-sm text-ink-secondary leading-relaxed font-sans">
-            {INTRODUCTION_PARAGRAPHS.map((para, i) => (
-              <p key={i}>{para}</p>
+            {INTRODUCTION_PARAGRAPH_KEYS.map((key, i) => (
+              <p key={i}>{t(key)}</p>
             ))}
             <div>
               <h3 className="text-sm font-semibold text-ink font-display mb-2">Limitations</h3>
-              <p>{LIMITATIONS_PARAGRAPH}</p>
+              <p>{t(LIMITATIONS_PARAGRAPH_KEY)}</p>
             </div>
           </div>
           <div>
@@ -352,12 +356,12 @@ export default function QovesProtocolReport({
         page={4}
       >
         <ol className="space-y-5 mt-4">
-          {UNDERSTANDING_RESULTS.map((item, i) => (
+          {UNDERSTANDING_RESULTS_KEYS.map((key, i) => (
             <li key={i} className="flex gap-4 text-sm text-ink-secondary leading-relaxed font-sans">
               <span className="text-ink-muted font-display font-bold text-xl shrink-0 w-8">
                 {String(i + 1).padStart(2, '0')}
               </span>
-              <span>{item}</span>
+              <span>{t(key)}</span>
             </li>
           ))}
         </ol>

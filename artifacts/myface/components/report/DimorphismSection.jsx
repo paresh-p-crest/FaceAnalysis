@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { resolveFeatureHero } from '../../utils/featureParsing'
 
 const FEATURE_NAME_TO_PARSING_ID = {
@@ -12,10 +15,10 @@ const FEATURE_NAME_TO_PARSING_ID = {
   Ears: 'ears',
 }
 
-function DimorphismScale({ score, scaleLeft, scaleRight }) {
+function DimorphismScale({ score, scaleLeft, scaleRight, t }) {
   return (
     <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-      <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">Dimorphism Range</p>
+      <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">{t('dimorphism.dimorphismRange')}</p>
       <p className="text-2xl font-display font-bold text-ink mb-4">{score.label}</p>
       <div className="relative h-2.5 rounded-full bg-surface-border mb-2">
         <div
@@ -52,7 +55,7 @@ function dimorphismBarClass(label) {
   return 'bg-amber-400'
 }
 
-function FeatureCard({ feature, imageSrc }) {
+function FeatureCard({ feature, imageSrc, t }) {
   const badgeClass = dimorphismBadgeClass(feature.label)
   const barClass = dimorphismBarClass(feature.label)
 
@@ -87,13 +90,13 @@ function FeatureCard({ feature, imageSrc }) {
           />
         </div>
         <div className="flex justify-between text-[10px] text-ink-faint font-sans mt-1">
-          <span>Hyper Feminine</span>
-          <span>Hyper Masculine</span>
+          <span>{t('dimorphism.hyperFeminine')}</span>
+          <span>{t('dimorphism.hyperMasculine')}</span>
         </div>
       </div>
 
       <div className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-1.5 font-medium">Explanation</p>
+        <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-1.5 font-medium">{t('common.explanation')}</p>
         <p className="text-sm text-ink-secondary leading-relaxed font-sans">{feature.explanation}</p>
       </div>
     </div>
@@ -101,6 +104,8 @@ function FeatureCard({ feature, imageSrc }) {
 }
 
 export function DimorphismSection({ dimorphism, photo, featureParsing = null }) {
+  const t = useTranslations('Report')
+
   if (!dimorphism) return null
 
   const cropFor = (featureName) => {
@@ -113,17 +118,18 @@ export function DimorphismSection({ dimorphism, photo, featureParsing = null }) 
     <div className="pr-2 space-y-6">
       <div>
         <h3 className="font-display text-2xl font-bold text-ink">
-          An overview of your <span className="text-ink-muted">facial masculinity</span>
+          {t('dimorphism.title')}{' '}
+          <span className="text-ink-muted">{t('dimorphism.accent')}</span>
         </h3>
         <p className="text-sm text-ink-muted font-sans mt-2">
-          We&apos;re exploring how each of your facial features leans more masculine or feminine.
+          {t('dimorphism.subtitle')}
         </p>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         {photo && (
           <div className="rounded-2xl overflow-hidden border border-surface-border aspect-[4/5] bg-surface-warm">
-            <img src={photo} alt="Portrait" className="w-full h-full object-cover" />
+            <img src={photo} alt={t('dimorphism.portraitAlt')} className="w-full h-full object-cover" />
           </div>
         )}
         <div className="space-y-4">
@@ -131,9 +137,10 @@ export function DimorphismSection({ dimorphism, photo, featureParsing = null }) 
             score={{ score: dimorphism.overallScore, label: dimorphism.overallLabel }}
             scaleLeft={dimorphism.scaleLeft}
             scaleRight={dimorphism.scaleRight}
+            t={t}
           />
           <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-            <p className="qoves-report-mono-label mb-2">Explanation</p>
+            <p className="qoves-report-mono-label mb-2">{t('common.explanation')}</p>
             <p className="text-sm text-ink-secondary leading-relaxed font-sans">{dimorphism.explanation}</p>
           </div>
         </div>
@@ -141,10 +148,11 @@ export function DimorphismSection({ dimorphism, photo, featureParsing = null }) 
 
       <div>
         <h4 className="font-display text-base font-semibold text-ink mb-1">
-          Your dimorphism <span className="text-brand">per feature</span>
+          {t('dimorphism.perFeatureTitle')}{' '}
+          <span className="text-brand">{t('dimorphism.perFeatureAccent')}</span>
         </h4>
         <p className="text-[12px] text-ink-muted font-sans mb-4">
-          These measurements best highlight the differences between your <strong className="text-ink-secondary">masculine</strong> and <strong className="text-ink-secondary">feminine</strong> features.
+          {t('dimorphism.perFeatureSubtitle')}
         </p>
         <div className="grid sm:grid-cols-2 gap-4">
           {dimorphism.features.map((f) => (
@@ -152,6 +160,7 @@ export function DimorphismSection({ dimorphism, photo, featureParsing = null }) 
               key={f.name}
               feature={f}
               imageSrc={cropFor(f.name)}
+              t={t}
             />
           ))}
         </div>

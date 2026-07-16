@@ -1,10 +1,16 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
+
 export default function ScoreScale({ score, scoreMax = 100, scoreLabel, scaleLeft, scaleRight, markerPct, rangeHighlight }) {
+  const t = useTranslations('Shared.scoreScale')
+
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2">Score</p>
+      <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2">{t('heading')}</p>
       <div className="flex items-end gap-3 mb-4">
         <span className="text-4xl font-display font-bold text-brand">{score}</span>
-        <span className="text-sm text-ink-muted mb-1">/ {scoreMax}</span>
+        <span className="text-sm text-ink-muted mb-1">{t('outOf', { max: scoreMax })}</span>
         {scoreLabel && (
           <span className="ml-auto text-sm font-medium text-brand bg-brand-50 px-3 py-1 rounded-full">{scoreLabel}</span>
         )}
