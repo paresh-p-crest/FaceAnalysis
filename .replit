@@ -57,6 +57,5 @@ defaultBucketID = "replit-objstore-87409622-8841-4e00-9cf9-12d6601966e3"
 ADMIN_EMAIL = "admin@myface.local"
 CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 CORS_ORIGIN_REGEX = 'https://.*\.(replit\.dev|repl\.co)'
-LLM_PROVIDER = "groq"
 MEDIA_STORAGE_BACKEND = "replit"
 PUBLIC_APP_URL = "http://localhost:3000"
