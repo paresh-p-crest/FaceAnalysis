@@ -55,8 +55,8 @@ If the backend API is disabled, the FE can run a browser-local MediaPipe path (`
 1. Claim queued row (`claim_next_queued_assessment`, `FOR UPDATE SKIP LOCKED`)  
 2. **cv** — `pipeline_stages.run_cv_stage` → `analyze_face.run_face_analysis` in thread  
 3. **narratives** — `enrich_assessment_nl_content`  
-4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (needs the torch deps in `backend/requirements.txt`; disabled gracefully if absent). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
-5. **projected_after** — **generative** AFTER image via `projected_after_ai.generate_projected_after_bytes` → `image_client` (OpenAI Images Edits **or** OpenRouter chat image modalities) → `projected_after` + `projected/full.jpg` or `full.png` (skipped when `PROJECTED_AFTER_ENABLED=false`); provider unavailable/fail → status **`pending`** (retryable). On success, MediaPipe/OpenCV on that image → `projected_analysis` (BEFORE `analysis` untouched). (ADR-029)  
+4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (torch/torchvision/transformers are core deps in `pyproject.toml`, installed by `uv sync` as CPU wheels; the stage disables gracefully via `face_parsing_enabled()` only if they are somehow absent or `FACE_PARSING_ENABLED=false`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
+5. **projected_after** — **generative** AFTER image via `projected_after_ai.generate_projected_after_bytes` → `image_client` (fixed best-groomed makeover prompt, ADR-034) → `projected_after` + `projected/full.jpg` or `full.png` (skipped when `PROJECTED_AFTER_ENABLED=false`); provider unavailable/fail → status **`pending`** (retryable). On success, MediaPipe/OpenCV on that image → `projected_analysis` (BEFORE `analysis` untouched). (ADR-029, ADR-034)  
 6. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
 
 ### Stage 2 — Computer vision (`analyze_face.py`)
@@ -349,8 +349,8 @@ This is the core of the product: photos in → structured `cvReport` out.
 | `assistant_agent.py` | ReAct-style Beauty Assistant that calls report tools. |
 | `assistant_tools.py` | Tools that read sections of the stored assessment. |
 | `image_client.py` | Provider-agnostic image edit (OpenAI Images Edits / OpenRouter chat image modalities); provider via `IMAGE_PROVIDER`→`LLM_PROVIDER`→key. |
-| `visual_generation.py` | AI image edits (hair / outfit / aging previews) via `image_client`. |
-| `projected_after_ai.py` | Generative projected AFTER face via `image_client` (identity/measurement-preserving prompt); owns `projected_after_enabled` flag + `projection_strengths` prompt weighting. |
+| `visual_generation.py` | AI image edits (hair / outfit / aging) via `image_client`: three independent single-call prompts with shared natural-language opening, scope-fence first, inline CV phrase anchors (ADR-035). |
+| `projected_after_ai.py` | Generative projected AFTER face via `image_client` (fixed `PROJECTED_AFTER_PROMPT` best-groomed makeover); owns `projected_after_enabled` flag. |
 
 ---
 

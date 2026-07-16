@@ -5,10 +5,9 @@ from __future__ import annotations
 import os
 
 from backend.projected_after_ai import (
-    _focus_features,
+    PROJECTED_AFTER_PROMPT,
     build_projected_after_prompt,
     projected_after_enabled,
-    projection_strengths,
 )
 
 
@@ -25,53 +24,43 @@ def test_projected_after_enabled_flag():
             os.environ["PROJECTED_AFTER_ENABLED"] = old
 
 
-def test_projection_strengths_from_cv_report():
-    strengths = projection_strengths(
-        {"hair": {"score": 70}, "skin": {"score": 80}, "eyes": {"score": 75}},
-        {"anthropometrics": {"deviations": {"symmetry": 12, "nose": 8}}},
-    )
-    assert 0.12 <= strengths["full"] <= 0.22
-    assert strengths["hair"] >= strengths["skin"]
-
-
-def test_focus_features_ranks_weakest_first():
-    # Lower score → higher projection strength → higher priority.
-    cv = {"hair": {"score": 55}, "skin": {"score": 90}, "eyes": {"score": 70}}
-    focus = _focus_features(cv, None, top_n=2)
-    assert focus[0] == "hair"
-    assert "skin" not in focus  # strongest feature drops off the top-2
-
-
-def test_build_prompt_is_identity_preserving_and_targets_weakness():
-    cv = {"hair": {"score": 55}, "skin": {"score": 65}}
-    prompt = build_projected_after_prompt(
-        {"goals": "clearer skin", "age": 29},
+def test_build_prompt_returns_constant():
+    cv = {
+        "hair": {"score": 55, "textureType": "Straight"},
+        "skin": {"score": 65, "rednessIndex": 24.9},
+        "jaw": {"jawWidthClass": "Wide"},
+    }
+    assert build_projected_after_prompt(
+        {"goals": "clearer skin", "growBeard": "yes"},
         cv,
         {"anthropometrics": {"deviations": {"symmetry": 10}}},
-    )
-    lowered = prompt.lower()
-    # Identity / measurement preservation guardrails.
+    ) == PROJECTED_AFTER_PROMPT
+    assert build_projected_after_prompt(None, None, None) == PROJECTED_AFTER_PROMPT
+
+
+def test_prompt_best_groomed_invariants():
+    lowered = PROJECTED_AFTER_PROMPT.lower()
+    assert "visible improvement" in lowered
+    assert "pores" in lowered
+    assert "not airbrushed" in lowered
+    assert "change length and style" in lowered
+    assert "full beard, stubble, or clean-shaven" in lowered
+    assert "same face shape" in lowered
     assert "same person" in lowered
-    assert "do not reshape" in lowered
-    assert "proportions" in lowered
-    # No clinical / surgical imagery.
-    assert "surgical" in lowered
-    # Targets a flagged-weak feature.
-    assert "skin" in lowered or "hair" in lowered
-    # No text/watermark artifacts requested.
-    assert "watermark" in lowered
 
 
-def test_build_prompt_handles_empty_inputs():
-    prompt = build_projected_after_prompt(None, None, None)
-    assert isinstance(prompt, str) and len(prompt) > 50
-    assert "same person" in prompt.lower()
+def test_prompt_excludes_legacy_patterns():
+    lowered = PROJECTED_AFTER_PROMPT.lower()
+    assert "client:" not in lowered
+    assert "context:" not in lowered
+    assert "projection_strengths" not in lowered
+    assert "jawline without changing" not in lowered
+    assert "apply only natural" not in lowered
 
 
 if __name__ == "__main__":
     test_projected_after_enabled_flag()
-    test_projection_strengths_from_cv_report()
-    test_focus_features_ranks_weakest_first()
-    test_build_prompt_is_identity_preserving_and_targets_weakness()
-    test_build_prompt_handles_empty_inputs()
+    test_build_prompt_returns_constant()
+    test_prompt_best_groomed_invariants()
+    test_prompt_excludes_legacy_patterns()
     print("all projected_after_ai tests passed")

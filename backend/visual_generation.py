@@ -27,76 +27,72 @@ _VARIANT_TITLES = {
     "aging": "Healthy Aging Preview",
 }
 
+SHARED_VISUAL_OPENING = (
+    "Photorealistic portrait edit of the supplied front-facing photo — the exact same person, "
+    "same bone structure, eye color, skin tone, expression, head pose, camera distance, and lighting. "
+    "Do not reshape the face or invent new features. "
+    "No text, watermarks, or medical/surgical imagery."
+)
 
-def _profile_line(answers: dict) -> str:
-    goals = answers.get("goals") or "unspecified"
-    if isinstance(goals, list):
-        goals = ", ".join(str(g) for g in goals[:4]) or "unspecified"
-    return (
-        f"age range {answers.get('ageRange') or 'unspecified'}; "
-        f"gender {answers.get('gender') or 'unspecified'}; "
-        f"skin type {answers.get('skinType') or 'unspecified'}; "
-        f"goals {goals}"
-    )
+_UNKNOWN_SENTINELS = frozenset({"unknown", "unspecified", "n/a", "na"})
 
 
-def _face_context(cv_report: dict, metrics: Optional[dict]) -> str:
-    face_shape = (cv_report.get("faceShape") or {}).get("shape") or "unknown"
-    hair = cv_report.get("hair") or {}
-    skin = cv_report.get("skin") or {}
-    visual_age = (metrics or {}).get("visualAge")
-    age_bit = f"visual age estimate {visual_age}; " if visual_age not in (None, "", "unknown") else ""
-    return (
-        f"face shape {face_shape}; {age_bit}"
-        f"hairline {hair.get('hairline') or 'unknown'}; "
-        f"hair color {hair.get('hairColor') or 'unknown'}; "
-        f"skin tone {skin.get('tone') or 'unknown'}; "
-        f"skin texture {skin.get('texture') or 'unknown'}"
-    )
+def _cv_anchors(cv_report: dict) -> dict:
+    """Ready-to-insert phrases so missing CV values stay grammatical."""
+    face_shape = (cv_report.get("faceShape") or {}).get("shape")
+    hairline = (cv_report.get("hair") or {}).get("hairline")
+    skin_tone = (cv_report.get("skin") or {}).get("tone")
+
+    def _ok(value) -> bool:
+        return bool(value) and str(value).strip().lower() not in _UNKNOWN_SENTINELS
+
+    return {
+        "face_shape_phrase": (
+            f"this {str(face_shape).strip().lower()} face" if _ok(face_shape) else "their face shape"
+        ),
+        "hairline_phrase": (
+            f"a {str(hairline).strip().lower()} hairline" if _ok(hairline) else "their hairline"
+        ),
+        "skin_tone_phrase": (
+            f"their {str(skin_tone).strip().lower()} skin tone" if _ok(skin_tone) else "their skin tone"
+        ),
+    }
 
 
 def build_visual_prompt(variant_type: str, answers: dict, cv_report: dict, metrics: Optional[dict]) -> str:
-    """Production edit prompts for Images API — identity-preserving, non-clinical."""
-    profile = _profile_line(answers or {})
-    context = _face_context(cv_report or {}, metrics)
+    """Production edit prompts for Images API — identity-preserving, non-clinical.
 
-    shared = (
-        "Photorealistic portrait edit of the supplied front-facing photo. "
-        "Preserve identity: same person, facial bone structure, eye color, skin tone, "
-        "expression, head pose, camera distance, and lighting. "
-        "Do not reshape the face, alter measured proportions, or invent new facial features. "
-        "No text, watermarks, logos, or collage. "
-        "No medical, surgical, injectable, or clinical procedure imagery. "
-    )
+    ``answers`` and ``metrics`` are unused (signature kept for call-site compat).
+    """
+    anchors = _cv_anchors(cv_report or {})
 
     if variant_type == "hair":
-        return (
-            shared
-            + "Change only the hairstyle and hair finish. "
-            + "Recommend a polished, salon-realistic cut and styling that flatters the measured face shape and hairline. "
-            + "Keep hair color close to the source unless a subtle refinement improves framing. "
-            + "Natural texture, clean edges, premium aesthetic-report quality. "
-            + f"Client: {profile}. Context: {context}."
+        body = (
+            "Change only the hairstyle and hair finish — leave the skin, face, and everything else "
+            "exactly as it is. Give this person their most flattering possible haircut for their face "
+            "shape and hairline: a real barbershop-or-salon-quality cut with natural volume, shine, "
+            f"and clean styling, for {anchors['face_shape_phrase']} with {anchors['hairline_phrase']}. "
+            "Keep the same hair color as the source unless a close, natural refinement clearly improves "
+            "the framing."
         )
-    if variant_type == "outfit":
-        return (
-            shared
-            + "Change only clothing and soft styling from the shoulders up. "
-            + "Keep the face and hair unchanged. "
-            + "Apply refined, contemporary wardrobe and color that complements the client's coloring and facial balance. "
-            + "Professional portrait presentation; tasteful, non-costume, no logos. "
-            + f"Client: {profile}. Context: {context}."
+    elif variant_type == "outfit":
+        body = (
+            "Change only the clothing and styling from the shoulders up — leave the face and hair "
+            "exactly as they are. Dress this person in refined, contemporary wardrobe and colors that "
+            f"complement {anchors['skin_tone_phrase']} and {anchors['face_shape_phrase']}. "
+            "Professional portrait presentation, tasteful and not costume-like."
         )
-    if variant_type == "aging":
-        return (
-            shared
-            + "Apply a gentle healthy-aging preview of about 8–12 years. "
-            + "Use subtle, realistic skin maturation only (fine lines, mild texture change). "
-            + "Keep the person clearly recognizable. "
-            + "Avoid exaggerated wrinkles, fear-based aging, weight distortion, or cartoon effects. "
-            + f"Client: {profile}. Context: {context}."
+    elif variant_type == "aging":
+        body = (
+            "Apply a gentle, realistic healthy-aging preview of about 8-12 years — subtle skin "
+            "maturation only, like fine lines and mild texture change, nothing exaggerated. "
+            "Keep this person clearly and immediately recognizable as themselves, just older. "
+            "Avoid dramatic wrinkles, weight change, or a fear-based aging look."
         )
-    raise ValueError(f"Unsupported visual variant type: {variant_type}")
+    else:
+        raise ValueError(f"Unsupported visual variant type: {variant_type}")
+
+    return f"{SHARED_VISUAL_OPENING}\n\n{body}"
 
 
 def _looks_like_data_or_b64(value: str) -> bool:

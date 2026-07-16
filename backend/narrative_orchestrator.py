@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 from .clinical_guardrails import (
     is_template_feature_narrative,
+    null_path_grounded,
     rewrite_to_subject_voice,
     sanitize_report_ascii,
     strip_score_language,
@@ -20,6 +21,7 @@ from .config import (
     FEATURE_NARRATIVE_MAX_ATTEMPTS,
     FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC,
     FEATURE_NARRATIVE_RATE_LIMIT_RETRIES,
+    NULL_PATH_GROUNDING_MAX_RETRIES,
     PROTOCOL_FEATURE_IDS,
     LLM_MAX_OUTPUT_TOKENS,
 )
@@ -34,7 +36,13 @@ from .narrative_schemas import (
     feature_subsection_length_prompt,
     protocol_overview_json_schema,
 )
-from .recommendation_rules import get_deterministic_recommendation_hints
+from .recommendation_rules import (
+    feature_severity_bucket,
+    get_deterministic_recommendation_hints,
+    get_null_path_fewshot,
+    get_severity_content_directive,
+    null_path_grounding_terms,
+)
 from .text_ai_service import (
     NARRATIVE_VOICE_RULES,
     NO_SCORES_IN_REPORT_PROSE,
@@ -55,12 +63,28 @@ logger = logging.getLogger(__name__)
 _RETRY_USER_HINT = (
     "Previous output failed validation. Be more conservative and "
     "strictly grounded. Prefer the phrase non-surgical. Do not invent procedures. "
+    "Never name invasive or energy-based treatments: no surgery, injectables, fillers, Botox, lasers, "
+    "IPL, HIFU, Thermage, Endolift, microneedling, chemical peels, radiofrequency, Ultherapy, or "
+    "energy-based devices. "
     "Use only ASCII hyphen (-) — no soft hyphens or special dashes. "
     "Return ONLY JSON keys: featureId, summary, subsections "
     "(array of {title, body}). Never include numeric CV measurements "
     "(no X/100, no score N, no decimal ratios, no cited degrees/mm). "
     "Use qualitative labels from supplied cues only."
 )
+
+def _null_path_grounding_hint(feature_id: str, ctx: dict) -> str:
+    """Corrective hint when a null-path section reads as ungrounded boilerplate."""
+    terms = sorted(null_path_grounding_terms(feature_id, ctx))
+    sample = ", ".join(terms[:8]) if terms else "the measured attributes for this feature"
+    return (
+        "Previous output read as generic boilerplate: it concluded 'no changes needed' without describing "
+        "this feature's specific measured geometry. Rewrite so that at least one subsection explicitly names "
+        f"a concrete measured attribute for this feature (for example: {sample}) before concluding no "
+        "non-surgical changes are recommended. Do NOT use 'balanced', 'harmonious', or 'no deviations' unless "
+        "each is paired to the specific measured attribute it describes. Stay grounded and non-surgical."
+    )
+
 
 _NL_STYLE_RULES = (
     "\n\n" + NARRATIVE_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES + "\n" + NO_SCORES_IN_REPORT_PROSE
@@ -77,6 +101,12 @@ FEATURE_NARRATIVE_SYSTEM = (
     "Honor each subsection's length target from the user message — never X/100. "
     "Summary: 1-2 sentences naming qualitative priorities for this feature (not a generic placeholder). "
     "The phrase 'non-surgical' is allowed and preferred; do not recommend surgery or injectables.\n"
+    "Never output raw numeric deviation scores or decimals (for example 0.04, 12, or 0.33). "
+    "Use only the qualitative severity label provided (minimal, mild, moderate, notable, significant).\n"
+    "CONSISTENCY: state each measured direction or classification ONCE and stay consistent through the "
+    "whole section. If a dimension is classified 'wide', never also describe it as narrow or suggest "
+    "narrowing it; describe only supportive measures for the stated classification. The same rule applies "
+    "to any paired opposites (full/flat, prominent/recessed, elevated/low, long/short).\n"
     "Example — Bad: 'The subject's skin quality shows score 72/100 with textured surface.' "
     "Good: 'The subject's skin shows moderate redness with a dry texture under photographic review.'"
 )
@@ -98,11 +128,43 @@ def _build_feature_messages(
     )
     if hints:
         user += f"Clinical hints (follow these):\n" + "\n".join(f"- {h}" for h in hints) + "\n"
+
+    bucket = feature_severity_bucket(feature_id, ctx)
+    user += "\n" + get_severity_content_directive(feature_id, ctx) + "\n"
+
+    # Skin-confined dedupe: injected for EVERY non-Skin feature regardless of severity bucket.
+    if feature_id != "skin":
+        user += (
+            "\nFoundational SPF, hydration, and sleep advice belongs to the Skin section only. "
+            "Do NOT restate generic SPF/hydration/sleep guidance here unless it is this feature's "
+            "specific measured concern.\n"
+        )
+
+    if feature_id == "eyes":
+        user += (
+            "\nSclera guardrail: describe sclera coloring ONLY as a neutral visual/lighting-photographic "
+            "observation in a single sentence. Never attribute it to oxidative stress, vitamin deficiency, "
+            "or any medical cause, and do not repeat the observation in any other subsection or the closing.\n"
+        )
+
     user += (
         "\nReturn JSON with ONLY: featureId, summary, subsections[{title, body}]. "
         "Never include numeric scores.\n"
-        + feature_subsection_length_prompt(feature_id)
     )
+    if bucket == "minimal" and feature_id != "skin":
+        user += (
+            "Length: write 4-6 sentences per subsection following the required 3-part structure "
+            "(roughly 70-120 words). Fully describe the measured attributes before concluding; do not "
+            "pad with generic filler.\n"
+        )
+        fewshot = get_null_path_fewshot(feature_id)
+        if fewshot:
+            user += (
+                "\nFollow this pattern (adapt to THIS subject's actual measured cues; do NOT copy the "
+                f"attributes or values shown here):\nEXAMPLE ({feature_id}, minimal severity): \"{fewshot}\"\n"
+            )
+    else:
+        user += feature_subsection_length_prompt(feature_id)
 
     pose_ids, image_parts = load_feature_vision_bundle(
         feature_id,
@@ -211,18 +273,34 @@ async def generate_feature_narrative_async(
         photos_meta=photos_meta,
     )
 
-    max_attempts = max(1, FEATURE_NARRATIVE_MAX_ATTEMPTS)
-    for attempt in range(1, max_attempts + 1):
-        temperature = 0.3 if attempt == 1 else 0.2
+    # Two independent budgets so a schema failure cannot starve null-path grounding
+    # retries. Total LLM calls per feature are bounded by max_hard + max_grounding.
+    max_hard = max(1, FEATURE_NARRATIVE_MAX_ATTEMPTS)
+    max_grounding = max(0, NULL_PATH_GROUNDING_MAX_RETRIES)
+    hard_used = 0
+    grounding_used = 0
+    call_no = 0
+    last_usable: Optional[dict] = None
+
+    while True:
+        call_no += 1
+        temperature = 0.3 if call_no == 1 else 0.2
         result = await _chat_feature_with_rate_limit_backoff(
             feature_id=feature_id,
             messages=messages,
             temperature=temperature,
             api_key=api_key,
-            attempt=attempt,
+            attempt=call_no,
         )
 
         if _is_rate_limit_result(result):
+            if last_usable is not None:
+                logger.warning(
+                    "feature %s structured: keeping last LLM copy (rate limit after %s backoff retries)",
+                    feature_id,
+                    FEATURE_NARRATIVE_RATE_LIMIT_RETRIES,
+                )
+                return last_usable
             logger.info(
                 "feature %s structured: TEMPLATE (rate limit after %s backoff retries)",
                 feature_id,
@@ -232,15 +310,15 @@ async def generate_feature_narrative_async(
 
         raw = result.get("content")
         if result.get("error") and not raw:
+            hard_used += 1
             logger.info(
-                "feature %s structured: LLM error / empty (attempt %s/%s)",
+                "feature %s structured: LLM error / empty (hard %s/%s)",
                 feature_id,
-                attempt,
-                max_attempts,
+                hard_used,
+                max_hard,
             )
-            if attempt >= max_attempts:
-                logger.info("feature %s structured: TEMPLATE (LLM error / empty)", feature_id)
-                return validate_or_template(None, feature_id, ctx, answers=answers)
+            if hard_used >= max_hard:
+                break
             messages = messages + [{"role": "user", "content": _RETRY_USER_HINT}]
             continue
 
@@ -248,20 +326,48 @@ async def generate_feature_narrative_async(
         # Hard reject / retry / template only when unparseable or banned terms.
         validated, usable = try_validate_feature_narrative(raw, feature_id, ctx, answers=answers)
         if usable and validated:
-            label = "LLM accepted" if attempt == 1 else f"LLM accepted (attempt {attempt})"
-            logger.info("feature %s structured: %s", feature_id, label)
-            return validated
+            if null_path_grounded(feature_id, ctx, validated):
+                label = "LLM accepted" if call_no == 1 else f"LLM accepted (call {call_no})"
+                logger.info("feature %s structured: %s", feature_id, label)
+                return validated
+            # Schema/policy OK but null-path reads as ungrounded boilerplate.
+            last_usable = validated
+            if grounding_used >= max_grounding:
+                logger.warning(
+                    "feature %s structured: null-path ungrounded after %s grounding retries; keeping last LLM copy",
+                    feature_id,
+                    grounding_used,
+                )
+                return last_usable
+            grounding_used += 1
+            logger.info(
+                "feature %s structured: null-path ungrounded (grounding retry %s/%s)",
+                feature_id,
+                grounding_used,
+                max_grounding,
+            )
+            messages = messages + [
+                {"role": "user", "content": _null_path_grounding_hint(feature_id, ctx)}
+            ]
+            continue
 
+        hard_used += 1
         logger.info(
-            "feature %s structured: hard reject (attempt %s/%s)",
+            "feature %s structured: hard reject (hard %s/%s)",
             feature_id,
-            attempt,
-            max_attempts,
+            hard_used,
+            max_hard,
         )
-        if attempt >= max_attempts:
+        if hard_used >= max_hard:
             break
         messages = messages + [{"role": "user", "content": _RETRY_USER_HINT}]
 
+    # Prefer a schema-valid (if ungrounded) LLM copy over the generic template.
+    if last_usable is not None:
+        logger.warning(
+            "feature %s structured: keeping last LLM copy (hard budget exhausted)", feature_id
+        )
+        return last_usable
     logger.info("feature %s structured: TEMPLATE (schema/retry fail)", feature_id)
     return validate_or_template(None, feature_id, ctx, answers=answers)
 
@@ -406,6 +512,7 @@ CLOSING_SYNTHESIS_SYSTEM = (
     "- Close with realistic non-surgical next steps in priority order (SPF, sleep, grooming, topical care)\n"
     "- Do NOT invent measurements or procedures\n"
     "- Do NOT paste generic lines like 'Non-surgical guidance for X based on stored measurements'\n"
+    "- Do NOT restate sclera or eye-color observations; those belong only in the eyes section\n"
     "- The phrase 'non-surgical' is allowed and preferred\n"
     "- Use only plain ASCII punctuation (hyphen -, apostrophe '). "
     "Never use soft hyphens, en/em dashes, or curly quotes."

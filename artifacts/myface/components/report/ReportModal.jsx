@@ -8,6 +8,7 @@ const Report = dynamic(() => import('../Report'), { ssr: false })
 export function ReportModal({
   open,
   onClose,
+  withNavbarOffset = false,
   photo,
   photos,
   answers,
@@ -17,7 +18,6 @@ export function ReportModal({
   onCloudAssessmentChange = null,
   user,
   onRestart,
-  onRetryLocal,
 }) {
   useEffect(() => {
     if (!open) return undefined
@@ -35,8 +35,16 @@ export function ReportModal({
 
   if (!open) return null
 
+  // When the site navbar is present (dashboard/history/admin), sit below it and
+  // beneath its stacking order so the navbar stays visible and usable (including
+  // the mobile menu). On navbar-less routes (e.g. /analysis) fall back to a
+  // full-viewport overlay.
+  const containerClass = withNavbarOffset
+    ? 'fixed inset-x-0 bottom-0 top-[var(--site-navbar-height)] z-30 flex flex-col bg-surface'
+    : 'fixed inset-0 z-[200] flex flex-col bg-surface'
+
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-surface">
+    <div className={containerClass}>
       <div className="flex-1 min-h-0 overflow-hidden">
         <Report
           photo={photo}
@@ -47,7 +55,6 @@ export function ReportModal({
           cloudAssessment={cloudAssessment}
           onCloudAssessmentChange={onCloudAssessmentChange}
           onRestart={onRestart}
-          onRetryLocal={onRetryLocal}
           user={user}
           onClose={onClose}
         />

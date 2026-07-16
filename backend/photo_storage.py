@@ -25,6 +25,19 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def sniff_image_content_type(image_bytes: bytes, fallback: str = "image/jpeg") -> str:
+    """Best-effort image content-type from magic bytes (jpg/png/webp)."""
+    if not image_bytes:
+        return fallback
+    if image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if image_bytes[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    return fallback or "image/jpeg"
+
+
 @dataclass
 class StoredPhoto:
     poseId: str
@@ -44,14 +57,25 @@ class PhotoStorage:
     def __init__(self, media=None):
         self.media = media or get_media_storage()
 
-    def save_pose(self, assessment_id: str, pose_id: str, image_bytes: bytes) -> StoredPhoto:
+    def save_pose(
+        self,
+        assessment_id: str,
+        pose_id: str,
+        image_bytes: bytes,
+        content_type: Optional[str] = None,
+    ) -> StoredPhoto:
+        # Store the ORIGINAL bytes unchanged (no re-encode) to preserve full image
+        # quality. The object key keeps the historical `{pose_id}.jpg` convention so
+        # every downstream reader (CV pipeline, vision context) resolves it, while the
+        # true content-type is recorded in metadata and re-sniffed when served.
         key = assessment_key(assessment_id, f"{pose_id}.jpg")
         self.media.put_bytes(key, image_bytes)
+        resolved_type = sniff_image_content_type(image_bytes, content_type or "image/jpeg")
         return StoredPhoto(
             poseId=pose_id,
             relativePath=key,
             publicUrl=public_url_for_key(key),
-            contentType="image/jpeg",
+            contentType=resolved_type,
             byteSize=len(image_bytes),
             storedAt=_now_iso(),
         )
@@ -118,7 +142,13 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
             if isinstance(ratios, dict):
                 prop["ratios"] = {
                     k: (
-                        {**v, "overlaySpace": "image", "imageSrc": v.get("imageSrc") or front}
+                        {
+                            **v,
+                            "overlaySpace": "image",
+                            "imageSrc": front,
+                            # Drop crop-space overlays if present; client recomputes from landmarks.
+                            **({"overlay": None} if v.get("overlaySpace") == "crop" else {}),
+                        }
                         if isinstance(v, dict) and k != "nasoAural"
                         else ({**v, "overlaySpace": "image"} if isinstance(v, dict) else v)
                     )
@@ -130,8 +160,13 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
         ratios = cv_report.get("proportions", {}).get("ratios", {})
         if isinstance(ratios, dict) and "nasoAural" in ratios:
             naso = dict(ratios["nasoAural"])
+            was_crop = naso.get("overlaySpace") == "crop"
             naso["imageSrc"] = profile
             naso["photoSource"] = "rightProfile"
+            naso["overlaySpace"] = "image"
+            # Frontal crop-space guides must not ride onto the profile plate.
+            if was_crop:
+                naso["overlay"] = None
             ratios = {**ratios, "nasoAural": naso}
             prop = {**cv_report.get("proportions", {}), "ratios": ratios}
             cv_report["proportions"] = prop

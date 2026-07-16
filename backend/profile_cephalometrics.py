@@ -8,9 +8,10 @@ from typing import Optional
 from .face_crop import lm
 from .profile_silhouette import extract_profile_silhouette_points
 
-# Visible-side contour indices for ear vertical span on profile photos
-RIGHT_PROFILE_EAR = (356, 454, 323, 361, 288, 397, 365, 379)
-LEFT_PROFILE_EAR = (234, 127, 132, 93, 58, 172, 136, 150)
+# Visible-side ear contour: rightProfile shows person's RIGHT side → right-ear mesh;
+# leftProfile shows person's LEFT side → left-ear mesh.
+RIGHT_PROFILE_EAR = (234, 127, 132, 93, 58, 172, 136, 150)
+LEFT_PROFILE_EAR = (356, 454, 323, 361, 288, 397, 365, 379)
 
 # Keys used by cephalometric formulas — prefer silhouette when present
 _SILHOUETTE_KEYS = (
@@ -64,7 +65,8 @@ def _ear_span(landmarks: list, pose_id: str) -> tuple[dict, dict]:
 
 def _profile_landmarks(landmarks: list, pose_id: str) -> dict:
     ear_top, ear_bottom = _ear_span(landmarks, pose_id)
-    gonion_idx = 454 if pose_id == "rightProfile" else 234
+    # Visible-side gonion: right profile → person's right jaw (234).
+    gonion_idx = 234 if pose_id == "rightProfile" else 454
     return {
         "glabella": lm(landmarks, 10),
         "nasion": lm(landmarks, 6),
@@ -144,20 +146,25 @@ def _merge_profile_points(
 
 
 def build_naso_aural_proportion_overlay(pts: dict) -> dict:
-    """Qoves-style dashed guides for ProportionFeatureOverlay (image 0–100 space)."""
+    """Qoves-style ear/nose height brackets for ProportionFeatureOverlay (image 0–100).
+
+    Short horizontal ticks at the ear and nose columns (not full-width guides) so the
+    mapping stays readable on profile photos.
+    """
     ear_x = _pct_x((pts["earTop"]["x"] + pts["earBottom"]["x"]) / 2)
     nose_x = _pct_x((pts["noseTop"]["x"] + pts["noseBottom"]["x"]) / 2)
     ear_top_y = _pct_y(pts["earTop"]["y"])
     ear_bot_y = _pct_y(pts["earBottom"]["y"])
     nose_top_y = _pct_y(pts["noseTop"]["y"])
     nose_bot_y = _pct_y(pts["noseBottom"]["y"])
+    tick = 7.0
 
     return {
         "horizontal": [
-            {"y": ear_top_y},
-            {"y": ear_bot_y},
-            {"y": nose_top_y},
-            {"y": nose_bot_y},
+            {"y": ear_top_y, "x1": ear_x - tick, "x2": ear_x + tick},
+            {"y": ear_bot_y, "x1": ear_x - tick, "x2": ear_x + tick},
+            {"y": nose_top_y, "x1": nose_x - tick, "x2": nose_x + tick},
+            {"y": nose_bot_y, "x1": nose_x - tick, "x2": nose_x + tick},
         ],
         "segments": [
             {"x1": ear_x, "y1": ear_top_y, "x2": ear_x, "y2": ear_bot_y},

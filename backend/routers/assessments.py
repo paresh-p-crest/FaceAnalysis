@@ -5,13 +5,15 @@ from __future__ import annotations
 import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
 from ..analyze_face import run_face_analysis, _normalize_cv_provider
 from ..auth import get_current_user, get_optional_current_user, require_admin
+from ..config import PHOTO_POSES
 from ..database import is_db_configured
+from ..media_storage import assessment_key, get_media_storage, media_key_from_ref
 from ..photo_validation import validate_required_poses
 from ..ai_access import require_paid_ai_access
 from ..protocol_service import (
@@ -28,10 +30,13 @@ from ..repositories.assessment_repository import (
     create_assessment,
     delete_all_assessment_data,
     delete_assessment,
+    finalize_assessment_for_processing,
     get_assessment_by_id,
     list_assessments_for_user,
     list_assessments,
+    remove_assessment_photo,
     requeue_failed_pipeline,
+    upsert_assessment_photo,
     update_assessment_status,
     update_assessment_admin_review,
     update_assessment_ai_visuals,
@@ -46,6 +51,7 @@ from ..pipeline_status import (
 )
 from ..photo_storage import (
     apply_photo_urls_to_cv_report,
+    get_photo_storage,
     photos_map_to_urls,
     save_all_poses,
 )
@@ -74,6 +80,18 @@ class AssessmentCreateRequest(BaseModel):
     photos: dict = {}
     provider: str = "local"
     scanId: Optional[str] = None
+
+
+class AssessmentDraftRequest(BaseModel):
+    scanId: Optional[str] = None
+
+
+class AssessmentSubmitRequest(BaseModel):
+    answers: dict = {}
+    provider: str = "local"
+
+
+ALLOWED_POSE_IDS = frozenset(p["id"] for p in PHOTO_POSES)
 
 
 class AssessmentStatusUpdateRequest(BaseModel):
@@ -109,6 +127,15 @@ def _can_access_assessment(existing: dict, current_user: Optional[dict]) -> bool
     if not current_user:
         return False
     return current_user.get("role") == "admin" or current_user.get("id") == existing.get("userId")
+
+
+async def _require_payment_or_admin(current_user: dict) -> None:
+    """Analysis entry is payment-gated (admins bypass)."""
+    if current_user.get("role") != "admin" and not await user_has_completed_payment(current_user["id"]):
+        raise HTTPException(
+            status_code=402,
+            detail="Payment required before starting analysis.",
+        )
 
 
 def _score_line(label: str, data: Optional[dict]) -> Optional[str]:
@@ -344,6 +371,159 @@ async def post_assessment(
         "processing": True,
         "photos": photos_doc,
         "createdAt": saved["createdAt"],
+    }
+
+
+@router.post("/assessments/draft")
+async def post_assessment_draft(
+    req: AssessmentDraftRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Create (or reuse) a draft assessment so validated poses can be uploaded to the
+    active media backend before the user submits. Idempotent by (user, scanId)."""
+    if not is_db_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Database not configured. Set DATABASE_URL in backend environment.",
+        )
+    await _require_payment_or_admin(current_user)
+
+    saved = await create_assessment(
+        answers={},
+        provider="local",
+        analysis={},
+        user_id=current_user["id"],
+        photos_keys=[],
+        photos={},
+        status="draft",
+        scan_id=req.scanId,
+        pipeline=None,
+        feature_parsing=new_feature_parsing_pending(),
+        projected_after=new_projected_after_pending(),
+    )
+    return {"assessmentId": saved["id"], "scanId": saved.get("scanId")}
+
+
+@router.put("/assessments/{assessment_id}/photos/{pose_id}")
+async def put_assessment_photo(
+    assessment_id: str,
+    pose_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Store one original-quality pose image (multipart, no re-encode) on a draft."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
+    if pose_id not in ALLOWED_POSE_IDS:
+        raise HTTPException(status_code=400, detail=f"Unknown pose: {pose_id}")
+
+    existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not _can_access_assessment(existing, current_user):
+        raise HTTPException(status_code=403, detail="You do not have access to this assessment")
+    if existing.get("pipeline") is not None:
+        raise HTTPException(status_code=400, detail="Assessment already submitted; photos are locked")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty image upload")
+
+    storage = get_photo_storage()
+    stored = await asyncio.to_thread(
+        storage.save_pose, assessment_id, pose_id, data, file.content_type
+    )
+
+    # Atomic single-pose merge under a row lock so concurrent pose uploads
+    # cannot clobber each other (lost-update race on the photos JSONB map).
+    updated = await upsert_assessment_photo(assessment_id, pose_id, stored.to_dict())
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    return stored.to_dict()
+
+
+@router.delete("/assessments/{assessment_id}/photos/{pose_id}")
+async def delete_assessment_photo(
+    assessment_id: str,
+    pose_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove one stored pose from a draft (object + metadata)."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
+    existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not _can_access_assessment(existing, current_user):
+        raise HTTPException(status_code=403, detail="You do not have access to this assessment")
+    if existing.get("pipeline") is not None:
+        raise HTTPException(status_code=400, detail="Assessment already submitted; photos are locked")
+
+    # Atomically drop the pose under a row lock, then delete the stored object.
+    updated, meta = await remove_assessment_photo(assessment_id, pose_id)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    media = get_media_storage()
+    rel = meta.get("relativePath") if isinstance(meta, dict) else None
+    key = (media_key_from_ref(str(rel)) or rel) if rel else assessment_key(assessment_id, f"{pose_id}.jpg")
+    await asyncio.to_thread(media.delete, key)
+    return {"ok": True}
+
+
+@router.post("/assessments/{assessment_id}/submit")
+async def post_assessment_submit(
+    assessment_id: str,
+    req: AssessmentSubmitRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Finalize a draft: verify required poses, persist answers, enqueue the pipeline."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
+    await _require_payment_or_admin(current_user)
+
+    existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not _can_access_assessment(existing, current_user):
+        raise HTTPException(status_code=403, detail="You do not have access to this assessment")
+
+    pipeline_existing = existing.get("pipeline") or {}
+    # Idempotent: a second submit while processing/ready just echoes current state.
+    if pipeline_is_processing(pipeline_existing) or pipeline_existing.get("status") == "ready":
+        return {
+            "assessmentId": assessment_id,
+            "scanId": existing.get("scanId"),
+            "status": format_report_status(existing.get("status")),
+            "pipeline": format_pipeline_for_api(pipeline_existing),
+            "processing": pipeline_is_processing(pipeline_existing),
+            "photos": existing.get("photos"),
+            "createdAt": existing.get("createdAt"),
+        }
+
+    photos = existing.get("photos") or {}
+    missing = validate_required_poses(photos)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required photo poses: {', '.join(missing)}",
+        )
+
+    provider = _normalize_cv_provider(req.provider)
+    pipeline = new_queued_pipeline()
+    await finalize_assessment_for_processing(
+        assessment_id,
+        answers=to_json_safe(req.answers or {}),
+        provider=provider,
+        pipeline=pipeline,
+    )
+    return {
+        "assessmentId": assessment_id,
+        "scanId": existing.get("scanId"),
+        "status": "Processing",
+        "pipeline": format_pipeline_for_api(pipeline),
+        "processing": True,
+        "photos": photos,
+        "createdAt": existing.get("createdAt"),
     }
 
 

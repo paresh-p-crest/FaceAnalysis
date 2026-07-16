@@ -127,10 +127,49 @@ Fast upload + enqueue: validates 7 poses, persists photos, creates assessment wi
 - **Worker:** Background loop runs `cv` → `narratives` → `parsing` (SegFormer). On success: `pipeline.status = ready`, workflow `status = pending_review` (or `approved` if `DEV_AUTO_APPROVE_REPORTS`).
 
 ### `POST /api/assessments/{assessment_id}/retry-pipeline`
-Re-enqueue a **failed** pipeline (owner or admin).
+Re-enqueue a **failed** pipeline (owner or admin). Returns the full serialized assessment (pipeline reset to `queued`). No-op returning current state if already `queued`/`running`; **400** if `ready` or not in a failed state.
+
+### Progressive draft-upload-finalize flow (ADR-026)
+This is the single assessment-creation path used by the web app in **all** environments. Photos are uploaded to the active `MediaStorage` backend (local filesystem in dev, Replit Object Storage in prod) immediately after client-side validation, then `submit` enqueues the pipeline. Original image bytes are stored **as-is** (no server or client re-encode).
+
+#### `POST /api/assessments/draft`
+Creates (or returns) an idempotent draft assessment used to collect per-pose uploads before submit.
+- **Auth:** Private (paid user or admin)
+- **Request Body:** `{ "scanId": "client-uuid" }`
+- **Idempotency:** `(userId, scanId)` reuses the existing draft.
+- **Behavior:** Creates `status = "draft"`, `pipeline = null`, `featureParsing`/`projectedAfter` pending, `photos = {}`.
+- **Response (200 OK):**
+  ```json
+  { "assessmentId": "uuid", "scanId": "client-uuid" }
+  ```
+
+#### `PUT /api/assessments/{assessment_id}/photos/{pose_id}`
+Uploads a single pose image (original bytes) to the bucket and merges it into the draft's `photos` map.
+- **Auth:** Private (paid user or admin) + ownership
+- **Content-Type:** `multipart/form-data` with a `file` field (the raw `File`; no base64, no re-encode)
+- **`pose_id`:** one of the allowed poses (`front`, `left`, `right`, `left45`, `right45`, `smile`, `topHead`). **400** for unknown pose.
+- **Rejects (409)** if the assessment is already submitted (`pipeline` not null).
+- **Behavior:** Reads raw bytes + sniffs content-type from magic bytes, `save_pose(...)` stores the image (always keyed `{pose_id}.jpg` for pipeline compatibility while preserving original bytes/format), updates `photos` JSONB + `photos_keys`.
+- **Response (200 OK):** The stored photo dict, e.g. `{ "pose": "front", "publicUrl": "/api/media/assessments/{id}/front.jpg", ... }`
+
+#### `DELETE /api/assessments/{assessment_id}/photos/{pose_id}`
+Removes an uploaded pose object from storage and its `photos` entry.
+- **Auth:** Private (paid user or admin) + ownership
+- **Rejects (409)** if the assessment is already submitted.
+- **Response (200 OK):** `{ "ok": true }`
+
+#### `POST /api/assessments/{assessment_id}/submit`
+Finalizes a draft and enqueues the async pipeline (no image re-upload).
+- **Auth:** Private (paid user or admin) + ownership
+- **Request Body:** `{ "answers": { ... }, "provider": "openai" }`
+- **Behavior:** Verifies all required poses are present in stored `photos` (**400** if missing), persists `answers`/`provider`, sets `pipeline = queued`. The background worker takes over.
+- **Response (200 OK):**
+  ```json
+  { "assessmentId": "uuid", "processing": true, "pipeline": { "status": "queued", "stage": "queued" } }
+  ```
 
 ### `POST /api/assessments` (legacy note)
-Older docs described synchronous CV+NL in one request — superseded by ADR-025.
+Older docs described synchronous CV+NL in one request — superseded by ADR-025. The compressed base64 create path is no longer used by the web app (superseded by the draft-upload-finalize flow, ADR-026).
 
 ### `POST /api/run-analysis`
 Runs quick mathematical analysis without saving to MongoDB database.
@@ -147,7 +186,8 @@ Retrieves a detailed assessment object by ID.
 Lists recent assessments for the admin panel (summary projection only).
 - **Auth:** Private (Admin)
 - **Query:** `limit` (max 100)
-- **Response Shape (200 OK):** `{ "items": [...] }` where each item includes `id`, `userId`, `status`, `provider`, `scanId`, `createdAt`, and pruned `analysis` score fields only (no photos, narratives, protocol blobs, or cvReport image data). Use `GET /api/assessments/{id}` for full detail.
+- **Response Shape (200 OK):** `{ "items": [...] }` where each item includes `id`, `userId`, `status`, `provider`, `scanId`, `createdAt`, `pipeline` (live stage/status for the admin tracker), and pruned `analysis` score fields only (no photos, narratives, protocol blobs, or cvReport image data). Use `GET /api/assessments/{id}` for full detail.
+- **Note:** Un-submitted drafts (`status = "draft"` with `pipeline = null`) are excluded from the user history list, but appear here for admins.
 
 ### `GET /api/my/assessments`
 Lists assessment history belonging to current user context (summary projection only).
@@ -267,7 +307,7 @@ Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images 
     "variants": ["hair", "outfit", "aging"]
   }
   ```
-- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variants[]` with `prompt`, `imageSrc`, `status`, `error`). Failed edits return `status: "blocked"` per variant instead of crashing the request.
+- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variants[]` with `prompt`, `imageSrc`, `status`, `error`). Failed edits return `status: "blocked"` per variant instead of crashing the request. Prompt text is natural-language with a shared identity opening and per-variant scope-fence (ADR-035); schema unchanged.
 
 ### `GET /api/assessments/{assessment_id}/pdf`
 Retrieves generated PDF bytes directly.

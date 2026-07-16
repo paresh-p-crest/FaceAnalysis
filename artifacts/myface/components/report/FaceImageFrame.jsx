@@ -327,18 +327,49 @@ export function ProportionsOverlay({ lines }) {
   )
 }
 
+/**
+ * Notebook-style filled region highlight (chin crescent / cheek malar).
+ * Paths are SVG `d` strings in image-% space (0–100), matching FaceShapeOverlay.
+ */
+export function FeatureRegionOverlay({ paths, fill = 'rgba(150, 170, 180, 0.4)', stroke = 'rgba(120, 140, 150, 0.75)' }) {
+  const list = (paths || []).filter(Boolean)
+  if (!list.length) return null
+  return (
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+    >
+      {list.map((d, i) => (
+        <path
+          key={i}
+          d={d}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth="0.35"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+    </svg>
+  )
+}
+
 /** Qoves-style per-feature proportion guides — dots use % CSS so size stays small on any aspect. */
 export function ProportionFeatureOverlay({ overlay }) {
   if (!overlay) return null
+  // Same white + weight as facial-thirds overview (`ProportionsOverlay`).
   const dash = {
     stroke: 'rgba(255,255,255,0.92)',
-    strokeWidth: '0.28',
-    strokeDasharray: '1.6 1.2',
+    strokeWidth: '1.15',
+    strokeDasharray: '1.5 2.2',
+    strokeLinecap: 'round',
     vectorEffect: 'non-scaling-stroke',
   }
   const solid = {
-    stroke: 'rgba(255,255,255,0.95)',
-    strokeWidth: '0.32',
+    stroke: 'rgba(255,255,255,0.92)',
+    strokeWidth: '1.15',
+    strokeLinecap: 'round',
     vectorEffect: 'non-scaling-stroke',
   }
 
@@ -349,7 +380,7 @@ export function ProportionFeatureOverlay({ overlay }) {
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
       >
-      {overlay.horizontal?.map((line, i) => (
+        {overlay.horizontal?.map((line, i) => (
           <line
             key={`h-${i}`}
             x1={line.x1 ?? 4}
@@ -365,6 +396,28 @@ export function ProportionFeatureOverlay({ overlay }) {
         {overlay.segments?.map((seg, i) => (
           <line key={`s-${i}`} x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2} {...solid} />
         ))}
+        {overlay.bars?.map((bar, i) => {
+          const x1 = Number(bar.x1)
+          const x2 = Number(bar.x2)
+          const y = Number(bar.y ?? bar.y1)
+          if (![x1, x2, y].every(Number.isFinite)) return null
+          const left = Math.min(x1, x2)
+          const right = Math.max(x1, x2)
+          const span = right - left
+          // Downward end ticks (~8% of span, clamped) — matches Qoves measurement brackets.
+          const tickLen = Math.max(1.6, Math.min(3.2, span * 0.08 || 2.2))
+          const tickXs = Array.isArray(bar.ticks) && bar.ticks.length
+            ? bar.ticks.map(Number).filter(Number.isFinite)
+            : [left, right]
+          return (
+            <g key={`bar-${i}`}>
+              <line x1={left} y1={y} x2={right} y2={y} {...solid} />
+              {tickXs.map((tx, j) => (
+                <line key={j} x1={tx} y1={y} x2={tx} y2={y + tickLen} {...solid} />
+              ))}
+            </g>
+          )
+        })}
       </svg>
       {overlay.dots?.map((d, i) => (
         <span

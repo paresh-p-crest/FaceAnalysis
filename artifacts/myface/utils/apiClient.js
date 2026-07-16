@@ -3,17 +3,6 @@
  * Analysis runs on Python FastAPI + PostgreSQL.
  */
 
-import { getAwsCredentials } from './settings'
-import { prepareImageForBackend, preparePhotosForBackend } from './imagePayload'
-
-const inflightScans = new Map()
-
-function scanCacheKey(scanId) {
-  if (!scanId) return null
-  const token = localStorage.getItem('myface_auth_token') || 'anon'
-  return `${token}:${scanId}`
-}
-
 export function getApiBaseUrl() {
   const url = process.env.NEXT_PUBLIC_API_URL || ''
   const clean = url.replace(/\/$/, '')
@@ -42,89 +31,81 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-async function toBackendImagePayload(src) {
-  return prepareImageForBackend(src)
+/**
+ * Create (or reuse) a draft assessment so validated poses can be uploaded to the
+ * media backend before the user submits. Idempotent by (user, scanId).
+ */
+export async function createAssessmentDraft(scanId = null) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/assessments/draft`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ scanId: scanId || undefined }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.detail || 'Failed to create analysis draft')
+  return data
 }
 
-async function normalizePhotosForBackend(photos = {}) {
-  return preparePhotosForBackend(photos)
+/**
+ * Upload one original-quality pose image (the raw File/Blob, no re-encode) to a
+ * draft via multipart/form-data. Returns the stored photo metadata (incl. publicUrl).
+ */
+export async function uploadAssessmentPhoto(assessmentId, poseId, file) {
+  const base = getApiBaseUrl()
+  const form = new FormData()
+  const filename = (file && file.name) || `${poseId}.jpg`
+  form.append('file', file, filename)
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/photos/${poseId}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.detail || 'Failed to upload photo')
+  return data
 }
 
-export async function runFaceAnalysisViaBackend(photo, answers, photos = {}, provider = 'local', scanId = null) {
-  const cacheKey = scanCacheKey(scanId)
-  if (cacheKey && inflightScans.has(cacheKey)) {
-    return inflightScans.get(cacheKey)
-  }
+export async function deleteAssessmentPhoto(assessmentId, poseId) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/photos/${poseId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.detail || 'Failed to remove photo')
+  return data
+}
 
-  const run = async () => {
-    const base = getApiBaseUrl()
-    const [imageBase64, normalizedPhotos] = await Promise.all([
-      toBackendImagePayload(photo),
-      normalizePhotosForBackend(photos),
-    ])
-    if (imageBase64 && !normalizedPhotos.front) {
-      normalizedPhotos.front = imageBase64
-    }
+/** Finalize a draft: persist answers + enqueue the async pipeline. */
+export async function submitAssessment(assessmentId, { answers = {}, provider = 'local' } = {}) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ answers: answers || {}, provider }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.detail || 'Failed to submit analysis')
+  return data
+}
 
-    const body = {
-      imageBase64,
-      answers: answers || {},
-      photos: normalizedPhotos || {},
-      provider: provider === 'aws' ? 'aws' : 'local',
-      scanId: scanId || undefined,
-    }
-
-    if (provider === 'aws') {
-      const creds = getAwsCredentials()
-      body.awsCredentials = {
-        accessKeyId: creds.accessKeyId,
-        secretAccessKey: creds.secretAccessKey,
-        sessionToken: creds.sessionToken || undefined,
-        region: creds.region || 'us-east-1',
-      }
-    }
-
-    const res = await fetch(`${base}/api/assessments`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders(),
-      },
-      body: JSON.stringify(body),
-    })
-
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      throw new Error(data.detail || data.message || `Backend error ${res.status}`)
-    }
-
-    return {
-      success: true,
-      assessmentId: data.assessmentId,
-      savedToDb: true,
-      processing: Boolean(data.processing),
-      pipeline: data.pipeline || null,
-      featureParsing: data.featureParsing || null,
-      projectedAfter: data.projectedAfter || null,
-      projectedAnalysis: data.projectedAnalysis || null,
-      reportStatus: data.status,
-      scanId,
-      photos: data.photos,
-      ...(data.analysis ? { ...data.analysis } : {}),
-      aiNarrative: data.aiNarrative || null,
-      protocolNarrative: data.protocolNarrative || null,
-      featureNarratives: data.featureNarratives || null,
-      protocolStorage: data.protocolStorage || null,
-    }
-  }
-
-  const promise = run()
-  if (cacheKey) inflightScans.set(cacheKey, promise)
-  try {
-    return await promise
-  } finally {
-    if (cacheKey) inflightScans.delete(cacheKey)
-  }
+/** Admin/owner: re-enqueue a failed pipeline job. */
+export async function retryAssessmentPipeline(assessmentId) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/retry-pipeline`, {
+    method: 'POST',
+    headers: authHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.detail || 'Failed to retry pipeline')
+  return data
 }
 
 export async function fetchAssessment(assessmentId) {

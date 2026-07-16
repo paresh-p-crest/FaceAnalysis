@@ -595,3 +595,110 @@ After the Replit migration the frontend is built and served from `artifacts/myfa
 - Access is open, matching the prior public `/uploads` behavior. Owner-only access (short-lived signed media tokens on `/api/media`) is a deferred follow-up; the route is the hook for it.
 - Legacy on-disk assessments will not display after cutover to `replit` unless their bytes are uploaded into the bucket (optional one-time migration). `media_key_from_ref` still accepts legacy `/uploads/...` refs so reads resolve if the object exists.
 - Supersedes the interim `artifacts/myface/public/uploads` writing (removed `backend/config.py` `PUBLIC_DIR`/`UPLOADS_ROOT`).
+
+---
+
+## ADR-031: Progressive per-pose bucket upload with draft/finalize; user timeline vs admin live status
+Date: 2026-07-15  
+Status: accepted  
+
+### Context
+The prior flow validated poses client-side, then on Submit compressed each pose (downscale to 1600px, JPEG q0.88), base64-encoded them, and POSTed all seven in one `POST /api/assessments` request that created the assessment and enqueued the pipeline. This lost image quality (unacceptable for a facial-analysis product), coupled upload to submit (a slow, single fat request), and forked the frontend into divergent paths (dead client-side CV branches, an AWS-fallback "Use Free Local Analysis Instead" retry). It also surfaced live pipeline stage status directly to end-users on the Dashboard/History/Preparing surfaces, exposing internal processing/failure detail and implying a self-serve, instant result that the admin-reviewed model does not provide.
+
+### Decision
+- **One creation path in every environment**, built on the ADR-030 `MediaStorage` interface (the only environmental difference is `MEDIA_STORAGE_BACKEND`): `POST /assessments/draft` (idempotent by `user+scanId`) → `PUT /assessments/{id}/photos/{poseId}` per validated pose → `POST /assessments/{id}/submit` (verifies required poses, sets answers/provider, enqueues `pipeline=queued`). The worker (ADR-025) is unchanged.
+- **Full quality preserved end-to-end.** Poses upload as the original `File` bytes via `multipart/form-data`; nothing downscales or re-encodes on any path (`imagePayload.js` helpers become pass-throughs; the demo loader keeps originals too). Client MediaPipe validation runs on a throwaway 640px canvas copy and never touches the stored image. `save_pose` sniffs the real content-type from magic bytes, stores bytes unchanged, and keys `{poseId}.jpg` for pipeline compatibility; `GET /api/media/...` sniffs and returns the correct `Content-Type`.
+- **Uploads are proxied through the backend, not direct-to-bucket.** Replit App Storage is GCS-backed but its SDK has no presigned-URL support and its workload-identity credentials cannot sign GCS URLs (`Cannot sign data without client_email`). Proxying via `/api/media/...` keeps per-upload auth and one identical code path in dev and prod; original-quality payloads (a few MB/pose) are fine over the proxy.
+- **Users get a static timeline, admins get live status.** The user Preparing page is a static per-stage timeline (day estimates + "N DAYS LEFT") plus a non-functional express-delivery placeholder — no polling. Dashboard/History show a neutral "In preparation" vs "Ready" (report open still gated on `approved`/`published`). The live `cv → parsing → narratives → projected_after` tracker + a "Retry pipeline" action move to the admin views (`PipelineStatusPanel`, list badge); `pipeline` is added to the admin summary projection.
+- **Cleanup.** Un-submitted drafts (`status="draft"`, `pipeline=null`) are excluded from the user history list (admins still see them). Dead client-side CV/AWS-fallback code is removed (`analyzeFace.js`, `Scanning.jsx`, `App.jsx`, the local-analysis retry button, `runFaceAnalysis*`, `formatProcessingBadge`); the compressed base64 `POST /api/assessments` create path is no longer used by the web app.
+
+### Consequences
+- Uploads happen progressively during selection, so Submit is instant (it only finalizes/enqueues); perceived latency drops and quality is bit-exact.
+- Abandoned drafts can leave orphaned bytes in the bucket; a TTL sweep is a deferred follow-up (not built here).
+- Server-side re-validation of photos remains out of scope (validation stays client-side).
+- End-users no longer see processing/failure internals; recovering a genuinely failed pipeline is an admin/owner concern via `POST /assessments/{id}/retry-pipeline`.
+
+---
+
+## ADR-032: Qoves-style severity-gated narrative generation (null path, numeric scrub, enforced non-invasive vocabulary)
+Date: 2026-07-15  
+Status: accepted  
+
+### Context
+Per-feature report narratives read unlike the Qoves reference: every section was padded with the same SPF/hydration/sleep triad regardless of severity, raw deviation numbers (e.g. `0.04`) leaked into prose, sections contradicted themselves (jaw described as both "wide" and "narrower"), the sclera observation drifted into clinical-cause claims, and there was no enforced, enumerated ban on invasive/energy-based treatment vocabulary. The generation approach itself was sound — the defects were pipeline-level (prompt assembly + guardrails), not model-level.
+
+### Decision
+- **Severity gates content, computed before prompt assembly.** `feature_severity_bucket` + `get_severity_content_directive` (`backend/recommendation_rules.py`) map each feature's deviation magnitude (`_feature_deviation_magnitude` → `magnitude_label`) to `minimal | mild | moderate | notable` and return a bucket-specific recommendation directive injected into the user message by `_build_feature_messages`.
+- **Null-recommendation path.** At `minimal` severity, every feature **except Skin** is instructed to output a short "no changes recommended" (2-3 sentences) and the length target is overridden away from the ~120-160 word band. Skin always retains a baseline routine (it is the canonical home of foundational care). Per-title `minLength` stays at 80 chars; 2-3 explanatory sentences clear it comfortably, so no schema/validator change was needed.
+- **No raw numbers in prompts (root-cause).** `get_tier_hints` no longer embeds the magnitude float; `feature_context_as_prompt_text` scrubs raw int/float leaves from the `CV cues JSON` block via `_drop_numeric_leaves` (booleans/strings/nested kept). The qualitative form of every numeric already ships via `measuredFacts`/`deviationFacts`. The system prompt also forbids emitting raw decimals and restricts output to the supplied severity label.
+- **Deterministic dedupe by confinement.** Because features generate in parallel (no runtime cross-check is possible), foundational SPF/hydration/sleep advice is confined to the Skin section: every non-Skin feature (all buckets) gets a directive not to restate it unless it is that feature's specific measured concern.
+- **Directional consistency + backstop.** The system prompt and a jaw/cheeks hint require stating a classification once and staying consistent; a soft, logged `CONTRADICTION_PAIRS` check in `clinical_guardrails.py` surfaces `wide`/`narrow`, `full-prominent`/`flat-recessed`, `elevated`/`low` co-occurrences without churning good reports.
+- **Sclera guardrail.** The eyes prompt and `CLOSING_SYNTHESIS_SYSTEM` require describing sclera color only as a single neutral visual/lighting observation, never a medical cause, and never repeated elsewhere; a soft validation flags sclera+cause language.
+- **Enforced non-invasive vocabulary.** `STRICT_NON_SURGICAL_RULES` enumerates the ban list (Botox, fillers, injectables, laser, IPL, HIFU, Thermage, Endolift, microneedling, chemical peels, radiofrequency, Ultherapy, energy-based devices). `BANNED_TERM_PATTERN` is extended with tightly scoped `(?:chemical|laser|micro\w*)\s+peels?`, `radiofrequency`, `ultherapy`, `energy-based`. **Bare `peel(s)` is intentionally not banned** to avoid false-positives on the verb ("skin may peel"). On a banned-term hit the existing hard-reject path applies: regenerate up to `FEATURE_NARRATIVE_MAX_ATTEMPTS` (with `_RETRY_USER_HINT` now naming the banned vocabulary), then fall back to the deterministic guardrail template for that section only — the report never fails.
+
+### Consequences
+- Strong features get terse "no changes recommended" copy; weak features get the full, targeted protocol — matching the Qoves length profile and removing boilerplate padding.
+- Numeric leaks are structurally impossible in the assembled prompt (removed at source, not just instructed), and the ban list is enforced pre-generation (prompt) and post-generation (regex → retry → per-section template).
+- The contradiction and sclera checks are intentionally soft (logged, LLM copy retained) to catch regressions without churning otherwise-good reports; escalate to hard only if they prove reliable.
+- **Deferred (tracked, not dropped):** surfacing shape-based Hamilton–Norwood staging *reasoning* in the hair narrative text (the CV metric already uses shape-based staging under ADR-028) is out of scope here and logged as an open backlog item in the sprint.
+
+---
+
+## ADR-033: Content-anchored null-path narratives (few-shot + grounding gate)
+Date: 2026-07-15  
+Status: accepted (refines ADR-032 null path)  
+
+### Context
+ADR-032's null path was **length-anchored** ("no changes recommended, 2-3 sentences"). A length constraint alone lets the model satisfy the target with generic template phrases ("balanced", "harmonious") because nothing forces it to reference the actual measured cues. The Qoves reference null sections (Nose, Eyes, Ears) are substantive because they still describe the specific measured geometry — the "no change" is the *conclusion*, not the *substance*.
+
+### Decision
+- **Content-anchored directive.** The `minimal`/non-Skin branch of `get_severity_content_directive` now requires a 3-part structure: (1) name the specific measured attributes from the cues, (2) explain why those values sit within the expected/balanced range (grounded in the stated classification), (3) close with "no non-surgical changes recommended". "balanced/harmonious/no deviations" may not appear unless paired to the specific attribute they describe. The old "2-3 sentences / do not stretch" cap is replaced with a "4-6 sentences (~70-120 words), fully describe attributes, do not pad" band. `min_length=80` is comfortably cleared, so no schema change.
+- **Per-feature few-shot exemplars.** `NULL_PATH_FEATURE_GUIDE` (`recommendation_rules.py`) holds a per-feature exemplar (nose/ears/lips/… each with feature-specific vocabulary) injected into the **user message** by `_build_feature_messages` on the null path — not the shared system prompt, which is common to all features/severities. Few-shot beats instruction-only for precise formatting, and per-feature examples avoid biasing every section toward nose vocabulary.
+- **Grounding validation (per-feature scope).** `null_path_grounded` (`clinical_guardrails.py`) verifies a null-path narrative references at least one concrete cue term (`null_path_grounding_terms` = curated distinctive anatomical nouns ∪ tokens auto-derived from `measuredFacts` keys, minus a stopword list tuned against a real key dump). It is a no-op for Skin, non-minimal severity, or features with no usable measured cues (`has_usable_measured_cues` — e.g. smile with no smile photo and only the "limited metrics" fallback). Curated terms deliberately exclude generic dimension adjectives and common prose words (`wide/full/low/profile/contour/…`) that collide with ordinary language and the ADR-032 `CONTRADICTION_PAIRS`.
+- **Independent grounding retry budget + keep-best-LLM fallback.** `generate_feature_narrative_async` is a `while` loop with two budgets: `FEATURE_NARRATIVE_MAX_ATTEMPTS` (schema/banned, existing) and new `NULL_PATH_GROUNDING_MAX_RETRIES` (default 2), so a schema failure cannot starve grounding retries; total LLM calls per feature are bounded by their sum. An ungrounded-but-schema-valid null section triggers a corrective `_null_path_grounding_hint` regeneration; if the grounding budget is spent, the **last LLM copy is kept** (logged warning) rather than dropping to the generic template — the whole point is to avoid the boilerplate the template would reintroduce. Banned-term/schema hard rejects still fall back to the template (unchanged), except a usable-but-ungrounded copy seen along the way is now preferred over the template.
+
+### Consequences
+- Null sections read as substantive measured descriptions ending in "no change", matching Qoves, instead of interchangeable filler.
+- Grounding is enforced structurally (validator + regeneration), not just requested; cue-sparse features degrade gracefully via the `< 2 terms` skip.
+- The stopword list and curated term sets are a first pass — tuned against a real `measuredFacts` key dump; extend if new noise tokens or collisions appear.
+- `smile` is included as the 11th non-Skin null-path feature (12th narrative feature overall); its cues are photo-dependent, so the skip-guard covers the no-smile-photo case.
+
+---
+
+## ADR-034: Fixed best-groomed projected-AFTER image prompt
+Date: 2026-07-16  
+Status: accepted (supersedes bounded-clause / barbershop AFTER prompt designs)  
+
+### Context
+ADR-029 introduced generative projected AFTER via `projected_after_ai.py` → `image_client`, with weakness-ranked focus via `projection_strengths` and static per-feature `_FEATURE_GUIDANCE` strings. That assembly caused overshoot (e.g. jawline reshaping on wide-jaw assessments) and added ~90 lines of dead prompt code with no reliable benefit.
+
+### Decision
+- **Single constant prompt.** `PROJECTED_AFTER_PROMPT` is the only text sent to the image-edit provider. `build_projected_after_prompt` returns it unchanged; `answers`, `cv_report`, and `metrics` are ignored (signature kept for pipeline/admin call sites).
+- **Product intent.** Visible skin/eye improvement, flattering hair and facial-hair styling (length/style may change; beard/stubble/clean-shaven at model discretion), with identity lock on face shape, nose, lips, eyes, jawline, ears, and proportions. Pores and natural texture must remain visible (no airbrushed/plastic skin).
+- **Remove CV-driven image focus.** Delete `projection_strengths`, `_FEATURE_GUIDANCE`, `_focus_features`, and `visual_generation` profile/context imports from the AFTER path.
+- **Manual preview only.** `scripts/preview_projected_after_prompt.py` prints the constant for human provider testing; AI agents, pipeline workers, smoke tests, and CI must not invoke it (`scripts/preview_*` manual-only rule in `rules.md`).
+
+### Consequences
+- Simpler module (~50 lines); same single-call architecture (`generate_image_edit`).
+- More output variance on hair/facial-hair styling is accepted in exchange for better groomed results.
+- `projection_strengths` is no longer part of the Python AFTER module (JS anthropometrics weighting in the frontend, if any, is unchanged).
+- Narrative/report numeric-ban rules (ADR-021/032) do not apply to this image-edit prompt — it is generative visual instruction only.
+
+---
+
+## ADR-035: AI visuals natural-language prompts with scope-fence isolation
+Date: 2026-07-16  
+Status: accepted  
+
+### Context
+`visual_generation.py` built hair / outfit / aging edit prompts with a label-style shared block plus a trailing `Client:` / `Context:` semicolon appendix. That style drifted from the working projected-AFTER natural-language prompts (ADR-034) and offered weak per-variant isolation (no explicit “change only X — leave Y exactly as is” fence before creative instruction). Pixel-level masking was out of scope; prompt scoping is the single-call lever.
+
+### Decision
+- **Shared opening.** All three variants start with `SHARED_VISUAL_OPENING` (identity lock + no medical/surgical imagery) in natural prose.
+- **Scope-fence first.** Each variant’s body opens with an explicit change-only / leave-unchanged sentence before creative instruction (aging uses “skin maturation only” plus the shared identity opening).
+- **Inline CV phrases.** `_cv_anchors` returns ready-to-insert phrases (`face_shape_phrase`, `hairline_phrase`, `skin_tone_phrase`) woven into sentences; missing/unknown values use grammatical fallbacks (`their face shape`, etc.), never the literal word `unknown`. No `Client:` / `Context:` appendix; `answers` / `metrics` unused in prompt text.
+- **Three separate calls.** Keep `generate_visual_variants` calling `build_visual_prompt` once per selected type — no mega-prompt.
+
+### Consequences
+- Prompt text shape in `aiVisuals.variants[].prompt` changes; API response schema unchanged.
+- Isolation is prompt-level only (not pixel masks); bleed risk remains bounded by single-purpose calls + fence wording.

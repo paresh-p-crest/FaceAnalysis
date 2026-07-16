@@ -3,7 +3,6 @@
 import QuestionnaireWelcome from '../QuestionnaireWelcome'
 import Questionnaire from '../Questionnaire'
 import PhotoUpload from '../PhotoUpload'
-import Scanning from '../Scanning'
 import AnalysisPreparing from './AnalysisPreparing'
 import { useApp } from '../providers/AppProvider'
 import { ANALYSIS_STEPS } from '../../utils/routes'
@@ -19,16 +18,16 @@ export function AnalysisFlow() {
     analysisStep,
     questionnaireStartAtEnd,
     setQuestionnaireStartAtEnd,
-    activeScanIdRef,
-    scanId,
     openDashboard,
     startNewAnalysis,
     goToQuestionnaire,
     goToConfirm,
     goToUpload,
     goToWelcome,
-    startScanning,
-    handleScanComplete,
+    ensureDraft,
+    draftAssessmentId,
+    submitAnalysis,
+    submitError,
     preparingAssessmentId,
     handlePreparingReady,
     handlePreparingDashboard,
@@ -74,18 +73,11 @@ export function AnalysisFlow() {
           step="upload"
           photos={photos}
           setPhotos={setPhotos}
-          onStartAnalysis={startScanning}
+          ensureDraft={ensureDraft}
+          draftAssessmentId={draftAssessmentId}
+          onStartAnalysis={submitAnalysis}
+          submitError={submitError}
           onBack={goToConfirm}
-        />
-      )
-    case ANALYSIS_STEPS.SCANNING:
-      return (
-        <Scanning
-          photo={primaryPhoto}
-          photos={photos}
-          answers={answers}
-          scanId={activeScanIdRef.current || scanId}
-          onComplete={handleScanComplete}
         />
       )
     case ANALYSIS_STEPS.PREPARING:

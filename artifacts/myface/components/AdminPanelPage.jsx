@@ -59,6 +59,24 @@ function StatusBadge({ status }) {
   )
 }
 
+/** Admin-only live pipeline indicator (hidden from clients). */
+function PipelineBadge({ pipeline }) {
+  if (!pipeline) return null
+  const status = pipeline.status || 'queued'
+  const style =
+    status === 'failed'
+      ? 'bg-red-50 text-red-700 border-red-200'
+      : status === 'ready'
+        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+        : 'bg-sky-50 text-sky-700 border-sky-200'
+  const label = status === 'running' && pipeline.stage ? `running · ${pipeline.stage}` : status
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold capitalize ${style}`}>
+      {label}
+    </span>
+  )
+}
+
 function money(amountCents, currency = 'usd') {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -359,6 +377,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
             <div className="flex flex-wrap items-center gap-2">
               {renderClientCell(assessment)}
               {showStatus && <StatusBadge status={assessment.status} />}
+              <PipelineBadge pipeline={assessment.pipeline} />
             </div>
             <p className="text-[11px] text-ink-muted mt-2">
               ID …{assessment.id.slice(-8)} · {formatHistoryDate(assessment.createdAt)} · score {score}

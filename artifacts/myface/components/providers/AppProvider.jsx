@@ -3,8 +3,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { STAGES, INITIAL_ANSWERS } from '../../utils/constants'
-import { runFaceAnalysis } from '../../utils/analyzeFace'
-import { setActiveProvider } from '../../utils/settings'
 import {
   ANALYSIS_STEPS,
   dashboardPathForUser,
@@ -17,7 +15,7 @@ import {
   adminTabToPath,
 } from '../../utils/routes'
 import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser } from '../../utils/authClient'
-import { isBackendApiEnabled, confirmStripeCheckout, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, isFullCloudAssessment } from '../../utils/apiClient'
+import { isBackendApiEnabled, confirmStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, isFullCloudAssessment, submitAssessment } from '../../utils/apiClient'
 import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
@@ -221,10 +219,31 @@ export function AppProvider({ children }) {
   const goToQuestionnaire = useCallback(() => setAnalysisStep(ANALYSIS_STEPS.QUESTIONNAIRE), [])
   const goToConfirm = useCallback(() => setAnalysisStep(ANALYSIS_STEPS.CONFIRM), [])
   const goToUpload = useCallback(() => setAnalysisStep(ANALYSIS_STEPS.UPLOAD), [])
-  const goToScanning = useCallback(() => setAnalysisStep(ANALYSIS_STEPS.SCANNING), [])
   const goToPreparing = useCallback(() => setAnalysisStep(ANALYSIS_STEPS.PREPARING), [])
 
   const [preparingAssessmentId, setPreparingAssessmentId] = useState(null)
+  const [draftAssessmentId, setDraftAssessmentId] = useState(null)
+  const [submitError, setSubmitError] = useState('')
+  /** De-dupes concurrent draft-creation calls (e.g. multiple poses uploading at once). */
+  const draftPromiseRef = useRef(null)
+
+  /** Lazily create (once) the draft assessment that per-pose uploads attach to. */
+  const ensureDraft = useCallback(async () => {
+    if (draftAssessmentId) return draftAssessmentId
+    if (!draftPromiseRef.current) {
+      const sid = activeScanIdRef.current || scanId
+      draftPromiseRef.current = createAssessmentDraft(sid)
+        .then((res) => {
+          setDraftAssessmentId(res.assessmentId)
+          return res.assessmentId
+        })
+        .catch((err) => {
+          draftPromiseRef.current = null
+          throw err
+        })
+    }
+    return draftPromiseRef.current
+  }, [draftAssessmentId, scanId])
 
   const getCloudAssessmentPhoto = (assessment) => {
     const report = assessment?.analysis?.cvReport
@@ -427,6 +446,12 @@ export function AppProvider({ children }) {
       setPhotos(EMPTY_PHOTOS)
       setAnalysis(null)
       setHistoryId(null)
+      const sid = createHistoryId()
+      activeScanIdRef.current = sid
+      setScanId(sid)
+      setDraftAssessmentId(null)
+      draftPromiseRef.current = null
+      setSubmitError('')
       trackEvent('assessment_start')
       setQuestionnaireStartAtEnd(false)
       goTo(ROUTES.analysis)
@@ -449,28 +474,28 @@ export function AppProvider({ children }) {
     startNewAnalysis()
   }, [user, startNewAnalysis])
 
-  const handleScanComplete = useCallback((result) => {
-    if (result?.processing && result?.assessmentId) {
-      setPreparingAssessmentId(result.assessmentId)
-      setAnalysis(result)
+  /**
+   * Finalize the already-uploaded draft: enqueue the pipeline and drop the user on
+   * the static Preparing page. Photos are uploaded during PhotoUpload, so this is
+   * an instant metadata-only submit.
+   */
+  const submitAnalysis = useCallback(async () => {
+    setSubmitError('')
+    let draftId = draftAssessmentId
+    try {
+      if (!draftId) draftId = await ensureDraft()
+      const result = await submitAssessment(draftId, { answers, provider: 'local' })
+      setPreparingAssessmentId(draftId)
+      setAnalysis({ ...result, assessmentId: draftId, processing: true, savedToDb: true })
       goToPreparing()
       trackEvent('assessment_submitted', {
-        assessmentId: result.assessmentId,
-        provider: result?.activeProvider || 'backend',
+        assessmentId: draftId,
+        provider: 'backend',
       })
-      return
+    } catch (err) {
+      setSubmitError(err?.message || 'Could not submit your analysis. Please try again.')
     }
-    setAnalysis(result)
-    setHistoryId(null)
-    resetAnalysisFlow()
-    openReportModal()
-    goTo(ROUTES.history)
-    trackEvent('assessment_complete', {
-      success: !!result?.success,
-      provider: result?.activeProvider || result?.cvEngine || 'unknown',
-      savedToDb: !!result?.savedToDb,
-    })
-  }, [openReportModal, resetAnalysisFlow, goTo, goToPreparing])
+  }, [draftAssessmentId, ensureDraft, answers, goToPreparing])
 
   const handlePreparingReady = useCallback((assessment) => {
     hydrateFromCloudAssessment(assessment)
@@ -490,21 +515,6 @@ export function AppProvider({ children }) {
     resetAnalysisFlow()
     goTo(ROUTES.dashboard)
   }, [resetAnalysisFlow, goTo])
-
-  const handleRetryLocal = useCallback(async (retryPhoto, retryPhotos, retryAnswers) => {
-    const prevProvider = setActiveProvider('local')
-    goTo(ROUTES.analysis)
-    goToScanning()
-    try {
-      const result = await runFaceAnalysis(retryPhoto, retryAnswers, retryPhotos)
-      setAnalysis(result)
-      setHistoryId(null)
-      openReportModal()
-    } catch {
-      setActiveProvider(prevProvider)
-      openReportModal()
-    }
-  }, [goTo, goToScanning, openReportModal])
 
   const logout = useCallback(() => {
     clearSession()
@@ -595,17 +605,16 @@ export function AppProvider({ children }) {
     setPhotos(EMPTY_PHOTOS)
     setAnalysis(null)
     setHistoryId(null)
+    const sid = createHistoryId()
+    activeScanIdRef.current = sid
+    setScanId(sid)
+    setDraftAssessmentId(null)
+    draftPromiseRef.current = null
+    setSubmitError('')
     setQuestionnaireStartAtEnd(false)
     goTo(ROUTES.analysis)
     setAnalysisStep(ANALYSIS_STEPS.CONFIRM)
   }, [goTo])
-
-  const startScanning = useCallback(() => {
-    activeScanIdRef.current = createHistoryId()
-    setScanId(activeScanIdRef.current)
-    goTo(ROUTES.analysis)
-    goToScanning()
-  }, [goTo, goToScanning])
 
   const handleLogo = useCallback(() => {
     if (user) openDashboard()
@@ -649,8 +658,6 @@ export function AppProvider({ children }) {
     openBilling,
     startNewAnalysis,
     startAnalysisAfterPayment,
-    handleScanComplete,
-    handleRetryLocal,
     logout,
     handleAuthenticated,
     viewHistoryItem,
@@ -660,7 +667,6 @@ export function AppProvider({ children }) {
     refreshAdminTab,
     patchAdminWorkspace,
     skipQuestionnaireWithSampleData,
-    startScanning,
     handleLogo,
     openReportModal,
     closeReportModal,
@@ -668,9 +674,12 @@ export function AppProvider({ children }) {
     goToQuestionnaire,
     goToConfirm,
     goToUpload,
-    goToScanning,
     goToPreparing,
     preparingAssessmentId,
+    draftAssessmentId,
+    ensureDraft,
+    submitAnalysis,
+    submitError,
     handlePreparingReady,
     handlePreparingDashboard,
     resetAnalysisFlow,
@@ -679,14 +688,15 @@ export function AppProvider({ children }) {
     billingMessage, paymentReturn, logoutConfirmOpen, scanId,
     adminWorkspace,
     questionnaireStartAtEnd, analysisStep, reportModalOpen, openingReportId, cloudAssessment, primaryPhoto, pathname,
-    preparingAssessmentId,
+    preparingAssessmentId, draftAssessmentId, submitError,
     goTo, goToStage, openDashboard, openHistory, openBilling, startNewAnalysis,
-    startAnalysisAfterPayment, handleScanComplete, handleRetryLocal, logout,
+    startAnalysisAfterPayment, logout,
     handleAuthenticated, viewHistoryItem, viewCloudAssessment,
     adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace,
-    skipQuestionnaireWithSampleData, startScanning, handleLogo,
+    skipQuestionnaireWithSampleData, handleLogo,
     openReportModal, closeReportModal, goToWelcome, goToQuestionnaire,
-    goToConfirm, goToUpload, goToScanning, goToPreparing,
+    goToConfirm, goToUpload, goToPreparing,
+    ensureDraft, submitAnalysis,
     handlePreparingReady, handlePreparingDashboard, resetAnalysisFlow,
   ])
 

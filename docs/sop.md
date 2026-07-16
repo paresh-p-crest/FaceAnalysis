@@ -20,17 +20,14 @@ This document contains standard step-by-step procedures for local environment se
    ```
 3. **Backend Setup:**
    ```powershell
-   cd backend
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
-   source venv/bin/activate
-   
-   # Installs everything, including SegFormer face parsing (torch) and, on
-   # Python <3.13, the Replit Object Storage backend:
-   pip install -r requirements.txt
+   # From the project root (uv reads pyproject.toml and manages the venv):
+   uv sync
    ```
+   `uv sync` installs everything, including the SegFormer face-parsing deps
+   (`torch`, `torchvision`, `transformers` — CPU wheels pinned via the
+   `pytorch-cpu` index in `pyproject.toml`) and, on Python <3.13, the Replit
+   Object Storage backend. No separate `requirements-face-parsing.txt` step is
+   needed — face parsing works out of the box after a fresh `uv sync`.
 4. **Environment Configuration:**
    - Copy `.env.example` to `.env` in the **project root** (single file for backend + Next.js).
    - Set `MONGODB_URI`, `AUTH_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
@@ -43,8 +40,8 @@ This document contains standard step-by-step procedures for local environment se
 
 Start both servers locally:
 ```powershell
-# Backend (FastAPI)
-.\venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+# Backend (FastAPI) — uv resolves the project venv automatically
+uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 
 # Frontend (Next.js)
 npm run dev

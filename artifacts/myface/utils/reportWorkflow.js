@@ -40,6 +40,19 @@ export function canClientViewFullReport(status, isAdmin = false) {
   return isReportApproved(status)
 }
 
+/**
+ * User-facing readiness. Live pipeline/processing/failed state is deliberately
+ * hidden from end users (surfaced only to admins); a report is either "Ready"
+ * (client can open it) or still "In preparation".
+ */
+export function userReportReady(assessment) {
+  return canClientViewFullReport(assessment?.status)
+}
+
+export function userStatusLabel(assessment) {
+  return userReportReady(assessment) ? 'Ready' : 'In preparation'
+}
+
 export function isReportAwaitingApproval(status) {
   if (isDevAutoApproveEnabled) return false
   return !isReportApproved(status)

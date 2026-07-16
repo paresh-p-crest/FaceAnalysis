@@ -2120,6 +2120,7 @@ def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict]
     proportion_lines = proportion_lines_in_image(landmarks)
 
     ratios = proportion_ratios(landmarks)
+    # Image-space overlays — paired with the front pose after ``apply_photo_urls_to_cv_report``.
     ratio_overlays = proportion_ratio_overlays(landmarks)
     for key in ratios:
         if key in ratio_overlays:

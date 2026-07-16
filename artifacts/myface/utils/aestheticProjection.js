@@ -697,7 +697,7 @@ export async function projectFeatureAfter(imageSrc, landmarks, featureKey, cvRep
   return cropDataUrl(canvas, getFeatureBox(lmArr, featureKey))
 }
 
-export async function cropFeatureBefore(imageSrc, landmarks, featureKey) {
+export async function cropFeatureBefore(imageSrc, landmarks, featureKey, zoomIn = 1) {
   const lmArr = landmarksFromOverlay(landmarks)
   const base = await normalizeToJpegDataUrl(imageSrc)
   if (!lmArr?.length || featureKey === 'overview') return base
@@ -707,7 +707,19 @@ export async function cropFeatureBefore(imageSrc, landmarks, featureKey) {
   canvas.width = img.width
   canvas.height = img.height
   canvas.getContext('2d').drawImage(img, 0, 0)
-  return cropDataUrl(canvas, getFeatureBox(lmArr, featureKey))
+  let box = getFeatureBox(lmArr, featureKey)
+  // zoomIn > 1 shrinks the box toward its center (tighter crop).
+  if (Number.isFinite(zoomIn) && zoomIn > 1) {
+    const nw = box.w / zoomIn
+    const nh = box.h / zoomIn
+    box = {
+      x: Math.max(0, box.x + (box.w - nw) / 2),
+      y: Math.max(0, box.y + (box.h - nh) / 2),
+      w: nw,
+      h: nh,
+    }
+  }
+  return cropDataUrl(canvas, box)
 }
 
 /**

@@ -5,8 +5,7 @@ import {
   normalizeReportStatus,
   formatReportStatusLabel,
   clientAwaitingReviewMessage,
-  displayStatusForAssessment,
-  isAssessmentProcessing,
+  userReportReady,
 } from '../utils/reportWorkflow'
 import {
   BarChart3,
@@ -38,7 +37,20 @@ const STATUS_STYLE = {
 }
 
 function StatusBadge({ status, assessment }) {
-  const display = assessment ? displayStatusForAssessment(assessment) : normalizeReportStatus(status)
+  // Assessments show a neutral, user-facing readiness (live status is admin-only).
+  if (assessment) {
+    const ready = userReportReady(assessment)
+    return (
+      <span
+        className={`inline-flex px-2 py-0.5 rounded-full border text-[10px] font-medium tracking-wide ${
+          ready ? STATUS_STYLE.approved : STATUS_STYLE.pending_review
+        }`}
+      >
+        {ready ? 'Ready' : 'In preparation'}
+      </span>
+    )
+  }
+  const display = normalizeReportStatus(status)
   return (
     <span
       className={`inline-flex px-2 py-0.5 rounded-full border text-[10px] font-medium tracking-wide ${STATUS_STYLE[display] || STATUS_STYLE.created}`}
@@ -285,10 +297,12 @@ export default function DashboardPage({
                         <button
                           type="button"
                           onClick={() => onViewCloudItem?.(latestAssessment)}
-                          disabled={openingReportId === latestAssessment.id}
+                          disabled={openingReportId === latestAssessment.id || !userReportReady(latestAssessment)}
                           className="btn-primary text-sm px-5 py-2.5 disabled:opacity-60"
                         >
-                          {openingReportId === latestAssessment.id ? (
+                          {!userReportReady(latestAssessment) ? (
+                            'In preparation'
+                          ) : openingReportId === latestAssessment.id ? (
                             <span className="inline-flex items-center gap-1.5">
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               Opening…
@@ -402,7 +416,7 @@ export default function DashboardPage({
                           <tbody className="divide-y divide-surface-border">
                             {assessments.map((assessment) => {
                               const approved = isReportApproved(assessment.status)
-                          const processing = isAssessmentProcessing(assessment)
+                              const ready = userReportReady(assessment)
                               const score = approved
                                 ? (assessment.analysis?.cvReport?.overall?.score ??
                                   assessment.analysis?.metrics?.harmonyScore ??
@@ -439,11 +453,11 @@ export default function DashboardPage({
                                     <button
                                       type="button"
                                       onClick={() => onViewCloudItem?.(assessment)}
-                                      disabled={openingReportId === assessment.id || processing}
+                                      disabled={openingReportId === assessment.id || !ready}
                                       className="btn-ghost text-xs px-3.5 py-1.5 opacity-80 group-hover:opacity-100 disabled:opacity-60"
                                     >
-                                      {processing ? (
-                                        'Processing…'
+                                      {!ready ? (
+                                        'In preparation'
                                       ) : openingReportId === assessment.id ? (
                                         <span className="inline-flex items-center gap-1.5">
                                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -464,7 +478,7 @@ export default function DashboardPage({
                       <div className="md:hidden divide-y divide-surface-border">
                         {assessments.map((assessment) => {
                           const approved = isReportApproved(assessment.status)
-                          const processing = isAssessmentProcessing(assessment)
+                          const ready = userReportReady(assessment)
                           const score = approved
                             ? (assessment.analysis?.cvReport?.overall?.score ??
                               assessment.analysis?.metrics?.harmonyScore ??
@@ -494,10 +508,10 @@ export default function DashboardPage({
                                 <button
                                   type="button"
                                   onClick={() => onViewCloudItem?.(assessment)}
-                                  disabled={openingReportId === assessment.id || processing}
+                                  disabled={openingReportId === assessment.id || !ready}
                                   className="btn-ghost text-xs px-3.5 py-1.5 disabled:opacity-60"
                                 >
-                                  {processing ? 'Processing…' : openingReportId === assessment.id ? 'Opening…' : 'Open Report'}
+                                  {!ready ? 'In preparation' : openingReportId === assessment.id ? 'Opening…' : 'Open Report'}
                                 </button>
                               </div>
                             </div>

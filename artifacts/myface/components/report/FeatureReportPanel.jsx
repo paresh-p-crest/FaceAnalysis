@@ -25,6 +25,8 @@ function MetricCard({ label, value, tooltip }) {
  * @param {Array<{title: string, metrics: Array<{label: string, value: string, tooltip?: string}>}>} props.sections - Sections to render
  * @param {string} [props.imageSrc] - Optional cropped image
  * @param {string} [props.imageAlt] - Alt text for image
+ * @param {import('react').ReactNode} [props.photoOverlay] - Optional SVG overlay on the hero
+ * @param {import('react').ReactNode} [props.heroSlot] - Optional full hero node (replaces img)
  * @param {Array<{label: string, value: string}>} [props.extraMetrics] - Metrics shown in the overall score card
  */
 export function FeatureReportPanel({
@@ -34,6 +36,8 @@ export function FeatureReportPanel({
   sections,
   imageSrc,
   imageAlt,
+  photoOverlay = null,
+  heroSlot = null,
   extraMetrics,
   narrative = null,
   featureId = null,
@@ -59,13 +63,22 @@ export function FeatureReportPanel({
         accent={accent}
         subtitle="Facial landmark balance from your photos"
       />
-      {resolvedImage ? (
+      {(heroSlot || resolvedImage) ? (
         <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-6 flex items-center justify-center">
-          <img
-            src={resolvedImage}
-            alt={imageAlt || title}
-            className="max-h-48 w-auto object-contain rounded-xl"
-          />
+          {heroSlot || (
+            <div className="relative inline-block max-h-48">
+              <img
+                src={resolvedImage}
+                alt={imageAlt || title}
+                className="max-h-48 w-auto object-contain rounded-xl block"
+              />
+              {photoOverlay ? (
+                <div className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden">
+                  {photoOverlay}
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
       ) : null}
       {summaryCards.length > 0 && (

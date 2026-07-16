@@ -1,8 +1,16 @@
 import { EyeReportPanel } from '../EyeReportPanel'
 import { SymmetryOverlay, FaceShapeOverlay } from './FaceImageFrame'
+import { FeatureRegionHero } from './FeatureRegionHero'
 import { BrowReportPanel } from './BrowReportPanel'
 import { FeatureReportPanel } from './FeatureReportPanel'
+import { NoseReportPanel } from './NoseReportPanel'
+import { LipsReportPanel } from './LipsReportPanel'
 import { CheekReportPanel } from './CheekReportPanel'
+import { JawReportPanel } from './JawReportPanel'
+import { ChinReportPanel } from './ChinReportPanel'
+import { HairReportPanel } from './HairReportPanel'
+import { SmileReportPanel } from './SmileReportPanel'
+import { NeckReportPanel } from './NeckReportPanel'
 import { SkinReportPanel } from './SkinReportPanel'
 import { DimorphismSection } from './DimorphismSection'
 import { AveragenessSection } from './AveragenessSection'
@@ -211,89 +219,23 @@ export function CvReportView({
 
   // Nose
   if (activeId === 'nose' && cvReport?.nose) {
-    const n = cvReport.nose
-    const hasProfileAngles =
-      n.nasofrontalAngleDeg != null || n.nasolabialAngleDeg != null || n.dorsalHumpDeviation != null
-    const summaryCards = [
-      { label: 'Width Class', value: n.width },
-      { label: 'Width/Length', value: n.widthLengthRatio },
-      { label: 'Nose/Face Ratio', value: n.noseRatio },
-      { label: 'Bridge Width', value: `${n.bridgeWidth}%` },
-    ]
-    if (n.nasofrontalAngleDeg != null) {
-      summaryCards.push({ label: 'Nasofrontal', value: `${n.nasofrontalAngleDeg}°` })
-    }
-    if (n.nasolabialAngleDeg != null) {
-      summaryCards.push({
-        label: 'Nasolabial',
-        value: `${n.nasolabialAngleDeg}°`,
-        tooltip: n.nasolabialNormalRange ? `Typical range ${n.nasolabialNormalRange}` : undefined,
-      })
-    }
-    if (n.dorsalHumpLabel || n.dorsalHumpDeviation != null) {
-      summaryCards.push({
-        label: 'Dorsal hump',
-        value: n.dorsalHumpLabel || String(n.dorsalHumpDeviation),
-      })
-    }
-    const details = [{
-      title: 'Nasal Proportions',
-      metricLabel: 'Width/Length Ratio',
-      metricValue: n.widthLengthRatio,
-      markerPct: Math.min(100, Math.max(0, parseFloat(n.widthLengthRatio) * 150)),
-      rangeMin: 40,
-      rangeMax: 70,
-    }]
-    if (hasProfileAngles) {
-      details.push({
-        title: 'Profile Angles',
-        metricLabel: 'Nasofrontal',
-        metricValue: n.nasofrontalAngleDeg != null ? `${n.nasofrontalAngleDeg}°` : '—',
-        markerPct: n.nasofrontalAngleDeg != null
-          ? Math.min(100, Math.max(0, ((n.nasofrontalAngleDeg - 100) / 50) * 100))
-          : 50,
-        rangeMin: 115,
-        rangeMax: 130,
-      })
-    }
     return (
-      <FeatureAnalysisPage
-        featureName="nose"
-        subtitle="Nasal proportionality and structure"
-        heroImage={resolveFeatureHero('nose', n, featureParsing) || n.imageSrc}
-        summaryCards={summaryCards}
-        details={details}
-      >
-        <FeatureProseBlock narrative={narrativeFor('nose')} fallbackExplanation={n.explanation} />
-      </FeatureAnalysisPage>
+      <NoseReportPanel
+        nose={cvReport.nose}
+        featureParsing={featureParsing}
+        narrative={narrativeFor('nose')}
+      />
     )
   }
 
   // Lips
   if (activeId === 'lips' && cvReport?.lips) {
-    const l = cvReport.lips
     return (
-      <FeatureAnalysisPage
-        featureName="lips"
-        subtitle="Perioral proportionality and volume"
-        heroImage={resolveFeatureHero('lips', l, featureParsing) || l.imageSrc}
-        summaryCards={[
-          { label: 'Fullness', value: l.fullness },
-          { label: 'Philtrum', value: l.philtrum },
-          { label: 'Lip Width Ratio', value: l.lipWidthRatio },
-          { label: 'Philtrum/Lip', value: l.philtrumToLipRatio },
-        ]}
-        details={[{
-          title: 'Lip Volume',
-          metricLabel: 'Lip Fullness Index',
-          metricValue: l.lipFullness,
-          markerPct: Math.min(100, Math.max(0, parseFloat(l.lipFullness) * 200)),
-          rangeMin: 35,
-          rangeMax: 70,
-        }]}
-      >
-        <FeatureProseBlock narrative={narrativeFor('lips')} fallbackExplanation={l.explanation} />
-      </FeatureAnalysisPage>
+      <LipsReportPanel
+        lips={cvReport.lips}
+        featureParsing={featureParsing}
+        narrative={narrativeFor('lips')}
+      />
     )
   }
 
@@ -304,6 +246,8 @@ export function CvReportView({
         eyeAnalysis={eyeAnalysis}
         narrative={eyesNarrativeWithoutBrows(narrativeFor('eyes'))}
         featureParsing={featureParsing}
+        photo={photo}
+        landmarks={landmarks}
       />
     )
   }
@@ -315,6 +259,8 @@ export function CvReportView({
         eyebrows={cvReport.eyebrows}
         featureParsing={featureParsing}
         narrative={resolveEyebrowsNarrative(featureNarratives, protocolNarrative)}
+        photo={photo}
+        landmarks={landmarks}
       />
     )
   }
@@ -327,35 +273,11 @@ export function CvReportView({
         ? j.imageSrcFront || j.imageSrc
         : j.imageSrc || j.imageSrcFront
     return (
-      <FeatureReportPanel
-        title="Jaw Analysis"
-        featureName="jaw"
-        data={j}
-        narrative={narrativeFor('jaw')}
-        featureId="jaw"
+      <JawReportPanel
+        jaw={j}
         featureParsing={featureParsing}
+        narrative={narrativeFor('jaw')}
         imageSrc={jawSrc}
-        imageAlt="Your jaw"
-        sections={[
-          {
-            title: 'Mandibular Structure',
-            metrics: [
-              { label: 'Jaw width', value: `${j.jawWidth}%`, tooltip: 'Jaw width as a percentage of facial width. A balanced jaw frames the lower face harmoniously.' },
-              { label: 'Width class', value: j.jawWidthClass, tooltip: 'Classification of jaw width relative to cheek width. Balanced jaws provide strong facial framing.' },
-              { label: 'Mandibular angle', value: `${j.jawAngle}Â°`, tooltip: 'The angle of the mandible. Defined angles (120-140Â°) create a sculpted look; softer angles create a rounder appearance.' },
-              { label: 'Definition', value: j.mandibularDefinition, tooltip: 'How angular or soft the jawline appears. Defined jawlines are associated with facial attractiveness.' },
-            ],
-          },
-          {
-            title: 'Jaw Proportions',
-            metrics: [
-              { label: 'Jaw length', value: `${j.jawLength}%`, tooltip: 'Jaw length as a percentage of face height. Balanced length contributes to harmonious lower facial thirds.' },
-              { label: 'Length class', value: j.jawLengthClass, tooltip: 'Classification of jaw length. Balanced jaws maintain proportion with mid and upper face.' },
-              { label: 'Contour smoothness', value: j.contourSmoothness, tooltip: 'How smooth the jawline contour appears. Smooth contours create an elegant profile.' },
-              { label: 'Jawline definition', value: j.jawlineDefinition, tooltip: 'Shadow and depth definition along the jawline edge. Well-defined jawlines create facial dimension.' },
-            ],
-          },
-        ]}
       />
     )
   }
@@ -367,175 +289,64 @@ export function CvReportView({
       c.photoSource === 'rightProfile'
         ? c.imageSrcFront || c.imageSrc
         : c.imageSrc || c.imageSrcFront
+    const chinHero = resolveFeatureHero('chin', c, featureParsing) || chinSrc
     return (
-      <FeatureReportPanel
-        title="Chin Analysis"
-        featureName="chin"
-        data={c}
-        narrative={narrativeFor('chin')}
-        featureId="chin"
+      <ChinReportPanel
+        chin={c}
         featureParsing={featureParsing}
+        narrative={narrativeFor('chin')}
         imageSrc={chinSrc}
-        imageAlt="Your chin"
-        sections={[
-          {
-            title: 'Chin Proportions',
-            metrics: [
-              { label: 'Chin height', value: `${c.chinHeight}%`, tooltip: 'Chin height as a percentage of face height. A balanced chin contributes to harmonious lower facial thirds.' },
-              { label: 'Height class', value: c.chinHeightClass, tooltip: 'Classification of chin height. Balanced chins complement the nose and forehead proportions.' },
-              { label: 'Chin width', value: `${c.chinWidth}%`, tooltip: 'Chin width as a percentage of face width. Balanced width frames the lower face elegantly.' },
-              { label: 'Width class', value: c.chinWidthClass, tooltip: 'Classification of chin width. Narrow chins create a delicate look; wider chins add strength.' },
-            ],
-          },
-          {
-            title: 'Chin Shape & Projection',
-            metrics: [
-              { label: 'Projection', value: c.projection, tooltip: 'Forward projection of the chin relative to the nose. Balanced projection creates a harmonious profile.' },
-              { label: 'Shape', value: c.chinShape, tooltip: 'Contour shape of the chin. Round, soft square, or pointed — each contributes to facial character.' },
-              { label: 'Labiomental angle', value: `${c.labiomentalAngle}°`, tooltip: 'The angle between the lower lip and chin. A defined angle (90-120°) creates a balanced profile.' },
-              { label: 'Fold classification', value: c.labiomentalClassification, tooltip: 'Depth of the labiomental sulcus. Defined folds create facial dimension without appearing aged.' },
-            ],
-          },
-        ]}
+        heroSlot={
+          chinHero && landmarks?.length ? (
+            <FeatureRegionHero
+              heroSrc={chinHero}
+              frontPhoto={photo}
+              landmarks={landmarks}
+              featureId="chin"
+              featureParsing={featureParsing}
+              alt="Your chin"
+            />
+          ) : null
+        }
       />
     )
   }
 
-  // â”€â”€ Hair â”€â”€
+  // ── Hair ──
   if (activeId === 'hair' && cvReport?.hair) {
     const h = cvReport.hair
-    const hasTopHeadData = h.densityPct !== undefined && h.densityPct !== null
     return (
-      <FeatureReportPanel
-        title="Hair Analysis"
-        featureName="hair"
-        data={h}
-        narrative={narrativeFor('hair')}
-        featureId="hair"
+      <HairReportPanel
+        hair={h}
         featureParsing={featureParsing}
+        narrative={narrativeFor('hair')}
         imageSrc={h.imageSrc}
-        imageAlt="Your hair region"
-        sections={[
-          {
-            title: 'Hair Overview',
-            metrics: [
-              { label: 'Hairline', value: h.hairline, tooltip: 'Hairline position and shape. A well-defined hairline frames the forehead harmoniously.' },
-              { label: 'Density estimate', value: h.densityEstimate, tooltip: hasTopHeadData ? 'Real density measured from top-of-head photo.' : 'Estimated hair density from facial proportions.' },
-              { label: 'Coverage', value: h.coverageEstimate, tooltip: hasTopHeadData ? 'Coverage measured from top-of-head photo pixel analysis.' : 'How well the hair covers the scalp.' },
-              { label: 'Forehead exposure', value: h.foreheadExposure, tooltip: 'How much of the forehead is exposed by the hairline.' },
-            ],
-          },
-          ...(hasTopHeadData ? [{
-            title: 'Color & Texture',
-            metrics: [
-              { label: 'Hair color', value: h.hairColor, tooltip: 'Detected hair color from pixel analysis of the top-of-head photo.' },
-              { label: 'Color sample', value: h.hairColorHex || 'N/A', tooltip: 'Average color of dark pixels in the hair region.' },
-              { label: 'Texture type', value: h.textureType, tooltip: 'Hair texture estimated from edge analysis â€” curly/wavy hair has more complex edge patterns.' },
-              { label: 'Density %', value: `${h.densityPct}%`, tooltip: 'Percentage of dark (hair) pixels in the top-of-head photo.' },
-            ],
-          }, {
-            title: 'Crown & Scalp',
-            metrics: [
-              { label: 'Thinning', value: h.thinningArea, tooltip: 'Crown thinning detected by comparing left and right crown darkness.' },
-              { label: 'Crown visibility', value: h.crownVisibility, tooltip: 'Whether thinning at the crown area is visible in the top-down photo.' },
-            ],
-          }] : []),
-        ]}
-        extraMetrics={!hasTopHeadData ? [
-          { label: 'Note', value: 'Upload a top-of-head photo for real hair density & color analysis', tooltip: 'Hair density is estimated from your photos. A top-of-head photo improves accuracy.' },
-        ] : undefined}
       />
     )
   }
 
-  // â”€â”€ Smile â”€â”€
+  // ── Smile ──
   if (activeId === 'smile' && cvReport?.smile) {
     const s = cvReport.smile
-    const hasSmilePhotoData = s.teethVisibility && s.teethVisibility !== 'N/A'
     return (
-      <FeatureReportPanel
-        title="Smile Analysis"
-        featureName="smile"
-        data={s}
-        narrative={narrativeFor('smile')}
-        featureId="smile"
+      <SmileReportPanel
+        smile={s}
         featureParsing={featureParsing}
+        narrative={narrativeFor('smile')}
         imageSrc={s.imageSrc}
-        imageAlt="Your smile"
-        sections={[
-          {
-            title: 'Mouth Proportions',
-            metrics: [
-              { label: 'Mouth width', value: `${s.mouthWidthRatio}Ã— IPD`, tooltip: 'Mouth width relative to interpupillary distance. The golden ratio suggests 1.2-1.5Ã— for balanced proportions.' },
-              { label: 'Width class', value: s.mouthWidthClass, tooltip: 'Classification of mouth width. Balanced mouths complement nose and eye proportions.' },
-              { label: 'Smile width', value: `${s.smileWidthRatio}Ã— nose`, tooltip: 'Smile width relative to nose width. A wider smile creates a more expressive appearance.' },
-              { label: 'Smile width class', value: s.smileWidthClass, tooltip: 'Classification of smile width relative to nose. Wide smiles convey warmth and expressiveness.' },
-            ],
-          },
-          {
-            title: 'Smile Characteristics',
-            metrics: [
-              { label: 'Lip curvature', value: s.curvature, tooltip: 'The natural curvature of the lips. Upturned lips create a friendlier resting expression.' },
-              { label: 'Curvature angle', value: `${s.curvaturePct}%`, tooltip: 'Numerical curvature measurement. Positive values indicate upturned, negative downturned.' },
-              { label: 'Lip balance', value: s.lipBalance, tooltip: 'Upper to lower lip ratio. Balanced lips contribute to harmonious perioral aesthetics.' },
-              { label: 'Nasolabial fold', value: s.nasolabialFold, tooltip: 'Prominence of the smile lines. Subtle folds indicate youthful skin with good elasticity.' },
-            ],
-          },
-          ...(hasSmilePhotoData ? [{
-            title: 'Teeth & Smile Quality',
-            metrics: [
-              { label: 'Teeth visibility', value: s.teethVisibility, tooltip: 'How much teeth are visible when smiling. Moderate to high visibility indicates an expressive smile.' },
-              { label: 'Teeth whiteness', value: s.teethWhiteness, tooltip: 'Brightness of teeth detected from the smile photo. Whiter teeth enhance smile aesthetics.' },
-              { label: 'Smile arc', value: s.smileArc, tooltip: 'The curvature of the upper teeth line. A consonant U-shape is considered ideal.' },
-              { label: 'Gum exposure', value: s.gumExposure, tooltip: 'Amount of gum visible when smiling. Minimal gum show is generally preferred.' },
-            ],
-          }] : []),
-        ]}
       />
     )
   }
 
-  // â”€â”€ Neck â”€â”€
+  // ── Neck ──
   if (activeId === 'neck' && cvReport?.neck) {
     const n = cvReport.neck
     return (
-      <FeatureReportPanel
-        title="Neck Analysis"
-        featureName="neck"
-        data={n}
-        narrative={narrativeFor('neck')}
-        featureId="neck"
+      <NeckReportPanel
+        neck={n}
         featureParsing={featureParsing}
+        narrative={narrativeFor('neck')}
         imageSrc={n.imageSrc}
-        imageAlt="Your neck"
-        sections={[
-          {
-            title: 'Neck Proportions',
-            metrics: [
-              { label: 'Neck width', value: `${n.neckWidth}%`, tooltip: 'Neck width relative to interpupillary distance. A balanced neck frames the face elegantly.' },
-              { label: 'Width class', value: n.neckWidthClass, tooltip: 'Classification of neck width. Balanced necks complement the jaw and shoulder proportions.' },
-              { label: 'Neck length', value: `${n.neckLength}%`, tooltip: 'Neck length as a percentage of face height. Longer necks are associated with elegance.' },
-              { label: 'Length class', value: n.neckLengthClass, tooltip: 'Classification of neck length. Balanced length harmonizes with overall body proportions.' },
-            ],
-          },
-          {
-            title: 'Posture & Transition',
-            metrics: [
-              { label: 'Jaw-neck transition', value: n.jawNeckTransition, tooltip: 'How smoothly the jawline transitions to the neck. Defined transitions create a clean silhouette.' },
-              { label: 'Transition angle', value: `${n.jawNeckAngle}Â°`, tooltip: 'The angle between jawline and neck. Defined angles (120-150Â°) create a sculpted appearance.' },
-              { label: 'Head posture', value: n.headPosture, tooltip: 'Head position relative to the shoulder line. Neutral posture is optimal for facial aesthetics.' },
-              ...(n.headPostureAngleDeg != null
-                ? [{ label: 'Posture angle', value: `${n.headPostureAngleDeg}°`, tooltip: 'Ear-to-shoulder offset from vertical. Near 0° is neutral; larger positive values suggest forward head posture.' }]
-                : []),
-              ...(n.shoulderWidthPct != null
-                ? [{ label: 'Shoulder span', value: `${n.shoulderWidthPct}% IPD`, tooltip: 'Shoulder width relative to interpupillary distance from body pose landmarks.' }]
-                : []),
-              ...(n.dataSource
-                ? [{ label: 'Data source', value: n.dataSource === 'measured' ? 'Jaw + shoulders' : 'Approximate', tooltip: n.limitation || 'Measured when shoulders are visible in the front photo.' }]
-                : []),
-            ],
-          },
-        ]}
       />
     )
   }
@@ -585,7 +396,27 @@ export function CvReportView({
 
   // â”€â”€ Cheeks â”€â”€
   if (activeId === 'cheeks' && cvReport?.cheeks) {
-    return <CheekReportPanel cheeks={cvReport.cheeks} featureParsing={featureParsing} narrative={narrativeFor('cheeks')} />
+    const cheekHero =
+      resolveFeatureHero('cheeks', cvReport.cheeks, featureParsing) || cvReport.cheeks.imageSrc
+    return (
+      <CheekReportPanel
+        cheeks={cvReport.cheeks}
+        featureParsing={featureParsing}
+        narrative={narrativeFor('cheeks')}
+        heroSlot={
+          cheekHero && landmarks?.length ? (
+            <FeatureRegionHero
+              heroSrc={cheekHero}
+              frontPhoto={photo}
+              landmarks={landmarks}
+              featureId="cheeks"
+              featureParsing={featureParsing}
+              alt="Your cheeks"
+            />
+          ) : null
+        }
+      />
+    )
   }
 
   // â”€â”€ Skin Quality â”€â”€

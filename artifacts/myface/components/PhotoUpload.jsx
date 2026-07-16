@@ -1,15 +1,18 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState } from 'react'
 import {
   Upload,
   Image,
   X,
   Sparkles,
   ArrowRight,
-  ChevronLeft
+  ChevronLeft,
+  Check,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react'
 import { PHOTO_POSES } from '../utils/constants'
 import { getAllDemoPhotos } from '../utils/demoPhotos'
-import { prepareImageForBackend } from '../utils/imagePayload'
+import { uploadAssessmentPhoto, deleteAssessmentPhoto } from '../utils/apiClient'
 import { validatePhoto } from '../utils/photoValidation'
 
 const POSES = PHOTO_POSES.map((p) => ({
@@ -54,65 +57,154 @@ const CHECKLIST_ITEMS = [
   'Don\'t use filters on the pictures',
 ]
 
-export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack, step, onConfirmComplete }) {
+const readAsDataUrl = (fileOrBlob) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => resolve(e.target.result)
+    reader.onerror = () => reject(new Error('Could not read image data'))
+    reader.readAsDataURL(fileOrBlob)
+  })
+
+/** Fetch a (demo) image URL into a File so it flows through the same upload path. */
+const fileFromSrc = async (src, name) => {
+  const res = await fetch(src)
+  if (!res.ok) throw new Error(`Could not load image ${src}`)
+  const blob = await res.blob()
+  return new File([blob], name, { type: blob.type || 'image/jpeg' })
+}
+
+/** Overlay shown on the active-pose preview reflecting the per-pose upload state. */
+function UploadStatusOverlay({ state, error, large = false }) {
+  if (state === 'validating' || state === 'uploading') {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-black/25">
+        <Loader2 className={`${large ? 'w-7 h-7' : 'w-5 h-5'} text-white animate-spin`} />
+        <span className="text-[11px] font-semibold text-white tracking-wide">
+          {state === 'validating' ? 'Validating…' : 'Uploading…'}
+        </span>
+      </div>
+    )
+  }
+  if (state === 'uploaded') {
+    return (
+      <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow animate-fade-up">
+        <Check className="w-3 h-3" /> Uploaded
+      </div>
+    )
+  }
+  if (state === 'error') {
+    return (
+      <div className="absolute inset-x-2 bottom-2 inline-flex items-center gap-1 rounded-lg bg-red-500/90 px-2 py-1 text-[10px] font-semibold text-white shadow">
+        <AlertCircle className="w-3 h-3 shrink-0" />
+        <span className="truncate">{error || 'Check photo & re-upload'}</span>
+      </div>
+    )
+  }
+  return null
+}
+
+export default function PhotoUpload({
+  photos,
+  setPhotos,
+  onStartAnalysis,
+  onBack,
+  step,
+  onConfirmComplete,
+  ensureDraft,
+  draftAssessmentId,
+  submitError,
+}) {
   const inputRef = useRef(null)
+  const filesRef = useRef({})
   const [confirmedChecks, setConfirmedChecks] = useState([false, false, false, false, false, false, false])
   const [dragOver, setDragOver] = useState(false)
   const [activePose, setActivePose] = useState('front')
   const [validation, setValidation] = useState({})
-  const [validating, setValidating] = useState(false)
+  // Per-pose lifecycle: idle | validating | uploading | uploaded | error
+  const [uploadState, setUploadState] = useState({})
+  const [uploadErrors, setUploadErrors] = useState({})
   const [loadingDemos, setLoadingDemos] = useState(false)
 
   const allChecked = confirmedChecks.every(Boolean)
   const requiredPoses = POSES.filter((p) => p.required)
   const requiredCount = requiredPoses.length
-  const uploadedRequiredCount = requiredPoses.filter((p) => !!photos[p.id]).length
+  const isUploaded = (id) => uploadState[id] === 'uploaded'
+  const isBusy = (id) => uploadState[id] === 'validating' || uploadState[id] === 'uploading'
+  const uploadedRequiredCount = requiredPoses.filter((p) => isUploaded(p.id)).length
   const allRequiredUploaded = uploadedRequiredCount === requiredCount
-  const allRequiredPass = requiredPoses.every(
-    (pose) => photos[pose.id] && validation[pose.id]?.overall === 'pass'
-  )
-  const canAnalyze = allRequiredUploaded && allRequiredPass
+  const anyBusy = POSES.some((p) => isBusy(p.id))
+  const canAnalyze = allRequiredUploaded && !anyBusy
 
-  const handleFile = (file, poseId = activePose) => {
-    if (!file?.type.startsWith('image/')) return
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const dataUrl = e.target.result
-      setPhotos((prev) => ({ ...prev, [poseId]: dataUrl }))
-      runValidation(dataUrl, poseId)
+  const setPoseState = (poseId, state) => setUploadState((prev) => ({ ...prev, [poseId]: state }))
+
+  const uploadPose = async (file, poseId) => {
+    setPoseState(poseId, 'uploading')
+    setUploadErrors((prev) => ({ ...prev, [poseId]: '' }))
+    try {
+      const id = await ensureDraft()
+      await uploadAssessmentPhoto(id, poseId, file)
+      setPoseState(poseId, 'uploaded')
+    } catch (err) {
+      setPoseState(poseId, 'error')
+      setUploadErrors((prev) => ({ ...prev, [poseId]: err?.message || 'Upload failed. Re-upload to retry.' }))
     }
-    reader.readAsDataURL(file)
   }
 
-  const runValidation = async (dataUrl, poseId) => {
-    setValidating(true)
+  // Validate on a throwaway canvas copy (unchanged), then upload the ORIGINAL file.
+  const processPose = async (dataUrl, file, poseId) => {
+    setUploadErrors((prev) => ({ ...prev, [poseId]: '' }))
+    setPoseState(poseId, 'validating')
+    let result = null
     try {
-      const result = await validatePhoto(dataUrl, poseId)
+      result = await validatePhoto(dataUrl, poseId)
       setValidation((prev) => ({ ...prev, [poseId]: result }))
     } catch {
       setValidation((prev) => ({ ...prev, [poseId]: null }))
     }
-    setValidating(false)
+    if (!result || result.overall !== 'pass') {
+      setPoseState(poseId, 'error')
+      setUploadErrors((prev) => ({
+        ...prev,
+        [poseId]: 'This photo did not pass the quality checks.',
+      }))
+      return
+    }
+    await uploadPose(file, poseId)
+  }
+
+  const handleFile = (file, poseId = activePose) => {
+    if (!file?.type?.startsWith('image/')) return
+    filesRef.current[poseId] = file
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const dataUrl = e.target.result
+      setPhotos((prev) => ({ ...prev, [poseId]: dataUrl }))
+      processPose(dataUrl, file, poseId)
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleUseAllDemos = async () => {
     const allDemos = getAllDemoPhotos()
     setLoadingDemos(true)
     try {
-      const demoPhotos = {}
-      const demoValidation = {}
+      const id = await ensureDraft()
       await Promise.all(
         POSES.map(async (pose) => {
           const src = allDemos[pose.id] || allDemos.front
-          demoPhotos[pose.id] = await prepareImageForBackend(src)
-          demoValidation[pose.id] = {
-            overall: 'pass',
-            checks: [{ pass: true, message: 'Demo image', severity: 'ok' }],
-          }
+          const file = await fileFromSrc(src, `${pose.id}.jpg`)
+          const dataUrl = await readAsDataUrl(file)
+          filesRef.current[pose.id] = file
+          setPhotos((prev) => ({ ...prev, [pose.id]: dataUrl }))
+          setValidation((prev) => ({
+            ...prev,
+            [pose.id]: { overall: 'pass', checks: [{ pass: true, message: 'Demo image', severity: 'ok' }] },
+          }))
+          setPoseState(pose.id, 'uploading')
+          await uploadAssessmentPhoto(id, pose.id, file)
+          setPoseState(pose.id, 'uploaded')
         })
       )
-      setPhotos((prev) => ({ ...prev, ...demoPhotos }))
-      setValidation((prev) => ({ ...prev, ...demoValidation }))
       setActivePose('front')
     } catch (err) {
       alert(err?.message || 'Could not load demo photos')
@@ -121,30 +213,40 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
     }
   }
 
-  const removePhoto = (poseId) => {
+  const removePhoto = async (poseId) => {
+    const hadUpload = uploadState[poseId] === 'uploaded' || uploadState[poseId] === 'uploading'
     setPhotos((prev) => ({ ...prev, [poseId]: null }))
     setValidation((prev) => ({ ...prev, [poseId]: null }))
-  }
-
-  useEffect(() => {
-    if (photos[activePose] && !validation[activePose]) {
-      runValidation(photos[activePose], activePose)
+    setUploadErrors((prev) => ({ ...prev, [poseId]: '' }))
+    setPoseState(poseId, 'idle')
+    filesRef.current[poseId] = null
+    if (hadUpload && draftAssessmentId) {
+      try {
+        await deleteAssessmentPhoto(draftAssessmentId, poseId)
+      } catch {
+        // Best-effort; the object becomes an orphan draft file (cleaned up later).
+      }
     }
-  }, [activePose])
+  }
 
   const currentPhoto = photos[activePose]
   const activePoseInfo = POSES.find((p) => p.id === activePose) || POSES[0]
+  const activeState = uploadState[activePose] || (currentPhoto ? 'uploaded' : 'idle')
+  const activeBusy = activeState === 'validating' || activeState === 'uploading'
+  const activeErr = activeState === 'error'
+  const activeUploaded = activeState === 'uploaded'
+  const previewFilter = `transition-all duration-500 ${activeBusy ? 'blur-lg scale-105' : 'blur-0 scale-100'}`
+  const previewRing = activeErr ? 'ring-2 ring-red-500' : activeUploaded ? 'ring-2 ring-emerald-400/70' : ''
 
   // Compute per-guideline status from active pose's validation result
   const getGuidelineStatus = (idx) => {
     if (!photos[activePose]) return 'idle'
-    if (validating) return 'pending'
+    if (activeState === 'validating') return 'pending'
     const result = validation[activePose]
     if (!result) return 'idle'
 
     const checkNames = GUIDELINE_CHECK_MAP[idx]
     if (!checkNames || checkNames.length === 0) {
-      // No CV check mapped — treat as passing once photo is uploaded and overall passes
       return result.overall === 'pass' ? 'pass' : 'idle'
     }
 
@@ -295,7 +397,7 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
               Upload Your Images
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
-              You&apos;re almost done! Once we have your images, we can begin your facial analysis.
+              You&apos;re almost done! Each photo is validated and saved securely as you add it.
             </p>
           </div>
 
@@ -316,15 +418,18 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
           {/* Required Poses Grid */}
           <div className="space-y-2">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
-              Poses Required ({uploadedRequiredCount}/{requiredCount})
+              Poses Uploaded ({uploadedRequiredCount}/{requiredCount})
             </span>
             <div className="grid grid-cols-2 gap-2">
               {POSES.map((pose) => {
-                const uploaded = !!photos[pose.id]
                 const isActive = activePose === pose.id
-                const vResult = validation[pose.id]
-                const qualityOk = vResult?.overall === 'pass'
-                const qualityFail = vResult?.overall === 'fail'
+                const st = uploadState[pose.id]
+                const subtitle =
+                  st === 'uploaded' ? 'Uploaded'
+                    : st === 'uploading' ? 'Uploading…'
+                      : st === 'validating' ? 'Checking…'
+                        : st === 'error' ? 'Needs attention'
+                          : 'Pending'
 
                 return (
                   <button
@@ -338,18 +443,18 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
                   >
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-xs font-bold leading-tight">{pose.label}</span>
-                      {uploaded && (
-                        qualityFail ? (
-                          <span className="text-red-500 text-[10px]">✕</span>
-                        ) : qualityOk ? (
-                          <span className="text-emerald-500 text-[10px]">✓</span>
-                        ) : (
-                          <span className="text-[#5e9f8b] text-[10px]">●</span>
-                        )
-                      )}
+                      {(st === 'validating' || st === 'uploading') ? (
+                        <Loader2 className="w-3 h-3 text-[#5e9f8b] animate-spin" />
+                      ) : st === 'uploaded' ? (
+                        <span className="text-emerald-500 text-[10px]">✓</span>
+                      ) : st === 'error' ? (
+                        <span className="text-red-500 text-[10px]">✕</span>
+                      ) : photos[pose.id] ? (
+                        <span className="text-[#5e9f8b] text-[10px]">●</span>
+                      ) : null}
                     </div>
                     <span className="text-[10px] text-slate-400 dark:text-slate-500 line-clamp-1">
-                      {uploaded ? 'Uploaded' : 'Pending'}
+                      {subtitle}
                     </span>
                   </button>
                 )
@@ -374,7 +479,12 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
               {currentPhoto ? (
                 <div className="w-full flex flex-col items-center gap-3">
                   <div className="relative">
-                    <img src={currentPhoto} alt="Preview" className="w-28 h-36 rounded-xl object-cover shadow-md" />
+                    <img
+                      src={currentPhoto}
+                      alt="Preview"
+                      className={`w-28 h-36 rounded-xl object-cover shadow-md ${previewFilter} ${previewRing}`}
+                    />
+                    <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} />
                     <div className="absolute top-1 right-1 flex gap-1">
                       <button
                         onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
@@ -411,7 +521,7 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
                 Required
               </span>
-              {validating && (
+              {activeState === 'validating' && (
                 <span className="flex items-center gap-1 text-[10px] text-[#5e9f8b]">
                   <span className="w-2.5 h-2.5 rounded-full border border-[#5e9f8b] border-t-transparent animate-spin" />
                   Checking…
@@ -454,11 +564,14 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
             <span>Continue</span>
             <ArrowRight className="w-4 h-4" />
           </button>
-          {!canAnalyze && (
+          {submitError && (
+            <p className="text-[10px] text-red-500 text-center mt-2">{submitError}</p>
+          )}
+          {!canAnalyze && !submitError && (
             <p className="text-[9px] text-slate-400 dark:text-slate-500 text-center mt-2">
               {!allRequiredUploaded
                 ? `* Upload all ${requiredCount} required photos to continue (${uploadedRequiredCount}/${requiredCount})`
-                : '* All photos must pass validation checks to continue'}
+                : '* Finishing upload…'}
             </p>
           )}
         </div>
@@ -509,11 +622,14 @@ export default function PhotoUpload({ photos, setPhotos, onStartAnalysis, onBack
 
             {currentPhoto ? (
               <div className="relative w-full max-w-xs flex flex-col items-center">
-                <img
-                  src={currentPhoto}
-                  alt="Upload preview"
-                  className="w-48 h-60 rounded-2xl object-cover shadow-2xl border border-white/10"
-                />
+                <div className="relative">
+                  <img
+                    src={currentPhoto}
+                    alt="Upload preview"
+                    className={`w-48 h-60 rounded-2xl object-cover shadow-2xl border border-white/10 ${previewFilter} ${previewRing}`}
+                  />
+                  <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} large />
+                </div>
                 <div className="absolute top-2 right-12 flex gap-1.5">
                   <button
                     onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}

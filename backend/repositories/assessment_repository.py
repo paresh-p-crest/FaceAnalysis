@@ -6,7 +6,7 @@ import copy
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -168,7 +168,15 @@ async def list_assessments_for_user(user_id: str, limit: int = 20, *, summary: b
     async with session_scope() as session:
         result = await session.execute(
             select(Assessment)
-            .where(Assessment.user_id == uid)
+            .where(
+                Assessment.user_id == uid,
+                # Hide un-submitted drafts (photos uploaded but never finalized): a
+                # draft with no pipeline hasn't started analysis yet.
+                or_(
+                    Assessment.status != AssessmentStatus.draft,
+                    Assessment.pipeline.isnot(None),
+                ),
+            )
             .order_by(Assessment.created_at.desc())
             .limit(limit)
         )
@@ -280,6 +288,101 @@ async def update_assessment_analysis(
             flag_modified(row, "photos")
             flag_modified(row, "photos_keys")
         flag_modified(row, "analysis")
+        await session.flush()
+        return _assessment_to_dict(row)
+
+
+async def set_assessment_photos(assessment_id: str, photos: dict) -> Optional[dict]:
+    """Replace the stored per-pose photo metadata + keys (used during draft upload)."""
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.photos = photos or {}
+        row.photos_keys = list((photos or {}).keys())
+        row.updated_at = _utcnow()
+        flag_modified(row, "photos")
+        flag_modified(row, "photos_keys")
+        await session.flush()
+        return _assessment_to_dict(row)
+
+
+async def upsert_assessment_photo(
+    assessment_id: str, pose_id: str, meta: dict
+) -> Optional[dict]:
+    """Atomically merge a single pose into the photos map (concurrency-safe).
+
+    Locks the row (``SELECT ... FOR UPDATE``) so parallel per-pose uploads cannot
+    clobber each other via read-modify-write of the whole JSONB map.
+    """
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid, with_for_update=True)
+        if not row:
+            return None
+        photos = dict(row.photos or {})
+        photos[pose_id] = meta
+        row.photos = photos
+        row.photos_keys = list(photos.keys())
+        row.updated_at = _utcnow()
+        flag_modified(row, "photos")
+        flag_modified(row, "photos_keys")
+        await session.flush()
+        return _assessment_to_dict(row)
+
+
+async def remove_assessment_photo(
+    assessment_id: str, pose_id: str
+) -> tuple[Optional[dict], Optional[Any]]:
+    """Atomically remove a single pose from the photos map (concurrency-safe).
+
+    Returns ``(updated_assessment, removed_meta)``; ``removed_meta`` is ``None`` when
+    the pose was not present. Locks the row so it cannot race a concurrent upsert.
+    """
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None, None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid, with_for_update=True)
+        if not row:
+            return None, None
+        photos = dict(row.photos or {})
+        removed = photos.pop(pose_id, None)
+        row.photos = photos
+        row.photos_keys = list(photos.keys())
+        row.updated_at = _utcnow()
+        flag_modified(row, "photos")
+        flag_modified(row, "photos_keys")
+        await session.flush()
+        return _assessment_to_dict(row), removed
+
+
+async def finalize_assessment_for_processing(
+    assessment_id: str,
+    *,
+    answers: dict,
+    provider: str,
+    pipeline: dict,
+) -> Optional[dict]:
+    """Persist answers/provider and enqueue the async pipeline on a draft."""
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not row:
+            return None
+        row.answers = answers or {}
+        row.provider = provider
+        row.pipeline = pipeline
+        row.updated_at = _utcnow()
+        flag_modified(row, "answers")
+        flag_modified(row, "pipeline")
         await session.flush()
         return _assessment_to_dict(row)
 
