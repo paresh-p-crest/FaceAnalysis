@@ -8,7 +8,7 @@ router = "path"
 [[services]]
 name = "web"
 paths = [ "/" ]
-localPort = 22039
+localPort = 3000
 
 [services.development]
 run = "pnpm --filter @workspace/myface run dev"
@@ -23,5 +23,5 @@ from = "/*"
 to = "/index.html"
 
 [services.env]
-PORT = "22039"
+PORT = "3000"
 BASE_PATH = "/"
