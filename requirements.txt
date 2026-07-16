@@ -1,6 +1,5 @@
 # Python dependencies for MyFace backend
 # Install (everything, incl. face parsing): pip install -r requirements.txt
-#   or: uv pip install --python .venv/Scripts/python.exe -r backend/requirements.txt
 
 # --- Web / API ---
 fastapi>=0.115.0
@@ -40,7 +39,9 @@ replit-object-storage>=1.0.2; python_version < "3.13"
 # --- Face parsing (SegFormer via HuggingFace) — used by the `parsing` pipeline stage ---
 # Heavy (pulls torch). Optional at runtime: if these are absent, face parsing is
 # disabled gracefully (see backend/face_parsing.py `face_parsing_enabled`).
-torch>=2.0.0
-torchvision>=0.15.0
+# Use PyTorch CPU wheels to avoid the multi-gigabyte CUDA runtime in deployments.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0+cpu
+torchvision==0.28.0+cpu
 transformers>=4.40.0
 accelerate>=0.30.0
