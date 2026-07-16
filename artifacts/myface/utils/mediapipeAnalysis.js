@@ -24,7 +24,7 @@ async function getLandmarker() {
   return landmarker
 }
 
-function loadImage(src) {
+function loadImageElement(src) {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -32,6 +32,25 @@ function loadImage(src) {
     img.onerror = reject
     img.src = src
   })
+}
+
+/** Decode with EXIF orientation baked in so landmarks match what <img> shows. */
+async function loadImage(src) {
+  const img = await loadImageElement(src)
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bmp = await createImageBitmap(img, { imageOrientation: 'from-image' })
+      const canvas = document.createElement('canvas')
+      canvas.width = bmp.width
+      canvas.height = bmp.height
+      canvas.getContext('2d').drawImage(bmp, 0, 0)
+      bmp.close?.()
+      return canvas
+    } catch {
+      /* fall through — older engines */
+    }
+  }
+  return img
 }
 
 export async function analyzeWithMediaPipe(imageSrc) {

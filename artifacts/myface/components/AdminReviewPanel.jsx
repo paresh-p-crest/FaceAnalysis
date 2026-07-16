@@ -14,6 +14,7 @@ import {
 } from '../utils/protocolSections'
 import { normalizeReportStatus } from '../utils/reportWorkflow'
 import ConfirmDialog from './ConfirmDialog'
+import PipelineStatusPanel from './admin/PipelineStatusPanel'
 
 const fieldClass =
   'w-full rounded-xl border border-surface-border bg-white dark:bg-surface-card px-3 py-2 text-sm text-ink outline-none focus:border-brand resize-y min-h-[5rem]'
@@ -242,6 +243,8 @@ export default function AdminReviewPanel({
                 {isApproved ? 'Approved' : 'Pending review'}
               </span>
             </div>
+
+            <PipelineStatusPanel assessment={assessment} onUpdated={applyAssessmentUpdate} />
 
             {isNarrative && (
               <>

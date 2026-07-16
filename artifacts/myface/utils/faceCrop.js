@@ -146,20 +146,60 @@ export function proportionLinesInImage(landmarks) {
   }
 }
 
-/** Qoves-style dashed guides per proportion tab (coords in 0–100 image space).
- *  orbito-nasal: en–en vs al–al; orbital: en–en vs ex–en; naso-oral: ch–ch vs al–al.
+/** Index landmarks by MediaPipe id when overlay rows carry `{id,x,y}`. */
+function landmarksByIndex(landmarks) {
+  if (!landmarks?.length) return landmarks
+  if (landmarks[0]?.id == null || landmarks[0]?.x == null) return landmarks
+  if (landmarks[0].id === 0 && landmarks[33]?.id === 33) return landmarks
+  const arr = []
+  landmarks.forEach((pt) => {
+    if (pt?.id == null) return
+    arr[pt.id] = { x: pt.x, y: pt.y, z: pt.z || 0 }
+  })
+  return arr.length ? arr : landmarks
+}
+
+/**
+ * Orbital bar X positions (0–100): anatomical canthi, with outer ends nudged
+ * laterally so the span matches visible soft-tissue eye length (mesh corners sit inset).
+ */
+function orbitalBarXs(toX) {
+  const rOut = toX(33)
+  const rIn = toX(133)
+  const lIn = toX(362)
+  const lOut = toX(263)
+  const rEyeW = Math.abs(rIn - rOut)
+  const lEyeW = Math.abs(lOut - lIn)
+  // ponytail: ~18% soft-tissue pad; raise if still short vs photo.
+  const padR = rEyeW * 0.18
+  const padL = lEyeW * 0.18
+  return {
+    rOut: rOut - padR,
+    rIn,
+    lIn,
+    lOut: lOut + padL,
+  }
+}
+
+/** Qoves-style guides per proportion tab (coords in 0–100 image or crop space).
+ *  Pass `box` (normalized face crop) when the displayed image is that crop.
+ *  orbito-nasal: en–en and al–al as horizontal bars with end ticks;
+ *  naso-oral: al–al and ch–ch as horizontal bars with end ticks;
+ *  orbital: one continuous ex–en–en–ex bar on the forehead (above brows) with ticks at each canthus x.
  */
 export function proportionRatioOverlays(landmarks, box = null) {
-  const toX = (idx) => (box ? pointInCrop(landmarks, idx, box).x : pointInImage(landmarks, idx).x)
-  const toY = (idx) => (box ? pointInCrop(landmarks, idx, box).y : pointInImage(landmarks, idx).y)
+  const lmArr = landmarksByIndex(landmarks)
+  const toX = (idx) => (box ? pointInCrop(lmArr, idx, box).x : pointInImage(lmArr, idx).x)
+  const toY = (idx) => (box ? pointInCrop(lmArr, idx, box).y : pointInImage(lmArr, idx).y)
   const pt = (idx) => ({ x: toX(idx), y: toY(idx) })
 
-  const rOut = pt(33)
   const rIn = pt(133)
   const lIn = pt(362)
-  const lOut = pt(263)
-  const [alRRaw, alLRaw] = noseAlae(landmarks)
-  const [chRRaw, chLRaw] = mouthCheilions(landmarks)
+  const orbital = orbitalBarXs(toX)
+  const rOut = { x: orbital.rOut, y: toY(33) }
+  const lOut = { x: orbital.lOut, y: toY(263) }
+  const [alRRaw, alLRaw] = noseAlae(lmArr)
+  const [chRRaw, chLRaw] = mouthCheilions(lmArr)
   const toPct = (p) => (box
     ? { x: ((p.x - box.x) / box.w) * 100, y: ((p.y - box.y) / box.h) * 100 }
     : { x: p.x * 100, y: p.y * 100 })
@@ -168,7 +208,10 @@ export function proportionRatioOverlays(landmarks, box = null) {
   const chR = toPct(chRRaw)
   const chL = toPct(chLRaw)
 
-  const eyeLineY = (rOut.y + rIn.y + lIn.y + lOut.y) / 4
+  const eyeLineY = (toY(33) + rIn.y + lIn.y + toY(263)) / 4
+  // Orbital bar sits on lower forehead (above brows), not through the canthi.
+  const browY = (toY(105) + toY(334)) / 2
+  const foreheadBarY = browY - Math.max(2, (eyeLineY - browY) * 0.45)
   const noseBaseY = (alR.y + alL.y) / 2
   const mouthY = (chR.y + chL.y) / 2
 
@@ -186,37 +229,80 @@ export function proportionRatioOverlays(landmarks, box = null) {
       ],
     },
     orbitoNasal: {
-      horizontal: [{ y: eyeLineY }],
-      vertical: [
-        { x: rIn.x },
-        { x: lIn.x },
-        { x: alR.x },
-        { x: alL.x },
+      // Two horizontal span bars (en–en, al–al) with downward end ticks — not dots/vertical guides.
+      bars: [
+        { x1: rIn.x, x2: lIn.x, y: (rIn.y + lIn.y) / 2 },
+        { x1: alR.x, x2: alL.x, y: noseBaseY },
       ],
-      dots: [rIn, lIn, alR, alL],
     },
     nasoOral: {
-      horizontal: [
-        { y: noseBaseY },
-        { y: mouthY },
+      // Two horizontal span bars (al–al, ch–ch) with downward end ticks — not dots/vertical guides.
+      bars: [
+        { x1: alR.x, x2: alL.x, y: noseBaseY },
+        { x1: chR.x, x2: chL.x, y: mouthY },
       ],
-      vertical: [
-        { x: alR.x },
-        { x: alL.x },
-        { x: chR.x },
-        { x: chL.x },
-      ],
-      dots: [alR, alL, chR, chL],
     },
     orbital: {
-      horizontal: [{ y: eyeLineY }],
-      vertical: [
-        { x: rOut.x },
-        { x: rIn.x },
-        { x: lIn.x },
-        { x: lOut.x },
+      // Continuous span on forehead; ticks at soft-tissue-padded canthus x (ex–en–en–ex).
+      bars: [
+        {
+          x1: orbital.rOut,
+          x2: orbital.lOut,
+          y: foreheadBarY,
+          ticks: [orbital.rOut, orbital.rIn, orbital.lIn, orbital.lOut],
+        },
       ],
-      dots: [rOut, rIn, lIn, lOut],
     },
+  }
+}
+
+/** Visible-side ear mesh for profile naso-aural (matches backend profile_cephalometrics). */
+const RIGHT_PROFILE_EAR = [234, 127, 132, 93, 58, 172, 136, 150]
+const LEFT_PROFILE_EAR = [356, 454, 323, 361, 288, 397, 365, 379]
+
+/**
+ * Qoves-style ear/nose height brackets on a profile photo (image 0–100).
+ * rightProfile = person's right side visible → right-ear landmarks on the rear side.
+ */
+export function buildNasoAuralOverlay(landmarks, poseId = 'rightProfile') {
+  const lmArr = landmarksByIndex(landmarks)
+  if (!lmArr?.length) return null
+  const earIdx = poseId === 'leftProfile' ? LEFT_PROFILE_EAR : RIGHT_PROFILE_EAR
+  const noseTop = lm(lmArr, 6)
+  const noseBot = lm(lmArr, 2)
+  // Pronasale helps when nasion drifts on yawed profiles.
+  const pronasale = lm(lmArr, 1)
+  const noseX = ((noseTop.x + noseBot.x + pronasale.x) / 3) * 100
+  const nt = Math.min(noseTop.y, pronasale.y) * 100
+  const nb = noseBot.y * 100
+
+  let earPts = earIdx.map((i) => lm(lmArr, i))
+  // Keep rear-of-head candidates so cheek points don't collapse the span upward.
+  if (poseId === 'leftProfile') {
+    const rear = earPts.filter((p) => p.x > (noseTop.x + noseBot.x) / 2 + 0.02)
+    if (rear.length >= 2) earPts = rear
+  } else {
+    const rear = earPts.filter((p) => p.x < (noseTop.x + noseBot.x) / 2 - 0.02)
+    if (rear.length >= 2) earPts = rear
+  }
+  const earTop = earPts.reduce((a, b) => (a.y < b.y ? a : b))
+  const earBot = earPts.reduce((a, b) => (a.y > b.y ? a : b))
+  const earX = ((earTop.x + earBot.x) / 2) * 100
+  const et = earTop.y * 100
+  const eb = earBot.y * 100
+  // Reject collapsed / hairline-only spans — caller may fall back to stored overlay.
+  if (!(eb - et >= 0.04 * 100) && !(nb - nt >= 0.04 * 100)) return null
+  const tick = 7
+  return {
+    horizontal: [
+      { y: et, x1: earX - tick, x2: earX + tick },
+      { y: eb, x1: earX - tick, x2: earX + tick },
+      { y: nt, x1: noseX - tick, x2: noseX + tick },
+      { y: nb, x1: noseX - tick, x2: noseX + tick },
+    ],
+    segments: [
+      { x1: earX, y1: et, x2: earX, y2: eb },
+      { x1: noseX, y1: nt, x2: noseX, y2: nb },
+    ],
   }
 }

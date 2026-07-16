@@ -1,174 +1,207 @@
-import { FeatureAnalysisPage } from './FeatureAnalysisPage'
-import { FeatureProseBlock } from './FeatureProseBlock'
+'use client'
 
-function MetricCard({ label, value, tooltip }) {
+import { useMemo } from 'react'
+import { ReportSectionHeading } from './ReportSectionHeading'
+import {
+  AllMetricsTable,
+  FeatureHeroFrame,
+  FeatureSummaryGrid,
+} from './FeatureSummaryUi'
+
+function fmt(v, digits = 2) {
+  if (v == null || Number.isNaN(Number(v))) return null
+  return Number(v).toFixed(digits)
+}
+
+function classifyMalarWidth(ratio) {
+  if (ratio == null || Number.isNaN(Number(ratio))) return null
+  const r = Number(ratio)
+  if (r < 0.72) return 'Narrow'
+  if (r > 0.9) return 'Wide'
+  return 'Average'
+}
+
+function classifyCheekPosition(ratio) {
+  if (ratio == null || Number.isNaN(Number(ratio))) return null
+  const r = Number(ratio)
+  if (r < 0.38) return 'High'
+  if (r > 0.52) return 'Low'
+  return 'Average'
+}
+
+function classifyCheekFullness(ratio) {
+  if (ratio == null || Number.isNaN(Number(ratio))) return null
+  const r = Number(ratio)
+  if (r < 0.72) return 'Lean'
+  if (r > 0.9) return 'Full'
+  return 'Average'
+}
+
+/**
+ * Cheeks — Lips-matched UI. Image source / highlights / data unchanged.
+ */
+export function CheekReportPanel({
+  cheeks,
+  featureParsing,
+  narrative: _narrative,
+  photoOverlay = null,
+  heroSlot = null,
+}) {
+  const c = cheeks || {}
+  const heroImage = c.imageSrc
+
+  const metrics = useMemo(() => {
+    const m = featureParsing?.metrics?.cheeks || {}
+    const facialWidth = m.facial_width_mm?.value != null ? Number(m.facial_width_mm.value) : null
+    const malarRatio =
+      m.malar_width_ratio_powell?.value != null ? Number(m.malar_width_ratio_powell.value) : null
+    const rightPos =
+      m.right_cheekbone_vertical_position_ratio?.value != null
+        ? Number(m.right_cheekbone_vertical_position_ratio.value)
+        : null
+    const leftPos =
+      m.left_cheekbone_vertical_position_ratio?.value != null
+        ? Number(m.left_cheekbone_vertical_position_ratio.value)
+        : null
+    const positionAvg =
+      rightPos != null && leftPos != null
+        ? (rightPos + leftPos) / 2
+        : rightPos ?? leftPos ?? null
+
+    return {
+      facialWidth,
+      malarRatio,
+      rightPos,
+      leftPos,
+      positionAvg,
+      widthClass: classifyMalarWidth(malarRatio),
+      positionClass: classifyCheekPosition(positionAvg),
+      fullnessClass: classifyCheekFullness(malarRatio),
+      heightClass: 'N/A',
+    }
+  }, [featureParsing])
+
+  const landmark = 'Landmark-based'
+  const slides = []
+  if (metrics.malarRatio != null) {
+    slides.push({
+      id: 'malar',
+      titleLead: 'Malar Width',
+      titleAccent: 'Ratio',
+      body: 'Facial width / face height. Higher = broader, more angular face shape.',
+      meter: {
+        metricLabel: 'Malar Width Ratio',
+        sourceLabel: landmark,
+        valueText: fmt(metrics.malarRatio, 4),
+        valueNum: metrics.malarRatio,
+        rangeMin: 0.6,
+        rangeMax: 1.0,
+        rangeMinLabel: '0.60',
+        rangeMaxLabel: '1.00',
+      },
+    })
+  }
+  if (metrics.positionAvg != null) {
+    slides.push({
+      id: 'position',
+      titleLead: 'Cheekbone',
+      titleAccent: 'Position',
+      body: 'Vertical position of the cheekbone apex as a fraction of face height. Lower value = higher set cheekbones.',
+      meter: {
+        metricLabel: 'Cheekbone Position',
+        sourceLabel: landmark,
+        valueText: fmt(metrics.positionAvg, 4),
+        valueNum: metrics.positionAvg,
+        rangeMin: 0.3,
+        rangeMax: 0.6,
+        rangeMinLabel: '0.30 high',
+        rangeMaxLabel: '0.60 low',
+      },
+    })
+  }
+  if (metrics.facialWidth != null) {
+    slides.push({
+      id: 'facial-width',
+      titleLead: 'Facial Width',
+      titleAccent: '(mm)',
+      body: 'Bizygomatic width — distance between the outermost cheekbone points.',
+      meter: {
+        metricLabel: 'Facial Width',
+        sourceLabel: landmark,
+        valueText: metrics.facialWidth != null ? `${fmt(metrics.facialWidth)} mm` : null,
+        valueNum: metrics.facialWidth,
+        rangeMin: 120,
+        rangeMax: 160,
+        rangeMinLabel: '120 mm',
+        rangeMaxLabel: '160 mm',
+      },
+    })
+  }
+
+  const cards = [
+    { label: 'Cheek Width', value: metrics.widthClass },
+    { label: 'Cheekbone Position', value: metrics.positionClass },
+    { label: 'Cheek Fullness', value: metrics.fullnessClass },
+    { label: 'Cheekbone Height', value: metrics.heightClass },
+  ]
+
+  const left = [
+    {
+      label: 'Facial Width',
+      value: metrics.facialWidth != null ? `${fmt(metrics.facialWidth)} mm` : null,
+    },
+    { label: 'Malar Width Ratio', value: fmt(metrics.malarRatio, 4) },
+    { label: 'Width Classification', value: metrics.widthClass },
+    { label: 'Fullness Classification', value: metrics.fullnessClass },
+  ]
+  const right = [
+    { label: 'Right Cheekbone Position', value: fmt(metrics.rightPos, 4) },
+    { label: 'Left Cheekbone Position', value: fmt(metrics.leftPos, 4) },
+    { label: 'Position Classification', value: metrics.positionClass },
+    { label: 'Height Classification', value: metrics.heightClass },
+  ]
+
   return (
-    <div className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-3 relative group">
-      <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-1">{label}</p>
-      <p className="text-sm font-medium text-ink">{value}</p>
-      {tooltip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 rounded-lg bg-slate-800 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-          {tooltip}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-slate-800" />
-        </div>
+    <div className="space-y-8">
+      <ReportSectionHeading
+        title="Summary of your"
+        accent="cheeks"
+        subtitle={
+          <>
+            Cheekbones frame midface width and height and contribute to overall{' '}
+            <strong className="text-ink font-semibold">harmony</strong>.
+          </>
+        }
+      />
+
+      {(heroSlot || heroImage) && (
+        <FeatureHeroFrame>
+          {heroSlot || (
+            <div className="relative inline-block max-h-48">
+              <img
+                src={heroImage}
+                alt="Cheeks"
+                className="max-h-48 w-auto object-contain rounded-xl"
+              />
+              {photoOverlay ? (
+                <div className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden">
+                  {photoOverlay}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </FeatureHeroFrame>
       )}
-    </div>
-  )
-}
 
-function SymmetryBar({ left, right, leftLabel, rightLabel }) {
-  const lPct = Math.min(100, Math.max(5, (left / (left + right || 1)) * 100))
-  return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between text-[10px] text-ink-muted font-sans">
-        <span>{leftLabel}</span>
-        <span>{rightLabel}</span>
+      <div>
+        <p className="font-display text-base font-bold text-ink mb-3">Summary of your cheeks</p>
+        <FeatureSummaryGrid cards={cards} slides={slides} />
       </div>
-      <div className="relative h-3 rounded-full bg-surface-border overflow-hidden flex">
-        <div className="h-full bg-brand/60 rounded-l-full transition-all duration-500" style={{ width: `${lPct}%` }} />
-        <div className="h-full bg-rose-400/60 rounded-r-full transition-all duration-500" style={{ width: `${100 - lPct}%` }} />
+
+      <div>
+        <p className="font-display text-base font-bold text-ink mb-3">All Cheek Metrics</p>
+        <AllMetricsTable left={left} right={right} />
       </div>
     </div>
-  )
-}
-
-function BrightnessBar({ value, max = 200 }) {
-  const pct = Math.min(100, (value / max) * 100)
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-3 rounded-full bg-surface-border overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-700"
-            style={{
-              width: `${pct}%`,
-              background: 'linear-gradient(90deg, #92400e, #d97706, #fbbf24, #fef3c7)',
-            }}
-          />
-        </div>
-        <span className="text-xs font-medium text-ink tabular-nums min-w-[3ch] text-right">{value}</span>
-      </div>
-    </div>
-  )
-}
-
-import { resolveFeatureHero } from '../../utils/featureParsing'
-
-export function CheekReportPanel({ cheeks, narrative = null, featureParsing = null }) {
-  if (!cheeks) return null
-
-  const c = cheeks
-
-  return (
-    <FeatureAnalysisPage
-      featureName="cheeks"
-      subtitle="Facial landmark balance from your photos"
-      heroImage={resolveFeatureHero('cheeks', c, featureParsing) || c.imageSrc}
-      summaryCards={[
-        { label: 'Structure', value: c.scoreLabel },
-        { label: 'Cheekbone Height', value: c.cheekboneHeightClass },
-        { label: 'Prominence', value: c.prominence },
-        { label: 'Apple Volume', value: c.appleVolume },
-      ]}
-      details={[{
-        title: 'Cheekbone Structure',
-        metricLabel: 'Overall Score',
-        metricValue: `${c.score}/100`,
-        markerPct: c.score,
-        rangeMin: 55,
-        rangeMax: 90,
-      }]}
-    >
-    <div className="space-y-6">
-      {/* ── Section 1: Cheekbone Structure ── */}
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Cheekbone Structure</p>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-base font-medium text-ink">{c.scoreLabel} structure</p>
-          <span className={`text-sm font-medium px-2.5 py-0.5 rounded-full border ${
-            c.score >= 85
-              ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-              : c.score >= 70
-              ? 'text-amber-700 bg-amber-50 border-amber-200'
-              : 'text-red-700 bg-red-50 border-red-200'
-          }`}>
-            {c.score}/100
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <MetricCard
-            label="Cheekbone Height"
-            value={c.cheekboneHeightClass}
-            tooltip="Vertical position of cheekbones relative to nose tip. High cheekbones are a hallmark of facial aesthetics, associated with youth and elegance."
-          />
-          <MetricCard
-            label="Prominence"
-            value={c.prominence}
-            tooltip="Forward projection of cheekbones (estimated from z-depth). Prominent cheekbones create shadow play and dimension."
-          />
-        </div>
-      </div>
-
-      {/* ── Section 2: Cheek Width & Volume ── */}
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Cheek Width & Volume</p>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <MetricCard
-            label="Cheek Width"
-            value={`${c.cheekWidthClass} (${c.cheekWidth}%)`}
-            tooltip="Distance between left and right cheekbones as a percentage of face width. Moderate width creates balanced facial proportions."
-          />
-          <MetricCard
-            label="Apple Volume"
-            value={c.appleVolume}
-            tooltip="Fullness of the cheek apple region. Full apples create a youthful, healthy appearance. Flat apples can appear hollow."
-          />
-        </div>
-      </div>
-
-      {/* ── Section 3: Midface & Transitions ── */}
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Midface & Transitions</p>
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <MetricCard
-            label="Midface Length"
-            value={`${c.midfaceClass} (${c.midfaceLength}%)`}
-            tooltip="Vertical distance from nose tip to cheekbone line, as a percentage of face height. A balanced midface contributes to harmonious proportions."
-          />
-          <MetricCard
-            label="Jaw-to-Cheek"
-            value={c.jawCheekTransition}
-            tooltip="The transition angle from jawline to cheekbone. Smooth transitions create elegant contours, while angular transitions add definition."
-          />
-        </div>
-      </div>
-
-      {/* ── Section 4: Pixel Analysis ── */}
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">Cheek Skin Quality</p>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <MetricCard label="Blush" value={c.blushLevel} tooltip="Natural redness detected in the apple region. Natural flush creates a healthy, vibrant appearance." />
-          <MetricCard label="Texture" value={c.skinTexture} tooltip="Surface smoothness based on brightness analysis. Luminous skin reflects light evenly for a radiant look." />
-          <MetricCard label="Contour Definition" value={c.contourDef} tooltip="Shadow definition under the cheekbone. Well-defined contours create facial dimension without makeup." />
-          <MetricCard label="Evenness" value={c.evennessLabel} tooltip="Left-right brightness balance. Even cheeks indicate uniform skin tone and healthy circulation." />
-        </div>
-
-        {/* Blush intensity */}
-        <div className="mb-4">
-          <p className="text-[11px] text-ink-muted mb-2">Apple region redness index</p>
-          <BrightnessBar value={Math.round(parseFloat(c.appleRedness || '0'))} max={25} />
-          <p className="text-[10px] text-ink-faint mt-1">0 = no warmth · 15+ = natural flush</p>
-        </div>
-
-        {/* Evenness bar */}
-        <div>
-          <p className="text-[11px] text-ink-muted mb-2">Left-right evenness (diff: {c.evennessDiff})</p>
-          <SymmetryBar left={parseFloat(c.leftCheekBrightness || '120')} right={parseFloat(c.rightCheekBrightness || '120')} leftLabel="L cheek" rightLabel="R cheek" />
-        </div>
-      </div>
-
-      <FeatureProseBlock narrative={narrative} fallbackExplanation={c.explanation} />
-    </div>
-    </FeatureAnalysisPage>
   )
 }

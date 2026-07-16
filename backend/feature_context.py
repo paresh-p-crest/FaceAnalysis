@@ -418,6 +418,30 @@ def build_feature_context(
     return ctx
 
 
+def _drop_numeric_leaves(obj: Any) -> Any:
+    """Remove raw int/float leaves so no numeric deviation/ratio/degree leaks into prompts.
+
+    Booleans are kept (they read as yes/no cues). The qualitative form of every numeric
+    already ships via measuredFacts / deviationFacts, so nothing meaningful is lost.
+    Returns ``None`` for a numeric leaf so callers can prune it from dict/list containers.
+    """
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, (int, float)):
+        return None
+    if isinstance(obj, dict):
+        out: dict[str, Any] = {}
+        for k, v in obj.items():
+            cleaned = _drop_numeric_leaves(v)
+            if cleaned is not None:
+                out[k] = cleaned
+        return out
+    if isinstance(obj, list):
+        items = [_drop_numeric_leaves(x) for x in obj]
+        return [x for x in items if x is not None]
+    return obj
+
+
 def feature_context_as_prompt_text(ctx: dict) -> str:
     """Compact text block for LLM user messages (qualitative cues — no numeric scores)."""
     facts = []
@@ -466,5 +490,7 @@ def feature_context_as_prompt_text(ctx: dict) -> str:
     if sub_facts:
         lines.append(f"Subsection facts (use per subsection): {json.dumps(sub_facts)}")
     if qualitative_metrics:
-        lines.append(f"CV cues JSON: {json.dumps(qualitative_metrics, default=str)[:2500]}")
+        scrubbed_metrics = _drop_numeric_leaves(qualitative_metrics)
+        if scrubbed_metrics:
+            lines.append(f"CV cues JSON: {json.dumps(scrubbed_metrics, default=str)[:2500]}")
     return "\n".join(lines)

@@ -36,7 +36,6 @@ export function AppShell({ children, authRequired = false }) {
     handleAuthenticated,
     closeReportModal,
     startNewAnalysis,
-    handleRetryLocal,
   } = useApp()
 
   const showNavbar = hasSiteNavbar(pathname) && authReady && !!user
@@ -76,6 +75,7 @@ export function AppShell({ children, authRequired = false }) {
       <ReportModal
         open={reportModalOpen}
         onClose={closeReportModal}
+        withNavbarOffset={showNavbar}
         photo={primaryPhoto}
         photos={photos}
         answers={answers}
@@ -85,7 +85,6 @@ export function AppShell({ children, authRequired = false }) {
         onCloudAssessmentChange={setCloudAssessment}
         user={user}
         onRestart={startNewAnalysis}
-        onRetryLocal={handleRetryLocal}
       />
       {children}
     </div>

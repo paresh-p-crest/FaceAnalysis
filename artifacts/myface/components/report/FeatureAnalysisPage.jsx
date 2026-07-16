@@ -8,6 +8,8 @@ export function FeatureAnalysisPage({
   featureName,
   subtitle,
   heroImage,
+  heroSlot = null,
+  photoOverlay = null,
   summaryCards = [],
   details = [],
   children,
@@ -23,13 +25,22 @@ export function FeatureAnalysisPage({
         subtitle={subtitle}
       />
 
-      {heroImage && (
+      {(heroSlot || heroImage) && (
         <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-6 flex items-center justify-center">
-          <img
-            src={heroImage}
-            alt={featureName}
-            className="max-h-48 w-auto object-contain rounded-xl"
-          />
+          {heroSlot || (
+            <div className="relative inline-block max-h-48">
+              <img
+                src={heroImage}
+                alt={featureName}
+                className="max-h-48 w-auto object-contain rounded-xl block"
+              />
+              {photoOverlay ? (
+                <div className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden">
+                  {photoOverlay}
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
       )}
 

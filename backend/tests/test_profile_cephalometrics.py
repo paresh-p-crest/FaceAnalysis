@@ -18,11 +18,10 @@ def _profile_landmarks():
     lms[13] = {"x": 0.53, "y": 0.48, "z": 0}
     lms[14] = {"x": 0.53, "y": 0.52, "z": 0}
     # Right-profile visible ear (person's RIGHT mesh) — shorter than nose → Ear < Nose
-    for idx in (162, 127, 234, 93, 132, 58):
-        lms[idx] = {"x": 0.72, "y": 0.35, "z": 0}
-    lms[162]["y"] = 0.32
-    lms[234]["y"] = 0.36
-    lms[127]["y"] = 0.39
+    for idx in (234, 127, 132, 93, 58, 172, 136, 150):
+        lms[idx] = {"x": 0.28, "y": 0.35, "z": 0}
+    lms[234]["y"] = 0.32
+    lms[150]["y"] = 0.39
     lms[98] = {"x": 0.52, "y": 0.48, "z": 0}
     return lms
 
@@ -59,11 +58,11 @@ def test_naso_aural_prefers_silhouette_ear_span_over_facemesh():
     assert ok
 
     lms = _profile_landmarks()
-    # Collapse FaceMesh ear span to a tiny band (the old bug)
-    for idx in (356, 454, 323, 361, 288, 397, 365, 379):
+    # Collapse FaceMesh ear span to a tiny band (the old bug) — person's right ear on rightProfile
+    for idx in (234, 127, 132, 93, 58, 172, 136, 150):
         lms[idx] = {"x": 0.3, "y": 0.40, "z": 0}
-    lms[356]["y"] = 0.39
-    lms[379]["y"] = 0.41
+    lms[234]["y"] = 0.39
+    lms[150]["y"] = 0.41
 
     mesh_only = analyze_profile(lms, "rightProfile")
     with_sil = analyze_profile(lms, "rightProfile", image_bytes=buf.tobytes())

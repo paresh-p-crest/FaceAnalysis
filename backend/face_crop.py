@@ -217,16 +217,39 @@ def proportion_lines_in_crop(landmarks: list, box: dict) -> dict:
     }
 
 
-def _overlay_y(landmarks: list, idx: int) -> float:
+def _overlay_y(landmarks: list, idx: int, box: Optional[dict] = None) -> float:
+    if box:
+        return point_in_crop(landmarks, idx, box)["y"]
     return point_in_image(landmarks, idx)["y"]
 
 
-def _overlay_x(landmarks: list, idx: int) -> float:
+def _overlay_x(landmarks: list, idx: int, box: Optional[dict] = None) -> float:
+    if box:
+        return point_in_crop(landmarks, idx, box)["x"]
     return point_in_image(landmarks, idx)["x"]
 
 
-def proportion_ratio_overlays(landmarks: list) -> dict:
-    """Qoves-style dashed guides per proportion tab (full-image 0–100 coords).
+def _eye_fissure_xs(landmarks: list, box: Optional[dict] = None) -> dict:
+    """Canonical canthi with soft-tissue outer pad so the bar covers visible eye length."""
+    r_out = _overlay_x(landmarks, 33, box)
+    r_in = _overlay_x(landmarks, 133, box)
+    l_in = _overlay_x(landmarks, 362, box)
+    l_out = _overlay_x(landmarks, 263, box)
+    r_eye_w = abs(r_in - r_out)
+    l_eye_w = abs(l_out - l_in)
+    # ponytail: ~18% soft-tissue pad; raise if still short vs photo.
+    return {
+        "r_out": r_out - r_eye_w * 0.18,
+        "r_in": r_in,
+        "l_in": l_in,
+        "l_out": l_out + l_eye_w * 0.18,
+    }
+
+
+def proportion_ratio_overlays(landmarks: list, box: Optional[dict] = None) -> dict:
+    """Qoves-style guides per proportion tab (0–100 image or crop coords).
+
+    Pass ``box`` (normalized face crop) when the displayed image is that crop.
 
     Canons (Farkas / Qoves):
     - orbito-nasal: intercanthal (en–en) vs nasal width (al–al)
@@ -235,85 +258,94 @@ def proportion_ratio_overlays(landmarks: list) -> dict:
     - naso-aural: ear height vs nose height (profile preferred; front fallback)
     """
     # Person's right = viewer's left on a frontal facing camera.
-    # 33/133 right eye outer/inner, 362/263 left eye inner/outer.
-    r_out = point_in_image(landmarks, 33)
-    r_in = point_in_image(landmarks, 133)
-    l_in = point_in_image(landmarks, 362)
-    l_out = point_in_image(landmarks, 263)
+    # Inner canthi stay on anatomical en; outers use full fissure span.
+    r_in = {"x": _overlay_x(landmarks, 133, box), "y": _overlay_y(landmarks, 133, box)}
+    l_in = {"x": _overlay_x(landmarks, 362, box), "y": _overlay_y(landmarks, 362, box)}
+    fissure = _eye_fissure_xs(landmarks, box)
+    r_out = {"x": fissure["r_out"], "y": _overlay_y(landmarks, 33, box)}
+    l_out = {"x": fissure["l_out"], "y": _overlay_y(landmarks, 263, box)}
     al_r_raw, al_l_raw = nose_alae(landmarks)
     ch_r_raw, ch_l_raw = mouth_cheilions(landmarks)
-    al_r = {"x": al_r_raw["x"] * 100, "y": al_r_raw["y"] * 100}
-    al_l = {"x": al_l_raw["x"] * 100, "y": al_l_raw["y"] * 100}
-    ch_r = {"x": ch_r_raw["x"] * 100, "y": ch_r_raw["y"] * 100}
-    ch_l = {"x": ch_l_raw["x"] * 100, "y": ch_l_raw["y"] * 100}
+    if box:
+        def _to_pct(p: dict) -> dict:
+            return {
+                "x": ((p["x"] - box["x"]) / max(float(box.get("w") or 0), 1e-6)) * 100,
+                "y": ((p["y"] - box["y"]) / max(float(box.get("h") or 0), 1e-6)) * 100,
+            }
+        al_r, al_l = _to_pct(al_r_raw), _to_pct(al_l_raw)
+        ch_r, ch_l = _to_pct(ch_r_raw), _to_pct(ch_l_raw)
+    else:
+        al_r = {"x": al_r_raw["x"] * 100, "y": al_r_raw["y"] * 100}
+        al_l = {"x": al_l_raw["x"] * 100, "y": al_l_raw["y"] * 100}
+        ch_r = {"x": ch_r_raw["x"] * 100, "y": ch_r_raw["y"] * 100}
+        ch_l = {"x": ch_l_raw["x"] * 100, "y": ch_l_raw["y"] * 100}
 
     eye_line_y = (r_out["y"] + r_in["y"] + l_in["y"] + l_out["y"]) / 4
+    # Orbital bar sits on lower forehead (above brows), not through the canthi.
+    brow_y = (_overlay_y(landmarks, 105, box) + _overlay_y(landmarks, 334, box)) / 2
+    forehead_bar_y = brow_y - max(2.0, (eye_line_y - brow_y) * 0.45)
     nose_base_y = (al_r["y"] + al_l["y"]) / 2
     mouth_y = (ch_r["y"] + ch_l["y"]) / 2
 
     return {
         "nasoAural": {
             "horizontal": [
-                {"y": _overlay_y(landmarks, 234)},
-                {"y": _overlay_y(landmarks, 127)},
-                {"y": _overlay_y(landmarks, 6)},
-                {"y": _overlay_y(landmarks, 2)},
+                {"y": _overlay_y(landmarks, 234, box)},
+                {"y": _overlay_y(landmarks, 127, box)},
+                {"y": _overlay_y(landmarks, 6, box)},
+                {"y": _overlay_y(landmarks, 2, box)},
             ],
             "segments": [
-                {"x1": _overlay_x(landmarks, 234), "y1": _overlay_y(landmarks, 234),
-                 "x2": _overlay_x(landmarks, 234), "y2": _overlay_y(landmarks, 127)},
-                {"x1": _overlay_x(landmarks, 2), "y1": _overlay_y(landmarks, 6),
-                 "x2": _overlay_x(landmarks, 2), "y2": _overlay_y(landmarks, 2)},
+                {"x1": _overlay_x(landmarks, 234, box), "y1": _overlay_y(landmarks, 234, box),
+                 "x2": _overlay_x(landmarks, 234, box), "y2": _overlay_y(landmarks, 127, box)},
+                {"x1": _overlay_x(landmarks, 2, box), "y1": _overlay_y(landmarks, 6, box),
+                 "x2": _overlay_x(landmarks, 2, box), "y2": _overlay_y(landmarks, 2, box)},
             ],
         },
         "orbitoNasal": {
-            # en–en (inner canthi) vs al–al (alae)
-            "horizontal": [{"y": round(eye_line_y, 2)}],
-            "vertical": [
-                {"x": r_in["x"]},
-                {"x": l_in["x"]},
-                {"x": al_r["x"]},
-                {"x": al_l["x"]},
-            ],
-            "dots": [
-                {"x": r_in["x"], "y": r_in["y"]},
-                {"x": l_in["x"], "y": l_in["y"]},
-                {"x": al_r["x"], "y": al_r["y"]},
-                {"x": al_l["x"], "y": al_l["y"]},
+            # Two horizontal span bars (en–en, al–al) with downward end ticks — not dots/vertical guides.
+            "bars": [
+                {
+                    "x1": r_in["x"],
+                    "x2": l_in["x"],
+                    "y": round((r_in["y"] + l_in["y"]) / 2, 2),
+                },
+                {
+                    "x1": al_r["x"],
+                    "x2": al_l["x"],
+                    "y": round(nose_base_y, 2),
+                },
             ],
         },
         "nasoOral": {
-            "horizontal": [
-                {"y": round(nose_base_y, 2)},
-                {"y": round(mouth_y, 2)},
-            ],
-            "vertical": [
-                {"x": al_r["x"]},
-                {"x": al_l["x"]},
-                {"x": ch_r["x"]},
-                {"x": ch_l["x"]},
-            ],
-            "dots": [
-                {"x": al_r["x"], "y": al_r["y"]},
-                {"x": al_l["x"], "y": al_l["y"]},
-                {"x": ch_r["x"], "y": ch_r["y"]},
-                {"x": ch_l["x"], "y": ch_l["y"]},
+            # Two horizontal span bars (al–al, ch–ch) with downward end ticks — not dots/vertical guides.
+            "bars": [
+                {
+                    "x1": al_r["x"],
+                    "x2": al_l["x"],
+                    "y": round(nose_base_y, 2),
+                },
+                {
+                    "x1": ch_r["x"],
+                    "x2": ch_l["x"],
+                    "y": round(mouth_y, 2),
+                },
             ],
         },
         "orbital": {
-            # en–en vs ex–en: all four canthi, L→R on screen = 33, 133, 362, 263
-            "horizontal": [{"y": round(eye_line_y, 2)}],
-            "vertical": [
-                {"x": r_out["x"]},
-                {"x": r_in["x"]},
-                {"x": l_in["x"]},
-                {"x": l_out["x"]},
-            ],
-            "dots": [
-                {"x": r_out["x"], "y": r_out["y"]},
-                {"x": r_in["x"], "y": r_in["y"]},
-                {"x": l_in["x"], "y": l_in["y"]},
-                {"x": l_out["x"], "y": l_out["y"]},
+            # Continuous span on forehead; ticks at full eye-fissure x (ex–en–en–ex).
+            "bars": [
+                {
+                    "x1": r_out["x"],
+                    "x2": l_out["x"],
+                    "y": round(forehead_bar_y, 2),
+                    "ticks": [
+                        r_out["x"],
+                        fissure["r_in"],
+                        fissure["l_in"],
+                        l_out["x"],
+                    ],
+                },
             ],
         },
     }

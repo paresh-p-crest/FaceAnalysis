@@ -58,9 +58,15 @@ export function stageStatusForUi(pipeline, stageId, workflowStatus) {
   return 'pending'
 }
 
-export function formatProcessingBadge(pipeline) {
-  if (!pipeline) return null
-  if (pipeline.status === 'queued' || pipeline.status === 'running') return 'Processing'
-  if (pipeline.status === 'failed') return 'Failed'
-  return null
+/** Coarse admin progress percent across PIPELINE_UI_STAGES (done=1, active=0.5). */
+export function pipelineProgressPercent(pipeline, workflowStatus) {
+  if (!pipeline) return 0
+  const stages = PIPELINE_UI_STAGES
+  let acc = 0
+  for (const stage of stages) {
+    const st = stageStatusForUi(pipeline, stage.id, workflowStatus)
+    if (st === 'done') acc += 1
+    else if (st === 'active') acc += 0.5
+  }
+  return Math.round((acc / stages.length) * 100)
 }

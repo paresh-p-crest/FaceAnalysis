@@ -13,6 +13,7 @@ import {
   proportionRatioOverlays,
   mouthCheilions,
   noseAlae,
+  buildNasoAuralOverlay,
   SYMMETRY_DOTS,
   FACE_OVAL,
 } from './faceCrop'
@@ -1329,12 +1330,12 @@ async function buildNasoAuralVisual(photos, faceCrop, nasoAuralOverlay) {
 
   try {
     const mpProfile = await analyzeWithMediaPipe(profileSrc)
-    const fullBox = { x: 0, y: 0, w: 1, h: 1 }
-    const profileOverlays = proportionRatioOverlays(mpProfile.landmarks, fullBox)
+    const overlay = buildNasoAuralOverlay(mpProfile.landmarks, 'rightProfile')
     return {
       imageSrc: profileSrc,
-      overlay: profileOverlays.nasoAural,
+      overlay: overlay || nasoAuralOverlay,
       photoSource: 'rightProfile',
+      overlaySpace: 'image',
     }
   } catch {
     return { imageSrc: faceCrop, overlay: nasoAuralOverlay, photoSource: 'front' }
@@ -2147,11 +2148,13 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
   }
   const symRegions = symmetryRegions(landmarks)
   const proportionLines = proportionLinesInImage(landmarks)
-  const ratioOverlays = proportionRatioOverlays(landmarks)
+  // Overlays in face-crop % — paired with faceCrop imageSrc on each ratio tab.
+  const ratioOverlays = proportionRatioOverlays(landmarks, faceBox)
   const ratios = proportionRatios(landmarks)
   Object.keys(ratios).forEach((key) => {
     ratios[key].overlay = ratioOverlays[key]
     ratios[key].imageSrc = faceCrop
+    ratios[key].overlaySpace = 'crop'
   })
 
   const earVisual = await buildNasoAuralVisual(photos, faceCrop, ratioOverlays.nasoAural)

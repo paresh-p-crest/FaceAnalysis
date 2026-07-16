@@ -34,6 +34,12 @@ LLM_MAX_OUTPUT_TOKENS = int(os.environ.get("LLM_MAX_OUTPUT_TOKENS", "8000") or "
 
 # Feature narrative generation: total LLM attempts on hard reject / empty / schema fail.
 FEATURE_NARRATIVE_MAX_ATTEMPTS = int(os.environ.get("FEATURE_NARRATIVE_MAX_ATTEMPTS", "3") or "3")
+# Independent budget for null-path (minimal, non-Skin) grounding regenerations, so a
+# schema failure cannot starve grounding retries. Total LLM calls per feature are bounded
+# by FEATURE_NARRATIVE_MAX_ATTEMPTS + NULL_PATH_GROUNDING_MAX_RETRIES.
+NULL_PATH_GROUNDING_MAX_RETRIES = int(
+    os.environ.get("NULL_PATH_GROUNDING_MAX_RETRIES", "2") or "2"
+)
 # Extra LLM calls after a 429, with exponential backoff starting at BACKOFF_SEC (30 → 60 → 120).
 FEATURE_NARRATIVE_RATE_LIMIT_RETRIES = int(
     os.environ.get("FEATURE_NARRATIVE_RATE_LIMIT_RETRIES", "3") or "3"

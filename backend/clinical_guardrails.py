@@ -8,15 +8,25 @@ from typing import Optional
 
 from .feature_context import build_feature_context
 from .narrative_schemas import FEATURE_SUBSECTION_TITLES, FeatureNarrative
-from .recommendation_rules import get_deterministic_recommendation_hints, deviation_to_tier, _feature_deviation_magnitude
+from .recommendation_rules import (
+    _feature_deviation_magnitude,
+    deviation_to_tier,
+    feature_severity_bucket,
+    get_deterministic_recommendation_hints,
+    has_usable_measured_cues,
+    null_path_grounding_terms,
+)
 
 logger = logging.getLogger(__name__)
 
 # Allow "non-surgical" / "non surgical" while still banning standalone surgery/surgical claims.
 BANNED_TERM_PATTERN = re.compile(
     r"(?<!non-)(?<!non\s)\b(surgery|surgical)\b|"
+    # Tight peel scope only (avoids the verb 'skin may peel' / 'peeling').
+    r"\b(?:chemical|laser|micro\w*)\s+peels?\b|"
     r"\b(botox|filler|fillers|injectable|injectables|laser|lasers|"
     r"ipl|hifu|thermage|endolift|microneedling|co2|rhinoplasty|otoplasty|"
+    r"radiofrequency|ultherapy|energy-based|"
     r"prescription|tretinoin rx|isotretinoin|accutane|minoxidil|finasteride)\b",
     re.IGNORECASE,
 )
@@ -45,6 +55,23 @@ SCORE_PROSE_PATTERN = re.compile(
     r"\b(?:\d{1,3}\.\d+|\d{2,3})\s*(?:°|degrees?)\b|"
     r"\b\d+(?:\.\d+)?\s*mm\b",
     re.IGNORECASE,
+)
+
+# Fix 2 backstop: paired opposites that should not co-occur inside a single section body.
+# Soft-only (logged) so it surfaces contradiction regressions without churning good reports.
+CONTRADICTION_PAIRS = (
+    (
+        re.compile(r"\bwide(?:r|ned|ning)?\b", re.IGNORECASE),
+        re.compile(r"\bnarrow(?:er|ed|ing)?\b", re.IGNORECASE),
+    ),
+    (
+        re.compile(r"\b(?:full|fuller|fullness|prominent)\b", re.IGNORECASE),
+        re.compile(r"\b(?:flat|flatter|flattened|recessed|recede|receding)\b", re.IGNORECASE),
+    ),
+    (
+        re.compile(r"\belevated\b", re.IGNORECASE),
+        re.compile(r"\blow\b", re.IGNORECASE),
+    ),
 )
 
 FEATURE_DISPLAY = {
@@ -268,6 +295,24 @@ def validate_feature_narrative(
         if "sclera" not in text_blob.lower():
             errors.append("Iris/eye color mentioned without sclera-only framing")
 
+    if narrative.featureId == "eyes" and re.search(r"\bsclera", text_blob, re.I):
+        if re.search(
+            r"\b(oxidative stress|vitamin\s+\w+\s+deficiency|deficiency|jaundice|liver|dehydration)\b",
+            text_blob,
+            re.I,
+        ):
+            errors.append("Sclera coloring attributed to a medical/physiological cause")
+
+    for sub in narrative.subsections:
+        body = sub.body or ""
+        for pat_a, pat_b in CONTRADICTION_PAIRS:
+            if pat_a.search(body) and pat_b.search(body):
+                errors.append(
+                    f"Contradictory directional language in subsection {sub.title!r} "
+                    f"({pat_a.pattern} vs {pat_b.pattern})"
+                )
+                break
+
     mag = _feature_deviation_magnitude(narrative.featureId, ctx)
     ceiling = deviation_to_tier(mag, (ctx.get("cvMetrics") or {}).get("score"))
     tier_order = {"lifestyle": 0, "otc": 1, "refer_clinician": 2}
@@ -279,6 +324,38 @@ def validate_feature_narrative(
             errors.append("refer_clinician tier used without notable measured deviation")
 
     return (len(errors) == 0, errors)
+
+
+def null_path_grounded(feature_id: str, ctx: dict, narrative: dict) -> bool:
+    """True if a null-path (minimal, non-Skin) narrative cites >=1 concrete CV cue term.
+
+    Not applicable (returns True) for Skin, for non-minimal severity, or when the
+    feature exposes no usable measured cues (e.g. a smile feature with no smile
+    photo and only the "limited metrics" fallback), so we never force-reject a
+    genuinely cue-sparse feature. Per-feature scope: grounded if ANY subsection
+    body references any grounding term (curated ∪ measured).
+    """
+    if feature_id == "skin":
+        return True
+    if feature_severity_bucket(feature_id, ctx) != "minimal":
+        return True
+    if not has_usable_measured_cues(ctx):
+        return True
+    terms = null_path_grounding_terms(feature_id, ctx)
+    if not terms:
+        return True
+    # Longest-first alternation so multi-word terms (e.g. "tear trough") match first.
+    pattern = re.compile(
+        r"\b(?:" + "|".join(re.escape(t) for t in sorted(terms, key=len, reverse=True)) + r")\b",
+        re.IGNORECASE,
+    )
+    for sub in narrative.get("subsections") or []:
+        if not isinstance(sub, dict):
+            continue
+        body = sub.get("body") or ""
+        if body and pattern.search(body):
+            return True
+    return False
 
 
 def strip_score_language(text: str) -> str:

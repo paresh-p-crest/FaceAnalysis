@@ -11,13 +11,10 @@ import {
   Menu,
   Settings,
   Shield,
-  Sun,
-  Moon,
   User,
   X,
 } from 'lucide-react'
 import { dashboardPathForUser, isAdminTabPath, logoPathForUser, ROUTES } from '../utils/routes'
-import { useTheme } from '../utils/theme'
 
 function NavLink({ icon: Icon, label, href, onClick, active, className = '' }) {
   const classNames = `site-navbar-link ${active ? 'site-navbar-link-active' : ''} ${className}`
@@ -79,7 +76,6 @@ export function SiteNavbar({
   onLogo,
   user,
 }) {
-  const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef(null)
@@ -166,21 +162,7 @@ export function SiteNavbar({
     return items
   }, [user, isAdmin, pathname, onDashboard, onHistory, onBilling, onSettings])
 
-  const themeTitle = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
-  const themeLabel = theme === 'dark' ? 'Light mode' : 'Dark mode'
   const logoHref = logoPathForUser(user)
-
-  const themeButton = (
-    <button
-      type="button"
-      onClick={toggleTheme}
-      className="site-navbar-icon-btn"
-      title={themeTitle}
-      aria-label={themeTitle}
-    >
-      {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-    </button>
-  )
 
   const accountControl = !authReady ? (
     <div className="site-navbar-icon-btn min-h-[32px] min-w-[32px] opacity-0 pointer-events-none" aria-hidden />
@@ -247,7 +229,6 @@ export function SiteNavbar({
 
         <div className="hidden md:flex items-center gap-1.5 shrink-0">
           {accountControl}
-          {themeButton}
         </div>
 
         <div className="flex md:hidden items-center gap-1.5 shrink-0">
@@ -301,26 +282,18 @@ export function SiteNavbar({
             ))}
           </nav>
 
-          <div className="border-t border-surface-border p-2 grid grid-cols-2 gap-2">
+          <div className="border-t border-surface-border p-2">
             {user ? (
-              <button type="button" onClick={runAndClose(onLogout)} className="site-navbar-mobile-action">
+              <button type="button" onClick={runAndClose(onLogout)} className="site-navbar-mobile-action w-full">
                 <LogOut className="w-4 h-4" />
                 Sign out
               </button>
             ) : (
-              <button type="button" onClick={runAndClose(onAuth)} className="site-navbar-mobile-action">
+              <button type="button" onClick={runAndClose(onAuth)} className="site-navbar-mobile-action w-full">
                 <User className="w-4 h-4" />
                 Sign in
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => { toggleTheme(); closeMenu() }}
-              className="site-navbar-mobile-action"
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              {themeLabel}
-            </button>
           </div>
         </div>
       </div>

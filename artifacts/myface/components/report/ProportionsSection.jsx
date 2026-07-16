@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FaceImageFrame, ProportionFeatureOverlay, ProportionsOverlay } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { AssessmentGridLayout } from './FeatureAnalysisPage'
 import {
+  bboxFullFace,
   proportionRatioOverlays,
   proportionLinesInImage,
   mouthCheilions,
   noseAlae,
 } from '../../utils/faceCrop'
+import { cropNormalized } from '../../utils/eyeAnalysis'
 
 const RATIO_PARTS = {
   nasoAural: { primary: 'Ear', secondary: 'Nose' },
@@ -142,11 +144,9 @@ function RatioBar({ yourValue, idealValue, label1, label2, primaryFeature, secon
 }
 
 function resolveOverlay(tabId, active, liveOverlays) {
-  // Profile ear overlay must stay on profile landmarks; frontal tabs recompute from MediaPipe.
-  const useLive =
-    liveOverlays &&
-    (tabId !== 'nasoAural' || active?.photoSource === 'front' || !active?.overlay)
-  if (useLive && liveOverlays[tabId]) return liveOverlays[tabId]
+  // Naso-aural: no overlay for now (profile mapping deferred).
+  if (tabId === 'nasoAural') return null
+  if (liveOverlays?.[tabId]) return liveOverlays[tabId]
   return active?.overlay || null
 }
 
@@ -164,14 +164,40 @@ export function ProportionsSection({
 }) {
   const [activeTab, setActiveTab] = useState('nasoAural')
 
+  const frontSrc = photos?.front || photo || null
+  const [faceCropSrc, setFaceCropSrc] = useState(null)
+
+  // Face-crop plate for frontal ratio tabs — must pair with crop-space overlays or spans look short.
+  useEffect(() => {
+    let cancelled = false
+    async function run() {
+      const src = frontSrc || (typeof proportions?.imageSrc === 'string' ? proportions.imageSrc : null)
+      if (!src || !landmarks?.length) {
+        if (!cancelled) setFaceCropSrc(null)
+        return
+      }
+      try {
+        const box = proportions?.faceBox || bboxFullFace(landmarks, 0.08)
+        const cropped = await cropNormalized(src, box)
+        if (!cancelled) setFaceCropSrc(cropped || null)
+      } catch {
+        if (!cancelled) setFaceCropSrc(null)
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [frontSrc, landmarks, proportions?.faceBox, proportions?.imageSrc])
+
   const liveOverlays = useMemo(() => {
     if (!landmarks?.length) return null
     try {
-      return proportionRatioOverlays(landmarks)
+      const faceBox = proportions?.faceBox || bboxFullFace(landmarks, 0.08)
+      // Frontal feature tabs always use crop-space (matched to faceCropSrc).
+      return proportionRatioOverlays(landmarks, faceBox)
     } catch {
       return null
     }
-  }, [landmarks])
+  }, [landmarks, proportions?.faceBox])
 
   const liveThirdLines = useMemo(() => {
     if (!landmarks?.length) return null
@@ -201,8 +227,20 @@ export function ProportionsSection({
 
   const ratios = proportions.ratios
   const active = ratios[activeTab]
-  const activeImageSrc = active?.imageSrc || proportions.imageSrc
-  const overlay = resolveOverlay(activeTab, active, liveOverlays)
+  const useProfileEar =
+    activeTab === 'nasoAural' && (
+      (active?.photoSource && active.photoSource !== 'front') ||
+      Boolean(photos?.rightProfile || photos?.leftProfile) ||
+      (typeof active?.imageSrc === 'string' && /profile/i.test(active.imageSrc))
+    )
+  const activeImageSrc = useProfileEar
+    ? (active?.imageSrc || photos?.rightProfile || photos?.leftProfile)
+    : (faceCropSrc || active?.imageSrc || proportions.imageSrc)
+  const overlay = resolveOverlay(
+    activeTab,
+    active,
+    useProfileEar ? null : liveOverlays,
+  )
 
   // Full front photo + image-% guides. Crop-relative lines on a front photo look "far apart".
   const overviewPhoto =

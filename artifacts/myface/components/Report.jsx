@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import { ScanFace, RotateCcw, Loader2, AlertTriangle, Download, Lock, ShieldCheck, X, Sparkles, ImagePlus } from 'lucide-react'
+import { RotateCcw, Loader2, AlertTriangle, Download, Lock, ShieldCheck, X, Sparkles, ImagePlus } from 'lucide-react'
 import { saveHistoryEntry, createHistoryId, loadHistory } from '../utils/historyStorage'
 import {
   downloadAssessmentPdf,
@@ -32,7 +32,6 @@ import {
   TOOL_SECTIONS,
 } from './report/reportNavConfig'
 import { CvReportView } from './report/CvReportView'
-import { runFaceAnalysis } from '../utils/analyzeFace'
 import AdminReviewPanel from './AdminReviewPanel'
 import ConfirmDialog from './ConfirmDialog'
 
@@ -49,7 +48,6 @@ function ErrorPanel({ title, message }) {
 }
 
 function getCvLabel(analysis, metrics) {
-  if (analysis?.cvEngine === 'aws') return 'AWS Rekognition'
   if (analysis?.cvEngine === 'local-cv') return 'MediaPipe + OpenCV (free)'
   if (analysis?.cvEngine === 'mediapipe+opencv') {
     return `MediaPipe (${metrics?.landmarkCount || 478} pts) + OpenCV`
@@ -81,7 +79,6 @@ export default function Report({
   cloudAssessment = null,
   onCloudAssessmentChange = null,
   onRestart,
-  onRetryLocal,
   user,
   onClose,
 }) {
@@ -450,26 +447,11 @@ export default function Report({
   }, [assessmentId, statusUpdating])
 
   if (cvFailed) {
-    const isAwsError = displayAnalysis?.error?.includes('expired') ||
-      displayAnalysis?.error?.includes('credential') ||
-      displayAnalysis?.error?.includes('security token') ||
-      displayAnalysis?.error?.includes('AWS')
     return (
       <div className="min-h-screen px-4 sm:px-6 py-8 animate-fade-up font-sans pt-16 bg-surface">
         <div className="max-w-xl mx-auto mt-12">
           <div className="bg-white dark:bg-surface-card rounded-3xl p-8 shadow-card border border-surface-border">
             <ErrorPanel title="Analysis failed" message={displayAnalysis?.error || 'Analysis could not be completed.'} />
-            {isAwsError && photo && (
-              <div className="mt-4">
-                <button
-                  onClick={() => onRetryLocal?.(photo, photos, answers)}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[50px] text-sm font-display font-semibold bg-brand text-white hover:bg-brand-dark shadow-brand transition-all"
-                >
-                  <ScanFace className="w-4 h-4" />
-                  Use Free Local Analysis Instead
-                </button>
-              </div>
-            )}
             <button onClick={onRestart} className="btn-primary w-full mt-3 text-sm font-display">
               <RotateCcw className="w-4 h-4" />
               Try Again
@@ -637,7 +619,7 @@ export default function Report({
             <div className="bg-surface-card rounded-3xl p-6 shadow-card border border-surface-border text-center">
               <Loader2 className="w-8 h-8 text-brand animate-spin mx-auto mb-4" />
               <p className="font-display text-base font-semibold text-ink mb-2">Your analysis is being prepared</p>
-              <p className="text-sm text-ink-muted">Check your dashboard for live progress.</p>
+              <p className="text-sm text-ink-muted">We&apos;ll email you when it&apos;s ready — you may close this tab safely.</p>
             </div>
           </div>
         ) : cvPending ? (

@@ -1,26 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ReportSectionHeading } from './ReportSectionHeading'
-import { cropFeatureBefore } from '../../utils/aestheticProjection'
+import { resolveFeatureHero } from '../../utils/featureParsing'
 
 function textOrNull(v) {
   if (v == null) return null
   const s = String(v).trim()
-  return s.length ? s : null
+  if (!s.length || s.toUpperCase() === 'N/A') return null
+  return s
 }
 
 function parsingValue(featureParsing, key) {
   if (featureParsing?.status !== 'ready') return null
-  const m = featureParsing?.metrics?.eyebrows?.[key]
+  const m = featureParsing?.metrics?.nose?.[key]
   if (!m || m.value == null || Number.isNaN(Number(m.value))) return null
   return Number(m.value)
-}
-
-function avg(a, b) {
-  if (a == null && b == null) return null
-  if (a == null) return b
-  if (b == null) return a
-  return (a + b) / 2
 }
 
 function formatMm(n) {
@@ -28,14 +22,9 @@ function formatMm(n) {
   return `${n.toFixed(2)} mm`
 }
 
-function formatRatio(n) {
+function formatRatio(n, digits = 4) {
   if (n == null || !Number.isFinite(n)) return null
-  return n.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')
-}
-
-function formatDeg(n) {
-  if (n == null || !Number.isFinite(n)) return null
-  return `${n.toFixed(2)}°`
+  return Number(n).toFixed(digits).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 function markerPct(value, min, max) {
@@ -43,6 +32,37 @@ function markerPct(value, min, max) {
     return 50
   }
   return Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
+}
+
+/** Qualitative labels from live ratios / CV — match sample classification vocabulary. */
+function classifyShape(aspect) {
+  if (!Number.isFinite(aspect)) return null
+  if (aspect < 0.6) return 'Narrow / Leptorrhine'
+  if (aspect > 0.85) return 'Wide / Platyrrhine'
+  return 'Average / Mesorrhine'
+}
+
+function classifyHeight(heightMm) {
+  if (!Number.isFinite(heightMm)) return null
+  if (heightMm < 45) return 'Short'
+  if (heightMm > 55) return 'Long'
+  return 'Average'
+}
+
+function classifyTip(nasoCanthal) {
+  if (!Number.isFinite(nasoCanthal)) return null
+  if (nasoCanthal > 1.05) return 'Wide / Bulbous'
+  if (nasoCanthal < 0.95) return 'Narrow / Refined'
+  return 'Balanced'
+}
+
+function classifyWidth(widthMm, cvWidth) {
+  const fromCv = textOrNull(cvWidth)
+  if (fromCv) return fromCv
+  if (!Number.isFinite(widthMm)) return null
+  if (widthMm < 30) return 'Narrow'
+  if (widthMm > 40) return 'Wide'
+  return 'Average'
 }
 
 function SummaryLabelCard({ label, value }) {
@@ -54,10 +74,21 @@ function SummaryLabelCard({ label, value }) {
   )
 }
 
-function RangeMeter({ metricLabel, sourceLabel, valueText, valueNum, rangeMin, rangeMax, formatRange }) {
+function RangeMeter({
+  metricLabel,
+  sourceLabel,
+  valueText,
+  valueNum,
+  rangeMin,
+  rangeMax,
+  rangeMinLabel,
+  rangeMaxLabel,
+  formatRange,
+}) {
   const hasRange =
     Number.isFinite(valueNum) && Number.isFinite(rangeMin) && Number.isFinite(rangeMax)
   const pct = hasRange ? markerPct(valueNum, rangeMin, rangeMax) : null
+  const fmt = formatRange || ((n) => formatRatio(n))
 
   return (
     <div className="mt-4 space-y-2">
@@ -77,8 +108,8 @@ function RangeMeter({ metricLabel, sourceLabel, valueText, valueNum, rangeMin, r
             />
           </div>
           <div className="flex justify-between text-[11px] text-ink-muted font-sans tabular-nums">
-            <span>{formatRange(rangeMin)}</span>
-            <span>{formatRange(rangeMax)}</span>
+            <span>{rangeMinLabel ?? fmt(rangeMin)}</span>
+            <span>{rangeMaxLabel ?? fmt(rangeMax)}</span>
           </div>
         </>
       )}
@@ -86,76 +117,86 @@ function RangeMeter({ metricLabel, sourceLabel, valueText, valueNum, rangeMin, r
   )
 }
 
-function buildDetailSlides(m, fp) {
-  const rPeak = parsingValue(fp, 'right_brow_peak_height_mm')
-  const lPeak = parsingValue(fp, 'left_brow_peak_height_mm')
-  const avgPeak = avg(rPeak, lPeak)
-  const cvPeak = m.peakHeight != null ? parseFloat(m.peakHeight) : null
-  const peakValue = avgPeak ?? (Number.isFinite(cvPeak) ? cvPeak : null)
-  const peakMin = m.peakMin != null ? parseFloat(m.peakMin) : null
-  const peakMax = m.peakMax != null ? parseFloat(m.peakMax) : null
+function buildNoseMetrics(nose, featureParsing) {
+  const widthMm = parsingValue(featureParsing, 'nasal_width_mm')
+  const heightMm = parsingValue(featureParsing, 'nasal_height_mm')
+  const aspect = parsingValue(featureParsing, 'nasal_aspect_ratio_width_over_height')
+  const nasoCanthal = parsingValue(featureParsing, 'naso_canthal_ratio_nose_width_over_intercanthal')
+  const pyramidal = parsingValue(featureParsing, 'pyramidal_width_mm')
+  const cvAspect = nose.widthLengthRatio != null ? parseFloat(nose.widthLengthRatio) : null
+  const aspectValue = aspect ?? (Number.isFinite(cvAspect) ? cvAspect : null)
 
-  const rElev = parsingValue(fp, 'right_brow_elevation_ratio')
-  const lElev = parsingValue(fp, 'left_brow_elevation_ratio')
-  const avgElev = avg(rElev, lElev)
+  return {
+    widthMm,
+    heightMm,
+    aspect: aspectValue,
+    nasoCanthal,
+    pyramidal,
+    shapeLabel: classifyShape(aspectValue),
+    heightLabel: classifyHeight(heightMm),
+    tipLabel: classifyTip(nasoCanthal),
+    widthLabel: classifyWidth(widthMm, nose.width),
+  }
+}
 
-  const rApex = parsingValue(fp, 'right_brow_apex_angle_deg')
-  const lApex = parsingValue(fp, 'left_brow_apex_angle_deg')
-  const avgApex = avg(rApex, lApex)
-
-  const landmark = fp?.status === 'ready' ? 'Landmark-based' : null
+function buildDetailSlides(metrics) {
+  const landmark = 'Landmark-based'
   const slides = []
 
-  if (peakValue != null) {
+  if (metrics.aspect != null) {
     slides.push({
-      id: 'peak',
-      titleLead: 'Brow Peak',
-      titleAccent: 'Height',
-      body: 'Vertical distance from the brow peak to the top of the eye — measures how high the brow sits above the eye.',
+      id: 'aspect',
+      titleLead: 'Nasal',
+      titleAccent: 'Aspect Ratio',
+      body: 'Width divided by height. <0.6 = narrow, 0.6–0.85 = average, >0.85 = wide.',
       meter: {
-        metricLabel: 'Brow Peak Vertical Height',
+        metricLabel: 'Nasal Aspect Ratio (W/H)',
         sourceLabel: landmark,
-        valueText: formatMm(peakValue),
-        valueNum: peakValue,
-        rangeMin: Number.isFinite(peakMin) ? peakMin : null,
-        rangeMax: Number.isFinite(peakMax) ? peakMax : null,
+        valueText: `${formatRatio(metrics.aspect)} ratio`,
+        valueNum: metrics.aspect,
+        rangeMin: 0.5,
+        rangeMax: 1.1,
+        rangeMinLabel: '0.5 narrow',
+        rangeMaxLabel: '1.1 wide',
+        formatRange: (n) => formatRatio(n, 1),
+      },
+    })
+  }
+
+  if (metrics.widthMm != null) {
+    slides.push({
+      id: 'width',
+      titleLead: 'Nasal Width',
+      titleAccent: '(mm)',
+      body: 'Distance between the alae (outer nostrils) in millimetres. Reference IPD = 63.5 mm.',
+      meter: {
+        metricLabel: 'Nasal Ala Width',
+        sourceLabel: landmark,
+        valueText: formatMm(metrics.widthMm),
+        valueNum: metrics.widthMm,
+        rangeMin: 25,
+        rangeMax: 45,
+        rangeMinLabel: '25 mm',
+        rangeMaxLabel: '45 mm',
         formatRange: formatMm,
       },
     })
   }
 
-  if (avgElev != null) {
+  if (metrics.nasoCanthal != null) {
     slides.push({
-      id: 'elevation',
-      titleLead: 'Brow Elevation',
+      id: 'naso-canthal',
+      titleLead: 'Naso-Canthal',
       titleAccent: 'Ratio',
-      body: 'Brow-to-eye vertical gap divided by inter-pupillary distance. Higher = brow sits further above the eye.',
+      body: 'Alar width / inter-canthal distance. Ideal ≈ 1.0 (nose width = inner eye distance).',
       meter: {
-        metricLabel: 'Brow Elevation Ratio',
+        metricLabel: 'Naso-Canthal Ratio',
         sourceLabel: landmark,
-        valueText: formatRatio(avgElev),
-        valueNum: avgElev,
-        rangeMin: null,
-        rangeMax: null,
-        formatRange: formatRatio,
-      },
-    })
-  }
-
-  if (avgApex != null) {
-    slides.push({
-      id: 'apex',
-      titleLead: 'Brow Apex',
-      titleAccent: 'Angle',
-      body: 'Angle at the brow peak between inner and outer brow vectors. Smaller angle = sharper, more defined arch.',
-      meter: {
-        metricLabel: 'Brow Apex Angle',
-        sourceLabel: landmark,
-        valueText: formatDeg(avgApex),
-        valueNum: avgApex,
-        rangeMin: null,
-        rangeMax: null,
-        formatRange: formatDeg,
+        valueText: formatRatio(metrics.nasoCanthal),
+        valueNum: metrics.nasoCanthal,
+        rangeMin: 0.8,
+        rangeMax: 1.2,
+        formatRange: (n) => formatRatio(n, 1),
       },
     })
   }
@@ -163,37 +204,20 @@ function buildDetailSlides(m, fp) {
   return slides
 }
 
-function buildAllMetricsRows(m, fp) {
-  const rPeak = parsingValue(fp, 'right_brow_peak_height_mm')
-  const lPeak = parsingValue(fp, 'left_brow_peak_height_mm')
-  const rElev = parsingValue(fp, 'right_brow_elevation_ratio')
-  const lElev = parsingValue(fp, 'left_brow_elevation_ratio')
-  const rApex = parsingValue(fp, 'right_brow_apex_angle_deg')
-  const lApex = parsingValue(fp, 'left_brow_apex_angle_deg')
-  const avgPeak = avg(rPeak, lPeak)
-  const avgElev = avg(rElev, lElev)
-  const avgApex = avg(rApex, lApex)
-  const cvPeak = m.peakHeight != null ? parseFloat(m.peakHeight) : null
-
+function buildAllMetricsRows(metrics) {
   const left = [
-    { label: 'Right Brow Peak Height', value: formatMm(rPeak) },
-    { label: 'Right Brow Elevation Ratio', value: formatRatio(rElev) },
-    { label: 'Right Brow Apex Angle', value: formatDeg(rApex) },
-    { label: 'Avg Brow Peak Height', value: formatMm(avgPeak ?? cvPeak) },
-    { label: 'Avg Apex Angle', value: formatDeg(avgApex) },
-    { label: 'Tilt Classification', value: textOrNull(m.tilt) },
-    { label: 'Virility Classification', value: textOrNull(m.virility) },
+    { label: 'Nasal Width', value: formatMm(metrics.widthMm) },
+    { label: 'Nasal Aspect Ratio (W/H)', value: formatRatio(metrics.aspect) },
+    { label: 'Pyramidal Width', value: formatMm(metrics.pyramidal) },
+    { label: 'Height Classification', value: metrics.heightLabel },
+    { label: 'Width Classification', value: metrics.widthLabel },
   ]
-
   const right = [
-    { label: 'Left Brow Peak Height', value: formatMm(lPeak) },
-    { label: 'Left Brow Elevation Ratio', value: formatRatio(lElev) },
-    { label: 'Left Brow Apex Angle', value: formatDeg(lApex) },
-    { label: 'Avg Elevation Ratio', value: formatRatio(avgElev) },
-    { label: 'Position Classification', value: textOrNull(m.position) },
-    { label: 'Shape Classification', value: textOrNull(m.shape) },
+    { label: 'Nasal Height', value: formatMm(metrics.heightMm) },
+    { label: 'Naso-Canthal Ratio', value: formatRatio(metrics.nasoCanthal) },
+    { label: 'Shape Classification', value: metrics.shapeLabel },
+    { label: 'Tip Classification', value: metrics.tipLabel },
   ]
-
   return { left, right }
 }
 
@@ -270,52 +294,24 @@ function MetricsColumn({ rows }) {
   )
 }
 
-export function BrowReportPanel({
-  eyebrows,
-  featureParsing = null,
-  narrative: _narrative = null,
-  photo = null,
-  landmarks = null,
-}) {
-  const [periHero, setPeriHero] = useState(null)
+export function NoseReportPanel({ nose, featureParsing = null, narrative: _narrative = null }) {
+  if (!nose) return null
 
-  // Zoomed eye + eyebrow (periorbital) from front photo — not the brows-only / SegFormer crop.
-  useEffect(() => {
-    let cancelled = false
-    async function run() {
-      if (!photo || !landmarks?.length) {
-        if (!cancelled) setPeriHero(null)
-        return
-      }
-      try {
-        const src = await cropFeatureBefore(photo, landmarks, 'periorbital', 1.20)
-        if (!cancelled) setPeriHero(src || null)
-      } catch {
-        if (!cancelled) setPeriHero(null)
-      }
-    }
-    run()
-    return () => { cancelled = true }
-  }, [photo, landmarks])
-
-  if (!eyebrows?.metrics) return null
-
-  const m = eyebrows.metrics
-  // Only the live zoomed periorbital crop — no eyes/brows crop fallback (avoids flash).
-  const heroImage = periHero
-
-  const slides = buildDetailSlides(m, featureParsing)
-  const { left, right } = buildAllMetricsRows(m, featureParsing)
+  // Keep existing hero resolution — do not swap to a live periorbital-style crop.
+  const heroImage = resolveFeatureHero('nose', nose, featureParsing) || nose.imageSrc
+  const metrics = buildNoseMetrics(nose, featureParsing)
+  const slides = buildDetailSlides(metrics)
+  const { left, right } = buildAllMetricsRows(metrics)
 
   return (
     <div className="space-y-8">
       <ReportSectionHeading
         title="Summary of your"
-        accent="eyebrows"
+        accent="nose"
         subtitle={
           <>
-            Eyebrows are one of the most important facial features and play a key role in expressing{' '}
-            <strong className="text-ink font-semibold">emotion</strong>.
+            The nose is a central pillar of facial aesthetics and plays a key role in overall{' '}
+            <strong className="text-ink font-semibold">harmony</strong>.
           </>
         }
       />
@@ -324,7 +320,7 @@ export function BrowReportPanel({
         <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-6 sm:p-8 flex items-center justify-center shadow-sm">
           <img
             src={heroImage}
-            alt="Eyes and eyebrows"
+            alt="Nose"
             className="max-h-48 w-auto object-contain rounded-xl"
           />
         </div>
@@ -332,21 +328,21 @@ export function BrowReportPanel({
 
       <div>
         <p className="font-display text-base font-bold text-ink mb-3">
-          Summary of your eyebrows
+          Summary of your nose
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div className="grid grid-cols-2 gap-3">
-            <SummaryLabelCard label="Eyebrow Position" value={textOrNull(m.position)} />
-            <SummaryLabelCard label="Eyebrow Tilt" value={textOrNull(m.tilt)} />
-            <SummaryLabelCard label="Eyebrow Virility" value={textOrNull(m.virility)} />
-            <SummaryLabelCard label="Eyebrow Shape" value={textOrNull(m.shape)} />
+            <SummaryLabelCard label="Nasal Shape" value={metrics.shapeLabel} />
+            <SummaryLabelCard label="Nasal Height" value={metrics.heightLabel} />
+            <SummaryLabelCard label="Nasal Tip" value={metrics.tipLabel} />
+            <SummaryLabelCard label="Nasal Width" value={metrics.widthLabel} />
           </div>
           <DetailCarousel slides={slides} />
         </div>
       </div>
 
       <div>
-        <p className="font-display text-base font-bold text-ink mb-3">All Eyebrow Metrics</p>
+        <p className="font-display text-base font-bold text-ink mb-3">All Nose Metrics</p>
         <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-5 sm:p-6 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
             <MetricsColumn rows={left} />

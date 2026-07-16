@@ -34,6 +34,22 @@ def _content_type(key: str) -> str:
     return "application/octet-stream"
 
 
+def _content_type_from_bytes(data: bytes, key: str) -> str:
+    """Prefer image magic bytes over the object-key extension.
+
+    Poses are stored under a `.jpg` key but keep their original bytes (which may be
+    PNG/WebP) to preserve quality, so sniff the real type for a correct header.
+    """
+    if data:
+        if data[:8] == b"\x89PNG\r\n\x1a\n":
+            return "image/png"
+        if data[:3] == b"\xff\xd8\xff":
+            return "image/jpeg"
+        if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+            return "image/webp"
+    return _content_type(key)
+
+
 @router.get("/{object_key:path}")
 async def get_media(object_key: str):
     key = object_key.replace("\\", "/").strip("/")
@@ -44,6 +60,6 @@ async def get_media(object_key: str):
         raise HTTPException(status_code=404, detail="Not found")
     return Response(
         content=data,
-        media_type=_content_type(key),
+        media_type=_content_type_from_bytes(data, key),
         headers={"Cache-Control": "public, max-age=3600"},
     )

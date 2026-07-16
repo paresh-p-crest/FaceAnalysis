@@ -47,6 +47,8 @@ Indexes: unique `email`, `role`.
 
 **Partial unique:** `(user_id, scan_id) WHERE scan_id IS NOT NULL`.
 
+**Draft lifecycle (ADR-031):** the web app creates a row with `status="draft"` and `pipeline=null` up front (`POST /assessments/draft`), then populates `photos`/`photos_keys` progressively as each pose is uploaded (`PUT …/photos/{poseId}`). `pipeline` stays `null` until `POST …/submit`, which sets it to `queued` and hands off to the worker. Un-submitted drafts (`status="draft"` AND `pipeline IS NULL`) are excluded from the per-user history list (`list_assessments_for_user`) but remain visible to admins. Pose images are stored at original quality (bytes unchanged; keyed `{poseId}.jpg` regardless of source format).
+
 ### Analysis JSON (`analysis`)
 Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolWarnings`, etc. (see prior MediaPipe/`cvReport` documentation). Stored as JSONB — not normalized into metric tables.
 

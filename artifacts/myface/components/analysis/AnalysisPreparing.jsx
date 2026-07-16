@@ -1,135 +1,92 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Loader2, Check, AlertCircle, LayoutDashboard } from 'lucide-react'
-import { fetchAssessment } from '../../utils/apiClient'
-import {
-  PIPELINE_UI_STAGES,
-  isPipelineFailed,
-  isPipelineProcessing,
-  isPipelineReady,
-  stageStatusForUi,
-} from '../../utils/pipelineStatus'
+import { Calendar, Zap, LayoutDashboard, ScanFace } from 'lucide-react'
 
-const POLL_MS = 5000
+/**
+ * Static "analysis preparing" timeline shown right after submit. The live pipeline
+ * status is intentionally hidden from users (surfaced only on the admin side); this
+ * page communicates a friendly, fixed set of stage estimates instead.
+ */
+const PREPARING_TIMELINE = [
+  { id: 'cv', label: 'Facial Data Processing', days: 5 },
+  { id: 'assessment', label: 'Aesthetic Assessment', days: 8 },
+  { id: 'protocol', label: 'Protocol Preparation', days: 4 },
+  { id: 'review', label: 'Care Team Review', days: 5 },
+  { id: 'finalise', label: 'Report Finalisation', days: 6 },
+]
 
-function StageRow({ label, status }) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-surface-border last:border-0">
-      <span className="text-sm text-ink-secondary">{label}</span>
-      <div className="flex items-center gap-2">
-        {status === 'done' && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-brand">
-            <Check className="w-3.5 h-3.5" />
-            Done
-          </span>
-        )}
-        {status === 'active' && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-brand">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            In progress
-          </span>
-        )}
-        {status === 'failed' && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600">
-            <AlertCircle className="w-3.5 h-3.5" />
-            Failed
-          </span>
-        )}
-        {status === 'pending' && (
-          <span className="text-xs text-ink-muted">Pending</span>
-        )}
-      </div>
-    </div>
-  )
-}
+const TOTAL_DAYS = PREPARING_TIMELINE.reduce((sum, stage) => sum + stage.days, 0)
 
-export default function AnalysisPreparing({
-  assessmentId,
-  photo,
-  onGoToDashboard,
-  onReady,
-}) {
-  const [pipeline, setPipeline] = useState(null)
-  const [workflowStatus, setWorkflowStatus] = useState('draft')
-  const [error, setError] = useState('')
-  const [pollError, setPollError] = useState('')
-
-  const refresh = useCallback(async () => {
-    if (!assessmentId) return
-    try {
-      const doc = await fetchAssessment(assessmentId)
-      setPipeline(doc.pipeline || null)
-      setWorkflowStatus(doc.status || 'draft')
-      setPollError('')
-      if (isPipelineReady(doc.pipeline)) {
-        onReady?.(doc)
-      }
-      if (isPipelineFailed(doc.pipeline)) {
-        setError(doc.pipeline?.lastError || 'Analysis failed. Please try again from your dashboard.')
-      }
-    } catch (err) {
-      setPollError(err?.message || 'Could not refresh status')
-    }
-  }, [assessmentId, onReady])
-
-  useEffect(() => {
-    refresh()
-    if (!assessmentId) return undefined
-    const id = setInterval(() => {
-      if (!isPipelineProcessing(pipeline) && !isPipelineReady(pipeline) && !isPipelineFailed(pipeline)) {
-        refresh()
-        return
-      }
-      if (isPipelineProcessing(pipeline) || (!pipeline && assessmentId)) {
-        refresh()
-      }
-    }, POLL_MS)
-    return () => clearInterval(id)
-  }, [assessmentId, pipeline, refresh])
-
+export default function AnalysisPreparing({ photo, onGoToDashboard }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-surface">
-      <div className="w-full max-w-lg rounded-3xl border border-surface-border bg-white dark:bg-surface-card shadow-elevated p-8 md:p-10">
+      <div className="w-full max-w-lg">
+        {/* Header */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-14 h-14 rounded-full border-2 border-brand/30 flex items-center justify-center mb-5">
-            <Loader2 className="w-7 h-7 text-brand animate-spin" />
+          <div className="w-14 h-14 rounded-full border-2 border-brand/30 bg-brand/5 flex items-center justify-center mb-5">
+            {photo ? (
+              <img src={photo} alt="" className="w-12 h-12 rounded-full object-cover" />
+            ) : (
+              <ScanFace className="w-6 h-6 text-brand" />
+            )}
           </div>
           <h1 className="font-display text-2xl font-bold text-ink mb-2">
-            Your analysis is being prepared
+            Your analysis is being <span className="text-brand">prepared</span>
           </h1>
-          <p className="text-sm text-ink-muted leading-relaxed max-w-md">
-            We&apos;ll notify you when it&apos;s ready — you may close this tab safely.
+          <p className="text-sm text-ink-muted leading-relaxed max-w-sm">
+            We&apos;ll email you when it&apos;s ready — you may close this tab safely.
           </p>
         </div>
 
-        {photo && (
-          <div className="rounded-2xl overflow-hidden mb-6 aspect-[4/5] max-h-40 mx-auto w-32 border border-surface-border">
-            <img src={photo} alt="" className="w-full h-full object-cover" />
+        {/* Timeline card */}
+        <div className="rounded-3xl border border-surface-border bg-white dark:bg-surface-card shadow-elevated p-4 sm:p-5">
+          <div className="rounded-2xl bg-surface-warm dark:bg-surface-raised divide-y divide-surface-border">
+            {PREPARING_TIMELINE.map((stage) => (
+              <div key={stage.id} className="flex items-center justify-between px-4 py-3.5">
+                <span className="text-sm font-medium text-ink-secondary">{stage.label}</span>
+                <span className="text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+                  {stage.days} Days
+                </span>
+              </div>
+            ))}
           </div>
-        )}
 
-        <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised px-4 py-1 mb-6">
-          {PIPELINE_UI_STAGES.map((stage) => (
-            <StageRow
-              key={stage.id}
-              label={stage.label}
-              status={stageStatusForUi(pipeline, stage.id, workflowStatus)}
-            />
-          ))}
+          <div className="flex justify-end mt-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 text-brand px-3 py-1.5 text-xs font-bold">
+              <Calendar className="w-3.5 h-3.5" />
+              {TOTAL_DAYS} Days left
+            </span>
+          </div>
         </div>
 
-        {error && (
-          <p className="text-sm text-red-600 text-center mb-4">{error}</p>
-        )}
-        {pollError && !error && (
-          <p className="text-sm text-amber-700 text-center mb-4">{pollError}</p>
-        )}
+        {/* Non-functional upsell placeholder */}
+        <div className="mt-5 rounded-3xl p-5 bg-gradient-to-br from-[#0d1e1f] via-[#0e2a29] to-[#04090a] text-white shadow-elevated">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 shrink-0 rounded-xl bg-brand/20 flex items-center justify-center">
+              <Zap className="w-4 h-4 text-brand" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-display text-sm font-semibold">Need it sooner?</p>
+              <p className="text-xs text-white/70 leading-relaxed mt-0.5">
+                Upgrade to express delivery and get your facial analysis in 24–48 hours.
+              </p>
+              <button
+                type="button"
+                disabled
+                title="Coming soon"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white/80 cursor-not-allowed"
+              >
+                Upgrade to express delivery
+              </button>
+            </div>
+          </div>
+        </div>
 
+        {/* CTA */}
         <button
           type="button"
           onClick={onGoToDashboard}
-          className="btn-primary w-full flex items-center justify-center gap-2"
+          className="btn-primary w-full mt-6 flex items-center justify-center gap-2"
         >
           <LayoutDashboard className="w-4 h-4" />
           Go to Dashboard
