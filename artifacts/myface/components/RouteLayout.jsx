@@ -17,10 +17,6 @@ function RouteContent({ children }) {
     return <AppBootScreen withNavbarOffset={withNavbarOffset} />
   }
 
-  if (!user) {
-    return <AppBootScreen withNavbarOffset={withNavbarOffset} />
-  }
-
   return children
 }
 

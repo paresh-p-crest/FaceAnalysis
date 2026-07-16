@@ -5,8 +5,10 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Fixed
+- **Stuck MyFace boot spinner on home** — `RouteContent` no longer blocks unauthenticated users behind `AppBootScreen`; home redirects to `/analysis` or dashboard once `authReady`. Bootstrap strips `/en`/`/de` from raw `window.location.pathname` before route checks.
 ### Added
-- **Locale switcher dropdown** — `LocaleSwitcher` in site navbar (desktop/mobile) and analysis flow; switches `/en/...` ↔ `/de/...` via next-intl router while keeping the current page path.
+- **Locale switcher dropdown** — `LocaleSwitcher` in site navbar (desktop/mobile) and analysis flow; switches locale via next-intl router while keeping the current page path.
 - **next-intl en/de locale routing** — `artifacts/myface` App Router now serves `/en/...` and `/de/...` via middleware locale detection, `app/[locale]/` segment, and `NextIntlClientProvider`. Message catalogs live in `messages/en.json` (source for translation) and `messages/de.json` (German placeholders). Run `pnpm --filter @workspace/myface run i18n:extract` to audit flat `t()` keys into `messages/en.extracted.json`.
 ### Changed
 - **Onboarding flow i18n** — Questionnaire welcome, questionnaire wizard, photo upload/protocol, analysis preparing screen, onboarding layout, and shared `onboarding.js` / `photoValidation.js` utils now use `next-intl` with keys under `Onboarding`, `Questionnaire`, `Photo`, and `Analysis` in `messages/en.json` and `messages/de.json` (German file uses English placeholders for new keys). MyFace brand name stays untranslated.

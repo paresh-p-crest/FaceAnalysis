@@ -13,6 +13,7 @@ import {
   ROUTES,
   stageToPath,
   adminTabToPath,
+  stripLocaleFromPath,
 } from '../../utils/routes'
 import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser } from '../../utils/authClient'
 import { isBackendApiEnabled, confirmStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, isFullCloudAssessment, submitAssessment } from '../../utils/apiClient'
@@ -301,7 +302,7 @@ export function AppProvider({ children }) {
     const payment = params.get('payment')
     const sessionId = params.get('session_id')
     const savedStage = localStorage.getItem(STAGE_STORAGE_KEY)
-    const currentPath = window.location.pathname
+    const currentPath = stripLocaleFromPath(window.location.pathname)
     let restored = false
     const storedUser = getStoredUser()
 
@@ -393,6 +394,12 @@ export function AppProvider({ children }) {
       resetAnalysisFlow()
     }
   }, [pathname, analysisStep, resetAnalysisFlow])
+
+  useEffect(() => {
+    if (!bootstrappedRef.current || !authReady) return
+    if (pathname !== ROUTES.home) return
+    goTo(user ? dashboardPathForUser(user) : ROUTES.analysis, { replace: true })
+  }, [authReady, pathname, user, goTo])
 
   useEffect(() => {
     if (!authReady) return

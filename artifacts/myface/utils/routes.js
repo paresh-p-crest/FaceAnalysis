@@ -57,6 +57,15 @@ const LEGACY_REDIRECTS = {
   '/report': ROUTES.history,
 }
 
+const LOCALE_PREFIX = /^\/(en|de)(?=\/|$)/
+
+/** Strip /en or /de prefix from a raw browser pathname (bookmarks, cold load). */
+export function stripLocaleFromPath(pathname) {
+  if (!pathname) return ROUTES.home
+  const stripped = pathname.replace(LOCALE_PREFIX, '')
+  return stripped || ROUTES.home
+}
+
 export function resolveLegacyPath(pathname) {
   if (!pathname) return null
   if (LEGACY_REDIRECTS[pathname]) return LEGACY_REDIRECTS[pathname]
