@@ -20,14 +20,13 @@ This document contains standard step-by-step procedures for local environment se
    ```
 3. **Backend Setup:**
    ```powershell
-   # From the project root (uv reads pyproject.toml and manages the venv):
-   uv sync
+   # From the project root (pip installs from requirements.txt):
+   python -m pip install -r requirements.txt
    ```
-   `uv sync` installs everything, including the SegFormer face-parsing deps
-   (`torch`, `torchvision`, `transformers` — CPU wheels pinned via the
-   `pytorch-cpu` index in `pyproject.toml`) and, on Python <3.13, the Replit
-   Object Storage backend. No separate `requirements-face-parsing.txt` step is
-   needed — face parsing works out of the box after a fresh `uv sync`.
+   This installs everything, including the SegFormer face-parsing deps
+   (`torch`, `torchvision`, `transformers`) and the Replit Object Storage backend.
+   No separate `requirements-face-parsing.txt` step is needed — face parsing
+   works out of the box after a fresh install.
 4. **Environment Configuration:**
    - Copy `.env.example` to `.env` in the **project root** (single file for backend + Next.js).
    - Set `MONGODB_URI`, `AUTH_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
@@ -40,8 +39,8 @@ This document contains standard step-by-step procedures for local environment se
 
 Start both servers locally:
 ```powershell
-# Backend (FastAPI) — uv resolves the project venv automatically
-uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+# Backend (FastAPI)
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 
 # Frontend (Next.js)
 npm run dev
@@ -98,7 +97,7 @@ Expected output from the smoke test script:
 4. **Install Packages in Replit Shell:**
    ```bash
    npm install
-   python -m pip install -r backend/requirements.txt
+   python -m pip install -r requirements.txt
    ```
 5. **Run the Project:** Click **Run**. Replit will read `.replit` and execute `bash scripts/replit-start.sh` to start FastAPI and Next.js concurrently.
 6. **Verify Replit Deploy:** Run the smoke tests against the public backend:

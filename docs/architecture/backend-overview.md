@@ -55,7 +55,7 @@ If the backend API is disabled, the FE can run a browser-local MediaPipe path (`
 1. Claim queued row (`claim_next_queued_assessment`, `FOR UPDATE SKIP LOCKED`)  
 2. **cv** — `pipeline_stages.run_cv_stage` → `analyze_face.run_face_analysis` in thread  
 3. **narratives** — `enrich_assessment_nl_content`  
-4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (torch/torchvision/transformers are core deps in `pyproject.toml`, installed by `uv sync` as CPU wheels; the stage disables gracefully via `face_parsing_enabled()` only if they are somehow absent or `FACE_PARSING_ENABLED=false`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
+4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (torch/torchvision/transformers are core deps installed from `requirements.txt`; the stage disables gracefully via `face_parsing_enabled()` only if they are somehow absent or `FACE_PARSING_ENABLED=false`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
 5. **projected_after** — **generative** AFTER image via `projected_after_ai.generate_projected_after_bytes` → `image_client` (fixed best-groomed makeover prompt, ADR-034) → `projected_after` + `projected/full.jpg` or `full.png` (skipped when `PROJECTED_AFTER_ENABLED=false`); provider unavailable/fail → status **`pending`** (retryable). On success, MediaPipe/OpenCV on that image → `projected_analysis` (BEFORE `analysis` untouched). (ADR-029, ADR-034)  
 6. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
 
@@ -268,7 +268,7 @@ POST /api/assessments  (assessments.py)
 | `logging_config.py` | Makes backend logs visible under uvicorn. |
 | `serialization.py` | Turns numpy/nested CV data into JSON/Mongo-safe values. |
 | `dev_config.py` | Dev-only auto-approve reports — remove before production. |
-| `requirements.txt` | Python dependencies. |
+| `requirements.txt` (root) | Python dependencies. |
 
 ---
 
