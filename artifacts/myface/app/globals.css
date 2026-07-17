@@ -188,6 +188,14 @@
     @apply text-brand font-medium;
   }
 
+  .site-navbar-link-emphasis {
+    @apply text-brand bg-brand-50 border border-brand/25 shadow-soft font-semibold;
+  }
+
+  .site-navbar-link-disabled {
+    @apply opacity-45 cursor-not-allowed pointer-events-none;
+  }
+
   .site-navbar-btn {
     @apply inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium
       text-ink-secondary border border-surface-border bg-surface-card hover:bg-surface-warm hover:text-brand
@@ -226,6 +234,14 @@
 
   .site-navbar-mobile-link-active {
     @apply text-brand font-semibold bg-brand-50;
+  }
+
+  .site-navbar-mobile-link-emphasis {
+    @apply text-brand font-semibold bg-brand-50 border border-brand/20;
+  }
+
+  .site-navbar-mobile-link-disabled {
+    @apply opacity-45 cursor-not-allowed pointer-events-none;
   }
 
   .site-navbar-mobile-action {
@@ -521,12 +537,78 @@
   }
 
   .qoves-protocol-viewer {
-    @apply overflow-y-auto overflow-x-hidden rounded-xl bg-surface-raised;
+    @apply overflow-hidden rounded-xl bg-surface-raised;
     max-height: calc(100vh - 14rem);
   }
 
+  .qoves-protocol-viewer--fill {
+    @apply flex flex-col min-h-0 h-full rounded-none;
+    max-height: none;
+  }
+
+  .qoves-report-canvas--protocol {
+    @apply p-0 overflow-hidden;
+  }
+
+  .qoves-report-page--protocol {
+    @apply max-w-none mx-0 h-full min-h-0 flex flex-col p-0;
+  }
+
+  .qoves-protocol-layout {
+    @apply flex flex-col flex-1 min-h-0 h-full gap-0;
+  }
+
+  @media (min-width: 1024px) {
+    .qoves-protocol-layout--with-edit {
+      @apply grid items-stretch h-full min-h-0;
+      grid-template-columns: minmax(0, 1fr) min(14rem, 22vw);
+    }
+  }
+
   .qoves-protocol-scroll {
-    @apply mx-auto w-full max-w-[595px] px-3 sm:px-0 py-6 pb-10;
+    @apply flex flex-col flex-1 min-h-0 w-full h-full overflow-hidden;
+  }
+
+  /* Admin HTML spike: A4 sheets + fit-to-width like PDF iframe */
+  .qoves-protocol-scroll--html {
+    @apply overflow-y-auto overflow-x-hidden py-4 px-2 sm:px-3;
+    container-type: inline-size;
+    container-name: protocol-html;
+  }
+
+  .qoves-protocol-scroll--html .qoves-protocol-document {
+    @apply flex flex-col items-center gap-5 pb-8 w-full;
+  }
+
+  .qoves-protocol-scroll--html .qoves-report-a4-page {
+    /* Lock to jsPDF A4 pt size; flex min-size must not expand past sheet */
+    width: 595px;
+    height: 842px;
+    max-width: none;
+    aspect-ratio: auto;
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: hidden;
+    /* Same visual scale as PDF viewer fit-to-width (Chromium zoom) */
+    zoom: min(1.4, (100cqi - 16px) / 595);
+  }
+
+  .qoves-protocol-scroll--html .qoves-report-a4-inner {
+    @apply overflow-hidden;
+  }
+
+  .qoves-protocol-pdf-frame {
+    @apply block w-full h-full min-h-0 flex-1 border-0 bg-white dark:bg-surface-card;
+  }
+
+  .qoves-protocol-edit-dock {
+    @apply shrink-0 border-t border-surface-border lg:border-t-0 lg:border-l overflow-y-auto p-3 space-y-2.5 bg-white dark:bg-surface-card;
+  }
+
+  @media (min-width: 1024px) {
+    .qoves-protocol-layout--with-edit .qoves-protocol-edit-dock {
+      @apply max-h-full;
+    }
   }
 
   .qoves-protocol-scroll .qoves-protocol-document {
@@ -541,11 +623,14 @@
     @apply bg-white dark:bg-surface-card;
   }
 
-  /* A4 sheet preview (210×297 mm ≈ 595×842 pt at 72 dpi) */
+  /* A4 sheet preview — match jsPDF PAGE_W/PAGE_H (595.28 × 841.89 pt) */
   .qoves-report-a4-page {
-    @apply bg-white dark:bg-surface-card border border-surface-border shadow-card mx-auto overflow-hidden;
-    width: min(100%, 595px);
-    aspect-ratio: 210 / 297;
+    @apply relative bg-white dark:bg-surface-card border border-surface-border shadow-card mx-auto overflow-hidden;
+    width: 595px;
+    height: 842px;
+    max-width: 100%;
+    flex: 0 0 auto;
+    min-height: 0;
     border-radius: 2px;
     box-shadow:
       0 1px 2px rgb(0 0 0 / 0.06),
@@ -561,6 +646,236 @@
   .qoves-report-a4-inner {
     @apply p-7 sm:p-9 h-full overflow-y-auto;
     box-sizing: border-box;
+  }
+
+  /* PDF-parity sheet chrome (matches reportPdf.js constants) */
+  .qoves-report-a4-inner--pdf {
+    @apply relative flex flex-col overflow-hidden;
+    --qoves-pdf-font: Helvetica, Arial, sans-serif;
+    --qoves-pdf-margin-x: 48px;
+    --qoves-pdf-top-pad: 28px;
+    --qoves-pdf-bottom-pad: 40px;
+    --qoves-pdf-col-gap: 20px;
+    --qoves-pdf-section-gap: 22px;
+    --qoves-pdf-image-gap: 8px;
+    --qoves-pdf-image-text-gap: 22px;
+    --qoves-pdf-summary-min-h: 110px;
+    padding: var(--qoves-pdf-top-pad) var(--qoves-pdf-margin-x) var(--qoves-pdf-bottom-pad);
+    font-family: var(--qoves-pdf-font);
+  }
+
+  .qoves-report-a4-inner--pdf * {
+    font-family: var(--qoves-pdf-font) !important;
+  }
+
+  .qoves-pdf-brand-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--color-brand, #5e9f8b);
+    z-index: 1;
+  }
+
+  .qoves-pdf-page-header {
+    @apply flex items-center justify-between shrink-0;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+    border-bottom: 0.75px solid #ececec;
+    font-family: var(--qoves-pdf-font);
+  }
+
+  .qoves-pdf-brand {
+    @apply text-[9px] font-bold uppercase tracking-wide text-ink;
+  }
+
+  .qoves-pdf-page-num {
+    @apply text-[9px] font-bold text-ink tabular-nums;
+  }
+
+  .qoves-pdf-page-prefix {
+    @apply font-normal text-ink-muted;
+  }
+
+  .qoves-pdf-split-title {
+    @apply leading-none shrink-0;
+    margin-bottom: 4px;
+    font-family: var(--qoves-pdf-font);
+  }
+
+  .qoves-pdf-split-primary {
+    @apply block text-[26px] font-bold text-ink;
+  }
+
+  .qoves-pdf-split-secondary {
+    @apply block text-[26px] font-normal mt-1;
+    color: #b5c7d3;
+  }
+
+  .qoves-pdf-subtitle {
+    @apply text-[10px] text-ink-muted;
+    margin-bottom: calc(var(--qoves-pdf-section-gap) / 2);
+    font-family: var(--qoves-pdf-font);
+  }
+
+  /* Sequential top-down flow (mirrors jsPDF draw order); no bottom pinning that overlaps */
+  .qoves-pdf-cols {
+    @apply grid items-start;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--qoves-pdf-col-gap);
+    margin-top: var(--qoves-pdf-section-gap);
+  }
+
+  .qoves-pdf-cols--top {
+    margin-top: 4px;
+  }
+
+  .qoves-pdf-cols--bottom {
+    margin-top: var(--qoves-pdf-section-gap);
+  }
+
+  .qoves-pdf-feature-fill {
+    margin-top: 4px;
+  }
+
+  .qoves-pdf-col-stack {
+    @apply flex flex-col;
+    gap: var(--qoves-pdf-image-gap);
+  }
+
+  .qoves-pdf-block {
+    @apply shrink-0;
+    margin-top: var(--qoves-pdf-section-gap);
+  }
+
+  .qoves-pdf-labeled-body {
+    @apply min-w-0;
+  }
+
+  .qoves-pdf-label {
+    @apply text-[10px] font-bold text-ink;
+    margin-bottom: 8px;
+    font-family: var(--qoves-pdf-font);
+  }
+
+  .qoves-pdf-body-text {
+    @apply text-ink;
+    font-family: var(--qoves-pdf-font);
+    font-size: 8px;
+    line-height: 11.5px;
+  }
+
+  .qoves-pdf-body-stack {
+    @apply space-y-2;
+  }
+
+  .qoves-pdf-tier {
+    @apply text-[7px] italic text-ink-muted mt-1;
+    font-family: var(--qoves-pdf-font);
+  }
+
+  .qoves-pdf-image-frame {
+    @apply relative overflow-hidden bg-surface-warm border border-surface-border shrink-0 w-full;
+    border-radius: 6px;
+  }
+
+  .qoves-pdf-image-frame img {
+    @apply absolute inset-0 w-full h-full;
+  }
+
+  .qoves-pdf-image-empty {
+    @apply absolute inset-0 flex items-center justify-center text-[8px] text-ink-muted px-2 text-center;
+    font-family: var(--qoves-pdf-font);
+  }
+
+  .qoves-pdf-image-tag {
+    @apply absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider text-white;
+    background: rgb(55 65 81 / 0.85);
+  }
+
+  .qoves-pdf-ba-row {
+    @apply grid grid-cols-2 w-full shrink-0;
+    gap: var(--qoves-pdf-image-gap);
+  }
+
+  .qoves-pdf-ba-stack {
+    @apply flex flex-col w-full shrink-0;
+    gap: var(--qoves-pdf-image-gap);
+  }
+
+  .qoves-pdf-summary-card {
+    @apply rounded-md p-3 text-white shrink-0;
+    background: #374151;
+    min-height: var(--qoves-pdf-summary-min-h);
+    font-family: var(--qoves-pdf-font);
+  }
+
+  .qoves-pdf-summary-bar {
+    @apply rounded-md p-3 text-white flex items-start shrink-0;
+    background: #374151;
+    margin-top: var(--qoves-pdf-section-gap);
+    gap: calc(var(--qoves-pdf-col-gap) * 0.8);
+    font-family: var(--qoves-pdf-font);
+  }
+
+  .qoves-pdf-summary-title {
+    @apply text-[9px] font-bold shrink-0;
+  }
+
+  .qoves-pdf-summary-body {
+    @apply text-white/95;
+    font-family: var(--qoves-pdf-font);
+    font-size: 8px;
+    line-height: 11.5px;
+  }
+
+  .qoves-pdf-summary-bar .qoves-pdf-summary-title {
+    @apply w-28;
+  }
+
+  /* Inline admin editing — box-shadow affordance only (no layout shift, preserves PDF scale) */
+  .qoves-editable {
+    outline: none;
+    border-radius: 3px;
+    cursor: text;
+    transition: box-shadow 0.12s ease, background-color 0.12s ease;
+  }
+
+  .qoves-editable:hover {
+    box-shadow: inset 0 0 0 1px rgba(94, 159, 139, 0.35);
+  }
+
+  .qoves-editable:focus {
+    box-shadow: inset 0 0 0 1.5px var(--color-brand, #5e9f8b);
+    background-color: rgba(94, 159, 139, 0.06);
+  }
+
+  .qoves-pdf-summary-body.qoves-editable:focus,
+  .qoves-pdf-summary-body.qoves-editable:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  }
+
+  .qoves-protocol-edit-status {
+    @apply sticky top-0 z-10 flex items-center gap-2 font-sans;
+    width: 595px;
+    max-width: 100%;
+    margin: 0 auto 6px;
+    padding: 5px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #6b7280;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--color-surface-border, #e5e7eb);
+    border-radius: 8px;
+    backdrop-filter: blur(4px);
+  }
+
+  .qoves-protocol-edit-status--error {
+    color: #b91c1c;
+    background: #fef2f2;
+    border-color: #fecaca;
   }
 
   .qoves-report-a4-page--cover .qoves-report-a4-inner {

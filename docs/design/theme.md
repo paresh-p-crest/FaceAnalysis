@@ -274,13 +274,16 @@ The in-app report uses a document-style shell separate from the onboarding/dashb
 | Section headings | `ReportSectionHeading` | `font-display` title + muted `accent` span |
 | Metric labels | `.qoves-report-mono-label` | Uppercase, `10px`, tracking-wide — **not** `font-mono` |
 | Metric cards | `.qoves-report-metric-card` | 2×2 grids on assessment/feature pages |
-| Protocol pages | `.qoves-report-a4-page` | Fixed A4 aspect (210×297); desk canvas `.qoves-protocol-viewer`; zoom via CSS `transform: scale()` |
+| Protocol pages | `.qoves-protocol-pdf-frame` | Full-bleed native PDF iframe in report canvas; in-viewer toolbar removed (download stays in report header) |
+| Protocol admin HTML spike | `.qoves-protocol-scroll--html` · `.qoves-report-a4-page` · `.qoves-pdf-*` | Admins see fixed 595×842 HTML sheets mirroring jsPDF feature layouts (header, stacked titles, column images, summary cards); non-admins keep PDF iframe |
+| Protocol inline edit | `.qoves-editable` · `.qoves-protocol-edit-status` | `contentEditable` feature/closing text in the admin HTML preview; box-shadow affordance only (no layout shift); sticky status shows saving/error |
+| Protocol admin edit | `.qoves-protocol-edit-dock` | Lightweight: section picker + AI generate + Save only; narrative text edited inline on HTML sheets. Narrow rail (~14rem). |
 | Right rail | `.qoves-report-rail` | Protocol section only — patient profile + next steps |
 | Brand accents | `bg-brand` / `text-brand` | Never QOVES blue; keep MyFace green |
 
 ### 12.1 Protocol PDF export (`utils/reportPdf.js`)
 
-Client-side jsPDF uses the same tokens as the web report:
+Client-side jsPDF uses the same tokens as the web report. **`buildMyFacePdf`** returns `{ blob, filename }` for in-app iframe preview; **`downloadMyFacePdf`** wraps it for file download. Preview and download share one generator. Admin HTML preview is only for edit UX evaluation, and its `.qoves-pdf-*` styles must mirror jsPDF’s built-in Helvetica typography plus the layout constants in `reportPdf.js` (`MARGIN=48`, `COL_GAP=20`, `SECTION_GAP=22`, `IMAGE_TEXT_GAP=22`, `SUMMARY_CARD_MIN_H=110`). Long narrative copy may still clip per-page in jsPDF layout (stored text remains complete in DB).
 
 | Token | Hex / RGB | Usage |
 |---|---|---|
@@ -291,5 +294,11 @@ Client-side jsPDF uses the same tokens as the web report:
 | Summary bar | `#374151` gradient | Per-feature summary footer |
 
 > **Rule:** AFTER/projected image slots use `projectedAfter.full.publicUrl` when `status === ready`; otherwise show “Projected image pending” (`skipped` / disabled until `PROJECTED_AFTER_ENABLED=true`).
+
+> **Rule:** Protocol HTML parity pages must keep content sequential with PDF spacing: header first, split title, two-column content, image groups, then summary card/bar. Do not use responsive app typography (`font-display`, Inter-only `font-sans`) or ad-hoc gaps inside `.qoves-report-a4-inner--pdf`; use the scoped Helvetica stack and `--qoves-pdf-*` spacing variables.
+
+> **Rule:** Never pin protocol HTML blocks to the sheet bottom with `mt-auto`/`flex-1` — on a fixed-height clipped A4 page that causes images to overlap preceding text. Lay every block out top-down with `margin-top: var(--qoves-pdf-section-gap)` (first block after the title uses ~4px) and let overflow clip at the sheet boundary, matching jsPDF's sequential draw order.
+
+> **Rule:** Inline protocol edits (`contentEditable`) are admin-only (unapproved reports), update the shared local draft on blur (not on keystroke), and persist only when **Save edits** is clicked (`PATCH …/admin-review`). Editable fields: overview summary, feature subsection bodies, feature summaries, closing paragraphs. The right dock must stay lightweight — section nav + generate + save only; do not duplicate narrative textareas in the sidebar. Write only the edited subsection/summary/closing entry — do not emit empty sibling subsections, or `mergeSubsections` will blank CV-derived defaults. The edit dock section picker follows scroll via `[data-protocol-section]`.
 
 > **Rule:** Report nav uses flat section IDs (`intro`, `dimorphism`, `eyebrows`, `protocol`, etc.). Introduction and Disclaimer are always visible; assessment and feature scores are gated until the assessment is **Approved**.

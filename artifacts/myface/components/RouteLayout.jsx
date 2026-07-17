@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
 import { usePathname } from '../i18n/navigation'
 import { hasSiteNavbar, ROUTES } from '../utils/routes'
 import { AppShell } from './AppShell'
 import { AnalysisShell } from './analysis/AnalysisShell'
+import { AuthShell } from './AuthShell'
 import { AppBootScreen } from './AppBootScreen'
 import { useApp } from './providers/AppProvider'
 
@@ -22,17 +22,21 @@ function RouteContent({ children }) {
 
 export function RouteLayout({ children }) {
   const pathname = usePathname()
-  const { user, authReady, setAuthOpen } = useApp()
+  const isAuth = pathname === ROUTES.auth
   const isAnalysis = pathname === ROUTES.analysis
+
+  if (isAuth) {
+    return (
+      <AuthShell>
+        <RouteContent>{children}</RouteContent>
+      </AuthShell>
+    )
+  }
+
   const Shell = isAnalysis ? AnalysisShell : AppShell
 
-  useEffect(() => {
-    if (!authReady) return
-    if (!user) setAuthOpen(true)
-  }, [authReady, user, setAuthOpen])
-
   return (
-    <Shell authRequired={authReady && !user}>
+    <Shell>
       <RouteContent>{children}</RouteContent>
     </Shell>
   )

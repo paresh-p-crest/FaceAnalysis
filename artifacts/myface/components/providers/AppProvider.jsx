@@ -57,9 +57,10 @@ export function AppProvider({ children }) {
   const [analysis, setAnalysis] = useState(null)
   const [historyId, setHistoryId] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [authOpen, setAuthOpen] = useState(false)
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
+  const [hasAnalysisAccess, setHasAnalysisAccess] = useState(false)
+  const [accessReady, setAccessReady] = useState(false)
   const [returnPath, setReturnPath] = useState(ROUTES.dashboard)
   const [billingMessage, setBillingMessage] = useState('')
   const [paymentReturn, setPaymentReturn] = useState(null)
@@ -328,7 +329,7 @@ export function AppProvider({ children }) {
       if (sid && storedUser && isBackendApiEnabled()) confirmStripeCheckout(sid).catch(() => {})
     } else if (payment === 'stripe-cancel') {
       setBillingMessage('Payment was cancelled. You can restart checkout when ready.')
-      setReturnPath(ROUTES.analysis)
+      setReturnPath(ROUTES.dashboard)
       goTo(ROUTES.billing, { replace: true })
       restored = true
     }
@@ -344,7 +345,7 @@ export function AppProvider({ children }) {
 
     if (!restored && isKnownAppPath(currentPath)) {
       restored = true
-    } else if (!restored && savedStage && RESTORABLE_STAGES.has(savedStage)) {
+    } else if (!restored && savedStage && RESTORABLE_STAGES.has(savedStage) && storedUser) {
       goTo(stageToPath(savedStage), { replace: true })
       restored = true
     }
@@ -357,7 +358,15 @@ export function AppProvider({ children }) {
 
     fetchCurrentUser()
       .then((currentUser) => {
-        setUser(currentUser || (getAuthToken() ? storedUser : null))
+        const resolved = currentUser || (getAuthToken() ? storedUser : null)
+        const roleChanged = storedUser && resolved && storedUser.role !== resolved.role
+        const sessionCleared = storedUser && !resolved
+        if (roleChanged || sessionCleared) {
+          localStorage.removeItem(STAGE_STORAGE_KEY)
+          clearAdminTab()
+          goTo(dashboardPathForUser(resolved), { replace: true })
+        }
+        setUser(resolved)
       })
       .catch(() => {
         // Transient network/backend failure (e.g. dev server reloading, cold
@@ -378,9 +387,41 @@ export function AppProvider({ children }) {
       return
     }
     if (!isKnownAppPath(pathname)) {
-      goTo(user ? ROUTES.dashboard : ROUTES.analysis, { replace: true })
+      goTo(user ? dashboardPathForUser(user) : ROUTES.auth, { replace: true })
     }
   }, [pathname, goTo, user])
+
+  const refreshAnalysisAccess = useCallback(async (forUser) => {
+    const subject = forUser ?? userRef.current
+    if (!subject || subject.role === 'admin') {
+      setHasAnalysisAccess(true)
+      setAccessReady(true)
+      return
+    }
+    if (!isBackendApiEnabled()) {
+      setHasAnalysisAccess(false)
+      setAccessReady(true)
+      return
+    }
+    setAccessReady(false)
+    try {
+      setHasAnalysisAccess(await userHasAnalysisAccess(subject))
+    } catch {
+      setHasAnalysisAccess(false)
+    } finally {
+      setAccessReady(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!authReady) return
+    if (!user) {
+      setHasAnalysisAccess(false)
+      setAccessReady(true)
+      return
+    }
+    refreshAnalysisAccess()
+  }, [authReady, user?.id, user?.role, refreshAnalysisAccess])
 
   useEffect(() => {
     if (!bootstrappedRef.current) return
@@ -398,21 +439,32 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!bootstrappedRef.current || !authReady) return
     if (pathname !== ROUTES.home) return
-    goTo(user ? dashboardPathForUser(user) : ROUTES.analysis, { replace: true })
+    goTo(user ? dashboardPathForUser(user) : ROUTES.auth, { replace: true })
   }, [authReady, pathname, user, goTo])
 
   useEffect(() => {
     if (!authReady) return
-    if (!user && requiresAuth(pathname)) {
-      setAuthOpen(true)
+    if (user && pathname === ROUTES.auth) {
+      goTo(dashboardPathForUser(user), { replace: true })
+      return
     }
-  }, [authReady, user, pathname])
+    if (!user && requiresAuth(pathname)) {
+      goTo(ROUTES.auth, { replace: true })
+    }
+  }, [authReady, user, pathname, goTo])
 
   useEffect(() => {
-    if (user?.role === 'admin' && pathname === ROUTES.analysis) {
+    if (!authReady || !accessReady || !user) return
+    if (user.role === 'admin' && pathname === ROUTES.analysis) {
       goTo(adminTabToPath('overview'), { replace: true })
+      return
     }
-  }, [user?.role, pathname, goTo])
+    if (user.role !== 'admin' && !hasAnalysisAccess) {
+      if (pathname === ROUTES.analysis || pathname === ROUTES.history) {
+        goTo(ROUTES.dashboard, { replace: true })
+      }
+    }
+  }, [authReady, accessReady, user, hasAnalysisAccess, pathname, goTo])
 
   const openDashboard = useCallback(() => {
     setReturnPath(pathname)
@@ -430,10 +482,13 @@ export function AppProvider({ children }) {
     goTo(ROUTES.billing)
   }, [pathname, goTo])
 
+  const openAuth = useCallback(() => {
+    goTo(ROUTES.auth)
+  }, [goTo])
+
   const startNewAnalysis = useCallback(async () => {
     if (!user) {
-      setReturnPath(pathname)
-      setAuthOpen(true)
+      goTo(ROUTES.auth)
       return
     }
     if (user.role === 'admin') {
@@ -444,8 +499,8 @@ export function AppProvider({ children }) {
       const hasAccess = await userHasAnalysisAccess(user)
       if (!hasAccess) {
         setBillingMessage('Payment is required before starting a new facial analysis.')
-        setReturnPath(pathname)
-        goTo(ROUTES.billing)
+        setHasAnalysisAccess(false)
+        goTo(ROUTES.dashboard)
         return
       }
       setBillingMessage('')
@@ -465,21 +520,19 @@ export function AppProvider({ children }) {
       setAnalysisStep(ANALYSIS_STEPS.QUESTIONNAIRE)
     } catch {
       setBillingMessage('We could not verify payment access. Please check billing before starting analysis.')
-      setReturnPath(pathname)
-      goTo(ROUTES.billing)
+      goTo(ROUTES.dashboard)
     }
-  }, [user, pathname, goTo])
+  }, [user, goTo])
 
   const startAnalysisAfterPayment = useCallback(() => {
     if (!user) {
-      setReturnPath(ROUTES.billing)
-      setAuthOpen(true)
+      goTo(ROUTES.auth)
       return
     }
     localStorage.removeItem(PAYMENT_SESSION_KEY)
     setPaymentReturn(null)
-    startNewAnalysis()
-  }, [user, startNewAnalysis])
+    refreshAnalysisAccess().then(() => startNewAnalysis())
+  }, [user, startNewAnalysis, refreshAnalysisAccess])
 
   /**
    * Finalize the already-uploaded draft: enqueue the pipeline and drop the user on
@@ -526,7 +579,8 @@ export function AppProvider({ children }) {
   const logout = useCallback(() => {
     clearSession()
     setUser(null)
-    setAuthOpen(true)
+    setHasAnalysisAccess(false)
+    setAccessReady(true)
     localStorage.removeItem(STAGE_STORAGE_KEY)
     localStorage.removeItem(PAYMENT_SESSION_KEY)
     clearAdminTab()
@@ -534,41 +588,27 @@ export function AppProvider({ children }) {
     setLogoutConfirmOpen(false)
     closeReportModal()
     resetAnalysisFlow()
-    goTo(ROUTES.analysis, { replace: true })
+    goTo(ROUTES.auth, { replace: true })
   }, [goTo, closeReportModal, resetAnalysisFlow, resetAdminWorkspace])
 
   const handleAuthenticated = useCallback(async (nextUser) => {
     setUser(nextUser)
-    setAuthOpen(false)
     if (nextUser?.role === 'admin') {
-      setReturnPath(ROUTES.analysis)
-      goTo(adminTabToPath('overview'))
+      setHasAnalysisAccess(true)
+      setAccessReady(true)
+      goTo(adminTabToPath('overview'), { replace: true })
       return
     }
     if (pathname === ROUTES.billing && (paymentReturn || localStorage.getItem(PAYMENT_SESSION_KEY))) {
       const sid = localStorage.getItem(PAYMENT_SESSION_KEY)
       if (sid) setPaymentReturn({ provider: 'stripe', sessionId: sid })
       if (sid && isBackendApiEnabled()) confirmStripeCheckout(sid).catch(() => {})
+      await refreshAnalysisAccess(nextUser)
       return
     }
-    try {
-      if (isBackendApiEnabled()) {
-        const hasAccess = await userHasAnalysisAccess(nextUser)
-        if (hasAccess) {
-          setReturnPath(ROUTES.analysis)
-          goTo(ROUTES.dashboard)
-          return
-        }
-      }
-      setBillingMessage('Payment is required before starting a new facial analysis.')
-      setReturnPath(ROUTES.analysis)
-      goTo(ROUTES.billing)
-    } catch {
-      setBillingMessage('We could not verify payment access. Please check billing before starting analysis.')
-      setReturnPath(ROUTES.analysis)
-      goTo(ROUTES.billing)
-    }
-  }, [pathname, goTo, paymentReturn])
+    await refreshAnalysisAccess(nextUser)
+    goTo(ROUTES.dashboard, { replace: true })
+  }, [pathname, goTo, paymentReturn, refreshAnalysisAccess])
 
   const viewHistoryItem = useCallback((id) => {
     setHistoryId(id)
@@ -625,12 +665,15 @@ export function AppProvider({ children }) {
 
   const handleLogo = useCallback(() => {
     if (user) openDashboard()
-    else goTo(ROUTES.analysis)
+    else goTo(ROUTES.auth)
   }, [user, openDashboard, goTo])
 
   const value = useMemo(() => ({
     user,
     authReady,
+    hasAnalysisAccess,
+    accessReady,
+    refreshAnalysisAccess,
     answers,
     setAnswers,
     photos,
@@ -639,8 +682,6 @@ export function AppProvider({ children }) {
     historyId,
     settingsOpen,
     setSettingsOpen,
-    authOpen,
-    setAuthOpen,
     returnPath,
     billingMessage,
     paymentReturn,
@@ -663,6 +704,7 @@ export function AppProvider({ children }) {
     openDashboard,
     openHistory,
     openBilling,
+    openAuth,
     startNewAnalysis,
     startAnalysisAfterPayment,
     logout,
@@ -691,12 +733,13 @@ export function AppProvider({ children }) {
     handlePreparingDashboard,
     resetAnalysisFlow,
   }), [
-    user, authReady, answers, photos, analysis, historyId, settingsOpen, authOpen, returnPath,
+    user, authReady, hasAnalysisAccess, accessReady, refreshAnalysisAccess,
+    answers, photos, analysis, historyId, settingsOpen, returnPath,
     billingMessage, paymentReturn, logoutConfirmOpen, scanId,
     adminWorkspace,
     questionnaireStartAtEnd, analysisStep, reportModalOpen, openingReportId, cloudAssessment, primaryPhoto, pathname,
     preparingAssessmentId, draftAssessmentId, submitError,
-    goTo, goToStage, openDashboard, openHistory, openBilling, startNewAnalysis,
+    goTo, goToStage, openDashboard, openHistory, openBilling, openAuth, startNewAnalysis,
     startAnalysisAfterPayment, logout,
     handleAuthenticated, viewHistoryItem, viewCloudAssessment,
     adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace,

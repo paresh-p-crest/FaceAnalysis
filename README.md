@@ -23,28 +23,29 @@ For developer-specific details, rules, and commands, please refer to [AGENTS.md]
 The computer vision, PDF engine, database persistence, and assistant run inside a FastAPI backend.
 
 ```bash
-# Navigate to project and activate virtual environment
-cd backend
-python -m venv venv
+# From the repository root
+python -m venv .venv
 
 # Activate (Windows PowerShell)
-.\venv\Scripts\activate
+.\.venv\Scripts\activate
 # Activate (macOS/Linux)
-source venv/bin/activate
+source .venv/bin/activate
 
-# Install dependencies and start server
-pip install -r requirements.txt
-python -m main
+# Install dependencies (includes SegFormer / torch CPU wheels)
+python -m pip install -r requirements.txt
+
+# Start API (from repo root)
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-The backend server starts at `http://localhost:8000`. Refer to the health check endpoint at `http://localhost:8000/api/health` to confirm the MongoDB Atlas connection state.
+The backend server starts at `http://localhost:8000`. Check `http://localhost:8000/api/health` for DB connectivity.
 
 ### 2. Frontend (Next.js 15)
-The user interface and dashboard run on a Node/Next.js dev server.
+The user interface and dashboard run on a Node/Next.js app under `artifacts/myface`.
 
 ```bash
 # In the repository root directory
-npm install
-npm run dev
+pnpm install
+pnpm --filter @workspace/myface run dev
 ```
 Open `http://localhost:3000` in your web browser.
 

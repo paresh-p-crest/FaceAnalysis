@@ -139,6 +139,8 @@ function ReportActionButton({ ready, opening, t }) {
 
 export default function DashboardPage({
   user,
+  hasAnalysisAccess = true,
+  accessReady = true,
   onStartAssessment,
   onHistory,
   onBilling,
@@ -236,6 +238,9 @@ export default function DashboardPage({
     [t('dermatologistApproved'), reportStats.approved],
   ]
 
+  const billingLocked = accessReady && !hasAnalysisAccess
+  const lockedActionClass = billingLocked ? 'opacity-50 pointer-events-none' : ''
+
   return (
     <div className="min-h-screen px-3 sm:px-4 md:px-6 pb-10 site-navbar-offset animate-fade-up font-sans bg-surface text-ink">
       <div className="max-w-[1440px] mx-auto">
@@ -262,7 +267,12 @@ export default function DashboardPage({
               )}
               {t('refresh')}
             </button>
-            <button type="button" onClick={onStartAssessment} className="btn-primary text-sm px-5 py-2.5 shadow-brand">
+            <button
+              type="button"
+              onClick={onStartAssessment}
+              disabled={billingLocked}
+              className={`btn-primary text-sm px-5 py-2.5 shadow-brand disabled:opacity-50 ${lockedActionClass}`}
+            >
               {t('startNewAnalysis')}
             </button>
           </div>
@@ -281,7 +291,32 @@ export default function DashboardPage({
           />
         ) : (
           <div className="space-y-6 md:space-y-7">
-            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 md:gap-4" aria-label={t('accountSummary')}>
+            {billingLocked && (
+              <section
+                className="rounded-3xl border-2 border-brand/35 bg-brand-50/80 dark:bg-brand-50/40 p-6 sm:p-8 shadow-soft"
+                aria-labelledby="billing-required-heading"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-brand mb-2">
+                  {t('billingRequiredEyebrow')}
+                </p>
+                <h2 id="billing-required-heading" className="font-display text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
+                  {t('billingRequiredTitle')}
+                </h2>
+                <p className="mt-2 text-sm sm:text-base text-ink-secondary leading-relaxed max-w-2xl">
+                  {t('billingRequiredDesc')}
+                </p>
+                <button
+                  type="button"
+                  onClick={onBilling}
+                  className="btn-primary text-sm px-6 py-3 mt-5 shadow-brand"
+                >
+                  <Wallet className="w-4 h-4" />
+                  {t('billingRequiredCta')}
+                </button>
+              </section>
+            )}
+
+            <section className={`grid grid-cols-1 sm:grid-cols-3 gap-3.5 md:gap-4 ${billingLocked ? 'opacity-60' : ''}`} aria-label={t('accountSummary')}>
               <KpiCard
                 icon={FileText}
                 label={t('kpiReports')}
@@ -304,7 +339,7 @@ export default function DashboardPage({
             </section>
 
             <div className="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-5 md:gap-6 items-start">
-              <div className="space-y-5 md:space-y-6 min-w-0">
+              <div className={`space-y-5 md:space-y-6 min-w-0 ${billingLocked ? 'opacity-60 pointer-events-none' : ''}`}>
                 <section className="rounded-3xl border border-surface-border bg-brand-100/50 dark:bg-brand-50 dark:border-brand/20 p-7 sm:p-9 shadow-soft">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-brand mb-3">
                     {t('scientificAnalysis')}
@@ -552,8 +587,8 @@ export default function DashboardPage({
                 </section>
               </div>
 
-              <aside className="space-y-5 md:space-y-6 min-w-0">
-                <section className="rounded-2xl border border-surface-border bg-surface-card shadow-soft p-5 sm:p-6">
+              <aside className={`space-y-5 md:space-y-6 min-w-0 ${billingLocked ? 'opacity-90' : ''}`}>
+                <section className={`rounded-2xl border border-surface-border bg-surface-card shadow-soft p-5 sm:p-6 ${billingLocked ? 'opacity-60 pointer-events-none' : ''}`}>
                   <div className="flex items-center justify-between gap-2 mb-4">
                     <h2 className="font-display text-lg font-semibold text-ink">{t('harmonyTitle')}</h2>
                     {extractedMetrics.locked && (
@@ -614,7 +649,7 @@ export default function DashboardPage({
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-surface-border bg-surface-card shadow-soft p-5">
+                <section className={`rounded-2xl border border-surface-border bg-surface-card shadow-soft p-5 ${billingLocked ? 'opacity-60 pointer-events-none' : ''}`}>
                   <h2 className="font-display text-base font-semibold text-ink mb-3">{t('reviewPipeline')}</h2>
                   <div className="grid grid-cols-2 gap-3">
                     {pipelineStats.map(([label, value]) => (
@@ -631,15 +666,21 @@ export default function DashboardPage({
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-surface-border bg-surface-card shadow-soft p-5">
+                <section className={`rounded-2xl border bg-surface-card shadow-soft p-5 ${billingLocked ? 'border-brand/35 ring-2 ring-brand/15' : 'border-surface-border'}`}>
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <h2 className="font-display text-base font-semibold text-ink">{t('payments')}</h2>
-                      <p className="text-xs text-ink-muted mt-0.5">{t('paymentsDesc')}</p>
+                      <p className="text-xs text-ink-muted mt-0.5">
+                        {billingLocked ? t('billingRequiredPaymentsDesc') : t('paymentsDesc')}
+                      </p>
                     </div>
-                    <button type="button" onClick={onBilling} className="btn-ghost text-xs px-3 py-1.5">
+                    <button
+                      type="button"
+                      onClick={onBilling}
+                      className={`text-xs px-3 py-1.5 ${billingLocked ? 'btn-primary shadow-brand' : 'btn-ghost'}`}
+                    >
                       <Wallet className="w-3.5 h-3.5" />
-                      {t('billing')}
+                      {billingLocked ? t('billingRequiredCta') : t('billing')}
                     </button>
                   </div>
 

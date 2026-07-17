@@ -4,6 +4,9 @@ set -e
 # This script starts both the Python FastAPI backend and the Next.js frontend
 # inside the same production container. The frontend rewrites /api/* to
 # localhost:8000, so both services share the same origin.
+#
+# Start Next immediately (no pre-sleep): Replit Autoscale healthchecks
+# previewPath (/healthz) as soon as the artifact process starts.
 
 ARTIFACT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$ARTIFACT_DIR/../.." && pwd)"
@@ -15,9 +18,6 @@ BACKEND_PID=$!
 
 # Ensure the backend is killed when this script exits.
 trap 'kill $BACKEND_PID 2>/dev/null || true' EXIT
-
-# Give the backend a moment to bind before the frontend starts proxying.
-sleep 2
 
 # Start Next.js frontend. Replit provides PORT in production.
 cd "$ARTIFACT_DIR"

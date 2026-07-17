@@ -1328,10 +1328,20 @@ function drawEarsFeaturePage(doc, section, pageNum, beforeJpeg) {
   drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, 'Ear Summary', section.summary)
 }
 
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
 /**
- * Generate and download MyFace Qoves-style aesthetic protocol PDF.
+ * Build MyFace Qoves-style aesthetic protocol PDF (same generator as download).
+ * @returns {Promise<{ blob: Blob, filename: string }>}
  */
-export async function downloadMyFacePdf({
+export async function buildMyFacePdf({
   photo,
   photos,
   cvReport,
@@ -1856,10 +1866,18 @@ export async function downloadMyFacePdf({
   addFooter(doc, pageNum++, t)
 
   const safeName = clientName.replace(/[^\w\s-]/g, '').trim() || 'Client'
-  doc.save(`MyFace-Protocol-${safeName.replace(/\s+/g, '-')}.pdf`)
+  const filename = `MyFace-Protocol-${safeName.replace(/\s+/g, '-')}.pdf`
+  const blob = doc.output('blob')
+  return { blob, filename }
   } finally {
     coverCropSession = null
   }
+}
+
+/** Generate and download MyFace Qoves-style aesthetic protocol PDF. */
+export async function downloadMyFacePdf(opts) {
+  const { blob, filename } = await buildMyFacePdf(opts)
+  triggerBlobDownload(blob, filename)
 }
 
 export { createPdfTranslator, defaultPdfT } from './pdfI18n'

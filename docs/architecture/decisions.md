@@ -728,3 +728,26 @@ MyFace needs German UI support with SEO-friendly locale URLs, static generation 
 - German copy ships when `de.json` values are translated; until then English placeholders or `getMessageFallback` apply.
 - PDF export accepts optional `pdfT` / message slice for locale-aware chrome; CV qualitative labels use `translateCvLabel`.
 - API errors expose stable `code` values mapped to `Errors.*` keys in the UI.
+
+---
+
+## ADR-037: Protocol PDF iframe preview + narrative-source editing
+Date: 2026-07-17  
+Status: accepted  
+
+### Context
+The Protocol tab rendered an HTML approximation of A4 pages (`QovesProtocolReport`) that did not match the downloadable jsPDF output. Admins edited protocol LLM text only via a header overlay (`AdminReviewPanel`), not while reviewing the protocol document.
+
+### Decision
+- **Preview = download:** extract `buildMyFacePdf` from `downloadMyFacePdf` in `utils/reportPdf.js` (export surface only — no page layout changes). Protocol tab embeds the returned blob in an iframe.
+- **Editable PDF experience = edit narrative source:** admins hand-edit `protocolNarrative` / `featureNarratives` in `ProtocolNarrativeEditDock` beside the preview. PDF rebuild runs **client-side only after successful Save** (or after LLM section/whole regen applies), not on keystroke.
+- **Secondary path:** keep header **Edit PDF narrative** → `AdminReviewPanel` unchanged for now.
+- **Concurrency:** last-save-wins; no optimistic locking.
+- **Dirty UX:** `beforeunload` when unsaved; confirm before LLM regen if dirty.
+- **Approved lock:** hide edit dock client-side; server rejects narrative PATCH and protocol regen when status is `approved`.
+- **Layout clipping:** jsPDF may visually clip long copy on a single page (`maxLines` etc.); stored narrative remains complete — reflow is out of scope.
+
+### Consequences
+- `mergeNarrativesForPdf` merges `featureNarratives` into `protocolNarrative.features` before PDF generation (viewer + download).
+- HTML `.qoves-report-a4-page` mock is unused in Protocol tab preview; may be removed later.
+- Direct API calls cannot mutate protocol text on approved assessments.

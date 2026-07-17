@@ -10,7 +10,7 @@ function isPaidStatus(status) {
   return isPaidPaymentStatus(status)
 }
 
-export default function PaymentSuccessPage({ user, sessionId, onAuth, onStartAnalysis, onBilling }) {
+export default function PaymentSuccessPage({ user, sessionId, onAuth, onStartAnalysis, onBilling, onAccessRefresh }) {
   const t = useTranslations('Billing')
   const [status, setStatus] = useState(sessionId ? 'confirming' : 'checking')
   const [error, setError] = useState('')
@@ -27,6 +27,7 @@ export default function PaymentSuccessPage({ user, sessionId, onAuth, onStartAna
       if (!cancelled) {
         setStatus('confirmed')
         setError('')
+        onAccessRefresh?.()
       }
     }
 
@@ -80,7 +81,7 @@ export default function PaymentSuccessPage({ user, sessionId, onAuth, onStartAna
     return () => {
       cancelled = true
     }
-  }, [user?.id, sessionId, t])
+  }, [user?.id, sessionId, t, onAccessRefresh])
 
   const canStart = status === 'confirmed' && !!user
 

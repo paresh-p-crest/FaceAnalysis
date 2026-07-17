@@ -105,7 +105,7 @@ class ReplitObjectMediaStorage:
             except ImportError as exc:  # pragma: no cover - only when misconfigured
                 raise RuntimeError(
                     "replit-object-storage is not installed but MEDIA_STORAGE_BACKEND=replit. "
-                    "Install it (`uv sync` or `uv pip install replit-object-storage`)."
+                    "Install it (`python -m pip install -r requirements.txt`)."
                 ) from exc
             # Client() with no bucket_id resolves .replit's [objectStorage] defaultBucketID.
             self._client = Client(bucket_id=self._bucket_id) if self._bucket_id else Client()

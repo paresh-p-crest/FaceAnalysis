@@ -121,6 +121,15 @@ def _parse_status_or_400(status: str) -> str:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _reject_narrative_edit_if_approved(existing: dict) -> None:
+    """Block protocol text edits and regen once a report is approved."""
+    if normalize_report_status(existing.get("status")) == "approved":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot edit protocol narrative on approved reports.",
+        )
+
+
 def _can_access_assessment(existing: dict, current_user: Optional[dict]) -> bool:
     if not existing.get("userId"):
         return True
@@ -670,6 +679,9 @@ async def patch_assessment_admin_review(
             detail="Approved reports cannot be moved back to pending review",
         )
 
+    if req.protocolNarrative is not None or req.featureNarratives is not None:
+        _reject_narrative_edit_if_approved(existing)
+
     ai_narrative = req.aiNarrative
     if ai_narrative is not None:
         content = ai_narrative.get("content") if isinstance(ai_narrative, dict) else None
@@ -874,6 +886,8 @@ async def post_assessment_ai_protocol(
     if not analysis.get("cvReport"):
         raise HTTPException(status_code=400, detail="Stored cvReport is required for AI protocol.")
 
+    _reject_narrative_edit_if_approved(existing)
+
     allow_force = force and current_user.get("role") == "admin"
     if force and not allow_force:
         raise HTTPException(status_code=403, detail="Only admins can force-regenerate protocol text")
@@ -908,6 +922,8 @@ async def post_assessment_ai_protocol_section(
     analysis = existing.get("analysis") or {}
     if not analysis.get("cvReport"):
         raise HTTPException(status_code=400, detail="Stored cvReport is required for AI protocol.")
+
+    _reject_narrative_edit_if_approved(existing)
 
     try:
         bundle = await regenerate_protocol_section(existing, req.sectionId)

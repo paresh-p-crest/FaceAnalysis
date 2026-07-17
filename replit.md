@@ -8,7 +8,8 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 - **Backend (Python FastAPI):** `python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir backend` — runs on port 8000 (workflow `Python Backend`)
 - **DB migrations:** `python -m alembic upgrade head` — run from project root
 - **Smoke test:** `python scripts/smoke_test.py`
-- **Health check:** `GET /api/health`
+- **App health (API):** `GET /api/health` (FastAPI via Next rewrite)
+- **Deploy health (Replit Autoscale):** `GET /healthz` — set as `previewPath` in `artifacts/myface/.replit-artifact/artifact.toml` (must return 2xx quickly; do not point at SSR `/`)
 
 ## Stack
 
@@ -32,14 +33,20 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 - `CORS_ORIGINS` — localhost origins
 - `CORS_ORIGIN_REGEX` — allows all `*.replit.dev` and `*.repl.co`
 - `MEDIA_STORAGE_BACKEND=replit`
-- `LLM_PROVIDER=groq`
+- `LLM_PROVIDER=openrouter` (or `groq` / `openai`)
 
 ## Optional Secrets (for AI features)
 
-- `GROQ_API_KEY` — for AI narrative reports (free tier available)
-- `OPENAI_API_KEY` — alternative LLM provider
+- `OPENROUTER_API_KEY` — preferred text + image provider when `LLM_PROVIDER=openrouter`
+- `GROQ_API_KEY` — if using `LLM_PROVIDER=groq`
+- `OPENAI_API_KEY` — if using `LLM_PROVIDER=openai` / OpenAI images
 - `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` — for payment gating
 - `PAYPAL_CLIENT_ID` + `PAYPAL_CLIENT_SECRET` — PayPal payments
+
+## Python install
+
+- Deps live in root [`requirements.txt`](requirements.txt) (not `backend/requirements.txt` / `pyproject.toml`).
+- Install: `python -m pip install -r requirements.txt`
 
 ## Where things live
 
@@ -60,6 +67,8 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 
 - Use `python -m uvicorn` not `uvicorn` — the binary isn't on PATH in Replit workflows
 - Do not set `PORT` as a shared env var — it conflicts with the artifact's PORT=22039 for the Next.js service
+- Replit deploy healthchecks `previewPath` (`/healthz`), not `/api/health`. Keep `/healthz` outside next-intl middleware.
+- Production start: `artifacts/myface/start-prod.sh` (backend :8000 + `next start`); bind Next ASAP so Autoscale probes succeed
 - After any code/package change, restart both workflows
 - See AGENTS.md for documentation maintenance rules (update relevant .md files after every change)
 

@@ -1,9 +1,10 @@
 import { STAGES } from './constants'
 import { adminTabFromPath, adminTabToPath, isAdminTabPath } from './adminPanel'
 
-/** Only these four app routes (+ home redirect). */
+/** App routes (+ home redirect). */
 export const ROUTES = {
   home: '/',
+  auth: '/auth',
   analysis: '/analysis',
   dashboard: '/dashboard',
   history: '/history',
@@ -31,6 +32,7 @@ export function hasSiteNavbar(pathname) {
 
 export function requiresAuth(pathname) {
   if (!pathname || pathname === ROUTES.home) return true
+  if (pathname === ROUTES.auth) return false
   if (PROTECTED_PATHS.has(pathname)) return true
   return isAdminTabPath(pathname)
 }
@@ -77,12 +79,13 @@ export function resolveLegacyPath(pathname) {
 export function isKnownAppPath(pathname) {
   if (!pathname) return false
   if (pathname === ROUTES.home) return true
+  if (pathname === ROUTES.auth) return true
   if (Object.values(ROUTES).includes(pathname)) return true
   return isAdminTabPath(pathname)
 }
 
 export function logoPathForUser(user) {
-  if (!user) return ROUTES.analysis
+  if (!user) return ROUTES.auth
   if (user.role === 'admin') return adminTabToPath('overview')
   return ROUTES.dashboard
 }

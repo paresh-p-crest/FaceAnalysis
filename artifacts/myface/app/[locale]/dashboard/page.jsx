@@ -12,6 +12,8 @@ export default function DashboardRoutePage() {
   const {
     user,
     authReady,
+    hasAnalysisAccess,
+    accessReady,
     startNewAnalysis,
     openHistory,
     openBilling,
@@ -36,12 +38,14 @@ export default function DashboardRoutePage() {
 
   return (
     <DashboardPage
+      user={user}
+      hasAnalysisAccess={hasAnalysisAccess}
+      accessReady={accessReady}
       onStartAssessment={startNewAnalysis}
       onHistory={openHistory}
       onBilling={openBilling}
       onViewCloudItem={viewCloudAssessment}
       openingReportId={openingReportId}
-      user={user}
     />
   )
 }

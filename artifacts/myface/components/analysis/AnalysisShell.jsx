@@ -1,16 +1,12 @@
 'use client'
 
-import AuthModal from '../AuthModal'
 import DevShortcuts, { isDevShortcutsEnabled } from '../DevShortcuts'
 import { LocaleSwitcher } from '../LocaleSwitcher'
 import { useApp } from '../providers/AppProvider'
 import { ANALYSIS_STEPS } from '../../utils/routes'
 
-export function AnalysisShell({ children, authRequired = false }) {
+export function AnalysisShell({ children }) {
   const {
-    authOpen,
-    setAuthOpen,
-    handleAuthenticated,
     skipQuestionnaireWithSampleData,
     analysisStep,
   } = useApp()
@@ -24,12 +20,6 @@ export function AnalysisShell({ children, authRequired = false }) {
       <div className="fixed top-3 right-3 z-40">
         <LocaleSwitcher />
       </div>
-      <AuthModal
-        open={authOpen}
-        required={authRequired}
-        onClose={() => setAuthOpen(false)}
-        onAuthenticated={handleAuthenticated}
-      />
       {showDevShortcuts && (
         <DevShortcuts onSkipQuestionnaire={skipQuestionnaireWithSampleData} />
       )}

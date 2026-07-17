@@ -21,7 +21,8 @@ For full database schemas and collection definitions, see [Domain Models](file:/
 - Lint: `npm run lint`
 
 ### Backend (Python / pip / venv)
-- Run Dev: `uvicorn backend.main:app --reload --port 8000`
+- Install deps (repo root): `python -m pip install -r requirements.txt`
+- Run Dev: `python -m uvicorn backend.main:app --reload --port 8000`
 - Compile Check: `python -m compileall backend`
 - Run Smoke Tests: `python scripts/smoke_test.py`
 

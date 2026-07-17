@@ -12,7 +12,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!authReady) return
-    router.replace(user ? dashboardPathForUser(user) : ROUTES.analysis)
+    router.replace(user ? dashboardPathForUser(user) : ROUTES.auth)
   }, [authReady, user, router])
 
   return <AppBootScreen withNavbarOffset={false} />

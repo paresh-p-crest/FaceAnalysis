@@ -9,9 +9,10 @@ export default function BillingRoutePage() {
     user,
     billingMessage,
     paymentReturn,
-    setAuthOpen,
+    openAuth,
     startAnalysisAfterPayment,
     openBilling,
+    refreshAnalysisAccess,
   } = useApp()
 
   if (paymentReturn) {
@@ -19,9 +20,10 @@ export default function BillingRoutePage() {
       <PaymentSuccessPage
         user={user}
         sessionId={paymentReturn?.sessionId}
-        onAuth={() => setAuthOpen(true)}
+        onAuth={openAuth}
         onStartAnalysis={startAnalysisAfterPayment}
         onBilling={openBilling}
+        onAccessRefresh={refreshAnalysisAccess}
       />
     )
   }

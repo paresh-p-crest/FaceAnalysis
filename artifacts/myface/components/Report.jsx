@@ -203,14 +203,14 @@ export default function Report({
     try {
       if (displayPhoto) {
         const { downloadMyFacePdf } = await import('../utils/reportPdf')
+        const { mergeNarrativesForPdf } = await import('../utils/protocolSections')
         await downloadMyFacePdf({
           photo: displayPhoto,
           photos,
           cvReport,
           metrics,
           landmarks,
-          protocolNarrative,
-          featureNarratives,
+          protocolNarrative: mergeNarrativesForPdf(protocolNarrative, featureNarratives),
           answers: displayAnswers,
           eyeAnalysis,
           aiNarrative,
@@ -612,6 +612,9 @@ export default function Report({
                   onDownloadPdf={handleDownloadPdf}
                   pdfLoading={pdfLoading}
                   canDownloadPdf={canDownloadPdf}
+                  showAdminEdit={showAdminTools}
+                  adminAssessment={adminAssessment}
+                  onNarrativesSaved={handleAdminReviewSaved}
                 />
               </LockedSectionGate>
             </ReportDocumentLayout>

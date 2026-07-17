@@ -245,6 +245,7 @@ Saves admin review comments, PDF protocol text edits, and/or publishes reports.
   }
   ```
   Optional legacy `aiNarrative` is still accepted. Protocol text is persisted via protocol storage + DB when `protocolNarrative` / `featureNarratives` are sent.
+- **400:** When assessment status is **Approved**, requests that include `protocolNarrative` or `featureNarratives` are rejected (`Cannot edit protocol narrative on approved reports.`).
 - **Response Shape (200 OK):** Complete updated assessment document.
 
 ### `POST /api/assessments/{assessment_id}/ai-narrative`
@@ -278,11 +279,13 @@ Loads persisted protocol from media storage (`assessments/{id}/protocol.json`) w
 Generates protocol via `narrative_orchestrator` (per-feature structured LLM calls + overview + closing), writes JSON to protocol storage, and syncs `featureNarratives` / `protocolNarrative` to the database.
 - **Auth:** Owner User or Admin (paid AI access)
 - **Query:** `force=true` — **admin-only** full regenerate (overwrites existing PDF narrative text)
+- **400:** Rejected when assessment status is **Approved**.
 - **Response Shape (200 OK):** Updated assessment document (idempotent for non-admin / `force=false` if already stored).
 
 ### `POST /api/assessments/{assessment_id}/ai-protocol/section`
 Admin-only regenerate of one PDF section.
 - **Auth:** Private (Admin) + paid AI access
+- **400:** Rejected when assessment status is **Approved**.
 - **Request Body:**
   ```json
   { "sectionId": "overview" | "closing" | "hair" | "eyes" | "…" }

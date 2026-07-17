@@ -62,6 +62,9 @@ export function CvReportView({
   onDownloadPdf,
   pdfLoading,
   canDownloadPdf,
+  showAdminEdit = false,
+  adminAssessment = null,
+  onNarrativesSaved,
 }) {
   const t = useTranslations('Report')
 
@@ -441,6 +444,7 @@ export function CvReportView({
         user={user}
         eyeAnalysis={eyeAnalysis}
         protocolNarrative={protocolNarrative}
+        featureNarratives={featureNarratives}
         aiNarrative={aiNarrative}
         protocolLoading={protocolLoading}
         projectedAfter={projectedAfter}
@@ -448,6 +452,10 @@ export function CvReportView({
         onDownloadPdf={onDownloadPdf}
         pdfLoading={pdfLoading}
         canDownloadPdf={canDownloadPdf}
+        showAdminEdit={showAdminEdit}
+        assessmentId={assessmentId}
+        adminAssessment={adminAssessment}
+        onNarrativesSaved={onNarrativesSaved}
       />
     )
   }

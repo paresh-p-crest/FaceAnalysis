@@ -98,7 +98,20 @@
     "paymentsDesc": "Latest billing activity",
     "billing": "Billing",
     "noPaymentsTitle": "No payments yet",
-    "noPaymentsText": "Payment captures will appear here."
+    "noPaymentsText": "Payment captures will appear here.",
+    "billingRequiredEyebrow": "Required first step",
+    "billingRequiredTitle": "Complete billing to unlock MyFace",
+    "billingRequiredDesc": "Payment is required before you can start a facial analysis, view history, or open reports. Complete checkout from billing to continue.",
+    "billingRequiredCta": "Go to billing",
+    "billingRequiredPaymentsDesc": "Complete payment to unlock analysis and reports"
+  },
+  "Errors": {
+    "title": "Something went wrong",
+    "description": "An unexpected error occurred. You can try again or return to your dashboard.",
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "This page does not exist or may have moved.",
+    "tryAgain": "Try again",
+    "home": "Home"
   },
   "History": {
     "title": "Analysis History",

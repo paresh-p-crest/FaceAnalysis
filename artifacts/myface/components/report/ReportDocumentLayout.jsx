@@ -31,8 +31,10 @@ export function ReportDocumentLayout({
         </aside>
       )}
 
-      <main className={`qoves-report-canvas min-w-0 ${immersive ? 'qoves-report-canvas--immersive' : ''}`}>
-        <div className={`qoves-report-page ${immersive ? 'qoves-report-page--immersive' : 'qoves-overview-document'}`}>
+      <main className={`qoves-report-canvas min-w-0 ${immersive ? 'qoves-report-canvas--immersive' : ''} ${activeId === 'protocol' ? 'qoves-report-canvas--protocol' : ''}`}>
+        <div
+          className={`qoves-report-page ${immersive ? 'qoves-report-page--immersive' : activeId === 'protocol' ? 'qoves-report-page--protocol' : 'qoves-overview-document'}`}
+        >
           {children}
         </div>
       </main>

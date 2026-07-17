@@ -1,19 +1,20 @@
 'use client'
 
 import { usePathname } from '../i18n/navigation'
-import { hasSiteNavbar, ROUTES } from '../utils/routes'
+import { hasSiteNavbar } from '../utils/routes'
 import { SiteNavbar } from './SiteNavbar'
 import Settings from './Settings'
-import AuthModal from './AuthModal'
 import ConfirmDialog from './ConfirmDialog'
 import { ReportModal } from './report/ReportModal'
 import { useApp } from './providers/AppProvider'
 
-export function AppShell({ children, authRequired = false }) {
+export function AppShell({ children }) {
   const pathname = usePathname()
   const {
     user,
     authReady,
+    accessReady,
+    hasAnalysisAccess,
     photos,
     answers,
     analysis,
@@ -23,8 +24,6 @@ export function AppShell({ children, authRequired = false }) {
     primaryPhoto,
     settingsOpen,
     setSettingsOpen,
-    authOpen,
-    setAuthOpen,
     logoutConfirmOpen,
     setLogoutConfirmOpen,
     reportModalOpen,
@@ -32,10 +31,10 @@ export function AppShell({ children, authRequired = false }) {
     openDashboard,
     openHistory,
     openBilling,
+    openAuth,
     logout,
-    handleAuthenticated,
-    closeReportModal,
     startNewAnalysis,
+    closeReportModal,
   } = useApp()
 
   const showNavbar = hasSiteNavbar(pathname) && authReady && !!user
@@ -46,12 +45,14 @@ export function AppShell({ children, authRequired = false }) {
         <SiteNavbar
           pathname={pathname}
           authReady={authReady}
+          accessReady={accessReady}
+          hasAnalysisAccess={hasAnalysisAccess}
           onLogo={handleLogo}
           onDashboard={openDashboard}
           onHistory={openHistory}
           onBilling={openBilling}
           onSettings={() => setSettingsOpen(true)}
-          onAuth={() => setAuthOpen(true)}
+          onAuth={openAuth}
           onLogout={() => setLogoutConfirmOpen(true)}
           user={user}
         />
@@ -66,12 +67,6 @@ export function AppShell({ children, authRequired = false }) {
         onCancel={() => setLogoutConfirmOpen(false)}
       />
       <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <AuthModal
-        open={authOpen}
-        required={authRequired}
-        onClose={() => setAuthOpen(false)}
-        onAuthenticated={handleAuthenticated}
-      />
       <ReportModal
         open={reportModalOpen}
         onClose={closeReportModal}

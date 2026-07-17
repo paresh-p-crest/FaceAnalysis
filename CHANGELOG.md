@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Added
+- **`/auth` route** — Dedicated login/register page (`AuthForm`) replaces modal-only auth; chromeless `AuthShell` with locale switcher.
+- **Error and not-found pages** — `[locale]/error.jsx` and `not-found.jsx` with a Home link to the role dashboard.
+- **Unpaid dashboard billing lock** — Hero billing CTA on dashboard; product actions muted until `userHasAnalysisAccess`; navbar emphasizes Billing and disables History for unpaid users.
+### Changed
+- **Auth-first landing** — `/` and unknown paths route unauthenticated users to `/auth`; authenticated users land on `dashboardPathForUser` only (no default `/analysis`).
+- **Post-login routing** — All successful logins go to the role dashboard; unpaid users stay on `/dashboard` (billing is mandatory via dashboard CTA, not auto-redirect to `/billing`).
+- **Logout** — Clears stage/admin tab and routes to `/auth` instead of `/analysis` + modal.
+- **Role/session reload** — Clears stale stage/admin tab and re-routes to the correct dashboard when stored role differs from `/api/auth/me` or session is cleared.
+### Removed
+- **`AuthModal`** — Auth UI lives only on `/auth`.
+### Fixed
+- **Protocol admin HTML overlap** — feature pages now flow top-down sequentially with fixed `SECTION_GAP` spacing instead of pinning summaries with `mt-auto`/`flex-1`, so images no longer overlap preceding text; content clips at the A4 boundary like jsPDF. Text edits no longer trigger a full protocol image reload.
+- **Protocol admin HTML A4 scale** — HTML protocol sheets no longer grow with content; locked to jsPDF A4 (595×842) and fit-to-width scaled in the admin preview pane.
+- **Replit Autoscale healthcheck 500** — Deploy probe now hits lightweight `GET /healthz` (`previewPath` in `artifact.toml`) instead of SSR `/`; middleware bypasses next-intl for that path; `start-prod.sh` starts Next immediately (no 2s sleep before bind). App API health remains `GET /api/health`.
+- **Protocol PDF viewer** — Protocol tab now previews the same client-side jsPDF A4 blob as download (`buildMyFacePdf` + iframe), replacing the HTML A4 mock that mis-scaled pages.
+### Added
+- **Protocol inline text editing (admin HTML)** — Admins click overview summary, feature subsection bodies/summaries, and closing paragraphs directly in the HTML protocol preview (`contentEditable`); edits update a shared local draft and persist only when **Save edits** is clicked. The right dock is lightweight (section picker + AI generate + Save) — no duplicated textareas. Scrolling syncs the dock section to the visible page.
+- **Protocol inline admin edit** — Admins hand-edit overview/feature/closing narrative text in the Protocol viewer (`ProtocolNarrativeEditDock`); PDF preview rebuilds only after Save or LLM section regen. Header Edit PDF narrative / AdminReviewPanel kept as secondary path.
+- **Approved report narrative lock (server)** — `PATCH …/admin-review` and protocol regen endpoints reject narrative edits when report status is approved.
+### Changed
+- **Protocol admin HTML↔PDF layout** — admin HTML protocol feature pages now mirror jsPDF layouts (MYFACE header, stacked titles, column image placement, right-column summary cards) with Helvetica typography and spacing constants from `reportPdf.js` on 595×842 sheets.
+- **Protocol admin HTML preview spike** — admins on unapproved reports see the full `QovesProtocolReport` HTML document (all pages) in the Protocol tab instead of the PDF iframe, for evaluating in-place edit UX; non-admins still get the PDF iframe. HTML sheets are locked to jsPDF A4 (595×842) and fit-to-width scaled like the PDF iframe.
+- **Protocol PDF viewer chrome** — removed in-viewer Protocol title, zoom, fullscreen, and Download PDF controls; iframe now fills the report canvas (`qoves-report-page--protocol`).
+- **Single Python deps path** — install from root `requirements.txt` only (`python -m pip install -r requirements.txt`). Updated README, AGENTS.md, replit.md, `.env.example`, `scripts/rerun_parsing.py`, and `media_storage` install hint away from removed `backend/requirements.txt` / `pyproject.toml` / `uv sync` paths. Clarified face-parsing torch deps are a required install (runtime still gates via `face_parsing_enabled()`).
 ### Fixed
 - **Stuck MyFace boot spinner on home** — `RouteContent` no longer blocks unauthenticated users behind `AppBootScreen`; home redirects to `/analysis` or dashboard once `authReady`. Bootstrap strips `/en`/`/de` from raw `window.location.pathname` before route checks.
 ### Added

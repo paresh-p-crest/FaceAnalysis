@@ -98,7 +98,20 @@
     "paymentsDesc": "Neueste Abrechnungsaktivität",
     "billing": "Abrechnung",
     "noPaymentsTitle": "Noch keine Zahlungen",
-    "noPaymentsText": "Zahlungserfassungen erscheinen hier."
+    "noPaymentsText": "Zahlungserfassungen erscheinen hier.",
+    "billingRequiredEyebrow": "Erforderlicher erster Schritt",
+    "billingRequiredTitle": "Abrechnung abschließen, um MyFace freizuschalten",
+    "billingRequiredDesc": "Eine Zahlung ist erforderlich, bevor Sie eine Gesichtsanalyse starten, den Verlauf ansehen oder Berichte öffnen können. Schließen Sie den Checkout in der Abrechnung ab.",
+    "billingRequiredCta": "Zur Abrechnung",
+    "billingRequiredPaymentsDesc": "Zahlung abschließen, um Analyse und Berichte freizuschalten"
+  },
+  "Errors": {
+    "title": "Etwas ist schiefgelaufen",
+    "description": "Ein unerwarteter Fehler ist aufgetreten. Sie können es erneut versuchen oder zu Ihrem Dashboard zurückkehren.",
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundDescription": "Diese Seite existiert nicht oder wurde verschoben.",
+    "tryAgain": "Erneut versuchen",
+    "home": "Startseite"
   },
   "History": {
     "title": "Analyseverlauf",

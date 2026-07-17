@@ -38,6 +38,14 @@ export function cloneProtocolDraft(assessment) {
   }
 }
 
+export function draftSnapshot(draft) {
+  return JSON.stringify(draft)
+}
+
+export function setClosingParagraphs(protocolNarrative, paragraphs) {
+  return { ...(protocolNarrative || {}), closing: paragraphs }
+}
+
 export function ensureFeatureDraft(featureNarratives, featureId) {
   const titles = FEATURE_SUBSECTION_TITLES[featureId] || []
   const existing = featureNarratives[featureId] || {}
@@ -52,5 +60,41 @@ export function ensureFeatureDraft(featureNarratives, featureId) {
       title,
       body: byTitle.get(title) || '',
     })),
+  }
+}
+
+/**
+ * Upsert a single feature subsection body without emitting empty siblings.
+ * Only the edited title is written; untouched subsections stay absent so
+ * `mergeSubsections` keeps their CV-derived defaults instead of blanking them.
+ */
+export function upsertFeatureSubsection(featureNarratives, featureId, title, body) {
+  const existing = featureNarratives?.[featureId] || {}
+  const subs = Array.isArray(existing.subsections) ? existing.subsections.slice() : []
+  const idx = subs.findIndex((s) => s.title === title)
+  if (idx >= 0) subs[idx] = { ...subs[idx], title, body }
+  else subs.push({ title, body })
+  return {
+    ...(featureNarratives || {}),
+    [featureId]: { ...existing, featureId, subsections: subs },
+  }
+}
+
+/** Set a feature summary, preserving any existing subsections/fields. */
+export function setFeatureSummary(featureNarratives, featureId, summary) {
+  const existing = featureNarratives?.[featureId] || {}
+  return {
+    ...(featureNarratives || {}),
+    [featureId]: { ...existing, featureId, summary },
+  }
+}
+
+/** Merge canonical featureNarratives into protocolNarrative.features for PDF generation. */
+export function mergeNarrativesForPdf(protocolNarrative, featureNarratives) {
+  const base = protocolNarrative || { summary: '', closing: [], features: {} }
+  if (!featureNarratives || !Object.keys(featureNarratives).length) return base
+  return {
+    ...base,
+    features: { ...(base.features || {}), ...featureNarratives },
   }
 }

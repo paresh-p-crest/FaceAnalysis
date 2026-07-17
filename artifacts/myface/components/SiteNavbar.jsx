@@ -18,8 +18,17 @@ import {
 import { dashboardPathForUser, isAdminTabPath, logoPathForUser, ROUTES } from '../utils/routes'
 import { LocaleSwitcher } from './LocaleSwitcher'
 
-function NavLink({ icon: Icon, label, href, onClick, active, className = '' }) {
-  const classNames = `site-navbar-link ${active ? 'site-navbar-link-active' : ''} ${className}`
+function NavLink({ icon: Icon, label, href, onClick, active, disabled = false, emphasize = false, className = '' }) {
+  const classNames = `site-navbar-link ${active ? 'site-navbar-link-active' : ''} ${emphasize ? 'site-navbar-link-emphasis' : ''} ${disabled ? 'site-navbar-link-disabled' : ''} ${className}`
+
+  if (disabled) {
+    return (
+      <span className={classNames} aria-disabled="true">
+        {Icon && <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden />}
+        <span>{label}</span>
+      </span>
+    )
+  }
 
   if (href) {
     return (
@@ -38,8 +47,17 @@ function NavLink({ icon: Icon, label, href, onClick, active, className = '' }) {
   )
 }
 
-function MobileNavLink({ icon: Icon, label, href, onClick, active }) {
-  const classNames = `site-navbar-mobile-link ${active ? 'site-navbar-mobile-link-active' : ''}`
+function MobileNavLink({ icon: Icon, label, href, onClick, active, disabled = false, emphasize = false }) {
+  const classNames = `site-navbar-mobile-link ${active ? 'site-navbar-mobile-link-active' : ''} ${emphasize ? 'site-navbar-mobile-link-emphasis' : ''} ${disabled ? 'site-navbar-mobile-link-disabled' : ''}`
+
+  if (disabled) {
+    return (
+      <span className={classNames} aria-disabled="true">
+        {Icon && <Icon className="w-4 h-4 shrink-0" aria-hidden />}
+        <span>{label}</span>
+      </span>
+    )
+  }
 
   if (href) {
     return (
@@ -69,6 +87,8 @@ function displayName(user, accountFallback) {
 export function SiteNavbar({
   pathname,
   authReady = true,
+  accessReady = true,
+  hasAnalysisAccess = true,
   onDashboard,
   onHistory,
   onBilling,
@@ -83,6 +103,7 @@ export function SiteNavbar({
   const [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef(null)
   const isAdmin = user?.role === 'admin'
+  const billingLocked = user && !isAdmin && accessReady && !hasAnalysisAccess
   const username = displayName(user, t('account'))
 
   const closeMenu = useCallback(() => setMenuOpen(false), [])
@@ -144,9 +165,10 @@ export function SiteNavbar({
         key: 'history',
         label: t('analysisHistory'),
         icon: History,
-        href: ROUTES.history,
-        onClick: onHistory,
+        href: billingLocked ? undefined : ROUTES.history,
+        onClick: billingLocked ? undefined : onHistory,
         active: pathname === ROUTES.history,
+        disabled: billingLocked,
       })
     }
     if (user && !isAdmin) {
@@ -157,13 +179,14 @@ export function SiteNavbar({
         href: ROUTES.billing,
         onClick: onBilling,
         active: pathname === ROUTES.billing,
+        emphasize: billingLocked,
       })
     }
     if (user && isAdmin) {
       items.push({ key: 'settings', label: t('apiSettings'), icon: Settings, onClick: onSettings, active: false })
     }
     return items
-  }, [user, isAdmin, pathname, onDashboard, onHistory, onBilling, onSettings, t])
+  }, [user, isAdmin, billingLocked, pathname, onDashboard, onHistory, onBilling, onSettings, t])
 
   const logoHref = logoPathForUser(user)
 
@@ -226,6 +249,8 @@ export function SiteNavbar({
               href={item.href}
               onClick={item.onClick}
               active={item.active}
+              disabled={item.disabled}
+              emphasize={item.emphasize}
             />
           ))}
         </nav>
@@ -283,6 +308,8 @@ export function SiteNavbar({
                 href={item.href}
                 onClick={runAndClose(item.onClick)}
                 active={item.active}
+                disabled={item.disabled}
+                emphasize={item.emphasize}
               />
             ))}
           </nav>
