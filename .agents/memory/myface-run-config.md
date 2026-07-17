@@ -1,25 +1,40 @@
 ---
 name: MyFace run config
-description: Replit-specific quirks for running the MyFace FastAPI + Next.js stack
+description: Replit-specific quirks for running the MyFace artifact dev and prod workflows
 ---
 
-## Rule
-Use `python -m uvicorn` (not bare `uvicorn`) for the backend workflow — pip installs to `.pythonlibs/bin/` which is not on the workflow PATH.
+## uvicorn PATH quirk
+The Python Backend workflow must use `python -m uvicorn` (not bare `uvicorn`) because pip installs the binary to `.pythonlibs/bin/` which is not on the workflow PATH.
 
-**Why:** `uvicorn` binary at `/home/runner/workspace/.pythonlibs/bin/uvicorn` is not on PATH when workflows execute; `python -m uvicorn` always resolves correctly.
+## Port conflict pattern
+The `artifacts/myface: web` workflow (Next.js dev) crashes with `EADDRINUSE: address already in use 0.0.0.0:3000` every time it restarts because the previous Next.js process outlives the workflow SIGTERM. The permanent fix is a `predev` npm lifecycle hook in `artifacts/myface/package.json`:
 
-**How to apply:** Any workflow or shell command that starts the FastAPI backend must use `python -m uvicorn backend.main:app ...`.
+```json
+"predev": "lsof -ti:3000 | xargs -r kill -9 2>/dev/null; true",
+```
 
-## Rule
-Do NOT set `PORT` as a shared env var — it conflicts with the artifact's `PORT=22039` injected by `artifacts/myface/.replit-artifact/artifact.toml` for the Next.js service.
+pnpm/npm automatically runs `predev` before `dev`. The `true` ensures it doesn't fail if nothing is on port 3000.
 
-**Why:** Shared `PORT=8000` overrides the artifact-level env, causing Next.js to try binding port 8000 (already taken by FastAPI) and crash.
+**Do NOT** use `fuser -k 3000/tcp` — it kills PID 12 (`pid1`, Replit's proxy) which holds an ESTABLISHED connection to the port, not a LISTEN socket. Use `lsof -ti:3000 | xargs -r kill -9` instead (targets the actual listening process via socket inode).
 
-**How to apply:** The uvicorn command passes `--port 8000` explicitly, so no PORT env var is needed for the backend. Leave PORT unset in shared env.
+## ThemeProvider hydration mismatch
+`utils/theme.jsx` originally used a `useState` lazy initializer that read `localStorage` via `typeof window !== 'undefined'`. This caused a server/client hydration mismatch (server renders `'light'`, client reads stored `'dark'`), which triggered React's "Invalid hook call" during hydration error recovery.
 
-## API proxy
-`artifacts/myface/next.config.js` rewrites `/api/*` → `http://localhost:8000/api/*`. No `NEXT_PUBLIC_API_URL` needed in the browser — all API calls are relative.
+**Fix**: Always initialize `useState('light')` (same on server and client), then read localStorage in a `useEffect` after hydration:
 
-## Required secrets
-- `AUTH_SECRET` — JWT signing key
-- `ADMIN_PASSWORD` — bootstrap admin account (min 8 chars); `ADMIN_EMAIL` defaults to `admin@myface.local`
+```js
+const [theme, setTheme] = useState('light')
+useEffect(() => {
+  const stored = localStorage.getItem(THEME_KEY)
+  if (stored && stored !== 'light') setTheme(stored)
+}, [])
+```
+
+**Why:** React's hydration must produce identical HTML on server and client for the first render. The `useState` lazy initializer runs during render on both sides — accessing `localStorage` there violates this constraint. `useEffect` only runs client-side, after hydration completes.
+
+## allowedDevOrigins
+`next.config.js` needs `'127.0.0.1'` in `allowedDevOrigins` to stop Replit's proxy from blocking `/_next/*` HMR requests:
+
+```js
+allowedDevOrigins: ['*.replit.dev', '*.pike.replit.dev', '*.repl.co', '127.0.0.1'],
+```
