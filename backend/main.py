@@ -1,4 +1,9 @@
-"""FastAPI backend server — MyFace facial analysis API."""
+"""FastAPI backend server — MyFace facial analysis API.
+
+Import-light on purpose: Replit Autoscale cold-starts spent minutes importing
+assessments/protocol/CV stacks before uvicorn bound :8000, so Next proxied
+ECONNREFUSED. Routers load in deferred boot after the port is open.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +17,6 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-# Load backend/.env then project root .env (local dev)
 load_dotenv(Path(__file__).resolve().parent / ".env")
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -25,25 +29,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from .auth import ensure_bootstrap_admin
 from .database import close_db, connect_db, is_db_configured, ping_db
-from .image_utils import decode_image, decode_photo_dict
-from .routers.auth import router as auth_router
-from .routers.assessments import router as assessments_router
-from .routers.assistant import router as assistant_router
-from .routers.media import router as media_router
-from .routers.notifications import router as notifications_router
-from .routers.payments import router as payments_router
-from .routers.admin_settings import router as admin_settings_router
-from .serialization import to_json_safe
-# ponytail: analyze_face / mediapipe / torch stay lazy — eager import blocks uvicorn
-# bind for minutes on Replit cold start (matplotlib font cache).
 
 logger = logging.getLogger(__name__)
 
-# Set once deferred DB/bootstrap finishes (success or failure).
 _boot_done = asyncio.Event()
 _boot_error: Optional[str] = None
+_routers_mounted = False
 
 
 def _env_list(name: str, default: str) -> list[str]:
@@ -51,20 +43,44 @@ def _env_list(name: str, default: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-async def _deferred_boot() -> None:
-    """Connect DB + start worker after the server is already accepting connections.
+def _mount_routers(app: FastAPI) -> None:
+    """Import and mount API routers (heavy). Call only from deferred boot."""
+    global _routers_mounted
+    if _routers_mounted:
+        return
+    from .routers.admin_settings import router as admin_settings_router
+    from .routers.assessments import router as assessments_router
+    from .routers.assistant import router as assistant_router
+    from .routers.auth import router as auth_router
+    from .routers.media import router as media_router
+    from .routers.notifications import router as notifications_router
+    from .routers.payments import router as payments_router
 
-    Uvicorn does not accept TCP until lifespan yields. create_all / PG connect on
-    Replit can take tens of seconds — defer so Next `/api` proxy is not ECONNREFUSED.
-    """
+    app.include_router(auth_router)
+    app.include_router(assessments_router)
+    app.include_router(assistant_router)
+    app.include_router(media_router)
+    app.include_router(payments_router)
+    app.include_router(admin_settings_router)
+    app.include_router(notifications_router)
+    _routers_mounted = True
+    logger.info("API routers mounted")
+
+
+async def _deferred_boot(app: FastAPI) -> None:
+    """Bind happens before this runs. Import routers + connect DB here."""
     global _boot_error
     try:
+        # Mount routes before DB so once _boot_done is set, paths exist.
+        await asyncio.to_thread(_mount_routers, app)
         await connect_db()
+        from .auth import ensure_bootstrap_admin
+
         await ensure_bootstrap_admin()
         from .pipeline_worker import start_pipeline_worker
 
         start_pipeline_worker()
-        logger.info("Deferred boot complete (db + pipeline worker)")
+        logger.info("Deferred boot complete (routers + db + pipeline worker)")
     except Exception as exc:
         _boot_error = str(exc)
         logger.exception("Deferred boot failed")
@@ -76,8 +92,8 @@ async def _deferred_boot() -> None:
 async def lifespan(app: FastAPI):
     configure_backend_logging()
     _boot_done.clear()
-    boot_task = asyncio.create_task(_deferred_boot())
-    # Yield immediately so the port is open while DB boots in the background.
+    boot_task = asyncio.create_task(_deferred_boot(app))
+    # Yield immediately — uvicorn accepts TCP while boot continues.
     yield
     from .pipeline_worker import stop_pipeline_worker
 
@@ -118,11 +134,11 @@ app.add_middleware(
 
 @app.middleware("http")
 async def wait_for_deferred_boot(request: Request, call_next):
-    """Port is open immediately; hold /api (except health) until DB boot finishes."""
+    """Port is open immediately; hold /api (except health) until boot finishes."""
     path = request.url.path
     if path.startswith("/api/") and path != "/api/health" and not _boot_done.is_set():
         try:
-            await asyncio.wait_for(_boot_done.wait(), timeout=60)
+            await asyncio.wait_for(_boot_done.wait(), timeout=120)
         except asyncio.TimeoutError:
             return JSONResponse(
                 {"detail": "Backend still starting, retry shortly"},
@@ -134,15 +150,6 @@ async def wait_for_deferred_boot(request: Request, call_next):
                 status_code=503,
             )
     return await call_next(request)
-
-
-app.include_router(auth_router)
-app.include_router(assessments_router)
-app.include_router(assistant_router)
-app.include_router(media_router)
-app.include_router(payments_router)
-app.include_router(admin_settings_router)
-app.include_router(notifications_router)
 
 
 class RunAnalysisRequest(BaseModel):
@@ -186,6 +193,8 @@ async def health():
 async def run_analysis(req: RunAnalysisRequest):
     """Run analysis without saving to DB (legacy / quick test)."""
     from .analyze_face import run_face_analysis
+    from .image_utils import decode_image, decode_photo_dict
+    from .serialization import to_json_safe
 
     try:
         photo_bytes = decode_image(req.imageBase64)

@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Fixed
+- **Replit `:8000` ECONNREFUSED for ~2 min after deploy** — Logs showed Next proxying while Python was still importing routers (`Started server process` only after ~2 min), then lifespan blocked on DB before bind. `backend.main` now imports almost nothing at module load; routers + `connect_db` + pipeline worker mount in deferred boot after uvicorn yields (port open immediately). `/api/*` waits up to 120s for boot; `/api/health` returns `starting` meanwhile.
 - **Replit Autoscale `GET /` healthcheck** — Platform probes `/` (ignores `previewPath`). Middleware returns `200 {"ok":true}` for non-browser probes (no `sec-fetch-dest: document` / no `Accept: text/html`); browsers still get the HTML app. `previewPath` set back to `/`.
 - **Replit deploy: backend dead for minutes after publish** — Auth/API failed with `ECONNREFUSED :8000` because uvicorn does not accept TCP until lifespan yields, and `connect_db`/`create_all` blocked that. Lifespan now yields immediately and boots DB/pipeline in a background task; `/api/*` (except health) waits up to 60s for boot. Also: lazy CV imports, parallel Next/backend start, `PYTHONUNBUFFERED`, `MPLCONFIGDIR`, auth client retries on cold start, next-intl `localeDetection`/`alternateLinks` off for `/` probes.
 ### Added

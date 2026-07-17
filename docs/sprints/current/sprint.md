@@ -104,6 +104,7 @@
 - [x] Protocol admin HTML preview spike: unapproved admins see full `QovesProtocolReport` HTML in Protocol tab; non-admins keep PDF iframe (status: completed)
 - [x] Protocol admin HTML↔PDF layout parity: feature pages mirror jsPDF structure (header/title/images/summary), Helvetica fonts, and spacing constants on A4 sheets (status: completed)
 - [x] Protocol admin inline editing: contentEditable overview/features/closing; lightweight dock (section + generate + Save); shared local draft until Save (status: completed)
+- [x] Replit cold-start: import-light `backend.main` (routers mount after bind) so `:8000` opens in seconds, not minutes (status: completed)
 - [x] Replit Autoscale healthcheck: middleware short-circuits non-browser `GET /` to 200 (platform ignores previewPath) (status: completed)
 - [x] Replit cold-start: lazy CV imports + parallel Next/backend start so `/api` works before MediaPipe/matplotlib (status: completed)
 - [x] Replit cold-start: deferred lifespan DB boot so uvicorn binds before `create_all`; API waits for boot (status: completed)
