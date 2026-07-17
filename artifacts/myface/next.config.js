@@ -7,7 +7,7 @@ const nextConfig = {
   reactStrictMode: true,
 
   // Allow the Replit dev proxy origin for HMR/cross-origin requests
-  allowedDevOrigins: ['*.replit.dev', '*.pike.replit.dev', '*.repl.co'],
+  allowedDevOrigins: ['*.replit.dev', '*.pike.replit.dev', '*.repl.co', '127.0.0.1'],
 
   // Proxy /api to Python backend
   async rewrites() {

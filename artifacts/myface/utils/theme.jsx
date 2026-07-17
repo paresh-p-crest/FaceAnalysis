@@ -8,12 +8,15 @@ const ThemeContext = createContext({
 })
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(THEME_KEY) || 'light'
-    }
-    return 'light'
-  })
+  // Always start with 'light' on both server and initial client render to
+  // prevent a hydration mismatch. The stored preference is applied in the
+  // effect below, which only runs after hydration is complete.
+  const [theme, setTheme] = useState('light')
+
+  useEffect(() => {
+    const stored = localStorage.getItem(THEME_KEY)
+    if (stored && stored !== 'light') setTheme(stored)
+  }, [])
 
   useEffect(() => {
     const root = document.documentElement
