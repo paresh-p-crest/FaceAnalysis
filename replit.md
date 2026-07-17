@@ -9,7 +9,7 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 - **DB migrations:** `python -m alembic upgrade head` — run from project root
 - **Smoke test:** `python scripts/smoke_test.py`
 - **App health (API):** `GET /api/health` (FastAPI via Next rewrite)
-- **Deploy health (Replit Autoscale):** `GET /healthz` — set as `previewPath` in `artifacts/myface/.replit-artifact/artifact.toml` (must return 2xx quickly; do not point at SSR `/`)
+- **Deploy health (Replit Autoscale):** probes **`GET /`** (not `previewPath`). Middleware returns `200 {"ok":true}` for non-browser probes; browsers still get the HTML app. `GET /healthz` remains as an explicit liveness route.
 
 ## Stack
 
@@ -67,9 +67,10 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 
 - Use `python -m uvicorn` not `uvicorn` — the binary isn't on PATH in Replit workflows
 - Do not set `PORT` as a shared env var — it conflicts with the artifact's PORT=22039 for the Next.js service
-- Replit deploy healthchecks `previewPath` (`/healthz`), not `/api/health`. Keep `/healthz` outside next-intl middleware.
-- Production start: `artifacts/myface/start-prod.sh` starts **Next and FastAPI in parallel**. Heavy CV (MediaPipe/torch) is lazy-imported so auth/API work before the first analysis job.
-- `MPLCONFIGDIR` / `MPLBACKEND=Agg` are set in `start-prod.sh` so matplotlib font cache (pulled by MediaPipe later) persists under `.cache/matplotlib`.
+- Replit Autoscale healthchecks **`GET /`**, not `/api/health` or `previewPath`. Non-browser probes get a fast 200 from middleware; keep that short-circuit in `middleware.js`.
+- Production start: `artifacts/myface/start-prod.sh` starts **Next and FastAPI in parallel**. Uvicorn lifespan **yields immediately** (DB `create_all` + pipeline worker boot in background) so `:8000` accepts connections while Postgres warms; `/api/*` waits briefly for boot instead of `ECONNREFUSED`.
+- Heavy CV (MediaPipe/torch) stays lazy-imported until the first pipeline job.
+- `PYTHONUNBUFFERED=1`, `MPLCONFIGDIR` / `MPLBACKEND=Agg` are set in `start-prod.sh`.
 - After any code/package change, restart both workflows
 - See AGENTS.md for documentation maintenance rules (update relevant .md files after every change)
 

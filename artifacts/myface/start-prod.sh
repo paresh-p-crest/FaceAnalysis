@@ -2,14 +2,14 @@
 set -e
 
 # Start Next.js and FastAPI in parallel.
-# Next must bind ASAP for Replit Autoscale `/` probes; backend must also start
-# immediately so /api/* is not ECONNREFUSED while matplotlib/mediapipe would
-# otherwise delay a serial start.
+# Next must bind ASAP for Replit Autoscale `/` probes; backend must also bind
+# ASAP so /api/* is not ECONNREFUSED (DB connect runs after bind — see lifespan).
 
 ARTIFACT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$ARTIFACT_DIR/../.." && pwd)"
 PORT="${PORT:-3000}"
 
+export PYTHONUNBUFFERED=1
 # Persist matplotlib font cache across restarts (mediapipe pulls matplotlib).
 export MPLBACKEND="${MPLBACKEND:-Agg}"
 export MPLCONFIGDIR="${MPLCONFIGDIR:-$WORKSPACE_ROOT/.cache/matplotlib}"

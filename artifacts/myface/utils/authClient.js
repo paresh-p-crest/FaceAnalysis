@@ -47,32 +47,42 @@ export function login(email, password) {
   return authRequest('/api/auth/login', { email, password })
 }
 
-export async function fetchCurrentUser({ timeoutMs = 12000 } = {}) {
+export async function fetchCurrentUser({ timeoutMs = 12000, retries = 4 } = {}) {
   const base = getApiBaseUrl()
   const token = getAuthToken()
   if (!token) return null
 
-  // Time-box the request so a hung/unreachable backend can't leave the app
-  // spinning on the boot screen forever (the caller flips authReady in finally).
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  let res
-  try {
-    res = await fetch(`${base}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    })
-  } finally {
-    clearTimeout(timer)
+  let lastError = null
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(`${base}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      })
+      if (res.ok) {
+        const data = await res.json()
+        saveSession({ token, user: data.user })
+        return data.user
+      }
+      // Only drop the session for real auth failures. Transient server/proxy
+      // errors (5xx, cold start) must NOT log the user out.
+      if (res.status === 401 || res.status === 403) {
+        clearSession()
+        return null
+      }
+      lastError = new Error(`auth/me ${res.status}`)
+    } catch (err) {
+      lastError = err
+    } finally {
+      clearTimeout(timer)
+    }
+    // Backend often binds a few seconds after Next on Replit Autoscale.
+    if (attempt < retries) {
+      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)))
+    }
   }
-  if (!res.ok) {
-    // Only drop the session for real auth failures. Transient server/proxy
-    // errors (5xx, dev server reloading) must NOT log the user out — keep the
-    // token so the optimistic stored session survives and can revalidate later.
-    if (res.status === 401 || res.status === 403) clearSession()
-    return null
-  }
-  const data = await res.json()
-  saveSession({ token, user: data.user })
-  return data.user
+  if (lastError) throw lastError
+  return null
 }

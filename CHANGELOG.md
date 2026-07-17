@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Fixed
-- **Replit deploy: backend dead for minutes after publish** — Auth/API failed with `ECONNREFUSED :8000` until MediaPipe/matplotlib finished a cold import. `analyze_face` / `face_parsing` / `pipeline_stages` are now lazy-imported so uvicorn binds and serves `/api/health` + auth immediately; CV/torch load on first pipeline job. `start-prod.sh` starts Next and FastAPI in parallel and sets `MPLCONFIGDIR` for faster later matplotlib loads. Also disable next-intl `localeDetection`/`alternateLinks` so Autoscale `/` probes get 2xx instead of a 307 loop.
+- **Replit Autoscale `GET /` healthcheck** — Platform probes `/` (ignores `previewPath`). Middleware returns `200 {"ok":true}` for non-browser probes (no `sec-fetch-dest: document` / no `Accept: text/html`); browsers still get the HTML app. `previewPath` set back to `/`.
+- **Replit deploy: backend dead for minutes after publish** — Auth/API failed with `ECONNREFUSED :8000` because uvicorn does not accept TCP until lifespan yields, and `connect_db`/`create_all` blocked that. Lifespan now yields immediately and boots DB/pipeline in a background task; `/api/*` (except health) waits up to 60s for boot. Also: lazy CV imports, parallel Next/backend start, `PYTHONUNBUFFERED`, `MPLCONFIGDIR`, auth client retries on cold start, next-intl `localeDetection`/`alternateLinks` off for `/` probes.
 ### Added
 - **`/auth` route** — Dedicated login/register page (`AuthForm`) replaces modal-only auth; chromeless `AuthShell` with locale switcher.
 - **Error and not-found pages** — `[locale]/error.jsx` and `not-found.jsx` with a Home link to the role dashboard.

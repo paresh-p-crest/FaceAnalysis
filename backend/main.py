@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,8 +20,9 @@ from .logging_config import configure_backend_logging
 
 configure_backend_logging()
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .auth import ensure_bootstrap_admin
@@ -37,22 +39,54 @@ from .serialization import to_json_safe
 # ponytail: analyze_face / mediapipe / torch stay lazy — eager import blocks uvicorn
 # bind for minutes on Replit cold start (matplotlib font cache).
 
+logger = logging.getLogger(__name__)
+
+# Set once deferred DB/bootstrap finishes (success or failure).
+_boot_done = asyncio.Event()
+_boot_error: Optional[str] = None
+
 
 def _env_list(name: str, default: str) -> list[str]:
     value = os.environ.get(name, default)
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+async def _deferred_boot() -> None:
+    """Connect DB + start worker after the server is already accepting connections.
+
+    Uvicorn does not accept TCP until lifespan yields. create_all / PG connect on
+    Replit can take tens of seconds — defer so Next `/api` proxy is not ECONNREFUSED.
+    """
+    global _boot_error
+    try:
+        await connect_db()
+        await ensure_bootstrap_admin()
+        from .pipeline_worker import start_pipeline_worker
+
+        start_pipeline_worker()
+        logger.info("Deferred boot complete (db + pipeline worker)")
+    except Exception as exc:
+        _boot_error = str(exc)
+        logger.exception("Deferred boot failed")
+    finally:
+        _boot_done.set()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_backend_logging()
-    await connect_db()
-    await ensure_bootstrap_admin()
-    from .pipeline_worker import start_pipeline_worker, stop_pipeline_worker
-
-    start_pipeline_worker()
+    _boot_done.clear()
+    boot_task = asyncio.create_task(_deferred_boot())
+    # Yield immediately so the port is open while DB boots in the background.
     yield
+    from .pipeline_worker import stop_pipeline_worker
+
     await stop_pipeline_worker()
+    boot_task.cancel()
+    try:
+        await boot_task
+    except asyncio.CancelledError:
+        pass
     await close_db()
 
 
@@ -81,6 +115,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def wait_for_deferred_boot(request: Request, call_next):
+    """Port is open immediately; hold /api (except health) until DB boot finishes."""
+    path = request.url.path
+    if path.startswith("/api/") and path != "/api/health" and not _boot_done.is_set():
+        try:
+            await asyncio.wait_for(_boot_done.wait(), timeout=60)
+        except asyncio.TimeoutError:
+            return JSONResponse(
+                {"detail": "Backend still starting, retry shortly"},
+                status_code=503,
+            )
+        if _boot_error:
+            return JSONResponse(
+                {"detail": f"Backend boot failed: {_boot_error}"},
+                status_code=503,
+            )
+    return await call_next(request)
+
+
 app.include_router(auth_router)
 app.include_router(assessments_router)
 app.include_router(assistant_router)
@@ -104,9 +159,22 @@ class GeneratePdfRequest(BaseModel):
 
 @app.get("/api/health")
 async def health():
+    if not _boot_done.is_set():
+        return {
+            "status": "starting",
+            "provider": "python-fastapi",
+            "database": "starting",
+        }
     db_status = "not_configured"
     if is_db_configured():
         db_status = "connected" if await ping_db() else "error"
+    if _boot_error:
+        return {
+            "status": "degraded",
+            "provider": "python-fastapi",
+            "database": db_status,
+            "bootError": _boot_error,
+        }
     return {
         "status": "ok",
         "provider": "python-fastapi",
