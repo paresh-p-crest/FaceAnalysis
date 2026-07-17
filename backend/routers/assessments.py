@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from ..analyze_face import run_face_analysis, _normalize_cv_provider
 from ..auth import get_current_user, get_optional_current_user, require_admin
 from ..config import PHOTO_POSES
 from ..database import is_db_configured
@@ -67,9 +66,16 @@ from ..report_status import (
     serialize_assessment,
     serialize_assessments,
 )
-
 from ..visual_generation import generate_visual_variants
 from ..answer_summary import format_answers_summary
+
+# Keep analyze_face out of module import — MediaPipe/matplotlib cold-start is minutes on Replit.
+
+
+def _normalize_cv_provider(provider: str) -> str:
+    if provider in ("openai", "local", ""):
+        return "local"
+    return provider
 
 router = APIRouter(prefix="/api", tags=["assessments"])
 

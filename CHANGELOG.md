@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Fixed
+- **Replit deploy: backend dead for minutes after publish** — Auth/API failed with `ECONNREFUSED :8000` until MediaPipe/matplotlib finished a cold import. `analyze_face` / `face_parsing` / `pipeline_stages` are now lazy-imported so uvicorn binds and serves `/api/health` + auth immediately; CV/torch load on first pipeline job. `start-prod.sh` starts Next and FastAPI in parallel and sets `MPLCONFIGDIR` for faster later matplotlib loads. Also disable next-intl `localeDetection`/`alternateLinks` so Autoscale `/` probes get 2xx instead of a 307 loop.
 ### Added
 - **`/auth` route** — Dedicated login/register page (`AuthForm`) replaces modal-only auth; chromeless `AuthShell` with locale switcher.
 - **Error and not-found pages** — `[locale]/error.jsx` and `not-found.jsx` with a Home link to the role dashboard.

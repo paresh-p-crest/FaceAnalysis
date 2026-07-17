@@ -105,6 +105,7 @@
 - [x] Protocol admin HTML↔PDF layout parity: feature pages mirror jsPDF structure (header/title/images/summary), Helvetica fonts, and spacing constants on A4 sheets (status: completed)
 - [x] Protocol admin inline editing: contentEditable overview/features/closing; lightweight dock (section + generate + Save); shared local draft until Save (status: completed)
 - [x] Replit Autoscale healthcheck: `previewPath=/healthz` + middleware bypass + no pre-Next sleep in `start-prod.sh` (status: completed)
+- [x] Replit cold-start: lazy CV imports + parallel Next/backend start so `/api` works before MediaPipe/matplotlib (status: completed)
 - [ ] Narrative Norwood staging: surface shape-based Hamilton–Norwood reasoning in hair report text (deferred from ADR-032 scope; CV metric already shape-based per ADR-028) (status: planned)
 - [ ] Run backend compile gates and smoke tests for Milestone 1 (status: planned)
 - [ ] Verify frontend build states for questionnaire and uploads (status: planned)

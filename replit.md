@@ -68,7 +68,8 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 - Use `python -m uvicorn` not `uvicorn` — the binary isn't on PATH in Replit workflows
 - Do not set `PORT` as a shared env var — it conflicts with the artifact's PORT=22039 for the Next.js service
 - Replit deploy healthchecks `previewPath` (`/healthz`), not `/api/health`. Keep `/healthz` outside next-intl middleware.
-- Production start: `artifacts/myface/start-prod.sh` (backend :8000 + `next start`); bind Next ASAP so Autoscale probes succeed
+- Production start: `artifacts/myface/start-prod.sh` starts **Next and FastAPI in parallel**. Heavy CV (MediaPipe/torch) is lazy-imported so auth/API work before the first analysis job.
+- `MPLCONFIGDIR` / `MPLBACKEND=Agg` are set in `start-prod.sh` so matplotlib font cache (pulled by MediaPipe later) persists under `.cache/matplotlib`.
 - After any code/package change, restart both workflows
 - See AGENTS.md for documentation maintenance rules (update relevant .md files after every change)
 

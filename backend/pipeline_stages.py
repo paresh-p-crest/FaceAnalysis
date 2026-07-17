@@ -6,16 +6,7 @@ import asyncio
 import logging
 from typing import Any, Optional
 
-from .analyze_face import run_face_analysis
 from .dev_config import dev_auto_approve_reports
-from .face_parsing import (
-    extract_feature_crops,
-    extract_lips_crop_from_front_landmarks,
-    extract_profile_ear_crop,
-    extract_smile_crop_from_smile_pose,
-    face_parsing_enabled,
-    run_face_parsing_on_image,
-)
 from .face_parsing_metrics import compute_parsing_metrics
 from .media_storage import assessment_key, get_media_storage, public_url_for_key
 from .photo_storage import (
@@ -26,7 +17,6 @@ from .photo_storage import (
     save_projected_full,
 )
 from .pipeline_status import _utcnow_iso, new_feature_parsing_pending
-from .projected_after_ai import generate_projected_after_bytes, projected_after_enabled
 from .projected_after_status import merge_projected_after_update, new_projected_after_pending
 from .projected_analysis_status import (
     merge_projected_analysis_update,
@@ -42,6 +32,7 @@ from .repositories.assessment_repository import (
     update_assessment_projected_analysis,
 )
 from .serialization import to_json_safe
+# ponytail: analyze_face + face_parsing stay function-local (mediapipe/torch cold start).
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +56,8 @@ def _decode_all_poses(assessment_id: str, photos_meta: dict) -> dict[str, bytes]
 
 async def run_cv_stage(assessment: dict) -> dict:
     """MediaPipe multi-view analysis; persist analysis + photo URLs."""
+    from .analyze_face import run_face_analysis
+
     assessment_id = assessment["id"]
     photos_meta = assessment.get("photos") or {}
     photos_bytes = await asyncio.to_thread(_decode_all_poses, assessment_id, photos_meta)
@@ -113,6 +106,15 @@ async def run_narratives_stage(assessment: dict) -> dict:
 
 async def run_parsing_stage(assessment: dict) -> dict:
     """SegFormer crops + assumed-scale metrics into feature_parsing."""
+    from .face_parsing import (
+        extract_feature_crops,
+        extract_lips_crop_from_front_landmarks,
+        extract_profile_ear_crop,
+        extract_smile_crop_from_smile_pose,
+        face_parsing_enabled,
+        run_face_parsing_on_image,
+    )
+
     assessment_id = assessment["id"]
     refreshed = await get_assessment_by_id(assessment_id)
     if not refreshed:
@@ -245,6 +247,8 @@ async def run_projected_analysis_now(assessment: dict) -> dict:
     Never mutates BEFORE analysis / analysis.cvReport.
     Soft-fails into projected_analysis.status=failed without touching projected_after.
     """
+    from .analyze_face import run_face_analysis
+
     assessment_id = assessment["id"]
     refreshed = await get_assessment_by_id(assessment_id)
     if not refreshed:
@@ -320,6 +324,8 @@ async def generate_projected_after_now(
     When raise_on_error=True, raise instead of soft-failing into failed status.
     On success, also runs CV into projected_analysis (BEFORE analysis untouched).
     """
+    from .projected_after_ai import generate_projected_after_bytes, projected_after_enabled
+
     assessment_id = assessment["id"]
     refreshed = await get_assessment_by_id(assessment_id)
     if not refreshed:

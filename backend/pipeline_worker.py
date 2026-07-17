@@ -13,12 +13,12 @@ from .pipeline_status import (
     next_pipeline_stage,
     _utcnow_iso,
 )
-from .pipeline_stages import finalize_pipeline, run_cv_stage, run_narratives_stage, run_parsing_stage, run_projected_after_stage
 from .repositories.assessment_repository import (
     claim_next_queued_assessment,
     get_assessment_by_id,
     update_assessment_pipeline,
 )
+# ponytail: pipeline_stages pulls mediapipe/torch — import only when a job runs.
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,13 @@ def pipeline_poll_interval_sec() -> float:
 
 
 async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
+    from .pipeline_stages import (
+        run_cv_stage,
+        run_narratives_stage,
+        run_parsing_stage,
+        run_projected_after_stage,
+    )
+
     pipeline = dict(assessment.get("pipeline") or {})
     attempts = dict(pipeline.get("attempts") or {})
     max_attempts = int(pipeline.get("maxAttempts") or 3)
@@ -78,6 +85,8 @@ async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
 
 
 async def _process_assessment(assessment: dict) -> None:
+    from .pipeline_stages import finalize_pipeline
+
     assessment_id = assessment["id"]
     pipeline = dict(assessment.get("pipeline") or {})
     current_stage = pipeline.get("stage") or "cv"

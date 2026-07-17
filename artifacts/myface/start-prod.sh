@@ -1,24 +1,32 @@
 #!/bin/bash
 set -e
 
-# This script starts both the Python FastAPI backend and the Next.js frontend
-# inside the same production container. The frontend rewrites /api/* to
-# localhost:8000, so both services share the same origin.
-#
-# Start Next immediately (no pre-sleep): Replit Autoscale healthchecks
-# previewPath (/healthz) as soon as the artifact process starts.
+# Start Next.js and FastAPI in parallel.
+# Next must bind ASAP for Replit Autoscale `/` probes; backend must also start
+# immediately so /api/* is not ECONNREFUSED while matplotlib/mediapipe would
+# otherwise delay a serial start.
 
 ARTIFACT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$ARTIFACT_DIR/../.." && pwd)"
+PORT="${PORT:-3000}"
 
-# Start Python backend in the background from the workspace root.
+# Persist matplotlib font cache across restarts (mediapipe pulls matplotlib).
+export MPLBACKEND="${MPLBACKEND:-Agg}"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-$WORKSPACE_ROOT/.cache/matplotlib}"
+mkdir -p "$MPLCONFIGDIR"
+
 cd "$WORKSPACE_ROOT"
 python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --no-access-log &
 BACKEND_PID=$!
 
-# Ensure the backend is killed when this script exits.
-trap 'kill $BACKEND_PID 2>/dev/null || true' EXIT
-
-# Start Next.js frontend. Replit provides PORT in production.
 cd "$ARTIFACT_DIR"
-exec ./node_modules/.bin/next start -p "${PORT:-3000}" --hostname 0.0.0.0
+./node_modules/.bin/next start -p "$PORT" --hostname 0.0.0.0 &
+NEXT_PID=$!
+
+cleanup() {
+  kill "$NEXT_PID" "$BACKEND_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# Prefer waiting on Next (public surface); if it exits, tear down.
+wait "$NEXT_PID"

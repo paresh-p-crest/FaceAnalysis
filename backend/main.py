@@ -23,7 +23,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .analyze_face import run_face_analysis
 from .auth import ensure_bootstrap_admin
 from .database import close_db, connect_db, is_db_configured, ping_db
 from .image_utils import decode_image, decode_photo_dict
@@ -35,6 +34,8 @@ from .routers.notifications import router as notifications_router
 from .routers.payments import router as payments_router
 from .routers.admin_settings import router as admin_settings_router
 from .serialization import to_json_safe
+# ponytail: analyze_face / mediapipe / torch stay lazy — eager import blocks uvicorn
+# bind for minutes on Replit cold start (matplotlib font cache).
 
 
 def _env_list(name: str, default: str) -> list[str]:
@@ -116,6 +117,8 @@ async def health():
 @app.post("/api/run-analysis")
 async def run_analysis(req: RunAnalysisRequest):
     """Run analysis without saving to DB (legacy / quick test)."""
+    from .analyze_face import run_face_analysis
+
     try:
         photo_bytes = decode_image(req.imageBase64)
     except (ValueError, TypeError) as exc:
