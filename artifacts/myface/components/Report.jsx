@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { RotateCcw, Loader2, AlertTriangle, Download, Lock, ShieldCheck, X, Sparkles, ImagePlus } from 'lucide-react'
