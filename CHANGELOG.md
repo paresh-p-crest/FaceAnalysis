@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Fixed
+- **Replit Agent chat Preview (iframe)** — Open URL / top-level tab worked; chat-side artifact webview failed with Invalid hook call after Fast Refresh. Widened `allowedDevOrigins`, allowed Replit `frame-ancestors`, and disabled `ReactRefreshWebpackPlugin` when `REPL_ID` / `REPLIT_DEV_DOMAIN` is set so the iframe full-reloads instead of corrupting React.
 - **Replit Preview Invalid hook call (final)** — Removed all `GET /` JSON health short-circuits from middleware. Autoscale only needs HTTP 200 on `/` (HTML is fine); JSON liveness stays on `/healthz`. The previous probe heuristics still false-matched Preview and caused Invalid hook call + hydration failure. After deploy: restart web workflow + Republish so Preview is not stale.
 - **Facial age card** — Large estimate on the left; thicker reference scale (5–65) on the right with a vertical needle at the CV age and the age label under the needle (HTML panel + PDF dashboard).
 - **Replit Agent Preview Invalid hook call** — Middleware `GET /` health JSON was still matching Replit product UAs (`Replit/…`, `Replit-Agent/…`) with empty/star Accept, and a block comment containing `* / *` broke middleware compile (unterminated comment → 500s). Probe detection is now opt-in only (curl/kube-probe/Go-http-client/JSON Accept); Replit Preview/Agent always get real HTML. Smoke tests cover the regression.

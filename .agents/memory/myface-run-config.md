@@ -41,9 +41,13 @@ Do **not** short-circuit `GET /` with `{"ok":true}` in `middleware.js`. That rep
 
 After changing middleware on Replit: restart the **artifacts/myface: web** workflow, then **Republish** (or hard-refresh Preview / Open dev URL) so the live preview is not on a stale process.
 
-## allowedDevOrigins
-`next.config.js` needs `'127.0.0.1'` in `allowedDevOrigins` to stop Replit's proxy from blocking `/_next/*` HMR requests:
+## allowedDevOrigins + Agent chat Preview (iframe)
+`next.config.js` must allow Replit hosts so `/_next/*` HMR/flight works from the proxy:
 
 ```js
-allowedDevOrigins: ['*.replit.dev', '*.pike.replit.dev', '*.repl.co', '127.0.0.1'],
+allowedDevOrigins: ['127.0.0.1', 'localhost', '*.replit.dev', '*.repl.co', …]
 ```
+
+**Open URL works, Agent chat Preview fails:** the chat-side Preview is a **cross-origin iframe**. Fast Refresh in that iframe commonly corrupts the React dispatcher → `Invalid hook call` + hydration error overlay (“Your MyFace artifact encountered an error”), while the same URL in a top-level tab is fine.
+
+On Replit (`REPL_ID` / `REPLIT_DEV_DOMAIN`), webpack drops `ReactRefreshWebpackPlugin` so the iframe does full reloads instead of Fast Refresh. Restart the web workflow after changing `next.config.js`.
