@@ -1,1 +1,2 @@
-- [MyFace run config](myface-run-config.md) — uvicorn PATH quirk + PORT conflict pattern to avoid on Replit
+ - [MyFace run config](myface-run-config.md) — uvicorn PATH quirk + PORT conflict pattern to avoid on Replit
+- [next-intl localePrefix never hydration](next-intl-locale-prefix-never.md) — must pass locale prop to NextIntlClientProvider when localePrefix is 'never'

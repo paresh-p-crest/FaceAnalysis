@@ -55,4 +55,6 @@ ADMIN_EMAIL = "admin@myface.local"
 CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 CORS_ORIGIN_REGEX = 'https://.*\.(replit\.dev|repl\.co)'
 MEDIA_STORAGE_BACKEND = "replit"
-PUBLIC_APP_URL = "http://localhost:3000"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-88176689-d2b8-439d-bb1a-b81fab8693ef"

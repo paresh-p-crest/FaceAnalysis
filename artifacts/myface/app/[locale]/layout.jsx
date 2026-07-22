@@ -53,7 +53,7 @@ export default async function LocaleLayout({ children, params }) {
       </head>
       <body className="min-h-screen bg-surface text-ink font-sans antialiased">
         <AnalyticsScripts />
-        <NextIntlClientProvider messages={messages}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
           <Providers>
             <RouteLayout>{children}</RouteLayout>
           </Providers>
