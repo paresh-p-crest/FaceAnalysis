@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl'
 import { resolveFeatureHero } from '../../utils/featureParsing'
+import { FeatureRegionHero } from './FeatureRegionHero'
 
 const FEATURE_NAME_TO_PARSING_ID = {
   Eyebrows: 'eyebrows',
@@ -14,6 +15,13 @@ const FEATURE_NAME_TO_PARSING_ID = {
   Neck: 'neck',
   Ears: 'ears',
 }
+
+const REGION_FEATURE_IDS = {
+  Cheeks: 'cheeks',
+  Chin: 'chin',
+}
+
+const DIMORPHISM_HERO_IMG_CLASS = 'max-h-40 w-auto object-contain rounded-xl block'
 
 function DimorphismScale({ score, scaleLeft, scaleRight, t }) {
   return (
@@ -55,9 +63,12 @@ function dimorphismBarClass(label) {
   return 'bg-amber-400'
 }
 
-function FeatureCard({ feature, imageSrc, t }) {
+function FeatureCard({ feature, imageSrc, t, photo = null, landmarks = null, featureParsing = null }) {
   const badgeClass = dimorphismBadgeClass(feature.label)
   const barClass = dimorphismBarClass(feature.label)
+  const regionId = REGION_FEATURE_IDS[feature.name]
+  const showRegion =
+    Boolean(regionId && imageSrc && landmarks?.length)
 
   return (
     <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card overflow-hidden p-5 space-y-4">
@@ -69,7 +80,17 @@ function FeatureCard({ feature, imageSrc, t }) {
       </div>
 
       <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4 flex items-center justify-center min-h-[9rem]">
-        {imageSrc ? (
+        {showRegion ? (
+          <FeatureRegionHero
+            heroSrc={imageSrc}
+            frontPhoto={photo}
+            landmarks={landmarks}
+            featureId={regionId}
+            featureParsing={featureParsing}
+            alt={feature.name}
+            imgClassName={DIMORPHISM_HERO_IMG_CLASS}
+          />
+        ) : imageSrc ? (
           <img
             src={imageSrc}
             alt={feature.name}
@@ -103,7 +124,7 @@ function FeatureCard({ feature, imageSrc, t }) {
   )
 }
 
-export function DimorphismSection({ dimorphism, photo, featureParsing = null }) {
+export function DimorphismSection({ dimorphism, photo, featureParsing = null, landmarks = null }) {
   const t = useTranslations('Report')
 
   if (!dimorphism) return null
@@ -161,6 +182,9 @@ export function DimorphismSection({ dimorphism, photo, featureParsing = null }) 
               feature={f}
               imageSrc={cropFor(f.name)}
               t={t}
+              photo={photo}
+              landmarks={landmarks}
+              featureParsing={featureParsing}
             />
           ))}
         </div>

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Changed
+- **AI visuals hair/outfit layout** — Single before/after hero with recommendation side panel (static attribute grid + explanation; panel height matches the compare image) and round style thumbnails below the image (`max-w-sm`, same as prior cards).
+- **AI visuals healthy aging** — Two centered panels (Now → selected age) with a right arrow between; circular +3/+5/+10 selectors under the right image.
+- **Priority feature cards** — All overview/PDF priority findings use labeled key→value rows (e.g. `Blemishing`, `Texture`, `Shape`) instead of bare metric values as titles.
+- **AI visuals comparison baseline** — Hair/outfit/aging sliders and aging grid use the original front portrait (labeled “Before” / “Now”) instead of the projected AFTER image.
+- **Phase 01 fallback items** — Include the source feature name with each metric (e.g. `Skin · Blemishing`).
+- **Chat + AI Visuals assessment binding** — Both routes use only the chronologically latest submitted assessment when it is report-ready; no fallback to an older ready report (`fetchLatestSubmittedAssessment`).
+- **Dimorphism chin/cheeks highlights** — Per-feature cards reuse Features Analysis region fills (`FeatureRegionHero`) at dimorphism card scale (`max-h-40`).
 ### Fixed
 - **Replit Agent Preview hydration (root cause)** — Overlay showed our Google Fonts `<link>` vs Replit’s injected `/__replco/static/devtools/injected.js` in `<head>`. Removed all manual `<head>` children from `LocaleLayout` (Inter already via `globals.css` `@import`). Keep `ClientAppShell` + no theme bootstrap script.
 - **Replit hydration (confirmed)** — Error overlay: server rendered `localStorage` theme `<script>` while client had `__html: ""`. Removed that script from `app/[locale]/layout.jsx`. Theme only via `ThemeProvider` after mount. Re-applied `ClientAppShell` + React Refresh disable (`scripts/dev.mjs`) after Replit sync had restored the old layout.
@@ -22,7 +30,6 @@ All notable changes to this project will be documented in this file. The format 
 - **Assessment limit (2 per package)** — Customers may submit at most two facial analyses. `/analysis` requires auth, payment, and eligibility; users at the limit see a subtle limit screen with a link to their report. Admins are redirected away from `/analysis`. Backend enforces the cap on draft, photo upload, submit, and legacy create endpoints (**403**).
 - **Photo upload demo photos** — “Use demo photos” on the analysis upload step is shown only when `NEXT_PUBLIC_DEV_SHORTCUTS=true` (same gate as questionnaire dev shortcuts).
 - **AI visuals variant counts** — Hairstyle, outfit, and healthy-aging gallery sizes are configurable via backend `AI_VISUALS_HAIR_COUNT`, `AI_VISUALS_OUTFIT_COUNT`, and `AI_VISUALS_AGING_COUNT` (defaults 5 / 5 / 3).
-- **AI visuals comparison baseline** — Hair/outfit/aging sliders and aging grid use the projected AFTER portrait as the left/baseline image (labeled “Potential”) instead of the original front photo, matching AFTER-only generation.
 - **Protocol dashboard facial age** — Overview shows CV `visualAge` only (removed unused bio-age column/range from questionnaire). Shared `FacialAgePanel`: large age left, 5–65 scale with vertical needle (interactive + PDF).
 - **Skin analysis (LAB + skin-mask)** — Backend replaces region-box brightness metrics with notebook-aligned Qoves fields (undertone, blemishing, evenness, texture, roughness/homogeneity RIN, oiliness skew, under-eye L*). `SkinReportPanel` shows those fields in the existing summary/carousel/table layout.
 

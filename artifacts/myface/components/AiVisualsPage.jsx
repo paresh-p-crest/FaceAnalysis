@@ -4,27 +4,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Loader2, Sparkles } from 'lucide-react'
 import {
-  fetchAssessment,
-  fetchMyAssessments,
   generateAssessmentVisuals,
   isBackendApiEnabled,
 } from '../utils/apiClient'
 import { resolveAssessmentAiVisualsBaseline } from '../utils/assessmentPhotos'
-import { userReportReady } from '../utils/reportWorkflow'
+import { fetchLatestSubmittedAssessment } from '../utils/latestAssessment'
 import { translateApiError } from '../utils/translateApiError'
 import { AiVisualsSection } from './AiVisualsSection'
 import { StandalonePageShell } from './StandalonePageShell'
 import { ReportDocumentLayout } from './report/ReportDocumentLayout'
 import { AI_VISUAL_NAV_GROUPS } from './report/reportNavConfig'
-
-async function loadLatestReadyAssessment() {
-  if (!isBackendApiEnabled()) return null
-  const items = await fetchMyAssessments(20)
-  const list = Array.isArray(items) ? items : []
-  const ready = list.find((item) => userReportReady(item)) || list[0]
-  if (!ready?.id) return null
-  return fetchAssessment(ready.id)
-}
 
 /** Standalone `/ai-visuals` — independent of the report modal. */
 export default function AiVisualsPage({ onStartAssessment, user = null }) {
@@ -45,7 +34,7 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
     setLoading(true)
     setError('')
     try {
-      const full = await loadLatestReadyAssessment()
+      const full = await fetchLatestSubmittedAssessment()
       setAssessment(full)
       setAiVisuals(full?.aiVisuals || full?.analysis?.aiVisuals || null)
     } catch (err) {

@@ -79,6 +79,7 @@ export function CvReportView({
         dimorphism={cvReport.dimorphism}
         photo={photo}
         featureParsing={featureParsing}
+        landmarks={landmarks}
       />
     )
   }

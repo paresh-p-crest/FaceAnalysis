@@ -4,25 +4,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Bot, Loader2, Sparkles } from 'lucide-react'
 import {
-  fetchAssessment,
   fetchAssistantConversation,
-  fetchMyAssessments,
   isBackendApiEnabled,
   sendAssistantMessage,
 } from '../utils/apiClient'
-import { userReportReady } from '../utils/reportWorkflow'
+import { fetchLatestSubmittedAssessment } from '../utils/latestAssessment'
 import { translateApiError } from '../utils/translateApiError'
 import { ChatAssistant } from './ChatAssistant'
 import { StandalonePageShell } from './StandalonePageShell'
-
-async function loadLatestReadyAssessment() {
-  if (!isBackendApiEnabled()) return null
-  const items = await fetchMyAssessments(20)
-  const list = Array.isArray(items) ? items : []
-  const ready = list.find((item) => userReportReady(item)) || list[0]
-  if (!ready?.id) return null
-  return fetchAssessment(ready.id)
-}
 
 /** Standalone `/chat` — full-page assistant, independent of the report modal. */
 export default function ChatAssistantPage({ onStartAssessment }) {
@@ -37,7 +26,7 @@ export default function ChatAssistantPage({ onStartAssessment }) {
     setLoading(true)
     setError('')
     try {
-      const full = await loadLatestReadyAssessment()
+      const full = await fetchLatestSubmittedAssessment()
       setAssessment(full)
     } catch (err) {
       setError(translateApiError(err, tErrors))

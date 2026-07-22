@@ -24,7 +24,7 @@ import { resourcesForAdminTab } from '../../utils/adminWorkspace'
 import { dedupeAssessments } from '../../utils/assessmentDedupe'
 import { createHistoryId } from '../../utils/historyStorage'
 import { userHasAnalysisAccess } from '../../utils/paymentAccess'
-import { isAssessmentProcessing, userReportReady } from '../../utils/reportWorkflow'
+import { isAssessmentProcessing, isAssessmentSubmitted, userReportReady } from '../../utils/reportWorkflow'
 import {
   canStartNewAssessment,
   countSubmittedAssessments,
@@ -837,12 +837,13 @@ export function AppProvider({ children }) {
       }
       const items = await fetchMyAssessments(20)
       if (pathnameRef.current !== originPath) return
-      const ready = items.find((item) => userReportReady(item)) || items[0]
-      if (!ready) {
+      const submitted = (Array.isArray(items) ? items : []).filter(isAssessmentSubmitted)
+      const latest = submitted[0]
+      if (!latest || !userReportReady(latest)) {
         goTo(ROUTES.dashboard)
         return
       }
-      await viewCloudAssessment(ready, sectionId)
+      await viewCloudAssessment(latest, sectionId)
     } catch (err) {
       if (pathnameRef.current !== originPath) return
       alert(err?.message || 'Could not open report')

@@ -7,6 +7,8 @@ import {
   buildChinRegion,
 } from '../../utils/featureRegionOverlays'
 
+const DEFAULT_IMG_CLASS = 'max-h-48 w-auto object-contain rounded-xl block'
+
 function useNaturalSize(src) {
   const [size, setSize] = useState(null)
   useEffect(() => {
@@ -32,9 +34,15 @@ function useNaturalSize(src) {
   return size
 }
 
+/** Pull max-h-* from img classes so the wrapper matches displayed image height. */
+function wrapperMaxHeightClass(imgClassName) {
+  const match = String(imgClassName || '').match(/\bmax-h-\S+/)
+  return match ? match[0] : 'max-h-48'
+}
+
 /**
- * Existing feature hero (max-h-48) + notebook region fill, aligned via SegFormer
- * crop bbox when available (needs front photo pixel size).
+ * Feature hero + notebook region fill, aligned via SegFormer crop bbox when
+ * available (needs front photo pixel size). Overlay tracks displayed image size.
  */
 export function FeatureRegionHero({
   heroSrc,
@@ -43,8 +51,10 @@ export function FeatureRegionHero({
   featureId,
   featureParsing = null,
   alt = '',
+  imgClassName = DEFAULT_IMG_CLASS,
 }) {
   const frontSize = useNaturalSize(frontPhoto || null)
+  const wrapMaxH = wrapperMaxHeightClass(imgClassName)
 
   const region = useMemo(() => {
     if (!landmarks?.length || !featureId) return null
@@ -65,11 +75,11 @@ export function FeatureRegionHero({
     region?.paths?.length > 0 ? <FeatureRegionOverlay paths={region.paths} /> : null
 
   return (
-    <div className="relative inline-block max-h-48">
+    <div className={`relative inline-block ${wrapMaxH}`}>
       <img
         src={heroSrc}
         alt={alt}
-        className="max-h-48 w-auto object-contain rounded-xl block"
+        className={imgClassName}
       />
       {overlay ? (
         <div className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden">

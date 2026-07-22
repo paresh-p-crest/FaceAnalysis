@@ -642,94 +642,150 @@ export function buildLeftMiniCardFindings(cvReport, eyeAnalysis, sectionId) {
     const t = asPreviewText(title)
     if (!t || isProseMetric(t)) return
     const rawDetail = asPreviewText(detail)
-    const d = rawDetail && !isProseMetric(rawDetail) ? rawDetail : null
+    if (!rawDetail || isProseMetric(rawDetail)) return
     if (findings.some((f) => f.title === t)) return
-    findings.push({ title: t, detail: d })
+    findings.push({ title: t, detail: rawDetail })
   }
 
   switch (sectionId) {
     case 'skin': {
       const s = cvReport?.skin
       if (!s) break
-      add(s.texture, [asPreviewText(s.hydration), asPreviewText(s.tone)].filter(Boolean).join(' · ') || null)
-      add(s.scoreLabel || s.clarity, s.pigmentation || null)
-      if (s.redness && !/^normal$/i.test(String(asPreviewText(s.redness) || ''))) {
-        add(s.redness, s.skinTone || s.tone || null)
-      } else {
-        add(s.pigmentation || s.skinTone, s.tone || (s.uniformity != null ? `Uniformity ${s.uniformity}` : null))
+      const evenness = s.evenness || s.tone
+      const blemishValue = asPreviewText(s.blemishing)
+      if (blemishValue) {
+        const withCount =
+          s.blemishCount != null && Number.isFinite(Number(s.blemishCount))
+            ? `${blemishValue} (${s.blemishCount})`
+            : blemishValue
+        add('Blemishing', withCount)
+      }
+      const evenValue = asPreviewText(evenness)
+      const undertoneValue = asPreviewText(s.undertone)
+      if (evenValue || undertoneValue) {
+        add(
+          'Evenness',
+          [evenValue, undertoneValue].filter(Boolean).join(' · '),
+        )
+      }
+      const textureValue = asPreviewText(s.texture)
+      const oilinessValue =
+        s.oiliness && !/^normal/i.test(String(asPreviewText(s.oiliness) || ''))
+          ? asPreviewText(s.oiliness)
+          : null
+      const darkCirclesValue =
+        s.darkCircles && !/^not prominent$/i.test(String(asPreviewText(s.darkCircles) || ''))
+          ? asPreviewText(s.darkCircles)
+          : null
+      if (textureValue || oilinessValue || darkCirclesValue) {
+        add(
+          'Texture',
+          [textureValue, oilinessValue, darkCirclesValue].filter(Boolean).join(' · '),
+        )
+      }
+      if (findings.length === 0) {
+        const fallback = asPreviewText(s.scoreLabel || s.clarity || s.skinTone)
+        if (fallback) add('Skin', fallback)
       }
       break
     }
     case 'hair': {
       const h = cvReport?.hair
       if (!h) break
-      add(h.textureType || h.scoreLabel, h.hairColor || null)
-      add(h.hairline, h.density || h.recession || null)
-      add(h.density, h.score != null ? `${h.score}/100` : null)
+      add('Texture', h.textureType)
+      add('Color', h.hairColor)
+      add('Hairline', h.hairline)
+      if (findings.length < 3) add('Density', h.density)
+      if (findings.length < 3) add('Recession', h.recession)
       break
     }
     case 'eyes': {
       const e = cvReport?.eyes
       const ea = eyeAnalysis
-      add(pickScoreLabel(e) || pickScoreLabel(ea) || e?.shape || ea?.eyeShape, e?.canthalTilt || ea?.canthalTilt || null)
-      add(e?.symmetry || ea?.symmetryLabel, e?.spacing || ea?.spacing || null)
-      add(ea?.underEyeHealth || e?.underEye, ea?.overallScore != null ? `${ea.overallScore}/100` : null)
+      add('Shape', e?.shape || ea?.eyeShape)
+      add('Canthal tilt', e?.canthalTilt || ea?.canthalTilt)
+      add('Symmetry', e?.symmetry || ea?.symmetryLabel)
+      if (findings.length < 3) add('Spacing', e?.spacing || ea?.spacing)
+      if (findings.length < 3) add('Under-eye', ea?.underEyeHealth || e?.underEye)
       break
     }
     case 'nose': {
       const n = cvReport?.nose
       if (!n) break
-      add(n.widthClassification || n.scoreLabel || n.shape, n.widthLengthRatio != null ? `Ratio ${n.widthLengthRatio}` : null)
-      add(n.tip || n.shape, n.idealRatio != null ? `Ideal ${n.idealRatio}` : null)
+      add('Width', n.widthClassification)
+      add('Shape', n.shape)
+      add('Tip', n.tip)
+      if (findings.length < 3 && n.widthLengthRatio != null) {
+        add('Width–length', n.widthLengthRatio)
+      }
+      if (findings.length < 3 && n.idealRatio != null) {
+        add('Ideal ratio', n.idealRatio)
+      }
       break
     }
     case 'cheeks': {
       const c = cvReport?.cheeks
       if (!c) break
-      add(c.scoreLabel || c.fullness, c.hollowing || null)
-      add(c.prominence, c.score != null ? `${c.score}/100` : null)
+      add('Fullness', c.fullness)
+      add('Hollowing', c.hollowing)
+      add('Prominence', c.prominence)
       break
     }
     case 'jaw': {
       const j = cvReport?.jaw || cvReport?.jawChin
       if (!j) break
+      add('Shape', j.jawShape || j.shape)
       add(
-        j.jawWidthClass || j.scoreLabel || j.jawShape || j.shape,
-        j.jawWidth != null ? `${j.jawWidth}% width` : null,
+        'Width',
+        j.jawWidthClass
+          || (j.jawWidth != null ? `${j.jawWidth}%` : null),
       )
       add(
-        j.mandibularDefinition || j.definition || j.jawlineDefinition,
-        j.jawAngle != null ? `${j.jawAngle}°` : (j.angle != null ? `${j.angle}°` : null),
+        'Definition',
+        j.mandibularDefinition || j.definition || j.jawlineDefinition
+          || (j.jawAngle != null ? `${j.jawAngle}°` : (j.angle != null ? `${j.angle}°` : null)),
       )
-      add(j.jawLengthClass, j.jawLength != null ? `${j.jawLength}% length` : null)
+      if (findings.length < 3) {
+        add(
+          'Length',
+          j.jawLengthClass
+            || (j.jawLength != null ? `${j.jawLength}%` : null),
+        )
+      }
       break
     }
     case 'lips': {
       const l = cvReport?.lips
       if (!l) break
-      add(l.scoreLabel || l.fullness, l.ratio || l.cupidBow || null)
-      add(l.shape, l.score != null ? `${l.score}/100` : null)
+      add('Fullness', l.fullness)
+      add('Shape', l.shape)
+      add('Ratio', l.ratio)
+      if (findings.length < 3) add('Cupid bow', l.cupidBow)
       break
     }
     case 'chin': {
       const c = cvReport?.chin || cvReport?.jawChin
       if (!c) break
-      add(c.scoreLabel || c.projection || c.shape, c.width || null)
-      add(c.profile, c.score != null ? `${c.score}/100` : null)
+      add('Projection', c.projection)
+      add('Shape', c.shape)
+      add('Width', c.width)
+      if (findings.length < 3) add('Profile', c.profile)
       break
     }
     case 'neck': {
       const n = cvReport?.neck
       if (!n) break
-      add(n.scoreLabel || n.definition, n.laxity || null)
-      add(n.contour, n.score != null ? `${n.score}/100` : null)
+      add('Definition', n.definition)
+      add('Laxity', n.laxity)
+      add('Contour', n.contour)
       break
     }
     case 'ears': {
       const e = cvReport?.ears
       if (!e) break
-      add(e.scoreLabel || e.prominence, e.symmetry || null)
-      add(e.projection, e.score != null ? `${e.score}/100` : null)
+      add('Prominence', e.prominence)
+      add('Symmetry', e.symmetry)
+      add('Projection', e.projection)
       break
     }
     default:
@@ -1097,9 +1153,11 @@ function buildTreatmentPhaseFallback(dash, t) {
   const zoneLabels = miniCards.slice(0, 3).map((card) => t(`nav.${card.id}`))
 
   const phase01Items = miniCards.slice(0, 3).map((card) => {
+    const featureLabel = t(`nav.${card.id}`)
     const finding = (card.findings || []).find((f) => f?.title)
+    const metricLabel = finding?.title
     return {
-      name: finding?.title || t(`nav.${card.id}`),
+      name: metricLabel ? `${featureLabel} · ${metricLabel}` : featureLabel,
       detail: finding?.detail || card.scoreLabel || t('executiveSummary.phases.fallback.itemDetailDefault'),
     }
   })
