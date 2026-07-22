@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { PHOTO_POSES } from '../utils/constants'
+import { isDevShortcutsEnabled } from '../utils/devConfig'
 import { getAllDemoPhotos } from '../utils/demoPhotos'
 import { uploadAssessmentPhoto, deleteAssessmentPhoto } from '../utils/apiClient'
 import { validatePhoto } from '../utils/photoValidation'
@@ -408,16 +409,17 @@ export default function PhotoUpload({
             </p>
           </div>
 
-          {/* Quick Demo Photo Injector — dev only, kept small */}
-          <button
-            type="button"
-            onClick={handleUseAllDemos}
-            disabled={loadingDemos}
-            className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 hover:text-[#5e9f8b] transition-colors disabled:opacity-50"
-          >
-            <Sparkles className="w-3 h-3" />
-            {loadingDemos ? t('loadingDemoPhotos') : t('useDemoPhotos')}
-          </button>
+          {isDevShortcutsEnabled && (
+            <button
+              type="button"
+              onClick={handleUseAllDemos}
+              disabled={loadingDemos}
+              className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 hover:text-[#5e9f8b] transition-colors disabled:opacity-50"
+            >
+              <Sparkles className="w-3 h-3" />
+              {loadingDemos ? t('loadingDemoPhotos') : t('useDemoPhotos')}
+            </button>
+          )}
         </div>
 
         {/* Scrollable Middle Content */}

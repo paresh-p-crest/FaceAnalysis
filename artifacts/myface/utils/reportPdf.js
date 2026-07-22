@@ -1913,46 +1913,45 @@ function drawProtocolDashboardPage1(doc, ctx) {
   drawImageFrame(doc, centerX + halfW + pairGap, cy, halfW, pairH, overviewAfterJpeg, t('dashPotential'), { cover: true, gap: 0, pdfT: t })
   cy += pairH + 8
 
-  const ageH = 58
+  const ageH = 52
   drawPanel(doc, centerX, cy, centerW, ageH)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(6.5)
   setMuted(doc)
-  doc.text(t('dashFacialAge'), centerX + 8, cy + 11)
+  doc.text(t('dashFacialAge'), centerX + 8, cy + 10)
   const faceAge = dash.faceAge
-  doc.setFontSize(14)
-  setInk(doc)
   const faceText = faceAge != null ? String(faceAge) : '—'
-  doc.text(faceText, centerX + centerW / 2, cy + 28, { align: 'center' })
-  doc.setFontSize(5.5)
-  setMuted(doc)
-  doc.text(t('dashFacialAgeLabel'), centerX + centerW / 2, cy + 35, { align: 'center' })
+  doc.setFontSize(18)
+  setInk(doc)
+  doc.text(faceText, centerX + 10, cy + 32)
 
-  const axisMin = 18
+  const axisMin = 5
   let axisMax = 65
   if (faceAge != null) {
     axisMax = Math.max(axisMax, faceAge + 4)
   }
-  const barX = centerX + 8
-  const barW = centerW - 16
-  const barY = cy + 44
+  const barX = centerX + 42
+  const barW = centerW - 52
+  const barY = cy + 22
+  const barH = 4
   const toX = (val) => barX + ((val - axisMin) / (axisMax - axisMin)) * barW
-  doc.setFillColor(241, 245, 249)
-  doc.roundedRect(barX, barY, barW, 3, 1.5, 1.5, 'F')
+  doc.setFillColor(226, 232, 240)
+  doc.roundedRect(barX, barY, barW, barH, 1.5, 1.5, 'F')
   if (faceAge != null) {
     const fx = toX(faceAge)
-    doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
-    doc.circle(fx, barY + 1.5, 2.2, 'F')
+    doc.setDrawColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.setLineWidth(1.1)
+    doc.line(fx, barY - 2, fx, barY + barH + 12)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(5)
+    doc.setFontSize(6)
     doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
-    doc.text(String(faceAge), fx, barY - 2, { align: 'center' })
+    doc.text(String(faceAge), fx, barY + barH + 18, { align: 'center' })
   }
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(4.5)
   setMuted(doc)
-  doc.text(String(axisMin), barX, barY + 10)
-  doc.text(String(Math.round(axisMax)), barX + barW, barY + 10, { align: 'right' })
+  doc.text(String(axisMin), barX, barY + barH + 9)
+  doc.text(String(Math.round(axisMax)), barX + barW, barY + barH + 9, { align: 'right' })
   cy += ageH + 8
 
   const stackH = bodyBottom - cy - 16

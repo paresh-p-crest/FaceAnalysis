@@ -2099,7 +2099,7 @@
     "navTitle": "AI Visuals",
     "navGroup": "Previews",
     "loading": "Loading AI visuals…",
-    "description": "Hair, outfit, and healthy-aging previews are generated from your projected AFTER portrait (13 styles: 5 hair + 5 outfit + 3 aging). They do not change your measured CV report.",
+    "description": "Hair, outfit, and healthy-aging previews are generated from your projected AFTER portrait. They do not change your measured CV report.",
     "needsReport": "Complete a facial analysis first to generate AI visual previews for your latest report.",
     "needsAfter": "Projected AFTER must be ready before generating AI visuals.",
     "sections": {

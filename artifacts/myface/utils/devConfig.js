@@ -1,7 +1,7 @@
 /**
  * DEV ONLY — remove before production:
  *   1. Delete this file
- *   2. Remove imports from reportWorkflow.js, Report.jsx, DevShortcuts.jsx
+ *   2. Remove imports from reportWorkflow.js, Report.jsx, DevShortcuts.jsx, PhotoUpload.jsx
  *   3. Unset NEXT_PUBLIC_DEV_* vars in .env
  */
 

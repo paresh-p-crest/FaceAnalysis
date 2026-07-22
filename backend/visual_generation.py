@@ -17,6 +17,11 @@ from .image_client import image_model as _image_model
 from .image_utils import decode_image
 from .media_storage import assessment_key, get_media_storage, media_key_from_ref
 from .photo_storage import load_projected_full
+from .config import (
+    AI_VISUALS_AGING_COUNT,
+    AI_VISUALS_HAIR_COUNT,
+    AI_VISUALS_OUTFIT_COUNT,
+)
 from .visual_style_banks import (
     AGING_TIERS,
     OUTFIT_STYLES,
@@ -29,6 +34,12 @@ from .visual_style_banks import (
 logger = logging.getLogger(__name__)
 
 VARIANT_TYPES = ("hair", "outfit", "aging")
+
+_VARIANT_COUNT_BY_TYPE = {
+    "hair": AI_VISUALS_HAIR_COUNT,
+    "outfit": AI_VISUALS_OUTFIT_COUNT,
+    "aging": AI_VISUALS_AGING_COUNT,
+}
 
 _VARIANT_TITLES = {
     "hair": "Hairstyle Preview",
@@ -319,14 +330,17 @@ def _style_specs_for_type(
     variant_type: str,
     cv_report: dict,
 ) -> list[Union[HairStyleSpec, OutfitStyleSpec, AgingTierSpec]]:
-    """Return all style specs for one variant type (5 hair + 5 outfit + 3 aging)."""
+    """Return style specs for one variant type, limited by env counts."""
     if variant_type == "hair":
-        return hair_styles_for(cv_report or {})
-    if variant_type == "outfit":
-        return list(OUTFIT_STYLES)
-    if variant_type == "aging":
-        return list(AGING_TIERS)
-    raise ValueError(f"Unsupported visual variant type: {variant_type}")
+        specs = hair_styles_for(cv_report or {})
+    elif variant_type == "outfit":
+        specs = list(OUTFIT_STYLES)
+    elif variant_type == "aging":
+        specs = list(AGING_TIERS)
+    else:
+        raise ValueError(f"Unsupported visual variant type: {variant_type}")
+    limit = _VARIANT_COUNT_BY_TYPE.get(variant_type, 0)
+    return specs[:limit] if limit else []
 
 
 async def generate_visual_variants(
@@ -429,5 +443,6 @@ async def generate_visual_variants(
         "source": provider if (can_generate or any(v.get("imageSrc") for v in variants)) else "blocked",
         "model": _image_model(),
         "sourceKind": source_kind,
+        "variantCounts": dict(_VARIANT_COUNT_BY_TYPE),
         "variants": variants,
     }

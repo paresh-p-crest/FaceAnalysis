@@ -2099,7 +2099,7 @@
     "navTitle": "KI-Visuals",
     "navGroup": "Vorschauen",
     "loading": "KI-Visuals werden geladen…",
-    "description": "Haar-, Outfit- und Healthy-Aging-Vorschauen werden aus Ihrem projizierten AFTER-Porträt generiert (13 Stile: 5 Haar + 5 Outfit + 3 Aging). Sie ändern nicht Ihren gemessenen CV-Bericht.",
+    "description": "Haar-, Outfit- und Healthy-Aging-Vorschauen werden aus Ihrem projizierten AFTER-Porträt generiert. Sie ändern nicht Ihren gemessenen CV-Bericht.",
     "needsReport": "Schließen Sie zuerst eine Gesichtsanalyse ab, um KI-Visuals für Ihren neuesten Bericht zu generieren.",
     "needsAfter": "Projiziertes AFTER muss bereit sein, bevor KI-Visuals generiert werden können.",
     "sections": {

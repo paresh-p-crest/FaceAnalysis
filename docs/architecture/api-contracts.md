@@ -360,7 +360,7 @@ Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images 
     "variants": ["hair", "outfit", "aging"]
   }
   ```
-- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variants[]`). When all categories are requested, `variants[]` contains **13** cards: 5 hairstyles (CV face-shape bank), 5 outfit occasions, and 3 aging previews (`+3`, `+5`, `+10` years). Each variant includes `type` (hair/outfit/aging), `styleId`, `title`, `prompt`, `imageSrc`, `status`, and `error`. Failed edits return `status: "blocked"` per variant instead of crashing the request. Prompt text is natural-language with a shared identity opening and per-card scope-fence (ADR-035); image edits are executed as separate single-call prompts (no mega-prompt).
+- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variantCounts`, `variants[]`). When all categories are requested, `variants[]` length is `AI_VISUALS_HAIR_COUNT + AI_VISUALS_OUTFIT_COUNT + AI_VISUALS_AGING_COUNT` (defaults **13**: 5 hairstyles, 5 outfit occasions, 3 aging previews). Each variant includes `type` (hair/outfit/aging), `styleId`, `title`, `prompt`, `imageSrc`, `status`, and `error`. Failed edits return `status: "blocked"` per variant instead of crashing the request. Prompt text is natural-language with a shared identity opening and per-card scope-fence (ADR-035); image edits are executed as separate single-call prompts (no mega-prompt).
 
 ### `GET /api/assessments/{assessment_id}/pdf`
 Retrieves generated PDF bytes directly.

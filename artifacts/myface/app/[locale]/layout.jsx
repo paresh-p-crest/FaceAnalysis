@@ -51,7 +51,7 @@ export default async function LocaleLayout({ children, params }) {
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen bg-surface text-ink font-sans antialiased">
+      <body className="min-h-screen bg-surface text-ink font-sans antialiased" suppressHydrationWarning>
         <AnalyticsScripts />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <Providers>

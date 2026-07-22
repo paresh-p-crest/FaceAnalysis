@@ -189,6 +189,20 @@ def test_aging_tiers_have_distinct_skin_and_soft_tissue():
     assert len(soft) == 3
 
 
+def test_style_specs_respect_env_variant_counts(monkeypatch):
+    import backend.visual_generation as vg
+
+    monkeypatch.setattr(
+        vg,
+        "_VARIANT_COUNT_BY_TYPE",
+        {"hair": 2, "outfit": 1, "aging": 1},
+    )
+    cv = {"faceShape": {"shape": "Oval"}}
+    assert len(vg._style_specs_for_type("hair", cv)) == 2
+    assert len(vg._style_specs_for_type("outfit", cv)) == 1
+    assert len(vg._style_specs_for_type("aging", cv)) == 1
+
+
 def test_generate_visual_variants_all_thirteen(monkeypatch):
     import backend.visual_generation as vg
 
@@ -227,6 +241,7 @@ def test_generate_visual_variants_all_thirteen(monkeypatch):
     variants = result["variants"]
     assert len(variants) == 13
     assert result["sourceKind"] == "projected_after_full"
+    assert result["variantCounts"] == {"hair": 5, "outfit": 5, "aging": 3}
 
     counts = {"hair": 5, "outfit": 5, "aging": 3}
     for t, n in counts.items():

@@ -172,3 +172,19 @@ PROTOCOL_ITEMS = [
     {"id": "clothing", "label": "Avoid neck-covering clothes (e.g. turtlenecks)"},
     {"id": "filters", "label": "Don't use filters on the photo"},
 ]
+
+
+def _env_nonneg_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return default
+
+
+# AI visuals — how many style variants to generate per category (capped at bank size).
+AI_VISUALS_HAIR_COUNT = _env_nonneg_int("AI_VISUALS_HAIR_COUNT", 5)
+AI_VISUALS_OUTFIT_COUNT = _env_nonneg_int("AI_VISUALS_OUTFIT_COUNT", 5)
+AI_VISUALS_AGING_COUNT = _env_nonneg_int("AI_VISUALS_AGING_COUNT", 3)
