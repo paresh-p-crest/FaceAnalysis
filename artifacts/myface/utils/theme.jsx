@@ -11,7 +11,8 @@ const ThemeContext = createContext({
 
 export function ThemeProvider({ children }) {
   // Always start with 'light' so SSR HTML matches the first client render.
-  // Saved preference is applied after mount (inline <head> script already set the class).
+  // Preference is applied after mount (no <head> localStorage script — that
+  // desynced SSR vs client in Replit Agent Preview).
   const [theme, setTheme] = useState('light')
   const [hydrated, setHydrated] = useState(false)
 

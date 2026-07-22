@@ -41,11 +41,20 @@ Do **not** short-circuit `GET /` with `{"ok":true}` in `middleware.js`. That rep
 
 After changing middleware on Replit: restart the **artifacts/myface: web** workflow, then **Republish** (or hard-refresh Preview / Open dev URL) so the live preview is not on a stale process.
 
+## Theme `<script>` — DO NOT restore
+Never put a `localStorage` theme bootstrap `<script dangerouslySetInnerHTML>` in `app/[locale]/layout.jsx`.
+
+Next overlay proof (Replit Agent Preview):
+- Server: `__html` = `(function(){try{var t=localStorage.getItem('myface_theme')…`
+- Client: `__html: ""`
+
+That mismatch → Recoverable Error / hydration failure / Invalid hook call.
+
+Theme only via `ThemeProvider` after mount (`useState('light')` then `useEffect`).
+
 ## Agent chat Preview vs Open URL
-Open URL (top-level tab) can work while the Agent chat webview fails with Invalid hook call + hydration.
+1. No theme `<head>` script (above).
+2. `ClientAppShell` — static first paint, full app after mount.
+3. `scripts/dev.mjs` + webpack strip React Refresh (`package.json` `"dev": "node ./scripts/dev.mjs"`).
 
-Causes addressed:
-1. **`usePathname()` SSR/iframe mismatch** — `RouteLayout` keyed the boot screen on `pathname` and branched Auth/App shells before mount; AppBootScreen also derived copy from pathname during the first paint. In the Agent iframe those pathnames can disagree with SSR → hydration failure (often reported as Invalid hook call). Fix: pathname-agnostic boot until `useEffect` mount; defer path-based boot labels.
-2. **Fast Refresh in iframe** — set `NEXT_DISABLE_REACT_REFRESH=1` in `artifacts/myface/.replit-artifact/artifact.toml` and drop `ReactRefreshWebpackPlugin` when that env / `REPL_ID` is set.
-
-Restart the **artifacts/myface: web** workflow after `next.config.js` / artifact env changes.
+If Replit Agent “fixes” Preview by putting the theme script back, revert it. Restart **artifacts/myface: web** after sync.

@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Fixed
+- **Replit hydration (confirmed)** — Error overlay: server rendered `localStorage` theme `<script>` while client had `__html: ""`. Removed that script from `app/[locale]/layout.jsx`. Theme only via `ThemeProvider` after mount. Re-applied `ClientAppShell` + React Refresh disable (`scripts/dev.mjs`) after Replit sync had restored the old layout.
 - **Replit Agent chat Preview `/auth` crash** — Hydration broke when `usePathname()` disagreed between SSR and the Agent iframe (`key={pathname}` on the boot screen + path-based boot copy + shell branching). RouteLayout now mounts a pathname-agnostic boot screen until client mount; AppBootScreen defers path-based labels; artifact sets `NEXT_DISABLE_REACT_REFRESH=1`.
 - **Replit Agent chat Preview (iframe)** — Open URL / top-level tab worked; chat-side artifact webview failed with Invalid hook call after Fast Refresh. Widened `allowedDevOrigins`, and disabled `ReactRefreshWebpackPlugin` when `REPL_ID` / `REPLIT_DEV_DOMAIN` / `NEXT_DISABLE_REACT_REFRESH` is set so the iframe full-reloads instead of corrupting React.
 - **Replit Preview Invalid hook call (final)** — Removed all `GET /` JSON health short-circuits from middleware. Autoscale only needs HTTP 200 on `/` (HTML is fine); JSON liveness stays on `/healthz`. The previous probe heuristics still false-matched Preview and caused Invalid hook call + hydration failure. After deploy: restart web workflow + Republish so Preview is not stale.
