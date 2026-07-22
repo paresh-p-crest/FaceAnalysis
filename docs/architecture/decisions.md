@@ -777,6 +777,8 @@ The existing AI visuals feature generated three previews (hair / outfit / aging)
 
 **Amendment (2026-07-21):** Lift the 1-per-type cap — `generate_visual_variants` emits the full **13** cards when all types are requested. Source image is **projected AFTER only** (no front/CV fallbacks). Pipeline worker runs a new **`ai_visuals`** stage after `projected_after` (soft-skips when AFTER is not ready). Admin `POST …/ai-visuals` requires AFTER `ready` and regenerates all 13.
 
+**Amendment (2026-07-22):** Source image is the assessment **front (BEFORE)** portrait for FE comparison and BE generation. Projected AFTER ready-checks before AI visuals are disabled/commented out; pipeline soft-skips only when front bytes are missing.
+
 ### Consequences
 - Users see grouped galleries with distinct prompt directions per card (hair styles differ by named style, not random sampling noise).
 - Prompt text becomes more deterministic and reviewable via the “View prompt” affordance in the UI.

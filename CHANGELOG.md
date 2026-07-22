@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file. The format 
 - **AI visuals healthy aging** — Two centered panels (Now → selected age) with a right arrow between; circular +3/+5/+10 selectors under the right image.
 - **Priority feature cards** — All overview/PDF priority findings use labeled key→value rows (e.g. `Blemishing`, `Texture`, `Shape`) instead of bare metric values as titles.
 - **AI visuals comparison baseline** — Hair/outfit/aging sliders and aging grid use the original front portrait (labeled “Before” / “Now”) instead of the projected AFTER image.
+- **AI visuals generation source** — Pipeline and `POST …/ai-visuals` edit the front (BEFORE) portrait; projected AFTER ready-checks are commented out / disabled (ADR-038 amendment 2026-07-22).
 - **Phase 01 fallback items** — Include the source feature name with each metric (e.g. `Skin · Blemishing`).
 - **Chat + AI Visuals assessment binding** — Both routes use only the chronologically latest submitted assessment when it is report-ready; no fallback to an older ready report (`fetchLatestSubmittedAssessment`).
 - **Dimorphism chin/cheeks highlights** — Per-feature cards reuse Features Analysis region fills (`FeatureRegionHero`) at dimorphism card scale (`max-h-40`).
@@ -40,7 +41,7 @@ All notable changes to this project will be documented in this file. The format 
 - **Shared customer gates** — `CustomerAssessmentGate` reused by `/dashboard` and `/report`.
 - **Settings page (`/settings`)** — Sidebar layout (Account Info / Password / Billing) matching report-style document chrome; billing, account edit, and password change in separate panels.
 - **Report sidebar — Past Assessments** — Footer button opens an overlay list of past assessments on the current report; tapping a row loads that report in place (no `/history` navigation).
-- **Pipeline AI visuals (13, AFTER-only)** — Background worker runs `ai_visuals` after `projected_after`, generating all 13 style variants (5 hair + 5 outfit + 3 aging) from projected AFTER only. Admin `POST …/ai-visuals` requires AFTER ready and regenerates the full gallery.
+- **Pipeline AI visuals (13)** — Background worker runs `ai_visuals` after `projected_after`, generating all 13 style variants (5 hair + 5 outfit + 3 aging) from the front (BEFORE) portrait. Admin `POST …/ai-visuals` regenerates the full gallery when front bytes are available.
 ### Fixed
 - **Dashboard PDF download** — Pose photos are converted to URL strings before PDF build (raw `{ publicUrl }` metadata no longer becomes `/[object Object]` and fails generation).
 - **Dashboard overview name plate** — Shows first name, protocol ID, and “View full report” only (same plate size; assessed date / overall score / full name removed from overview).

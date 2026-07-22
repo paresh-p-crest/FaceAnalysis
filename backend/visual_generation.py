@@ -16,7 +16,6 @@ from .image_client import generate_image_edit, has_image_api_key, resolve_image_
 from .image_client import image_model as _image_model
 from .image_utils import decode_image
 from .media_storage import assessment_key, get_media_storage, media_key_from_ref
-from .photo_storage import load_projected_full
 from .config import (
     AI_VISUALS_AGING_COUNT,
     AI_VISUALS_HAIR_COUNT,
@@ -248,31 +247,29 @@ def resolve_source_image_bytes(
     assessment_photos: Optional[dict] = None,
     source_image: Optional[str] = None,
     projected_after: Optional[dict] = None,
-    require_projected_after: bool = True,
+    require_projected_after: bool = False,
 ) -> tuple[Optional[bytes], Optional[str]]:
     """
-    Resolve portrait bytes for image edits.
+    Resolve portrait bytes for AI visual image edits.
 
-    When ``require_projected_after`` is True (default for pipeline + admin):
-    only the stored projected AFTER full image is accepted.
-
-    Legacy fallbacks (front pose, photos map, data URLs) apply only when
-    ``require_projected_after`` is False (tests / internal tooling).
+    Uses assessment **front (BEFORE)** pose, then photos map / source_image refs.
+    Projected AFTER is no longer used as the edit source (FE + BE aligned).
     """
-    if assessment_id:
-        projected = load_projected_full(assessment_id, projected_after)
-        if projected:
-            return projected, "projected_after_full"
-        if require_projected_after:
-            return None, None
+    # Previously: required projected AFTER when require_projected_after=True.
+    # if require_projected_after and assessment_id:
+    #     projected = load_projected_full(assessment_id, projected_after)
+    #     if projected:
+    #         return projected, "projected_after_full"
+    #     return None, None
+    _ = (projected_after, require_projected_after)  # retained for call-site compatibility
 
-    # Legacy: canonical front pose on disk
+    # Canonical front pose on disk (BEFORE)
     if assessment_id:
         front = load_pose_bytes(assessment_id, "front")
         if front:
             return front, "assessment_front_file"
 
-    # 3) Photos map metadata
+    # Photos map metadata
     photos = assessment_photos or {}
     front_meta = photos.get("front") if isinstance(photos, dict) else None
     if isinstance(front_meta, dict):
@@ -289,7 +286,6 @@ def resolve_source_image_bytes(
 
     src = source_image.strip()
 
-    # 3) Data URL / raw base64
     if _looks_like_data_or_b64(src):
         try:
             return decode_image(src), "data_url"
@@ -297,12 +293,10 @@ def resolve_source_image_bytes(
             logger.warning("AI visuals: could not decode data URL source (%s)", exc)
             return None, None
 
-    # 4) Stored media ref (publicUrl / relativePath / URL) → bytes
     data = _resolve_ref_bytes(src)
     if data:
         return data, "cv_report_url_file"
 
-    # 5) Remote fetch
     if src.startswith("http://") or src.startswith("https://"):
         try:
             with httpx.Client(timeout=30) as client:
@@ -353,7 +347,7 @@ async def generate_visual_variants(
     assessment_id: Optional[str] = None,
     assessment_photos: Optional[dict] = None,
     projected_after: Optional[dict] = None,
-    require_projected_after: bool = True,
+    require_projected_after: bool = False,
 ) -> dict:
     selected = [v for v in (variant_types or list(VARIANT_TYPES)) if v in VARIANT_TYPES]
     if not selected:
@@ -362,7 +356,7 @@ async def generate_visual_variants(
     image_bytes, source_kind = resolve_source_image_bytes(
         assessment_id=assessment_id,
         assessment_photos=assessment_photos,
-        source_image=source_image if not require_projected_after else None,
+        source_image=source_image,
         projected_after=projected_after,
         require_projected_after=require_projected_after,
     )
@@ -375,8 +369,8 @@ async def generate_visual_variants(
         resolve_note = f"{provider} API key not set."
     elif not image_bytes:
         resolve_note = (
-            "Projected AFTER is required and could not be loaded for image edits. "
-            "Ensure projected AFTER is ready, then try again."
+            "Front (BEFORE) portrait could not be loaded for image edits. "
+            "Ensure the assessment front photo is stored, then try again."
         )
     else:
         resolve_note = None

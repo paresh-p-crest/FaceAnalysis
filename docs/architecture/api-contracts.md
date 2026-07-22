@@ -352,8 +352,8 @@ Assessment `GET` payloads include `projectedAnalysis` alongside `projectedAfter`
 ### `POST /api/assessments/{assessment_id}/ai-visuals`
 Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images Edits (`OPENAI_IMAGE_MODEL`, default `gpt-image-1`).
 - **Auth:** Owner User or Admin (paid AI access)
-- **Prerequisite:** `projectedAfter.status === "ready"` and loadable projected AFTER bytes; otherwise **400** with a clear detail.
-- **Source image:** Stored **projected AFTER** full image only (`assessments/{id}/projected/full.jpg|png` or `projectedAfter.full` refs). No front pose or CV fallbacks.
+- **Prerequisite:** Stored front (BEFORE) portrait bytes; otherwise **400** with a clear detail. (Projected AFTER ready-check is disabled — visuals use BEFORE only.)
+- **Source image:** Assessment **front** pose (`assessments/{id}/front.jpg`) / photos.front refs. Not projected AFTER.
 - **Request Body:**
   ```json
   {

@@ -208,7 +208,7 @@ def test_generate_visual_variants_all_thirteen(monkeypatch):
 
     assessment_id = "viztest13"
     get_media_storage().put_bytes(
-        assessment_key(assessment_id, "projected", "full.jpg"),
+        assessment_key(assessment_id, "front.jpg"),
         b"\xff\xd8\xff" + b"3" * 250 + b"\xff\xd9",
     )
 
@@ -233,14 +233,13 @@ def test_generate_visual_variants_all_thirteen(monkeypatch):
             metrics=None,
             variant_types=["hair", "outfit", "aging"],
             assessment_id=assessment_id,
-            projected_after={"status": "ready"},
-            require_projected_after=True,
+            require_projected_after=False,
         )
     )
 
     variants = result["variants"]
     assert len(variants) == 13
-    assert result["sourceKind"] == "projected_after_full"
+    assert result["sourceKind"] == "assessment_front_file"
     assert result["variantCounts"] == {"hair": 5, "outfit": 5, "aging": 3}
 
     counts = {"hair": 5, "outfit": 5, "aging": 3}
@@ -253,14 +252,10 @@ def test_generate_visual_variants_all_thirteen(monkeypatch):
     assert aging_ids == {"aging_3", "aging_5", "aging_10"}
 
 
-def test_generate_visual_variants_requires_projected_after(monkeypatch):
+def test_generate_visual_variants_blocks_without_front(monkeypatch):
     import backend.visual_generation as vg
 
-    assessment_id = "viznoafter"
-    get_media_storage().put_bytes(
-        assessment_key(assessment_id, "front.jpg"),
-        b"\xff\xd8\xff" + b"0" * 200 + b"\xff\xd9",
-    )
+    assessment_id = "viznofront"
 
     monkeypatch.setattr(vg, "resolve_image_provider", lambda: "openai")
     monkeypatch.setattr(vg, "has_image_api_key", lambda provider=None: True)
@@ -272,7 +267,7 @@ def test_generate_visual_variants_requires_projected_after(monkeypatch):
             cv_report={"faceShape": {"shape": "Oval"}},
             metrics=None,
             assessment_id=assessment_id,
-            require_projected_after=True,
+            require_projected_after=False,
         )
     )
 
@@ -280,23 +275,20 @@ def test_generate_visual_variants_requires_projected_after(monkeypatch):
     assert all(v["status"] == "blocked" for v in result["variants"])
 
 
-def test_resolve_prefers_assessment_front_file_when_legacy():
+def test_resolve_prefers_assessment_front_file():
     assessment_id = "abc123"
     get_media_storage().put_bytes(
         assessment_key(assessment_id, "front.jpg"),
         b"\xff\xd8\xff" + b"0" * 200 + b"\xff\xd9",
     )
 
-    data, kind = resolve_source_image_bytes(
-        assessment_id=assessment_id,
-        require_projected_after=False,
-    )
+    data, kind = resolve_source_image_bytes(assessment_id=assessment_id)
     assert data is not None
     assert kind == "assessment_front_file"
     assert data.startswith(b"\xff\xd8")
 
 
-def test_resolve_prefers_projected_after_over_front():
+def test_resolve_prefers_front_even_when_projected_after_exists():
     assessment_id = "projviz1"
     front_bytes = b"\xff\xd8\xff" + b"0" * 200 + b"\xff\xd9"
     after_bytes = b"\xff\xd8\xff" + b"9" * 200 + b"\xff\xd9"
@@ -304,34 +296,30 @@ def test_resolve_prefers_projected_after_over_front():
     get_media_storage().put_bytes(assessment_key(assessment_id, "projected", "full.jpg"), after_bytes)
 
     data, kind = resolve_source_image_bytes(assessment_id=assessment_id)
-    assert kind == "projected_after_full"
-    assert data == after_bytes
-    assert data != front_bytes
+    assert kind == "assessment_front_file"
+    assert data == front_bytes
+    assert data != after_bytes
 
 
-def test_resolve_data_url_legacy():
+def test_resolve_data_url():
     raw = b"\xff\xd8\xff" + b"1" * 120 + b"\xff\xd9"
     data_url = "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
 
-    data, kind = resolve_source_image_bytes(
-        source_image=data_url,
-        require_projected_after=False,
-    )
+    data, kind = resolve_source_image_bytes(source_image=data_url)
     assert kind == "data_url"
     assert data.startswith(b"\xff\xd8")
 
 
-def test_resolve_rejects_public_url_as_base64_legacy():
+def test_resolve_rejects_public_url_as_base64():
     """Regression: /uploads/... (missing object) must not be base64-decoded."""
     data, kind = resolve_source_image_bytes(
         source_image="/api/media/assessments/missing-assessment-id/front.jpg",
-        require_projected_after=False,
     )
     assert data is None
     assert kind is None
 
 
-def test_resolve_public_url_from_storage_legacy():
+def test_resolve_public_url_from_storage():
     assessment_id = "viztest01"
     get_media_storage().put_bytes(
         assessment_key(assessment_id, "front.jpg"),

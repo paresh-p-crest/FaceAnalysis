@@ -88,6 +88,7 @@
 - [x] AI visuals CV anchor data fix: outfit `skin.skinTone` (not evenness `tone`); hair `hairColor`/`textureType` in anchor line (status: completed)
 - [x] Multi-variant AI visuals galleries: curated style banks (5 hair / 5 outfit / 3 aging tiers); pipeline `ai_visuals` stage generates all 13 from projected AFTER only (ADR-038 amendment 2026-07-21) (status: completed)
 - [x] AI visuals comparison baseline: sliders and aging grid use original front portrait (Before/Now), not projected AFTER (status: completed)
+- [x] AI visuals generation: front (BEFORE) source on BE; AFTER ready-gate commented out (status: completed)
 - [x] AI visuals hair/outfit hero layout: before/after slider + recommendation panel + round thumbs below image; static style copy (no LLM) (status: completed)
 - [x] AI visuals healthy aging: Now → selected age with right arrow; centered pair; +3/+5/+10 circle selectors under right image (status: completed)
 - [x] Skin priority findings: overview/PDF mini-cards use LAB metrics (blemishing/evenness/texture) (status: completed)

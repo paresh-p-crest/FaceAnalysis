@@ -70,8 +70,7 @@ from ..report_status import (
     serialize_assessment,
     serialize_assessments,
 )
-from ..photo_storage import load_projected_full
-from ..visual_generation import generate_visual_variants
+from ..visual_generation import generate_visual_variants, load_pose_bytes
 from ..answer_summary import format_answers_summary
 
 # Keep analyze_face out of module import — MediaPipe/matplotlib cold-start is minutes on Replit.
@@ -857,16 +856,23 @@ async def post_assessment_ai_visuals(
     if not cv_report:
         raise HTTPException(status_code=400, detail="Stored cvReport is required for AI visuals.")
 
-    projected = existing.get("projectedAfter") or {}
-    if projected.get("status") != "ready":
+    # Previously required projected AFTER ready + loadable bytes.
+    # projected = existing.get("projectedAfter") or {}
+    # if projected.get("status") != "ready":
+    #     raise HTTPException(
+    #         status_code=400,
+    #         detail="Projected AFTER must be ready before generating AI visuals.",
+    #     )
+    # if not load_projected_full(assessment_id, projected):
+    #     raise HTTPException(
+    #         status_code=400,
+    #         detail="Projected AFTER image could not be loaded.",
+    #     )
+
+    if not load_pose_bytes(assessment_id, "front"):
         raise HTTPException(
             status_code=400,
-            detail="Projected AFTER must be ready before generating AI visuals.",
-        )
-    if not load_projected_full(assessment_id, projected):
-        raise HTTPException(
-            status_code=400,
-            detail="Projected AFTER image could not be loaded.",
+            detail="Front (BEFORE) portrait could not be loaded for AI visuals.",
         )
 
     try:
@@ -876,8 +882,10 @@ async def post_assessment_ai_visuals(
             metrics=analysis.get("metrics"),
             variant_types=req.variants,
             assessment_id=assessment_id,
-            projected_after=projected,
-            require_projected_after=True,
+            assessment_photos=existing.get("photos"),
+            # projected_after=projected,
+            # require_projected_after=True,
+            require_projected_after=False,
         )
     except Exception as exc:
         raise HTTPException(
