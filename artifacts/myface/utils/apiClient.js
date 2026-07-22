@@ -34,8 +34,6 @@ export const ERROR_KEYS = {
   STRIPE_CONFIRM_FAILED: 'stripeConfirmFailed',
   PAYPAL_CHECKOUT_FAILED: 'paypalCheckoutFailed',
   PAYPAL_CAPTURE_FAILED: 'paypalCaptureFailed',
-  LOAD_PRICING_FAILED: 'loadPricingFailed',
-  UPDATE_PRICING_FAILED: 'updatePricingFailed',
   DELETE_USER_FAILED: 'deleteUserFailed',
 }
 
@@ -194,6 +192,17 @@ export async function fetchMyAssessments(limit = 20) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_MY_ASSESSMENTS_FAILED)
   return data.items || []
+}
+
+/** Latest in-progress draft (uploads without submit). Not in fetchMyAssessments list. */
+export async function fetchMyAssessmentDraft() {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/my/assessments/draft`, {
+    headers: authHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_MY_ASSESSMENTS_FAILED)
+  return data.item || null
 }
 
 export async function fetchAdminAssessments(limit = 50) {
@@ -514,31 +523,6 @@ export async function capturePayPalOrder(orderId) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throwApiError(res, data, ERROR_KEYS.PAYPAL_CAPTURE_FAILED)
   return data
-}
-
-export async function fetchAdminPricing() {
-  const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/admin/pricing`, {
-    headers: authHeaders(),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_PRICING_FAILED)
-  return data.product
-}
-
-export async function updateAdminPricing(payload) {
-  const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/admin/pricing`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-    },
-    body: JSON.stringify(payload),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throwApiError(res, data, ERROR_KEYS.UPDATE_PRICING_FAILED)
-  return data.product
 }
 
 export async function deleteAdminUser(userId) {

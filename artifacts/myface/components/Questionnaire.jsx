@@ -13,6 +13,7 @@ import {
   optionLabel,
   optionDescription,
 } from '../utils/onboarding'
+import { BrandLogo } from './BrandLogo'
 import './Questionnaire.css'
 
 export default function Questionnaire({ answers, setAnswers, onComplete, onBack, startAtEnd = false }) {
@@ -351,7 +352,7 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
       <div className="hidden lg:flex lg:w-[60%] bg-[#0d1e1f] fluid-gradient-mesh flex-col justify-between p-16">
 
         <div className="flex items-center gap-3">
-          <span className="font-serif font-bold text-white text-3xl tracking-tight">MyFace</span>
+          <BrandLogo size="xl" invert />
         </div>
 
         <div className="space-y-6 max-w-xl text-left">

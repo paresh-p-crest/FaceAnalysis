@@ -2,6 +2,8 @@
 
 import dynamic from 'next/dynamic'
 import { useEffect } from 'react'
+import { useTranslations } from 'next-intl'
+import { X } from 'lucide-react'
 
 const Report = dynamic(() => import('../Report'), { ssr: false })
 
@@ -16,9 +18,14 @@ export function ReportModal({
   historyId,
   cloudAssessment = null,
   onCloudAssessmentChange = null,
+  sectionId = 'intro',
+  onSectionChange = null,
   user,
   onRestart,
 }) {
+  const t = useTranslations('Report.shell')
+  const isAdmin = user?.role === 'admin'
+
   useEffect(() => {
     if (!open) return undefined
     const prev = document.body.style.overflow
@@ -35,18 +42,45 @@ export function ReportModal({
 
   if (!open) return null
 
-  // When the site navbar is present (dashboard/history/admin), sit below it and
-  // beneath its stacking order so the navbar stays visible and usable (including
-  // the mobile menu). On navbar-less routes (e.g. /analysis) fall back to a
-  // full-viewport overlay.
-  const containerClass = withNavbarOffset
-    ? 'fixed inset-x-0 bottom-0 top-[var(--site-navbar-height)] z-30 flex flex-col bg-surface'
-    : 'fixed inset-0 z-[200] flex flex-col bg-surface'
-
   return (
-    <div className={containerClass}>
+    <div
+      className="fixed inset-0 z-30 flex flex-col"
+      style={{ backgroundColor: 'var(--color-surface)' }}
+    >
+      {withNavbarOffset && (
+        <>
+          {/* Clear the fixed navbar */}
+          <div
+            className="shrink-0"
+            style={{ height: 'var(--site-navbar-height)' }}
+            aria-hidden
+          />
+          {/* Mint gap between navbar and report — admin close lives here */}
+          <div
+            className="shrink-0 flex items-center justify-end px-4 sm:px-6 lg:px-8"
+            style={{
+              minHeight: isAdmin ? '2rem' : 'var(--site-navbar-gap)',
+              height: isAdmin ? '2rem' : 'var(--site-navbar-gap)',
+              backgroundColor: 'var(--color-surface)',
+            }}
+          >
+            {isAdmin && onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-muted hover:text-ink bg-transparent border-0 p-0 shadow-none"
+                aria-label={t('closeReport')}
+              >
+                <X className="w-4 h-4" strokeWidth={2} aria-hidden />
+                <span>{t('closeReport')}</span>
+              </button>
+            ) : null}
+          </div>
+        </>
+      )}
       <div className="flex-1 min-h-0 overflow-hidden">
         <Report
+          key={cloudAssessment?.id || analysis?.assessmentId || historyId || 'report'}
           photo={photo}
           photos={photos}
           answers={answers}
@@ -54,6 +88,8 @@ export function ReportModal({
           historyId={historyId}
           cloudAssessment={cloudAssessment}
           onCloudAssessmentChange={onCloudAssessmentChange}
+          sectionId={sectionId}
+          onSectionChange={onSectionChange}
           onRestart={onRestart}
           user={user}
           onClose={onClose}

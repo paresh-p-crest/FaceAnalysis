@@ -14,14 +14,18 @@ export default function HistoryRoutePage() {
     authReady,
     accessReady,
     hasAnalysisAccess,
-    viewHistoryItem,
     viewCloudAssessment,
     openingReportId,
     openDashboard,
   } = useApp()
 
   useEffect(() => {
-    if (!authReady || !accessReady || !user) return
+    if (!authReady) return
+    if (!user) {
+      router.replace(ROUTES.auth)
+      return
+    }
+    if (!accessReady) return
     if (user.role !== 'admin' && !hasAnalysisAccess) {
       router.replace(ROUTES.dashboard)
     }
@@ -37,7 +41,6 @@ export default function HistoryRoutePage() {
 
   return (
     <HistoryPage
-      onViewItem={viewHistoryItem}
       onViewCloudItem={viewCloudAssessment}
       openingReportId={openingReportId}
       onOpenAdmin={openDashboard}

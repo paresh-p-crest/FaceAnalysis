@@ -116,6 +116,68 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
         return serialize_user(_user_to_dict(user)) if user else None
 
 
+async def get_user_with_password_by_id(user_id: str) -> Optional[dict]:
+    uid = parse_uuid(user_id)
+    if uid is None:
+        return None
+    async with session_scope() as session:
+        user = await session.get(User, uid)
+        return _user_to_dict(user, keep_password=True) if user else None
+
+
+async def update_user_profile(
+    user_id: str,
+    *,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None,
+    email: Optional[str] = None,
+) -> dict:
+    uid = parse_uuid(user_id)
+    if uid is None:
+        raise ValueError("Invalid user id")
+    now = _utcnow()
+    async with session_scope() as session:
+        user = await session.get(User, uid)
+        if not user:
+            raise ValueError("User not found")
+        if first_name is not None:
+            first = first_name.strip()
+            if len(first) < 1:
+                raise ValueError("First name is required")
+            user.first_name = first
+        if last_name is not None:
+            last = last_name.strip()
+            if len(last) < 1:
+                raise ValueError("Last name is required")
+            user.last_name = last
+        if email is not None:
+            normalized = email.lower().strip()
+            if not normalized:
+                raise ValueError("Email is required")
+            user.email = normalized
+        user.updated_at = now
+        try:
+            await session.flush()
+        except IntegrityError as exc:
+            raise ValueError("Email already registered") from exc
+        return serialize_user(_user_to_dict(user))
+
+
+async def update_user_password(user_id: str, password_hash: str) -> dict:
+    uid = parse_uuid(user_id)
+    if uid is None:
+        raise ValueError("Invalid user id")
+    now = _utcnow()
+    async with session_scope() as session:
+        user = await session.get(User, uid)
+        if not user:
+            raise ValueError("User not found")
+        user.password_hash = password_hash
+        user.updated_at = now
+        await session.flush()
+        return serialize_user(_user_to_dict(user))
+
+
 async def list_users(limit: int = 100) -> list[dict]:
     async with session_scope() as session:
         result = await session.execute(select(User).order_by(User.created_at.desc()).limit(limit))

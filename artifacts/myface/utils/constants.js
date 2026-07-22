@@ -8,6 +8,7 @@ export const STAGES = {
   REPORT: 'report',
   HISTORY: 'history',
   BILLING: 'billing',
+  SETTINGS: 'settings',
   DASHBOARD: 'dashboard',
   ADMIN: 'admin',
   PAYMENT_SUCCESS: 'payment_success',

@@ -32,9 +32,15 @@ export const PROTOCOL_SECTIONS = [
   { id: 'protocol', labelKey: 'nav.protocol' },
 ]
 
-export const TOOL_SECTIONS = [
-  { id: 'aiVisuals', labelKey: 'nav.aiVisuals' },
-  { id: 'beautyAssistant', labelKey: 'nav.beautyAssistant' },
+/** Standalone `/ai-visuals` page — three preview categories in report-style sidebar. */
+export const AI_VISUAL_SECTIONS = [
+  { id: 'hair', labelKey: 'sections.hair' },
+  { id: 'outfit', labelKey: 'sections.outfit' },
+  { id: 'aging', labelKey: 'sections.aging' },
+]
+
+export const AI_VISUAL_NAV_GROUPS = [
+  { id: 'visuals', labelKey: 'navGroup', items: AI_VISUAL_SECTIONS },
 ]
 
 export const REPORT_NAV_GROUPS = [
@@ -49,9 +55,8 @@ export const PUBLIC_SECTION_IDS = new Set([
   'disclaimer',
 ])
 
-export function findNavGroupForSection(sectionId) {
-  return REPORT_NAV_GROUPS.find((group) => group.items.some((item) => item.id === sectionId))?.id
-    || (TOOL_SECTIONS.some((item) => item.id === sectionId) ? 'tools' : null)
+export function findNavGroupForSection(sectionId, groups = REPORT_NAV_GROUPS) {
+  return groups.find((group) => group.items.some((item) => item.id === sectionId))?.id || null
 }
 
 export function isPublicSection(sectionId) {

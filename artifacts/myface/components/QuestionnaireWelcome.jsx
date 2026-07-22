@@ -2,6 +2,7 @@
 
 import { Fingerprint, Clock, Scan } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { BrandLogo } from './BrandLogo'
 
 export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
   const t = useTranslations('Questionnaire.welcome')
@@ -68,7 +69,7 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
       {/* Right Column: Fluid Wavy Mesh Gradient (Forced Dark Background) */}
       <div className="hidden lg:flex lg:w-[60%] bg-[#0d1e1f] fluid-gradient-mesh flex-col justify-between p-16 relative">
         <div className="relative z-10">
-          <span className="font-serif font-bold text-white text-3xl tracking-tight">MyFace</span>
+          <BrandLogo size="xl" invert />
         </div>
 
         <div className="space-y-6 max-w-xl text-left relative z-10">

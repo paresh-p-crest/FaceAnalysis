@@ -43,6 +43,7 @@ export function ProtocolDocumentViewer({
   metrics,
   answers,
   user = null,
+  assessmentOwner = null,
   eyeAnalysis,
   protocolNarrative,
   featureNarratives = null,
@@ -200,8 +201,12 @@ export function ProtocolDocumentViewer({
         eyeAnalysis,
         aiNarrative,
         user,
+        assessmentOwner,
         projectedAfter,
         projectedAnalysis,
+        assessmentId,
+        createdAt: adminAssessment?.createdAt,
+        updatedAt: adminAssessment?.updatedAt,
       })
       setBlobUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev)
@@ -224,8 +229,11 @@ export function ProtocolDocumentViewer({
     eyeAnalysis,
     aiNarrative,
     user,
+    assessmentOwner,
     projectedAfter,
     projectedAnalysis,
+    assessmentId,
+    adminAssessment,
   ])
 
   useEffect(() => {
@@ -281,11 +289,15 @@ export function ProtocolDocumentViewer({
                 metrics={metrics}
                 answers={answers}
                 user={user}
+                assessmentOwner={assessmentOwner}
                 eyeAnalysis={eyeAnalysis}
                 protocolNarrative={displayNarrative}
                 aiNarrative={aiNarrative}
                 projectedAfter={projectedAfter}
                 projectedAnalysis={projectedAnalysis}
+                assessmentId={assessmentId}
+                createdAt={adminAssessment?.createdAt}
+                updatedAt={adminAssessment?.updatedAt}
                 paginated={false}
                 editable
                 onEditFeatureSubsection={handleEditFeatureSubsection}

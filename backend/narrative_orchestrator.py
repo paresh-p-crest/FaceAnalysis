@@ -31,10 +31,12 @@ from .narrative_schemas import (
     FEATURE_SUBSECTION_TITLES,
     ClosingSynthesis,
     ProtocolOverview,
+    TreatmentPhases,
     closing_synthesis_json_schema,
     feature_narrative_json_schema,
     feature_subsection_length_prompt,
     protocol_overview_json_schema,
+    treatment_phases_json_schema,
 )
 from .recommendation_rules import (
     feature_severity_bucket,
@@ -587,6 +589,7 @@ def build_protocol_narrative_compat(
     feature_narratives: dict[str, dict],
     overview_summary: str,
     closing: Optional[list[str]] = None,
+    treatment_phases: Optional[dict] = None,
     source: Optional[str] = None,
     model: Optional[str] = None,
 ) -> dict:
@@ -609,7 +612,114 @@ def build_protocol_narrative_compat(
         out["source"] = source
     if model:
         out["model"] = model
+    if treatment_phases:
+        out["treatmentPhases"] = treatment_phases
     return out
+
+
+def _priority_features_for_phases(
+    cv_report: dict,
+    eye_analysis: Optional[dict],
+    *,
+    limit: int = 5,
+) -> str:
+    """Lowest-scoring features for treatment-phase LLM grounding."""
+    candidates: list[tuple[str, float]] = []
+    pairs = [
+        ("hair", (cv_report or {}).get("hair", {}).get("score")),
+        ("eyes", (cv_report or {}).get("eyes", {}).get("score") or (eye_analysis or {}).get("overallScore")),
+        ("nose", (cv_report or {}).get("nose", {}).get("score")),
+        ("cheeks", (cv_report or {}).get("cheeks", {}).get("score")),
+        ("jaw", (cv_report or {}).get("jaw", {}).get("score") or (cv_report or {}).get("jawChin", {}).get("score")),
+        ("lips", (cv_report or {}).get("lips", {}).get("score")),
+        ("chin", (cv_report or {}).get("chin", {}).get("score")),
+        ("skin", (cv_report or {}).get("skin", {}).get("score")),
+        ("neck", (cv_report or {}).get("neck", {}).get("score")),
+        ("ears", (cv_report or {}).get("ears", {}).get("score")),
+    ]
+    for fid, raw in pairs:
+        try:
+            score = float(raw)
+        except (TypeError, ValueError):
+            continue
+        candidates.append((fid, score))
+    candidates.sort(key=lambda row: row[1])
+    lines = [f"- {fid}: measured index {int(round(score))}/100" for fid, score in candidates[:limit]]
+    return "\n".join(lines) or "- No scored regions available."
+
+
+async def generate_treatment_phases_async(
+    *,
+    answers: dict,
+    cv_report: dict,
+    metrics: Optional[dict],
+    eye_analysis: Optional[dict] = None,
+    feature_narratives: Optional[dict[str, dict]] = None,
+    api_key: Optional[str] = None,
+) -> Optional[dict]:
+    """Three-phase dashboard treatment protocol (overview sidebar cards)."""
+    from .answer_summary import format_answers_summary
+
+    profile = format_answers_summary(answers or {})
+    cv_summary = cv_report_summary_for_narrative(cv_report, metrics)
+    priority = _priority_features_for_phases(cv_report, eye_analysis)
+    feature_lines = []
+    for fid, fn in (feature_narratives or {}).items():
+        summary = (fn or {}).get("summary")
+        if summary:
+            feature_lines.append(f"- {fid}: {summary[:220]}")
+    feature_context = "\n".join(feature_lines[:8]) or "No feature narratives yet."
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You write the three-phase TREATMENT PROTOCOL panel for a facial aesthetic dashboard.\n"
+                "Return JSON only. Third-person clinical tone. Each phase has title, duration, and 2–3 items "
+                "(name + short detail line like timing or anatomical focus).\n"
+                "Phase 01 = foundation topicals/photoprotection; Phase 02 = supervised regeneration; "
+                "Phase 03 = long-term structural optimisation.\n"
+                + STRICT_NON_SURGICAL_RULES
+                + _NL_STYLE_RULES
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Goals: {profile.get('goals')}\n"
+                f"Measurement summary:\n{cv_summary}\n\n"
+                f"Lowest-scoring priority regions:\n{priority}\n\n"
+                f"Feature narrative context:\n{feature_context}\n\n"
+                "Ground phase items in the priority regions. Include a one-paragraph summary field "
+                "synthesising baseline status and staged plan. No numeric scores in prose."
+            ),
+        },
+    ]
+    result = await asyncio.to_thread(
+        chat_structured_completion,
+        schema_name="treatment_phases",
+        json_schema=treatment_phases_json_schema(),
+        messages=messages,
+        temperature=0.35,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
+        api_key_override=api_key,
+    )
+    if not result.get("content"):
+        return None
+    try:
+        from .clinical_guardrails import strip_score_language
+
+        data = TreatmentPhases.model_validate(result["content"]).model_dump()
+        data["summary"] = strip_score_language(data.get("summary") or "")
+        for phase_key in ("phase01", "phase02", "phase03"):
+            phase = data.get(phase_key) or {}
+            for item in phase.get("items") or []:
+                if isinstance(item, dict):
+                    item["name"] = strip_score_language(item.get("name") or "")
+                    item["detail"] = strip_score_language(item.get("detail") or "")
+        return data
+    except Exception:
+        return None
 
 
 async def generate_protocol_overview_async(
@@ -709,8 +819,18 @@ async def generate_all_protocol_text(
         for fid, narrative in results:
             existing_features[fid] = narrative
 
-    overview = await generate_protocol_overview_async(
-        answers=answers, cv_report=cv_report, metrics=metrics, api_key=api_key
+    overview, treatment_phases = await asyncio.gather(
+        generate_protocol_overview_async(
+            answers=answers, cv_report=cv_report, metrics=metrics, api_key=api_key
+        ),
+        generate_treatment_phases_async(
+            answers=answers,
+            cv_report=cv_report,
+            metrics=metrics,
+            eye_analysis=eye_analysis,
+            feature_narratives=existing_features,
+            api_key=api_key,
+        ),
     )
 
     client_name = answers.get("name") or answers.get("fullName") or "Client"
@@ -741,6 +861,7 @@ async def generate_all_protocol_text(
         },
         overview_summary=overview.get("summary", ""),
         closing=closing,
+        treatment_phases=treatment_phases,
         source="orchestrator",
         model=None,
     )

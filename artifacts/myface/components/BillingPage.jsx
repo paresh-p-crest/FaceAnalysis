@@ -55,7 +55,7 @@ function ProviderButton({ provider, configured, loading, onClick, t }) {
   )
 }
 
-export default function BillingPage({ user, message = '' }) {
+export default function BillingPage({ user, message = '', embedded = false }) {
   const t = useTranslations('Billing')
   const [config, setConfig] = useState(null)
   const [payments, setPayments] = useState([])
@@ -113,32 +113,23 @@ export default function BillingPage({ user, message = '' }) {
 
   const needsBackend = !isBackendApiEnabled()
 
-  return (
-    <div className="min-h-screen px-4 sm:px-6 pb-8 site-navbar-offset animate-fade-up font-sans bg-surface">
-      <div className="max-w-4xl mx-auto w-full">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8 pt-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
-              <CreditCard className="w-5 h-5 text-brand" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="font-display text-xl sm:text-2xl font-semibold text-ink tracking-tight">{t('title')}</h1>
-              <p className="text-sm text-ink-muted font-sans">{t('subtitle')}</p>
-            </div>
+  const content = (
+    <>
+        {embedded && (
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={load}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-surface-border text-ink-secondary hover:text-brand transition-colors disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              {t('refresh')}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={load}
-            disabled={loading}
-            className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium border border-surface-border bg-white dark:bg-surface-card text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50 w-full sm:w-auto"
-          >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            {t('refresh')}
-          </button>
-        </div>
-
+        )}
         {error && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className={`${embedded ? 'mb-4' : 'mb-4'} rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700`}>
             {error}
           </div>
         )}
@@ -150,19 +141,19 @@ export default function BillingPage({ user, message = '' }) {
         )}
 
         {needsBackend ? (
-          <div className="bg-white dark:bg-surface-card rounded-2xl p-6 sm:p-8 text-center shadow-card border border-surface-border">
-            <p className="font-display text-ink mb-1">{t('backendRequiredTitle')}</p>
+          <div className={`${embedded ? '' : 'bg-white dark:bg-surface-card rounded-2xl p-6 sm:p-8 text-center shadow-card border border-surface-border'}`}>
+            <p className="text-ink mb-1">{t('backendRequiredTitle')}</p>
             <p className="text-sm text-ink-muted font-sans">{t('backendRequiredText')}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-4 sm:gap-6">
+          <div className={`grid grid-cols-1 ${embedded ? 'xl:grid-cols-2' : 'lg:grid-cols-[1fr_1.2fr]'} gap-4 sm:gap-6`}>
             <div className="bg-white dark:bg-surface-card rounded-2xl p-5 sm:p-6 shadow-card border border-surface-border">
               <p className="text-[10px] uppercase tracking-wider text-ink-muted font-sans font-semibold mb-3">
                 {t('currentProduct')}
               </p>
-              <h2 className="font-display text-xl font-semibold text-ink mb-2">{product?.name || t('defaultProductName')}</h2>
+              <h2 className="text-xl font-semibold text-ink mb-2">{product?.name || t('defaultProductName')}</h2>
               <p className="text-sm text-ink-muted leading-relaxed mb-5">{product?.description || t('defaultProductDesc')}</p>
-              <div className="text-3xl font-display font-bold text-brand mb-5">
+              <div className="text-3xl font-bold text-brand mb-5">
                 {money(product?.amountCents || 0, product?.currency || 'usd')}
               </div>
               <div className="grid gap-3">
@@ -205,7 +196,7 @@ export default function BillingPage({ user, message = '' }) {
                 </div>
               ) : payments.length === 0 ? (
                 <div className="py-10 text-center border border-dashed border-surface-border rounded-2xl px-4">
-                  <p className="font-display text-ink mb-1">{t('noPaymentsTitle')}</p>
+                  <p className="text-ink mb-1">{t('noPaymentsTitle')}</p>
                   <p className="text-sm text-ink-muted">{t('noPaymentsText')}</p>
                 </div>
               ) : (
@@ -214,11 +205,11 @@ export default function BillingPage({ user, message = '' }) {
                     <div key={payment.id} className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-ink capitalize">{payment.provider}</p>
+                          <p className="text-sm font-semibold text-ink">{t('payments')}</p>
                           <p className="text-xs text-ink-muted">{formatHistoryDate(payment.createdAt)}</p>
                         </div>
                         <div className="sm:text-right">
-                          <p className="text-sm font-display font-bold text-brand">
+                          <p className="text-sm font-bold text-brand">
                             {money(payment.amountCents, payment.currency)}
                           </p>
                           <StatusBadge status={payment.status} />
@@ -231,6 +222,35 @@ export default function BillingPage({ user, message = '' }) {
             </div>
           </div>
         )}
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="min-h-screen px-4 sm:px-6 lg:px-8 pb-8 site-navbar-offset font-sans bg-surface">
+      <div className="w-full">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8 pt-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="dashboard-icon-well" aria-hidden>
+              <CreditCard className="w-5 h-5 text-brand" strokeWidth={2} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-semibold text-ink tracking-tight">{t('title')}</h1>
+              <p className="text-sm text-ink-muted font-sans">{t('subtitle')}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium border border-surface-border bg-white dark:bg-surface-card text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50 w-full sm:w-auto"
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            {t('refresh')}
+          </button>
+        </div>
+        {content}
       </div>
     </div>
   )

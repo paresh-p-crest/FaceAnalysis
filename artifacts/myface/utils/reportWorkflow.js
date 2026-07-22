@@ -8,7 +8,16 @@ export const REPORT_WORKFLOW_STATUSES = [
 export function normalizeReportStatus(status) {
   const normalized = String(status || 'pending_review').trim().toLowerCase().replace(/\s+/g, '_')
   if (normalized === 'approved' || normalized === 'published') return 'approved'
+  if (normalized === 'draft') return 'draft'
   return 'pending_review'
+}
+
+/** True after POST …/submit — not for photo-only drafts still in upload flow. */
+export function isAssessmentSubmitted(assessment) {
+  if (!assessment) return false
+  if (normalizeReportStatus(assessment.status) === 'draft') return false
+  const pipeline = assessment?.pipeline
+  return !!(pipeline && typeof pipeline === 'object' && pipeline.status)
 }
 
 export function formatReportStatusLabel(status) {

@@ -8,7 +8,7 @@ persisted public URLs under photo storage.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 import httpx
 
@@ -16,6 +16,15 @@ from .image_client import generate_image_edit, has_image_api_key, resolve_image_
 from .image_client import image_model as _image_model
 from .image_utils import decode_image
 from .media_storage import assessment_key, get_media_storage, media_key_from_ref
+from .photo_storage import load_projected_full
+from .visual_style_banks import (
+    AGING_TIERS,
+    OUTFIT_STYLES,
+    hair_styles_for,
+    HairStyleSpec,
+    AgingTierSpec,
+    OutfitStyleSpec,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +37,7 @@ _VARIANT_TITLES = {
 }
 
 SHARED_VISUAL_OPENING = (
-    "Photorealistic portrait edit of the supplied front-facing photo — the exact same person, "
+    "Photorealistic portrait edit of the supplied portrait — the exact same person, "
     "same bone structure, eye color, skin tone, expression, head pose, camera distance, and lighting. "
     "Do not reshape the face or invent new features. "
     "No text, watermarks, or medical/surgical imagery."
@@ -36,15 +45,46 @@ SHARED_VISUAL_OPENING = (
 
 _UNKNOWN_SENTINELS = frozenset({"unknown", "unspecified", "n/a", "na"})
 
+# Hair colors where temple graying instructions would be misleading.
+_LIGHT_OR_GRAY_HAIR = frozenset({
+    "blonde",
+    "blond",
+    "light blonde",
+    "platinum",
+    "platinum blonde",
+    "light brown",
+    "gray",
+    "grey",
+    "white",
+    "silver",
+    "salt and pepper",
+    "salt-and-pepper",
+    "fair",
+})
+
 
 def _cv_anchors(cv_report: dict) -> dict:
     """Ready-to-insert phrases so missing CV values stay grammatical."""
+    hair = cv_report.get("hair") or {}
     face_shape = (cv_report.get("faceShape") or {}).get("shape")
-    hairline = (cv_report.get("hair") or {}).get("hairline")
-    skin_tone = (cv_report.get("skin") or {}).get("tone")
+    hairline = hair.get("hairline")
+    hair_color = hair.get("hairColor")
+    hair_texture = hair.get("textureType")
+    skin_tone = (cv_report.get("skin") or {}).get("skinTone")
 
     def _ok(value) -> bool:
         return bool(value) and str(value).strip().lower() not in _UNKNOWN_SENTINELS
+
+    if _ok(hair_color) and _ok(hair_texture):
+        hair_detail = (
+            f"{str(hair_color).strip().lower()} {str(hair_texture).strip().lower()} hair"
+        )
+    elif _ok(hair_color):
+        hair_detail = f"{str(hair_color).strip().lower()} hair"
+    elif _ok(hair_texture):
+        hair_detail = f"{str(hair_texture).strip().lower()} hair"
+    else:
+        hair_detail = ""
 
     return {
         "face_shape_phrase": (
@@ -53,46 +93,120 @@ def _cv_anchors(cv_report: dict) -> dict:
         "hairline_phrase": (
             f"a {str(hairline).strip().lower()} hairline" if _ok(hairline) else "their hairline"
         ),
+        "hair_detail_suffix": f", {hair_detail}" if hair_detail else "",
         "skin_tone_phrase": (
             f"their {str(skin_tone).strip().lower()} skin tone" if _ok(skin_tone) else "their skin tone"
         ),
     }
 
 
-def build_visual_prompt(variant_type: str, answers: dict, cv_report: dict, metrics: Optional[dict]) -> str:
-    """Production edit prompts for Images API — identity-preserving, non-clinical.
+def _hair_color_supports_graying(cv_report: dict) -> bool:
+    """True when CV hair color is dark enough for subtle graying language."""
+    hair = (cv_report or {}).get("hair") or {}
+    color = hair.get("hairColor")
+    if not color or str(color).strip().lower() in _UNKNOWN_SENTINELS:
+        return False
+    key = str(color).strip().lower()
+    if key in _LIGHT_OR_GRAY_HAIR:
+        return False
+    if any(token in key for token in ("blond", "gray", "grey", "white", "silver", "platinum", "fair")):
+        return False
+    return True
+
+
+def _aging_magnitude_text(style: AgingTierSpec, cv_report: dict) -> str:
+    hair_line = style.hair_dark_text if _hair_color_supports_graying(cv_report) else style.hair_light_text
+    return (
+        f"Skin: {style.skin_text}. "
+        f"Hair: {hair_line}. "
+        f"Soft tissue: {style.soft_tissue_text}."
+    )
+
+
+def build_hair_prompt(
+    style: HairStyleSpec,
+    answers: dict,
+    cv_report: dict,
+    metrics: Optional[dict],
+) -> str:
+    """Production edit prompt for a single hairstyle style.
 
     ``answers`` and ``metrics`` are unused (signature kept for call-site compat).
     """
+    _ = (answers, metrics)
     anchors = _cv_anchors(cv_report or {})
+    return (
+        f"{SHARED_VISUAL_OPENING}\n\n"
+        "Change only the hairstyle and hair finish — leave the skin, face, and everything else "
+        "exactly as it is. Give this person a "
+        f"{style.display_name}: {style.descriptor}. For {anchors['face_shape_phrase']} with {anchors['hairline_phrase']}{anchors['hair_detail_suffix']} — "
+        "keep the same color and natural texture unless the style specifically calls for it."
+    )
 
+
+def build_outfit_prompt(
+    style: OutfitStyleSpec,
+    answers: dict,
+    cv_report: dict,
+    metrics: Optional[dict],
+) -> str:
+    """Production edit prompt for a single outfit occasion.
+
+    ``answers`` and ``metrics`` are unused (signature kept for call-site compat).
+    """
+    _ = (answers, metrics)
+    anchors = _cv_anchors(cv_report or {})
+    return (
+        f"{SHARED_VISUAL_OPENING}\n\n"
+        "Change only the clothing and styling from the shoulders up — leave the face and hair "
+        "exactly as they are. Dress this person in a "
+        f"{style.occasion_name} look: {style.descriptor}, in colors that complement {anchors['skin_tone_phrase']} and {anchors['face_shape_phrase']}. "
+        "Professional portrait presentation, tasteful and not costume-like."
+    )
+
+
+def build_aging_prompt(
+    style: AgingTierSpec,
+    answers: dict,
+    cv_report: dict,
+    metrics: Optional[dict],
+) -> str:
+    """Production edit prompt for a single aging tier.
+
+    ``answers`` and ``metrics`` are unused (signature kept for call-site compat).
+    """
+    _ = (answers, metrics)
+    years = style.years
+    magnitude = _aging_magnitude_text(style, cv_report or {})
+    return (
+        f"{SHARED_VISUAL_OPENING}\n\n"
+        "Apply a realistic healthy-aging preview of about "
+        f"{years} years, affecting skin, hair, and soft tissue naturally and proportionally. "
+        f"{magnitude} "
+        "Keep this person clearly and immediately recognizable as themselves, just older — "
+        "preserve bone structure, eye shape, and facial proportions exactly. "
+        "Avoid dramatic changes, weight change, or a fear-based aging look."
+    )
+
+
+def build_visual_prompt(
+    variant_type: str,
+    style: Union[HairStyleSpec, OutfitStyleSpec, AgingTierSpec],
+    answers: dict,
+    cv_report: dict,
+    metrics: Optional[dict],
+) -> str:
+    """Route to the correct prompt builder for a given variant+style spec."""
     if variant_type == "hair":
-        body = (
-            "Change only the hairstyle and hair finish — leave the skin, face, and everything else "
-            "exactly as it is. Give this person their most flattering possible haircut for their face "
-            "shape and hairline: a real barbershop-or-salon-quality cut with natural volume, shine, "
-            f"and clean styling, for {anchors['face_shape_phrase']} with {anchors['hairline_phrase']}. "
-            "Keep the same hair color as the source unless a close, natural refinement clearly improves "
-            "the framing."
-        )
-    elif variant_type == "outfit":
-        body = (
-            "Change only the clothing and styling from the shoulders up — leave the face and hair "
-            "exactly as they are. Dress this person in refined, contemporary wardrobe and colors that "
-            f"complement {anchors['skin_tone_phrase']} and {anchors['face_shape_phrase']}. "
-            "Professional portrait presentation, tasteful and not costume-like."
-        )
-    elif variant_type == "aging":
-        body = (
-            "Apply a gentle, realistic healthy-aging preview of about 8-12 years — subtle skin "
-            "maturation only, like fine lines and mild texture change, nothing exaggerated. "
-            "Keep this person clearly and immediately recognizable as themselves, just older. "
-            "Avoid dramatic wrinkles, weight change, or a fear-based aging look."
-        )
-    else:
-        raise ValueError(f"Unsupported visual variant type: {variant_type}")
-
-    return f"{SHARED_VISUAL_OPENING}\n\n{body}"
+        assert isinstance(style, HairStyleSpec)
+        return build_hair_prompt(style, answers, cv_report, metrics)
+    if variant_type == "outfit":
+        assert isinstance(style, OutfitStyleSpec)
+        return build_outfit_prompt(style, answers, cv_report, metrics)
+    if variant_type == "aging":
+        assert isinstance(style, AgingTierSpec)
+        return build_aging_prompt(style, answers, cv_report, metrics)
+    raise ValueError(f"Unsupported visual variant type: {variant_type}")
 
 
 def _looks_like_data_or_b64(value: str) -> bool:
@@ -122,24 +236,32 @@ def resolve_source_image_bytes(
     assessment_id: Optional[str] = None,
     assessment_photos: Optional[dict] = None,
     source_image: Optional[str] = None,
+    projected_after: Optional[dict] = None,
+    require_projected_after: bool = True,
 ) -> tuple[Optional[bytes], Optional[str]]:
     """
     Resolve portrait bytes for image edits.
 
-    Preference order:
-    1. Stored front pose file for assessment_id
-    2. assessment.photos.front relativePath / publicUrl on disk
-    3. source_image data URL / base64
-    4. source_image public URL mapped to local file
-    5. HTTP(S) fetch of source_image (last resort)
+    When ``require_projected_after`` is True (default for pipeline + admin):
+    only the stored projected AFTER full image is accepted.
+
+    Legacy fallbacks (front pose, photos map, data URLs) apply only when
+    ``require_projected_after`` is False (tests / internal tooling).
     """
-    # 1) Canonical front pose on disk
+    if assessment_id:
+        projected = load_projected_full(assessment_id, projected_after)
+        if projected:
+            return projected, "projected_after_full"
+        if require_projected_after:
+            return None, None
+
+    # Legacy: canonical front pose on disk
     if assessment_id:
         front = load_pose_bytes(assessment_id, "front")
         if front:
             return front, "assessment_front_file"
 
-    # 2) Photos map metadata
+    # 3) Photos map metadata
     photos = assessment_photos or {}
     front_meta = photos.get("front") if isinstance(photos, dict) else None
     if isinstance(front_meta, dict):
@@ -193,16 +315,18 @@ async def _generate_edit_image(prompt: str, image_bytes: bytes) -> dict:
     return {"imageSrc": None, "error": result.get("error") or "Image generation returned no image."}
 
 
-def _pick_cv_source_ref(cv_report: dict) -> Optional[str]:
-    for section in ("faceShape", "symmetry", "proportions"):
-        src = (cv_report.get(section) or {}).get("imageSrc")
-        if isinstance(src, str) and src.strip():
-            return src.strip()
-    photos = cv_report.get("photos") or {}
-    front = photos.get("front")
-    if isinstance(front, str) and front.strip():
-        return front.strip()
-    return None
+def _style_specs_for_type(
+    variant_type: str,
+    cv_report: dict,
+) -> list[Union[HairStyleSpec, OutfitStyleSpec, AgingTierSpec]]:
+    """Return all style specs for one variant type (5 hair + 5 outfit + 3 aging)."""
+    if variant_type == "hair":
+        return hair_styles_for(cv_report or {})
+    if variant_type == "outfit":
+        return list(OUTFIT_STYLES)
+    if variant_type == "aging":
+        return list(AGING_TIERS)
+    raise ValueError(f"Unsupported visual variant type: {variant_type}")
 
 
 async def generate_visual_variants(
@@ -214,16 +338,19 @@ async def generate_visual_variants(
     variant_types: Optional[list[str]] = None,
     assessment_id: Optional[str] = None,
     assessment_photos: Optional[dict] = None,
+    projected_after: Optional[dict] = None,
+    require_projected_after: bool = True,
 ) -> dict:
     selected = [v for v in (variant_types or list(VARIANT_TYPES)) if v in VARIANT_TYPES]
     if not selected:
         selected = list(VARIANT_TYPES)
 
-    source_ref = source_image or _pick_cv_source_ref(cv_report or {})
     image_bytes, source_kind = resolve_source_image_bytes(
         assessment_id=assessment_id,
         assessment_photos=assessment_photos,
-        source_image=source_ref,
+        source_image=source_image if not require_projected_after else None,
+        projected_after=projected_after,
+        require_projected_after=require_projected_after,
     )
 
     provider = resolve_image_provider()
@@ -234,8 +361,8 @@ async def generate_visual_variants(
         resolve_note = f"{provider} API key not set."
     elif not image_bytes:
         resolve_note = (
-            "Front portrait could not be loaded for image edits. "
-            "Re-run analysis so photos are stored, then try again."
+            "Projected AFTER is required and could not be loaded for image edits. "
+            "Ensure projected AFTER is ready, then try again."
         )
     else:
         resolve_note = None
@@ -250,35 +377,53 @@ async def generate_visual_variants(
 
     variants = []
     for variant_type in selected:
-        prompt = build_visual_prompt(variant_type, answers or {}, cv_report or {}, metrics)
-        image_src = None
-        error = resolve_note
-        status = "prompt_ready"
+        style_specs = _style_specs_for_type(variant_type, cv_report or {})
 
-        if can_generate and image_bytes:
-            try:
-                result = await _generate_edit_image(prompt, image_bytes)
-                image_src = result.get("imageSrc")
-                error = result.get("error")
-                status = "generated" if image_src else "blocked"
-            except Exception as exc:
-                logger.exception("AI visuals unexpected failure for %s", variant_type)
-                image_src = None
-                error = str(exc) or "Image generation failed."
-                status = "blocked"
-        elif not can_generate:
-            status = "blocked" if error else "prompt_ready"
+        # One edit per style spec (no mega-prompt).
+        for style_spec in style_specs:
+            prompt = build_visual_prompt(
+                variant_type,
+                style_spec,
+                answers or {},
+                cv_report or {},
+                metrics,
+            )
 
-        variants.append(
-            {
-                "type": variant_type,
-                "title": _VARIANT_TITLES[variant_type],
-                "prompt": prompt,
-                "imageSrc": image_src,
-                "status": status,
-                "error": error,
-            }
-        )
+            image_src = None
+            error = resolve_note
+            status = "prompt_ready"
+
+            if can_generate and image_bytes:
+                try:
+                    result = await _generate_edit_image(prompt, image_bytes)
+                    image_src = result.get("imageSrc")
+                    error = result.get("error")
+                    status = "generated" if image_src else "blocked"
+                except Exception as exc:
+                    logger.exception("AI visuals unexpected failure for %s/%s", variant_type, getattr(style_spec, "style_id", "unknown"))
+                    image_src = None
+                    error = str(exc) or "Image generation failed."
+                    status = "blocked"
+            elif not can_generate:
+                status = "blocked" if error else "prompt_ready"
+
+            if variant_type == "hair":
+                title = style_spec.display_name
+            elif variant_type == "outfit":
+                title = style_spec.occasion_name
+            else:
+                title = f"+{style_spec.years} years"
+            variants.append(
+                {
+                    "type": variant_type,
+                    "styleId": style_spec.style_id,
+                    "title": title,
+                    "prompt": prompt,
+                    "imageSrc": image_src,
+                    "status": status,
+                    "error": error,
+                }
+            )
 
     return {
         "source": provider if (can_generate or any(v.get("imageSrc") for v in variants)) else "blocked",

@@ -22,7 +22,7 @@ export function isPipelineFailed(pipeline) {
 }
 
 export function pipelineStageIndex(stageId) {
-  const order = ['queued', 'cv', 'narratives', 'parsing', 'projected_after', 'done']
+  const order = ['queued', 'cv', 'narratives', 'parsing', 'projected_after', 'ai_visuals', 'done']
   const idx = order.indexOf(stageId)
   return idx >= 0 ? idx : 0
 }

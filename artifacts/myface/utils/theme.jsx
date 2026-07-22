@@ -1,3 +1,5 @@
+'use client'
+
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 
 const THEME_KEY = 'myface_theme'
@@ -8,14 +10,18 @@ const ThemeContext = createContext({
 })
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(THEME_KEY) || 'light'
-    }
-    return 'light'
-  })
+  // Always start with 'light' so SSR HTML matches the first client render.
+  // Saved preference is applied after mount (inline <head> script already set the class).
+  const [theme, setTheme] = useState('light')
+  const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
+    setTheme(localStorage.getItem(THEME_KEY) || 'light')
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
     const root = document.documentElement
     if (theme === 'dark') {
       root.classList.add('dark')
@@ -23,7 +29,7 @@ export function ThemeProvider({ children }) {
       root.classList.remove('dark')
     }
     localStorage.setItem(THEME_KEY, theme)
-  }, [theme])
+  }, [theme, hydrated])
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))

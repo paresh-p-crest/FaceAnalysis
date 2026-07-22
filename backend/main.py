@@ -48,7 +48,6 @@ def _mount_routers(app: FastAPI) -> None:
     global _routers_mounted
     if _routers_mounted:
         return
-    from .routers.admin_settings import router as admin_settings_router
     from .routers.assessments import router as assessments_router
     from .routers.assistant import router as assistant_router
     from .routers.auth import router as auth_router
@@ -61,7 +60,6 @@ def _mount_routers(app: FastAPI) -> None:
     app.include_router(assistant_router)
     app.include_router(media_router)
     app.include_router(payments_router)
-    app.include_router(admin_settings_router)
     app.include_router(notifications_router)
     _routers_mounted = True
     logger.info("API routers mounted")

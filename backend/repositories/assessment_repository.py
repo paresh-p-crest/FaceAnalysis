@@ -6,7 +6,7 @@ import copy
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -58,7 +58,7 @@ def _summary_dict(row: Assessment) -> dict:
     slim_cv: dict[str, Any] = {}
     if "overall" in cv:
         slim_cv["overall"] = cv["overall"]
-    for key in ("symmetry", "proportions", "skin", "structure"):
+    for key in ("symmetry", "proportions", "skin", "structure", "jaw", "jawChin"):
         section = cv.get(key)
         if isinstance(section, dict) and "score" in section:
             slim_cv[key] = {"score": section["score"]}
@@ -170,12 +170,9 @@ async def list_assessments_for_user(user_id: str, limit: int = 20, *, summary: b
             select(Assessment)
             .where(
                 Assessment.user_id == uid,
-                # Hide un-submitted drafts (photos uploaded but never finalized): a
-                # draft with no pipeline hasn't started analysis yet.
-                or_(
-                    Assessment.status != AssessmentStatus.draft,
-                    Assessment.pipeline.isnot(None),
-                ),
+                # Submitted only — hide photo-only drafts until POST …/submit.
+                Assessment.status != AssessmentStatus.draft,
+                Assessment.pipeline.isnot(None),
             )
             .order_by(Assessment.created_at.desc())
             .limit(limit)
@@ -183,6 +180,26 @@ async def list_assessments_for_user(user_id: str, limit: int = 20, *, summary: b
         rows = result.scalars().all()
         mapper = _summary_dict if summary else _assessment_to_dict
         return [mapper(r) for r in rows]
+
+
+async def get_latest_draft_for_user(user_id: str) -> Optional[dict]:
+    """Latest in-progress draft (photos may be uploaded; not submitted)."""
+    uid = parse_uuid(user_id)
+    if uid is None:
+        return None
+    async with session_scope() as session:
+        result = await session.execute(
+            select(Assessment)
+            .where(
+                Assessment.user_id == uid,
+                Assessment.status == AssessmentStatus.draft,
+                Assessment.pipeline.is_(None),
+            )
+            .order_by(Assessment.updated_at.desc())
+            .limit(1)
+        )
+        row = result.scalar_one_or_none()
+        return _assessment_to_dict(row) if row else None
 
 
 async def delete_assessment(assessment_id: str) -> bool:
@@ -380,6 +397,7 @@ async def finalize_assessment_for_processing(
         row.answers = answers or {}
         row.provider = provider
         row.pipeline = pipeline
+        row.status = AssessmentStatus.pending_review
         row.updated_at = _utcnow()
         flag_modified(row, "answers")
         flag_modified(row, "pipeline")

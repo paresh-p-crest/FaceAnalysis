@@ -29,6 +29,7 @@ export function LocaleSwitcher({ className = '', compact = false }) {
         return
       }
       router.replace(pathname, { locale: nextLocale })
+      router.refresh()
       close()
     },
     [locale, pathname, router, close],
@@ -55,22 +56,25 @@ export function LocaleSwitcher({ className = '', compact = false }) {
       <button
         type="button"
         onClick={toggle}
-        className={`inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface-card text-xs font-medium text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors shadow-soft ${
-          compact ? 'px-2 py-1 min-h-[32px]' : 'px-2.5 py-1 min-h-[32px]'
+        className={`site-navbar-pill ${
+          compact ? 'px-2.5 py-1' : 'px-3 py-1'
         }`}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={t('language')}
       >
-        <Languages className="w-3.5 h-3.5 shrink-0" aria-hidden />
+        <Languages className="w-3.5 h-3.5 shrink-0 text-ink-muted" aria-hidden />
         <span className="uppercase tracking-wide">{locale}</span>
-        <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
+        <ChevronDown
+          className={`w-3 h-3 shrink-0 text-ink-muted transition-transform ${open ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
       </button>
       {open && (
         <ul
           role="listbox"
           aria-label={t('language')}
-          className="absolute right-0 top-full mt-1.5 min-w-[140px] rounded-xl border border-surface-border bg-surface-card shadow-elevated py-1 z-50"
+          className="absolute right-0 top-full mt-1.5 min-w-[140px] rounded-2xl border border-surface-border bg-surface-card shadow-card py-1 z-50"
         >
           {routing.locales.map((code) => {
             const active = code === locale

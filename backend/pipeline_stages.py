@@ -26,6 +26,7 @@ from .protocol_service import enrich_assessment_nl_content
 from .repositories.assessment_repository import (
     get_assessment_by_id,
     update_assessment_analysis,
+    update_assessment_ai_visuals,
     update_assessment_feature_parsing,
     update_assessment_pipeline,
     update_assessment_projected_after,
@@ -417,6 +418,43 @@ async def run_projected_after_stage(assessment: dict) -> dict:
         respect_enabled_flag=True,
         raise_on_error=False,
     )
+
+
+async def run_ai_visuals_stage(assessment: dict) -> dict:
+    """Generate all AI visual variants from projected AFTER (soft-skip when AFTER not ready)."""
+    from .visual_generation import generate_visual_variants
+
+    assessment_id = assessment["id"]
+    projected = assessment.get("projectedAfter") or {}
+    if projected.get("status") != "ready":
+        logger.info(
+            "AI visuals skipped for %s: projected AFTER status=%s",
+            assessment_id,
+            projected.get("status"),
+        )
+        return assessment
+
+    if not load_projected_full(assessment_id, projected):
+        logger.info("AI visuals skipped for %s: projected AFTER file missing", assessment_id)
+        return assessment
+
+    refreshed = await get_assessment_by_id(assessment_id) or assessment
+    analysis = refreshed.get("analysis") or {}
+    cv_report = analysis.get("cvReport")
+    if not cv_report:
+        logger.warning("AI visuals skipped for %s: no cvReport", assessment_id)
+        return refreshed
+
+    ai_visuals = await generate_visual_variants(
+        answers=refreshed.get("answers") or {},
+        cv_report=cv_report,
+        metrics=analysis.get("metrics"),
+        assessment_id=assessment_id,
+        projected_after=refreshed.get("projectedAfter"),
+        require_projected_after=True,
+    )
+    await update_assessment_ai_visuals(assessment_id, ai_visuals)
+    return await get_assessment_by_id(assessment_id) or refreshed
 
 
 async def finalize_pipeline(assessment_id: str) -> Optional[dict]:

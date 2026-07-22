@@ -31,6 +31,7 @@ from ..repositories.assessment_repository import (
     delete_assessment,
     finalize_assessment_for_processing,
     get_assessment_by_id,
+    get_latest_draft_for_user,
     list_assessments_for_user,
     list_assessments,
     remove_assessment_photo,
@@ -55,6 +56,7 @@ from ..photo_storage import (
     save_all_poses,
 )
 from ..repositories.payment_repository import user_has_completed_payment
+from ..repositories.user_repository import get_user_by_id
 from ..serialization import to_json_safe
 from ..dev_config import dev_auto_approve_reports
 from ..image_utils import decode_image, decode_photo_dict
@@ -66,6 +68,7 @@ from ..report_status import (
     serialize_assessment,
     serialize_assessments,
 )
+from ..photo_storage import load_projected_full
 from ..visual_generation import generate_visual_variants
 from ..answer_summary import format_answers_summary
 
@@ -590,7 +593,18 @@ async def get_assessment(
         raise HTTPException(status_code=404, detail="Assessment not found")
     if not _can_access_assessment(doc, current_user):
         raise HTTPException(status_code=403, detail="You do not have access to this assessment")
-    return serialize_assessment(doc)
+    safe = serialize_assessment(doc)
+    # Subject for report/PDF naming — never use the viewer (admin) identity by mistake
+    if isinstance(safe, dict) and safe.get("userId"):
+        owner = await get_user_by_id(safe["userId"])
+        if owner:
+            safe["ownerUser"] = {
+                "id": owner.get("id"),
+                "firstName": owner.get("firstName") or "",
+                "lastName": owner.get("lastName") or "",
+                "email": owner.get("email") or "",
+            }
+    return safe
 
 
 @router.get("/assessments")
@@ -599,6 +613,17 @@ async def get_assessments_list(limit: int = 20, current_user: dict = Depends(req
         raise HTTPException(status_code=503, detail="Database not configured.")
     limit = min(max(1, limit), 100)
     return {"items": serialize_assessments(await list_assessments(limit=limit), summary=True)}
+
+
+@router.get("/my/assessments/draft")
+async def get_my_assessment_draft(current_user: dict = Depends(get_current_user)):
+    """Latest in-progress draft (photo uploads without submit). Not listed in GET /my/assessments."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
+    draft = await get_latest_draft_for_user(current_user["id"])
+    if not draft:
+        return {"item": None}
+    return {"item": serialize_assessment(draft)}
 
 
 @router.get("/my/assessments")
@@ -814,21 +839,27 @@ async def post_assessment_ai_visuals(
     if not cv_report:
         raise HTTPException(status_code=400, detail="Stored cvReport is required for AI visuals.")
 
-    source_image = (
-        cv_report.get("faceShape", {}).get("imageSrc")
-        or cv_report.get("symmetry", {}).get("imageSrc")
-        or cv_report.get("proportions", {}).get("imageSrc")
-        or (cv_report.get("photos") or {}).get("front")
-    )
+    projected = existing.get("projectedAfter") or {}
+    if projected.get("status") != "ready":
+        raise HTTPException(
+            status_code=400,
+            detail="Projected AFTER must be ready before generating AI visuals.",
+        )
+    if not load_projected_full(assessment_id, projected):
+        raise HTTPException(
+            status_code=400,
+            detail="Projected AFTER image could not be loaded.",
+        )
+
     try:
         ai_visuals = await generate_visual_variants(
             answers=existing.get("answers") or {},
             cv_report=cv_report,
             metrics=analysis.get("metrics"),
-            source_image=source_image,
             variant_types=req.variants,
             assessment_id=assessment_id,
-            assessment_photos=existing.get("photos") or {},
+            projected_after=projected,
+            require_projected_after=True,
         )
     except Exception as exc:
         raise HTTPException(

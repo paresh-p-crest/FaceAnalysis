@@ -977,7 +977,18 @@ export async function cropProfileBefore(imageSrc, landmarks, minPx = 450) {
 
 export async function normalizeToJpegDataUrl(src) {
   if (!src) return null
-  const img = await loadImage(src)
+  let url = src
+  if (typeof src !== 'string') {
+    if (typeof src === 'object') {
+      url = src.publicUrl || src.url || src.src || null
+    } else {
+      url = null
+    }
+  }
+  if (typeof url !== 'string' || !url.trim()) {
+    throw new Error('Invalid image source for PDF')
+  }
+  const img = await loadImage(url)
   const canvas = document.createElement('canvas')
   canvas.width = img.width
   canvas.height = img.height

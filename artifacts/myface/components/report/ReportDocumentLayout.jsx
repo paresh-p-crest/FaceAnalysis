@@ -1,14 +1,17 @@
 import { ReportNavSidebar } from './ReportNavSidebar'
+import { REPORT_NAV_GROUPS } from './reportNavConfig'
 
 export function ReportDocumentLayout({
   activeId,
   onSelect,
-  showAiVisuals = true,
-  showAssistant = true,
-  clientName,
-  assessmentId,
+  groups = REPORT_NAV_GROUPS,
+  tNamespace = 'Report',
+  titleKey = 'nav.report',
+  defaultOpenGroupId = 'introduction',
+  sidebarFooter = null,
   rightRail = null,
   immersive = false,
+  canvasClassName = '',
   children,
 }) {
   const showRightRail = !immersive && activeId === 'protocol' && rightRail
@@ -23,17 +26,24 @@ export function ReportDocumentLayout({
           <ReportNavSidebar
             activeId={activeId}
             onSelect={onSelect}
-            showAiVisuals={showAiVisuals}
-            showAssistant={showAssistant}
-            clientName={clientName}
-            assessmentId={assessmentId}
+            groups={groups}
+            tNamespace={tNamespace}
+            titleKey={titleKey}
+            defaultOpenGroupId={defaultOpenGroupId}
+            footerAction={sidebarFooter}
           />
         </aside>
       )}
 
-      <main className={`qoves-report-canvas min-w-0 ${immersive ? 'qoves-report-canvas--immersive' : ''} ${activeId === 'protocol' ? 'qoves-report-canvas--protocol' : ''}`}>
+      <main className={`qoves-report-canvas min-w-0 ${canvasClassName} ${immersive ? 'qoves-report-canvas--immersive' : ''} ${activeId === 'protocol' ? 'qoves-report-canvas--protocol' : ''}`.trim()}>
         <div
-          className={`qoves-report-page ${immersive ? 'qoves-report-page--immersive' : activeId === 'protocol' ? 'qoves-report-page--protocol' : 'qoves-overview-document'}`}
+          className={`qoves-report-page ${
+            immersive
+              ? 'qoves-report-page--immersive'
+              : activeId === 'protocol'
+                ? 'qoves-report-page--protocol'
+                : ''
+          }`}
         >
           {children}
         </div>

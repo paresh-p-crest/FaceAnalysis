@@ -56,11 +56,37 @@ Retrieves current user info from token context.
 - **Response Shape (200 OK):**
   ```json
   {
-    "id": "60c72b2f9b1d8e2568cf2001",
-    "email": "user@example.com",
-    "role": "user"
+    "user": {
+      "id": "60c72b2f9b1d8e2568cf2001",
+      "email": "user@example.com",
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "role": "user"
+    }
   }
   ```
+
+### `PATCH /api/auth/me`
+Update the signed-in user's profile (`firstName`, `lastName`, `email`). At least one field required.
+- **Auth:** Private (User)
+- **Request Body:** `{ "firstName": "Jane", "lastName": "Doe", "email": "user@example.com" }` (fields optional)
+- **Response Shape (200 OK):** `{ "user": { … } }`
+- **400:** Validation error or email already registered
+
+### `POST /api/auth/change-password`
+Change the signed-in user's password.
+- **Auth:** Private (User)
+- **Request Body:** `{ "currentPassword": "…", "newPassword": "…" }` (new password ≥ 8 chars)
+- **Response Shape (200 OK):** `{ "ok": true }`
+- **400:** Current password incorrect or validation error
+
+### `POST /api/auth/reset-password`
+Forgot-password flow: set a new password for an account by email (no auth token).
+- **Auth:** Public
+- **Request Body:** `{ "email": "user@example.com", "newPassword": "…" }` (new password ≥ 8 chars)
+- **Response Shape (200 OK):** `{ "ok": true }`
+- **400:** Validation error
+- **404:** No account for that email
 
 ### `GET /api/auth/admin-check`
 Validates that the token holder has admin privilege.
@@ -180,17 +206,17 @@ Runs quick mathematical analysis without saving to MongoDB database.
 ### `GET /api/assessments/{assessment_id}`
 Retrieves a detailed assessment object by ID.
 - **Auth:** Owner User or Admin (anonymous reports are open)
-- **Response Shape (200 OK):** Full assessment document JSON.
+- **Response Shape (200 OK):** Full assessment document JSON. When `userId` is set, also includes `ownerUser`: `{ id, firstName, lastName, email }` for the assessment subject (report/PDF naming — not the viewer).
 
 ### `GET /api/assessments`
 Lists recent assessments for the admin panel (summary projection only).
 - **Auth:** Private (Admin)
 - **Query:** `limit` (max 100)
-- **Response Shape (200 OK):** `{ "items": [...] }` where each item includes `id`, `userId`, `status`, `provider`, `scanId`, `createdAt`, `pipeline` (live stage/status for the admin tracker), and pruned `analysis` score fields only (no photos, narratives, protocol blobs, or cvReport image data). Use `GET /api/assessments/{id}` for full detail.
+- **Response Shape (200 OK):** `{ "items": [...] }` where each item includes `id`, `userId`, `status`, `provider`, `scanId`, `createdAt`, `pipeline` (live stage/status for the admin tracker), and pruned `analysis` score fields only (no photos, narratives, protocol blobs, or cvReport image data). Pruned `cvReport` score keys: `overall`, `symmetry`, `proportions`, `skin`, `structure`, `jaw`, `jawChin`; pruned `metrics` keys: `harmonyScore`, `symmetryScore`, `proportionsScore`, `skinScore`, `jawlineScore`. Use `GET /api/assessments/{id}` for full detail.
 - **Note:** Un-submitted drafts (`status = "draft"` with `pipeline = null`) are excluded from the user history list, but appear here for admins.
 
 ### `GET /api/my/assessments`
-Lists assessment history belonging to current user context (summary projection only).
+Lists **submitted** assessments for the current user (summary projection only). Photo-only drafts (`status = draft`, `pipeline = null`) are **excluded** — use `GET /api/my/assessments/draft` to resume an in-progress upload.
 - **Auth:** Private (User)
 - **Query:** `limit` (max 100)
 - **Response Shape (200 OK):**
@@ -210,6 +236,11 @@ Lists assessment history belonging to current user context (summary projection o
     ]
   }
   ```
+
+### `GET /api/my/assessments/draft`
+Returns the user's latest in-progress draft (photos may be uploaded; not yet submitted via `POST …/submit`).
+- **Auth:** Private (User)
+- **Response Shape (200 OK):** `{ "item": null }` or `{ "item": { …full draft… } }`
 
 ### `DELETE /api/assessments/{assessment_id}`
 Deletes specific assessment.
@@ -240,7 +271,17 @@ Saves admin review comments, PDF protocol text edits, and/or publishes reports.
   {
     "status": "Approved",
     "adminNotes": "Admin notes...",
-    "protocolNarrative": { "summary": "...", "closing": ["..."], "features": {} },
+    "protocolNarrative": {
+      "summary": "...",
+      "closing": ["..."],
+      "features": {},
+      "treatmentPhases": {
+        "phase01": { "title": "...", "duration": "...", "items": [{ "name": "...", "detail": "..." }] },
+        "phase02": { "title": "...", "duration": "...", "items": [{ "name": "...", "detail": "..." }] },
+        "phase03": { "title": "...", "duration": "...", "items": [{ "name": "...", "detail": "..." }] },
+        "summary": "One-paragraph synthesis of baseline status and staged plan."
+      }
+    },
     "featureNarratives": { "hair": { "summary": "...", "subsections": [] } }
   }
   ```
@@ -267,7 +308,12 @@ Loads persisted protocol from media storage (`assessments/{id}/protocol.json`) w
 - **Response Shape (200 OK):**
   ```json
   {
-    "protocolNarrative": { "summary": "...", "features": {}, "closing": [] },
+    "protocolNarrative": {
+      "summary": "...",
+      "features": {},
+      "closing": [],
+      "treatmentPhases": { "phase01": {}, "phase02": {}, "phase03": {}, "summary": "..." }
+    },
     "featureNarratives": { "hair": { "measuredFacts": [], "subsections": [] } },
     "protocolStorage": { "publicUrl": "/api/media/assessments/{id}/protocol.json" },
     "source": "storage"
@@ -276,7 +322,7 @@ Loads persisted protocol from media storage (`assessments/{id}/protocol.json`) w
 - **404:** Protocol not yet generated.
 
 ### `POST /api/assessments/{assessment_id}/ai-protocol`
-Generates protocol via `narrative_orchestrator` (per-feature structured LLM calls + overview + closing), writes JSON to protocol storage, and syncs `featureNarratives` / `protocolNarrative` to the database.
+Generates protocol via `narrative_orchestrator` (per-feature structured LLM calls + overview + **treatment phases** + closing), writes JSON to protocol storage, and syncs `featureNarratives` / `protocolNarrative` to the database.
 - **Auth:** Owner User or Admin (paid AI access)
 - **Query:** `force=true` — **admin-only** full regenerate (overwrites existing PDF narrative text)
 - **400:** Rejected when assessment status is **Approved**.
@@ -303,14 +349,15 @@ Assessment `GET` payloads include `projectedAnalysis` alongside `projectedAfter`
 ### `POST /api/assessments/{assessment_id}/ai-visuals`
 Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images Edits (`OPENAI_IMAGE_MODEL`, default `gpt-image-1`).
 - **Auth:** Owner User or Admin (paid AI access)
-- **Source image:** Prefers the stored front pose object (`assessments/{id}/front.jpg` via the media backend), then `assessment.photos.front`, then `cvReport` image refs (data URL or `/api/media/...` path; legacy `/uploads/...` still accepted). Never base64-decodes public URLs.
+- **Prerequisite:** `projectedAfter.status === "ready"` and loadable projected AFTER bytes; otherwise **400** with a clear detail.
+- **Source image:** Stored **projected AFTER** full image only (`assessments/{id}/projected/full.jpg|png` or `projectedAfter.full` refs). No front pose or CV fallbacks.
 - **Request Body:**
   ```json
   {
     "variants": ["hair", "outfit", "aging"]
   }
   ```
-- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variants[]` with `prompt`, `imageSrc`, `status`, `error`). Failed edits return `status: "blocked"` per variant instead of crashing the request. Prompt text is natural-language with a shared identity opening and per-variant scope-fence (ADR-035); schema unchanged.
+- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variants[]`). When all categories are requested, `variants[]` contains **13** cards: 5 hairstyles (CV face-shape bank), 5 outfit occasions, and 3 aging previews (`+3`, `+5`, `+10` years). Each variant includes `type` (hair/outfit/aging), `styleId`, `title`, `prompt`, `imageSrc`, `status`, and `error`. Failed edits return `status: "blocked"` per variant instead of crashing the request. Prompt text is natural-language with a shared identity opening and per-card scope-fence (ADR-035); image edits are executed as separate single-call prompts (no mega-prompt).
 
 ### `GET /api/assessments/{assessment_id}/pdf`
 Retrieves generated PDF bytes directly.
@@ -394,10 +441,44 @@ Builds Stripe payment checkout portal.
   }
   ```
 
+### `POST /api/payments/stripe/confirm`
+Client-side confirmation after Stripe Checkout redirect (idempotent with webhook).
+- **Auth:** Private (User)
+- **Request Body:**
+  ```json
+  {
+    "sessionId": "cs_test_..."
+  }
+  ```
+- **Response Shape (200 OK):**
+  ```json
+  {
+    "payment": {
+      "id": "...",
+      "status": "paid",
+      "provider": "stripe",
+      "providerRef": "cs_test_..."
+    }
+  }
+  ```
+
 ### `POST /api/payments/stripe/webhook`
 Listens to Stripe API callback hooks.
 - **Auth:** None (secured via signing secret check)
 - **Response Shape (200 OK):** `{"ok": true}`
+
+### Stripe post-payment routing (frontend)
+
+After checkout, Stripe redirects to `{PUBLIC_APP_URL}/?payment=stripe-success&session_id={CHECKOUT_SESSION_ID}` (cancel: `/?payment=stripe-cancel`). Defaults are set in `backend/routers/payments.py` when `successUrl` / `cancelUrl` are omitted.
+
+**Client journey (Stripe):**
+1. Unpaid user starts checkout from `/report` paywall via `POST /api/payments/stripe/checkout` → browser redirect to Stripe. (Customer `/billing` product UI is deprecated.)
+2. On success return, `AppProvider` bootstrap reads query params, stores `session_id` in `localStorage` (`myface_payment_session_id`), sets `paymentReturn`, and routes to `/report`.
+3. `/report` renders `PaymentSuccessPage` while `paymentReturn` is set; it confirms via `POST /api/payments/stripe/confirm`, unlocks analysis access, and shows **Start Face Analysis**. Visits to `/billing` redirect to `/report`.
+4. Webhook `checkout.session.completed` may mark the payment `paid` before or after client confirm (both paths are idempotent).
+5. **Start Face Analysis** clears the payment session and starts the analysis flow (`/analysis`). Cancelled checkout returns to `/report` paywall.
+
+**PayPal:** Backend exposes `POST /api/payments/paypal/orders` and `POST /api/payments/paypal/capture` with return URL `/?payment=paypal-success`, but the frontend does not yet handle PayPal return or call capture.
 
 ### `POST /api/payments/paypal/orders`
 Initiates PayPal transaction process.
@@ -420,29 +501,6 @@ Captures PayPal transaction funds after confirmation.
   }
   ```
 - **Response Shape (200 OK):** Capture receipt details.
-
----
-
-## Admin Domain Settings
-
-### `GET /api/admin/pricing`
-Retrieves default pricing and payment details.
-- **Auth:** Private (Admin)
-- **Response Shape (200 OK):** Settings documentation.
-
-### `PATCH /api/admin/pricing`
-Alters default pricing and currency.
-- **Auth:** Private (Admin)
-- **Request Body:**
-  ```json
-  {
-    "amountCents": 100,
-    "currency": "usd",
-    "productName": "Advanced MyFace Assessment Report",
-    "productDescription": "Complete visual scan breakdown"
-  }
-  ```
-- **Response Shape (200 OK):** Updated product configurations.
 
 ---
 

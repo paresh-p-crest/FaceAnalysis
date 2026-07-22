@@ -10,7 +10,15 @@ function isPaidStatus(status) {
   return isPaidPaymentStatus(status)
 }
 
-export default function PaymentSuccessPage({ user, sessionId, onAuth, onStartAnalysis, onBilling, onAccessRefresh }) {
+export default function PaymentSuccessPage({
+  user,
+  sessionId,
+  onAuth,
+  onStartAnalysis,
+  onRetryCheckout,
+  onAccessRefresh,
+  onPaymentConfirmed,
+}) {
   const t = useTranslations('Billing')
   const [status, setStatus] = useState(sessionId ? 'confirming' : 'checking')
   const [error, setError] = useState('')
@@ -28,6 +36,7 @@ export default function PaymentSuccessPage({ user, sessionId, onAuth, onStartAna
         setStatus('confirmed')
         setError('')
         onAccessRefresh?.()
+        onPaymentConfirmed?.()
       }
     }
 
@@ -81,64 +90,84 @@ export default function PaymentSuccessPage({ user, sessionId, onAuth, onStartAna
     return () => {
       cancelled = true
     }
-  }, [user?.id, sessionId, t, onAccessRefresh])
+  }, [user?.id, sessionId, t, onAccessRefresh, onPaymentConfirmed])
 
   const canStart = status === 'confirmed' && !!user
+  const isBusy = status === 'confirming' || status === 'checking'
 
   return (
-    <div className="min-h-screen px-6 pb-8 site-navbar-offset animate-fade-up font-sans bg-surface">
-      <div className="max-w-xl mx-auto">
-        <div className="bg-white dark:bg-surface-card rounded-3xl p-8 shadow-card border border-surface-border text-center">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-5">
-            {status === 'confirming' || status === 'checking' ? (
-              <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
+    <div
+      className="bg-surface overflow-hidden flex flex-col font-sans"
+      style={{
+        height: '100dvh',
+        paddingTop: 'var(--site-navbar-offset)',
+      }}
+    >
+      <div className="flex-1 min-h-0 flex items-center justify-center px-4 py-6">
+        <div className="w-full max-w-md rounded-3xl border border-brand/25 bg-white p-8 sm:p-10 text-center shadow-card">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-brand/30 bg-brand/5">
+            {isBusy ? (
+              <Loader2 className="w-6 h-6 text-brand animate-spin" />
             ) : (
-              <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+              <CheckCircle2 className="w-7 h-7 text-brand" strokeWidth={2} />
             )}
           </div>
 
-          <h1 className="font-display text-2xl font-semibold text-ink mb-2">{t('paymentSuccessTitle')}</h1>
-          <p className="text-sm text-ink-muted leading-relaxed mb-6">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand mb-2">
+            {t('paymentSuccessTitle')}
+          </p>
+          <h1 className="font-serif text-2xl sm:text-3xl text-ink tracking-tight mb-2">
+            {canStart ? t('readyForAnalysisTitle') : t('paymentSuccessTitle')}
+          </h1>
+          <p className="text-sm text-ink-secondary leading-relaxed mb-6 max-w-sm mx-auto">
             {t('paymentSuccessDesc')}
           </p>
 
           {!user ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-6 text-left">
-              <p className="text-sm font-semibold text-amber-800 mb-1">{t('signInRequiredTitle')}</p>
-              <p className="text-xs text-amber-700">{t('signInRequiredDesc')}</p>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 mb-6 text-left">
+              <p className="text-sm font-semibold text-amber-800 mb-0.5">{t('signInRequiredTitle')}</p>
+              <p className="text-xs text-amber-700 leading-relaxed">{t('signInRequiredDesc')}</p>
             </div>
           ) : error ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-6 text-left">
-              <p className="text-sm font-semibold text-amber-800 mb-1">{t('confirmationPendingTitle')}</p>
-              <p className="text-xs text-amber-700">{error}</p>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 mb-6 text-left">
+              <p className="text-sm font-semibold text-amber-800 mb-0.5">{t('confirmationPendingTitle')}</p>
+              <p className="text-xs text-amber-700 leading-relaxed">{error}</p>
             </div>
           ) : canStart ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 mb-6 text-left">
-              <p className="text-sm font-semibold text-emerald-800 mb-1">{t('readyForAnalysisTitle')}</p>
-              <p className="text-xs text-emerald-700">{t('readyForAnalysisDesc')}</p>
-            </div>
+            <p className="text-xs text-ink-muted mb-6 leading-relaxed">
+              {t('readyForAnalysisDesc')}
+            </p>
+          ) : isBusy ? (
+            <p className="text-xs text-ink-muted mb-6">{t('processingMessage')}</p>
           ) : null}
 
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-2.5">
             {!user ? (
-              <button onClick={onAuth} className="btn-primary text-sm sm:col-span-2">
+              <button type="button" onClick={onAuth} className="btn-primary w-full">
                 <CreditCard className="w-4 h-4" />
                 {t('signIn')}
+              </button>
+            ) : canStart ? (
+              <button type="button" onClick={onStartAnalysis} className="btn-primary w-full">
+                <Sparkles className="w-4 h-4" />
+                {t('startFaceAnalysis')}
               </button>
             ) : (
               <>
                 <button
-                  onClick={onStartAnalysis}
-                  disabled={!canStart}
-                  className="btn-primary text-sm disabled:opacity-50 disabled:pointer-events-none"
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="btn-ghost w-full"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  {t('startFaceAnalysis')}
+                  <RefreshCw className="w-4 h-4" />
+                  {t('refreshStatus')}
                 </button>
-                <button onClick={onBilling} className="btn-ghost text-sm">
-                  {status === 'pending' || status === 'error' ? <RefreshCw className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
-                  {t('billing')}
-                </button>
+                {onRetryCheckout ? (
+                  <button type="button" onClick={onRetryCheckout} className="btn-primary w-full">
+                    <CreditCard className="w-4 h-4" />
+                    {t('retryCheckout')}
+                  </button>
+                ) : null}
               </>
             )}
           </div>

@@ -6,43 +6,29 @@ import { useRouter } from '../i18n/navigation'
 import {
   BarChart3,
   CreditCard,
-  Database,
   FileText,
-  LayoutDashboard,
   Loader2,
   RefreshCw,
   ShieldCheck,
   Trash2,
   User,
   Users,
-  DollarSign,
 } from 'lucide-react'
 import {
-  deleteAllAssessments,
-  deleteAllPayments,
   deleteAssessment,
   deleteAdminUser,
-  fetchAdminPricing,
   fetchAssessment,
   isBackendApiEnabled,
-  updateAdminPricing,
   updateAssessmentStatus,
 } from '../utils/apiClient'
 import { ADMIN_TABS, adminTabToPath, persistAdminTab } from '../utils/adminPanel'
 import { isAdminResourceLoading, resourcesForAdminTab } from '../utils/adminWorkspace'
 import { formatHistoryDate } from '../utils/historyStorage'
-import { isReportApproved, normalizeReportStatus, REPORT_WORKFLOW_STATUSES } from '../utils/reportWorkflow'
+import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/qovesProtocolModel'
+import { normalizeReportStatus, REPORT_WORKFLOW_STATUSES } from '../utils/reportWorkflow'
 import { translateApiError } from '../utils/translateApiError'
 import ConfirmDialog from './ConfirmDialog'
 import { useApp } from './providers/AppProvider'
-
-const TAB_ICONS = {
-  overview: LayoutDashboard,
-  users: Users,
-  review: FileText,
-  payments: CreditCard,
-  settings: DollarSign,
-}
 
 const STATUS_STYLE = {
   draft: 'bg-surface-warm text-ink-muted border-surface-border',
@@ -99,14 +85,14 @@ function displayName(item, t) {
 
 function EmptyState({ title, text }) {
   return (
-    <div className="rounded-2xl border border-dashed border-surface-border bg-surface-warm dark:bg-surface-raised p-8 text-center">
-      <p className="font-display text-ink mb-1">{title}</p>
+    <div className="dashboard-empty-state p-8">
+      <p className="font-semibold text-ink mb-1">{title}</p>
       <p className="text-sm text-ink-muted">{text}</p>
     </div>
   )
 }
 
-export default function AdminPanelPage({ user, onSettings, onViewCloudItem, activeTab }) {
+export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
   const t = useTranslations('Admin.panel')
   const tErrors = useTranslations('Errors')
   const tCommon = useTranslations('Admin.common')
@@ -116,14 +102,8 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
   const [deletingId, setDeletingId] = useState('')
   const [updatingId, setUpdatingId] = useState('')
   const [openingId, setOpeningId] = useState('')
-  const [adminMode, setAdminMode] = useState('production')
-  const [resetting, setResetting] = useState('')
   const [error, setError] = useState('')
   const [reportFilter, setReportFilter] = useState('all')
-  const [pricing, setPricing] = useState({ amountCents: 50, currency: 'usd', name: '', description: '' })
-  const [priceInput, setPriceInput] = useState('0.50')
-  const [pricingSaving, setPricingSaving] = useState(false)
-  const [pricingMessage, setPricingMessage] = useState('')
   const [confirmState, setConfirmState] = useState(null)
 
   const canLoad = !!user && user.role === 'admin' && isBackendApiEnabled()
@@ -157,39 +137,10 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
   }
 
   useEffect(() => {
-    if (activeTab !== 'settings' || !canLoad) return
-    fetchAdminPricing()
-      .then((product) => {
-        setPricing(product)
-        setPriceInput(((product.amountCents || 50) / 100).toFixed(2))
-      })
-      .catch((err) => setPricingMessage(translateApiError(err, tErrors)))
-  }, [activeTab, canLoad])
-
-  const handleSavePricing = async () => {
-    const dollars = Number.parseFloat(priceInput)
-    if (!Number.isFinite(dollars) || dollars < 0.01) {
-      setPricingMessage(t('pricing.invalidPrice'))
-      return
+    if (activeTab === 'settings') {
+      router.replace(adminTabToPath('overview'))
     }
-    setPricingSaving(true)
-    setPricingMessage('')
-    try {
-      const product = await updateAdminPricing({
-        amountCents: Math.round(dollars * 100),
-        currency: pricing.currency || 'usd',
-        productName: pricing.name || undefined,
-        productDescription: pricing.description || undefined,
-      })
-      setPricing(product)
-      setPriceInput(((product.amountCents || 1) / 100).toFixed(2))
-      setPricingMessage(t('pricing.saved'))
-    } catch (err) {
-      setPricingMessage(translateApiError(err, tErrors))
-    } finally {
-      setPricingSaving(false)
-    }
-  }
+  }, [activeTab])
 
   const userById = useMemo(() => Object.fromEntries(users.map((item) => [item.id, item])), [users])
 
@@ -308,50 +259,6 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
     })
   }
 
-  const handleResetReports = () => {
-    if (adminMode !== 'testing') return
-    setConfirmState({
-      title: t('confirm.resetReportsTitle'),
-      message: t('confirm.resetReportsMessage'),
-      confirmLabel: t('confirm.resetReportsLabel'),
-      danger: true,
-      onConfirm: async () => {
-        setResetting('reports')
-        try {
-          await deleteAllAssessments()
-          patchAdminWorkspace({ assessments: [] })
-        } catch (err) {
-          setError(translateApiError(err, tErrors))
-        } finally {
-          setResetting('')
-          setConfirmState(null)
-        }
-      },
-    })
-  }
-
-  const handleResetPayments = () => {
-    if (adminMode !== 'testing') return
-    setConfirmState({
-      title: t('confirm.resetPaymentsTitle'),
-      message: t('confirm.resetPaymentsMessage'),
-      confirmLabel: t('confirm.resetPaymentsLabel'),
-      danger: true,
-      onConfirm: async () => {
-        setResetting('payments')
-        try {
-          await deleteAllPayments()
-          patchAdminWorkspace({ payments: [] })
-        } catch (err) {
-          setError(translateApiError(err, tErrors))
-        } finally {
-          setResetting('')
-          setConfirmState(null)
-        }
-      },
-    })
-  }
-
   const renderClientCell = (assessment) => {
     const owner = assessment.userId ? userById[assessment.userId] : null
     if (owner) {
@@ -379,22 +286,23 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
   }
 
   const renderReportRow = (assessment, { showStatus = false } = {}) => {
-    const score = assessment.analysis?.cvReport?.overall?.score ?? assessment.analysis?.metrics?.harmonyScore ?? '—'
+    const score = resolveOverallHarmonyScore(assessment.analysis) ?? '—'
     const normalizedStatus = normalizeReportStatus(assessment.status)
+    const refLabel = formatAssessmentRef(assessment)
     return (
-      <div key={assessment.id} className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
-        <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-start">
-          <div className="min-w-0">
+      <div key={assessment.id} className="rounded-xl border border-landing-divider bg-white p-4 transition-colors hover:border-brand/20">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1 space-y-2">
+            {renderClientCell(assessment)}
             <div className="flex flex-wrap items-center gap-2">
-              {renderClientCell(assessment)}
               {showStatus && <StatusBadge status={assessment.status} t={t} />}
               <PipelineBadge pipeline={assessment.pipeline} t={t} />
             </div>
-            <p className="text-[11px] text-ink-muted mt-2">
-              {t('reportMeta', { id: assessment.id.slice(-8), date: formatHistoryDate(assessment.createdAt), score })}
+            <p className="micro-label !normal-case !tracking-normal !text-[11px] text-ink-muted">
+              #{refLabel} · {formatHistoryDate(assessment.createdAt)} · {t('scoreLabel', { score })}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 justify-end">
+          <div className="flex flex-wrap gap-2 shrink-0 lg:justify-end">
             {normalizedStatus === 'pending_review' && (
               <button
                 onClick={() => handleApprove(assessment)}
@@ -426,100 +334,50 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
   }
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 pb-8 site-navbar-offset animate-fade-up font-sans bg-surface">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-brand" />
-            </div>
-            <div>
-              <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">{t('title')}</h1>
-              <p className="text-sm text-ink-muted">{t('subtitle')}</p>
+    <div className="relative min-h-screen bg-surface font-sans text-ink">
+      {/* Explicit clear + mint gap under fixed navbar (padding alone was covered by bleed hero/gradients) */}
+      <div className="shrink-0 h-[var(--site-navbar-height)]" aria-hidden />
+      <div className="shrink-0 h-[var(--site-navbar-gap)] bg-surface" aria-hidden />
+
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 h-[420px] -z-0"
+        style={{
+          top: 'var(--site-navbar-offset)',
+          background:
+            'radial-gradient(900px 360px at 12% 0%, rgba(94, 159, 139, 0.14), transparent 58%), radial-gradient(700px 280px at 88% 0%, rgba(255, 255, 255, 0.5), transparent 55%)',
+        }}
+      />
+
+      <section className="relative z-10 dashboard-hero-band dashboard-hero-band--bleed surface-grain">
+        <div className="relative z-10 flex w-full flex-col gap-6 px-4 py-7 sm:px-6 sm:py-8 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="dashboard-icon-well h-11 w-11">
+              <ShieldCheck className="h-5 w-5" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <p className="micro-label !text-brand mb-1">{t('eyebrow')}</p>
+              <h1 className="font-serif text-[32px] sm:text-[36px] leading-tight tracking-tight text-ink">
+                {t('title')}
+              </h1>
+              <p className="text-sm text-ink-secondary mt-1">{t('subtitle')}</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={onSettings} className="btn-ghost text-sm">{t('apiSettings')}</button>
-            <button
-              onClick={handleRefresh}
-              disabled={loading || !canLoad}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border border-surface-border bg-white dark:bg-surface-card text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-              {t('refresh')}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={loading || !canLoad}
+            className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-white/70 bg-white/60 px-4 py-2.5 text-xs font-semibold text-ink-secondary backdrop-blur-md transition-colors hover:bg-white/90 hover:text-brand disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            {t('refresh')}
+          </button>
         </div>
+      </section>
 
-        <div className="mb-6 overflow-x-auto">
-          <div className="inline-flex min-w-full sm:min-w-0 rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-1 shadow-card gap-1">
-            {ADMIN_TABS.map((tab) => {
-              const Icon = TAB_ICONS[tab]
-              const count = tab === 'review' ? pendingReviewCount : tab === 'users' ? clientUsers.length : null
-              return (
-                <button
-                  key={tab}
-                  onClick={() => changeTab(tab)}
-                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
-                    activeTab === tab
-                      ? 'bg-brand text-white shadow-brand'
-                      : 'text-ink-secondary hover:text-brand hover:bg-brand-50/60'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {t(`tabs.${tab}`)}
-                  {count != null && count > 0 && (
-                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeTab === tab ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <section className="mb-6 bg-white dark:bg-surface-card rounded-2xl p-5 shadow-card border border-surface-border">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Database className="w-4 h-4 text-brand" />
-                <h2 className="font-display text-lg font-semibold text-ink">{t('environment.title')}</h2>
-              </div>
-              <p className="text-xs text-ink-muted">{t('environment.description')}</p>
-            </div>
-            <div className="flex rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-1">
-              {['production', 'testing'].map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setAdminMode(mode)}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-colors ${
-                    adminMode === mode
-                      ? mode === 'testing'
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : 'bg-white dark:bg-surface-card text-brand border border-surface-border shadow-soft'
-                      : 'text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  {t(`environment.${mode}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-          {adminMode === 'testing' && (
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-wrap gap-2">
-              <button onClick={handleResetReports} disabled={!!resetting} className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 disabled:opacity-50">
-                {t('environment.resetReports')}
-              </button>
-              <button onClick={handleResetPayments} disabled={!!resetting} className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 disabled:opacity-50">
-                {t('environment.resetPayments')}
-              </button>
-            </div>
-          )}
-        </section>
-
+      <main className="relative z-10 w-full px-4 sm:px-6 lg:px-8 pb-24 pt-6 space-y-6">
         {error && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         )}
 
         {!isBackendApiEnabled() ? (
@@ -535,7 +393,7 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
           <>
             {activeTab === 'overview' && (
               <div className="space-y-6">
-                <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   {[
                     ['users', clientUsers.length, Users],
                     ['reports', reportStats.total, FileText],
@@ -543,38 +401,40 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
                     ['approved', reportStats.approved, BarChart3],
                     ['payments', paidCount, CreditCard],
                   ].map(([key, value, Icon]) => (
-                    <div key={key} className="bg-white dark:bg-surface-card rounded-2xl p-5 shadow-card border border-surface-border">
-                      <div className="flex items-center gap-2 text-xs text-ink-muted mb-2">
-                        <Icon className="w-4 h-4 text-brand" />
-                        {t(`stats.${key}`)}
+                    <div key={key} className="dashboard-card flex flex-col gap-3">
+                      <span className="dashboard-icon-well-stat self-start">
+                        <Icon className="w-4 h-4 text-brand" aria-hidden />
+                      </span>
+                      <div>
+                        <p className="micro-label">{t(`stats.${key}`)}</p>
+                        <p className="mt-1 text-[28px] font-semibold tracking-tight tabular-nums text-ink">{value}</p>
                       </div>
-                      <p className="font-display text-3xl font-semibold text-ink">{value}</p>
                     </div>
                   ))}
                 </div>
                 {reportStats.pending_review > 0 && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <p className="text-sm text-amber-800 font-medium">{t('pendingBanner', { count: reportStats.pending_review })}</p>
-                    <button onClick={() => changeTab('review')} className="btn-primary text-sm">{t('reviewReports')}</button>
+                    <button type="button" onClick={() => changeTab('review')} className="btn-primary text-sm">{t('reviewReports')}</button>
                   </div>
                 )}
-                <div className="grid lg:grid-cols-2 gap-4">
-                  <section className="bg-white dark:bg-surface-card rounded-2xl p-5 shadow-card border border-surface-border">
-                    <h2 className="font-display text-lg font-semibold text-ink mb-4">{t('recentClients')}</h2>
-                    <div className="space-y-3">
+                <div className="grid lg:grid-cols-2 gap-6">
+                  <section className="dashboard-panel p-5 sm:p-6">
+                    <h2 className="micro-label !text-brand mb-4">{t('recentClients')}</h2>
+                    <div className="space-y-2">
                       {clientUsers.slice(0, 5).map((item) => (
-                        <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface-warm dark:bg-surface-raised border border-surface-border p-3">
+                        <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-landing-divider bg-white px-4 py-3">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-ink truncate">{displayName(item, t)}</p>
                             <p className="text-xs text-ink-muted truncate">{item.email}</p>
                           </div>
-                          <span className="text-xs text-ink-muted">{t('reportCount', { count: reportCountByUser[item.id] || 0 })}</span>
+                          <span className="text-xs font-medium text-ink-muted shrink-0">{t('reportCount', { count: reportCountByUser[item.id] || 0 })}</span>
                         </div>
                       ))}
                     </div>
                   </section>
-                  <section className="bg-white dark:bg-surface-card rounded-2xl p-5 shadow-card border border-surface-border">
-                    <h2 className="font-display text-lg font-semibold text-ink mb-4">{t('latestReports')}</h2>
+                  <section className="dashboard-panel p-5 sm:p-6">
+                    <h2 className="micro-label !text-brand mb-4">{t('latestReports')}</h2>
                     <div className="space-y-3">
                       {visibleAssessments.slice(0, 5).map((assessment) => renderReportRow(assessment, { showStatus: true }))}
                     </div>
@@ -584,11 +444,11 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
             )}
 
             {activeTab === 'users' && (
-              <section className="bg-white dark:bg-surface-card rounded-2xl shadow-card border border-surface-border overflow-hidden">
-                <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+              <section className="dashboard-panel overflow-hidden">
+                <div className="px-5 py-4 sm:px-6 border-b border-landing-divider flex items-center justify-between">
                   <div>
-                    <h2 className="font-display text-lg font-semibold text-ink">{t('users.title')}</h2>
-                    <p className="text-xs text-ink-muted">{t('users.subtitle', { count: users.length })}</p>
+                    <h2 className="text-lg font-semibold text-ink tracking-tight">{t('users.title')}</h2>
+                    <p className="text-xs text-ink-muted mt-0.5">{t('users.subtitle', { count: users.length })}</p>
                   </div>
                 </div>
                 {users.length === 0 ? (
@@ -646,18 +506,19 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
             {activeTab === 'review' && (
               <section className="space-y-4">
                 <div>
-                  <h2 className="font-display text-lg font-semibold text-ink">{t('review.title')}</h2>
-                  <p className="text-xs text-ink-muted">{t('review.subtitle')}</p>
+                  <h2 className="text-lg font-semibold text-ink tracking-tight">{t('review.title')}</h2>
+                  <p className="text-xs text-ink-muted mt-0.5">{t('review.subtitle')}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {['all', ...REPORT_WORKFLOW_STATUSES.map((s) => s.value)].map((filter) => (
                     <button
                       key={filter}
+                      type="button"
                       onClick={() => setReportFilter(filter)}
-                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold capitalize ${
+                      className={`px-3 py-1.5 rounded-full border text-xs font-semibold capitalize transition-colors ${
                         reportFilter === filter
-                          ? 'bg-brand text-white border-brand'
-                          : 'bg-white dark:bg-surface-card border-surface-border text-ink-secondary'
+                          ? 'bg-brand text-white border-brand shadow-brand'
+                          : 'bg-white border-landing-divider text-ink-secondary hover:border-brand/30 hover:text-brand'
                       }`}
                     >
                       {filter === 'all' ? t('filters.all') : t(`status.${filter === 'pending_review' ? 'pendingReview' : filter}`)}
@@ -675,10 +536,10 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
             )}
 
             {activeTab === 'payments' && (
-              <section className="bg-white dark:bg-surface-card rounded-2xl shadow-card border border-surface-border overflow-hidden">
-                <div className="px-5 py-4 border-b border-surface-border">
-                  <h2 className="font-display text-lg font-semibold text-ink">{t('payments.title')}</h2>
-                  <p className="text-xs text-ink-muted">{t('payments.subtitle')}</p>
+              <section className="dashboard-panel overflow-hidden">
+                <div className="px-5 py-4 sm:px-6 border-b border-landing-divider">
+                  <h2 className="text-lg font-semibold text-ink tracking-tight">{t('payments.title')}</h2>
+                  <p className="text-xs text-ink-muted mt-0.5">{t('payments.subtitle')}</p>
                 </div>
                 {payments.length === 0 ? (
                   <div className="p-8"><EmptyState title={t('payments.emptyTitle')} text={t('payments.emptyText')} /></div>
@@ -714,48 +575,16 @@ export default function AdminPanelPage({ user, onSettings, onViewCloudItem, acti
               </section>
             )}
 
-            {activeTab === 'settings' && (
-              <section className="bg-white dark:bg-surface-card rounded-2xl p-6 shadow-card border border-surface-border max-w-xl">
-                <h2 className="font-display text-lg font-semibold text-ink mb-1">{t('pricing.title')}</h2>
-                <p className="text-xs text-ink-muted mb-5">{t('pricing.description')}</p>
-                <label className="block text-xs font-semibold text-ink-secondary mb-2">{t('pricing.priceLabel')}</label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={priceInput}
-                  onChange={(e) => setPriceInput(e.target.value)}
-                  className="w-full rounded-xl border border-surface-border bg-white dark:bg-surface-raised px-4 py-3 text-sm text-ink mb-4"
-                />
-                <p className="text-xs text-ink-muted mb-4">
-                  {t('pricing.checkoutCharge')}{' '}
-                  <span className="font-semibold text-brand">{money(Math.round((Number.parseFloat(priceInput) || 0) * 100), pricing.currency || 'usd')}</span>
-                </p>
-                {pricingMessage && (
-                  <div className="mb-4 rounded-xl border border-surface-border bg-surface-warm px-3 py-2 text-xs text-ink-secondary">
-                    {pricingMessage}
-                  </div>
-                )}
-                <button
-                  onClick={handleSavePricing}
-                  disabled={pricingSaving}
-                  className="btn-primary text-sm disabled:opacity-50"
-                >
-                  {pricingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {t('pricing.save')}
-                </button>
-              </section>
-            )}
           </>
         )}
-      </div>
+      </main>
       <ConfirmDialog
         open={!!confirmState}
         title={confirmState?.title || ''}
         message={confirmState?.message || ''}
         confirmLabel={confirmState?.confirmLabel || tCommon('confirm')}
         danger={confirmState?.danger}
-        loading={!!deletingId || !!resetting}
+        loading={!!deletingId}
         onConfirm={() => confirmState?.onConfirm?.()}
         onCancel={() => setConfirmState(null)}
       />

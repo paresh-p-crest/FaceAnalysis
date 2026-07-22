@@ -14,10 +14,10 @@ function RouteContent({ children }) {
   const withNavbarOffset = hasSiteNavbar(pathname) && authReady && !!user
 
   if (!authReady) {
-    return <AppBootScreen withNavbarOffset={withNavbarOffset} />
+    return <AppBootScreen withNavbarOffset={withNavbarOffset} key={pathname} />
   }
 
-  return children
+  return <div key={pathname}>{children}</div>
 }
 
 export function RouteLayout({ children }) {

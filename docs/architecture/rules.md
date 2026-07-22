@@ -43,7 +43,7 @@ All frontend component work is governed by the design system in [`docs/design/th
 1. **Brand color is `#5e9f8b` only.** Tailwind classes: `bg-brand`, `text-brand`, `border-brand`. Hover state: `#548f7d` (`bg-brand-dark`). No other teal/green shade may be used for branding.
 2. **Use design tokens — never hardcode surface or text hex values.** Surface colors use `bg-surface`, `bg-surface-card`, `bg-surface-warm`, `bg-surface-raised`. Text colors use `text-ink`, `text-ink-secondary`, `text-ink-muted`, `text-ink-faint`.
 3. **Dark mode is mandatory.** Every component using a color must include a `dark:` variant. A component that only works in light mode is incomplete.
-4. **Fonts are Inter (body) and Sora (headings/logo) only.** No other fonts may be imported or applied.
+4. **Fonts are Inter and Helvetica only** (`Inter, Helvetica` for app UI; `Helvetica` for protocol PDF). No other fonts may be imported or applied.
 5. **All buttons are pill-shaped** (`rounded-[50px]`) and must use `.btn-primary` or `.btn-ghost` from `globals.css` where possible.
 6. **Border-radius must match the approved set** — `rounded-xl`, `rounded-2xl`, `rounded-3xl`, `rounded-[50px]`, `rounded-full`. No arbitrary pixel values.
 7. **Animation keyframes belong in `tailwind.config.js`** and are referenced via `animate-*` classes. Inline `@keyframes` blocks are forbidden in component files.
@@ -75,6 +75,9 @@ Governs the generative full-face AFTER edit in `backend/projected_after_ai.py` (
 Governs on-demand hair / outfit / aging previews in `backend/visual_generation.py` (ADR-035).
 
 1. **Natural prose, no label lists.** Prompts use a shared natural-language opening (`SHARED_VISUAL_OPENING`) and variant paragraphs — no trailing `Client:` / `Context:` semicolon appendices.
-2. **Scope-fence first.** Each variant states “change only X — leave Y exactly as is” (or aging’s “skin maturation only”) before creative instruction. One variant per `generate_image_edit` call; no mega-prompt combining hair/outfit/aging.
-3. **Inline CV phrases with grammatical fallbacks.** Weave face shape / hairline / skin tone via `_cv_anchors` phrase slots. Missing or sentinel values (`unknown`, etc.) use neutral phrases (`their face shape`); never emit the literal word `unknown`.
+2. **Scope-fence first.** Each variant states “change only X — leave Y exactly as is” (or aging’s multi-axis healthy-aging preview with bone-structure lock) before creative instruction. One variant per `generate_image_edit` call; no mega-prompt combining hair/outfit/aging.
+3. **Inline CV phrases with grammatical fallbacks.** Weave face shape / hairline / skin color (`skin.skinTone`) / hair color+texture via `_cv_anchors` phrase slots. Do not use `skin.tone` (evenness) in outfit prompts. Missing or sentinel values (`unknown`, etc.) use neutral phrases (`their face shape`); never emit the literal word `unknown`.
+4. **Curated multi-variant banks.** Hair uses a curated 5-style bank keyed to the CV face-shape class (`Oval`, `Round`, `Square`, `Heart`, `Oblong`) plus a `neutral` bank for missing/unknown values (no silent Oval fallback). Outfit uses 5 curated occasion/register entries. Aging uses parametric tiers (`+3`, `+5`, `+10` years). One variant per `generate_image_edit` call remains mandatory.
+5. **Full gallery (13 cards).** Each `generate_visual_variants` call emits all bank entries for requested types (5 hair + 5 outfit + 3 aging when all three types are requested).
+6. **Projected AFTER only.** Image edits MUST use the stored projected AFTER full image (`assessments/{id}/projected/full.jpg|png`). No front pose, `photos.front`, or CV `imageSrc` fallbacks on the pipeline or admin generate path.
 

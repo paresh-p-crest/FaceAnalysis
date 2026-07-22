@@ -4,7 +4,8 @@ export const routing = defineRouting({
   locales: ['en', 'de'],
   defaultLocale: 'en',
   localePrefix: 'never',
-  // Avoid 307 x-default redirect loop on `/` — Replit Autoscale probes `/` and needs 2xx.
-  localeDetection: false,
+  // Must stay true when localePrefix is 'never' — otherwise NEXT_LOCALE cookie is
+  // ignored and the navbar LocaleSwitcher cannot persist a chosen language.
+  localeDetection: true,
   alternateLinks: false,
 })

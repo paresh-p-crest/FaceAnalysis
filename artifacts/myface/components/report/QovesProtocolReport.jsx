@@ -1,6 +1,6 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { normalizeToJpegDataUrl } from '../../utils/aestheticProjection'
@@ -19,8 +19,9 @@ import {
   buildClosingRecommendations,
   buildFeaturePages,
   buildProtocolContents,
+  buildProtocolDashboardData,
   DISCLAIMER_PARAGRAPH_KEYS,
-  formatProtocolEditionLabel,
+  formatProtocolId,
   formatProtocolMonth,
   getClientName,
   getFeatureComparisonData,
@@ -30,7 +31,12 @@ import {
   QOVES_PROTOCOL_FEATURES,
   UNDERSTANDING_RESULTS_KEYS,
   rewriteToSubjectVoice,
+  resolveTreatmentPhases,
 } from '../../utils/qovesProtocolModel'
+import { BrandLogo } from '../BrandLogo'
+import { FeatureAnalysisHero } from './FeaturePreviewPortrait'
+import { NameProtocolPlate } from './NameProtocolPlate'
+import { TreatmentProtocolPhases } from './TreatmentProtocolPhases'
 
 const EVIDENCE_TIER_LABELS = {
   lifestyle: 'Routine / Topical',
@@ -492,11 +498,15 @@ export default function QovesProtocolReport({
   metrics,
   answers,
   user = null,
+  assessmentOwner = null,
   eyeAnalysis,
   protocolNarrative,
   aiNarrative,
   projectedAfter = null,
   projectedAnalysis = null,
+  assessmentId = null,
+  createdAt = null,
+  updatedAt = null,
   pageIndex = 0,
   paginated = false,
   editable = false,
@@ -506,8 +516,15 @@ export default function QovesProtocolReport({
   onEditOverview,
 }) {
   const t = useTranslations('Report')
-  const clientName = getClientName(answers, user)
-  const edition = formatProtocolEditionLabel()
+  const locale = useLocale()
+  const clientName = getClientName(answers, user, assessmentOwner)
+  const reportDate = (() => {
+    const raw = updatedAt || createdAt
+    if (!raw) return '—'
+    const ms = Date.parse(raw)
+    if (!Number.isFinite(ms)) return '—'
+    return new Date(ms).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+  })()
   const month = formatProtocolMonth()
   const featurePages = useMemo(
     () => buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative),
@@ -523,6 +540,19 @@ export default function QovesProtocolReport({
   )
   const closingCols = useMemo(() => buildClosingColumns(closingParagraphs), [closingParagraphs])
   const chartItems = useMemo(() => getFeatureComparisonData(cvReport), [cvReport])
+  const dash = useMemo(
+    () => buildProtocolDashboardData({
+      cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt,
+    }),
+    [cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt],
+  )
+  const protocolId = formatProtocolId(assessmentId)
+  const firstName = clientName.split(/\s+/)[0] || clientName
+  const overviewText = protocolNarrative?.summary || aiNarrative?.content?.summary || null
+  const treatment = useMemo(
+    () => resolveTreatmentPhases({ protocolNarrative, dash, t }),
+    [protocolNarrative, dash, t],
+  )
   const afterFullUrl = useMemo(() => resolveProjectedAfterUrl(projectedAfter), [projectedAfter])
   const afterLandmarks = useMemo(() => resolveAfterLandmarks(projectedAnalysis), [projectedAnalysis])
   const afterCv = useMemo(() => resolveAfterCvPayload(projectedAnalysis), [projectedAnalysis])
@@ -611,20 +641,198 @@ export default function QovesProtocolReport({
     (
       <section
         key="cover"
-        className="qoves-protocol-page qoves-report-a4-page qoves-report-a4-page--cover"
+        className="qoves-protocol-page qoves-report-a4-page qoves-protocol-dashboard-page"
       >
-        <div className="qoves-report-a4-inner flex flex-col justify-between h-full text-white">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.25em] text-white/60 mb-10">MyFace</p>
-            <p className="text-sm text-white/80 mb-6">{clientName}</p>
-            <h1 className="font-display text-4xl sm:text-5xl font-semibold leading-tight">
-              Aesthetic <span className="text-white/50 font-normal">Protocol</span>
-            </h1>
-            <p className="text-xs uppercase tracking-[0.2em] text-white/50 mt-4">
-              Edition · {edition}
-            </p>
+        <div className="qoves-protocol-dashboard-frame">
+          <div className="qoves-protocol-dashboard-accent" aria-hidden />
+          <div className="qoves-protocol-dashboard-header">
+            <div className="qoves-protocol-dashboard-meta">
+              <span className="qoves-protocol-dashboard-meta-label">{t('executiveSummary.protocolLabel')}</span>
+              <span className="qoves-protocol-dashboard-meta-sep" aria-hidden />
+              <span>{clientName}</span>
+              <span>#{protocolId}</span>
+            </div>
+            <div className="qoves-protocol-dashboard-brand">
+              <BrandLogo size="md" />
+            </div>
           </div>
-          <p className="text-xs text-white/40">Measurement-guided aesthetic protocol</p>
+          <div className="qoves-protocol-dashboard-kpis">
+            {[
+              [t('executiveSummary.kpiOverallScore'), dash.overallScore != null ? `${dash.overallScore} / 100` : '—'],
+              [t('executiveSummary.kpiEvaluated'), dash.evaluatedPoints
+                ? t('executiveSummary.kpiEvaluatedValue', { count: dash.evaluatedPoints })
+                : '—'],
+              [t('executiveSummary.kpiAnalysisTime'), dash.analysisTimeDays
+                ? t('executiveSummary.kpiAnalysisTimeValue', { days: dash.analysisTimeDays })
+                : '—'],
+            ].map(([label, value]) => (
+              <div key={label} className="qoves-protocol-dashboard-kpi">
+                <p className="qoves-pdf-label">{label}</p>
+                <p className="qoves-protocol-dashboard-kpi-value">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="qoves-protocol-dashboard-grid">
+            <div className="qoves-protocol-dashboard-left">
+              <NameProtocolPlate
+                firstName={firstName}
+                clientName={clientName}
+                protocolLine={t('executiveSummary.protocolIdLine', { id: protocolId })}
+                assessedLine={t('executiveSummary.namePlateAssessed', { date: reportDate })}
+                scoreLine={dash.overallScore != null
+                  ? t('executiveSummary.namePlateOverallScore', { score: dash.overallScore })
+                  : null}
+                className="mb-2"
+              />
+              <FeatureAnalysisHero
+                photo={images.fullBefore || photo}
+                alt={t('executiveSummary.originalAlt')}
+                t={t}
+                landmarks={landmarks}
+                overallScore={dash.overallScore}
+                evaluatedLabel={dash.evaluatedPoints
+                  ? t('executiveSummary.kpiEvaluatedValue', { count: dash.evaluatedPoints })
+                  : '—'}
+                analysisTimeLabel={dash.analysisTimeDays
+                  ? t('executiveSummary.kpiAnalysisTimeValue', { days: dash.analysisTimeDays })
+                  : '—'}
+                className="qoves-protocol-dashboard-hero mb-3"
+                compact
+              />
+                    <p className="qoves-pdf-label font-bold text-ink mb-0.5">{t('executiveSummary.priorityFeatures')}</p>
+              {(dash.miniCards || []).map((card) => {
+                const findings = (card.findings || []).filter((f) => f?.title)
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    className="qoves-protocol-dashboard-mini-card qoves-protocol-dashboard-mini-card--link"
+                    onClick={() => {
+                      const el = document.querySelector(`[data-protocol-section="${card.id}"]`)
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }}
+                  >
+                    <div className="flex items-baseline justify-between gap-1">
+                      <p className="qoves-pdf-label font-bold text-ink min-w-0">{card.title || t(`nav.${card.id}`)}</p>
+                      {card.score && <p className="qoves-pdf-label font-bold text-ink tabular-nums shrink-0">{card.score}</p>}
+                    </div>
+                    {card.scoreLabel && (
+                      <p className="text-[6px] text-ink-muted text-right">{card.scoreLabel}</p>
+                    )}
+                    {findings.length > 0 && (
+                      <div className="qoves-protocol-dashboard-mini-lines">
+                        {findings.map((finding, lineIdx) => (
+                          <div key={lineIdx} className="qoves-protocol-dashboard-mini-finding flex justify-between gap-1">
+                            <p className="qoves-protocol-dashboard-mini-finding-title min-w-0">
+                              {finding.title}
+                            </p>
+                            <p className="qoves-protocol-dashboard-mini-finding-detail text-right shrink-0 whitespace-normal break-words">
+                              {finding.detail || '—'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="qoves-protocol-dashboard-center">
+              <div className="qoves-protocol-dashboard-pair">
+                <div className="qoves-protocol-dashboard-photo">
+                  {images.fullBefore && <img src={images.fullBefore} alt="" className="w-full h-full object-cover" />}
+                  <span>{t('executiveSummary.before')}</span>
+                </div>
+                <div className="qoves-protocol-dashboard-photo qoves-protocol-dashboard-photo--potential">
+                  {(images.fullAfter || images.fullBefore) && (
+                    <img src={images.fullAfter || images.fullBefore} alt="" className="w-full h-full object-cover" />
+                  )}
+                  <span>{t('executiveSummary.potential')}</span>
+                </div>
+              </div>
+              <div className="qoves-protocol-dashboard-panel">
+                <p className="qoves-pdf-label">{t('executiveSummary.facialAgeVsBio')}</p>
+                <div className="flex gap-4 items-end text-ink mb-1.5">
+                  <div><p className="text-xl font-bold">{dash.faceAge ?? '—'}</p><p className="qoves-pdf-label">{t('common.face')}</p></div>
+                  <div><p className="text-xl font-bold text-ink-muted">{dash.bioAgeLabel ?? '—'}</p><p className="qoves-pdf-label">{t('common.bio')}</p></div>
+                </div>
+                {dash.bioAgeBounds ? (
+                  <div className="relative pt-3 pb-2">
+                    {(() => {
+                      const { lo, hi } = dash.bioAgeBounds
+                      const face = dash.faceAge
+                      const pad = 5
+                      let axisMin = lo - pad
+                      let axisMax = hi + pad
+                      if (face != null) {
+                        axisMin = Math.min(axisMin, face - 2)
+                        axisMax = Math.max(axisMax, face + 2)
+                      }
+                      const pct = (v) => ((v - axisMin) / (axisMax - axisMin)) * 100
+                      const outlier = face != null && (face < lo || face > hi)
+                      return (
+                        <>
+                          <div className="h-1 bg-slate-100 rounded-full relative">
+                            <div
+                              className="absolute inset-y-0 rounded-full bg-brand/35"
+                              style={{ left: `${pct(lo)}%`, width: `${Math.max(2, pct(hi) - pct(lo))}%` }}
+                            />
+                            {face != null ? (
+                              <div
+                                className={`absolute -top-1 w-2.5 h-2.5 rounded-full border border-white ${
+                                  outlier ? 'bg-amber-500' : 'bg-brand'
+                                }`}
+                                style={{ left: `calc(${pct(face)}% - 5px)` }}
+                              />
+                            ) : null}
+                          </div>
+                          {face != null ? (
+                            <p
+                              className={`absolute text-[6px] font-bold -top-0.5 ${outlier ? 'text-amber-600' : 'text-brand-dark'}`}
+                              style={{ left: `${pct(face)}%`, transform: 'translateX(-50%)' }}
+                            >
+                              {face}{outlier ? ` · ${t('executiveSummary.ageOutlier')}` : ''}
+                            </p>
+                          ) : null}
+                          <div className="flex justify-between text-[5px] text-ink-muted mt-1 font-mono">
+                            <span>{Math.round(axisMin)}</span>
+                            <span>{lo}–{hi}</span>
+                            <span>{Math.round(axisMax)}</span>
+                          </div>
+                        </>
+                      )
+                    })()}
+                  </div>
+                ) : null}
+              </div>
+              <div className="qoves-protocol-dashboard-center-stack">
+                <div className="qoves-protocol-dashboard-panel qoves-protocol-dashboard-panel--stack">
+                  <p className="qoves-pdf-label">{t('executiveSummary.harmonyProfile')}</p>
+                  <p className="qoves-pdf-body-text text-center text-ink-muted">—</p>
+                </div>
+                <div className="qoves-protocol-dashboard-panel qoves-protocol-dashboard-panel--stack">
+                  <p className="qoves-pdf-label">{t('executiveSummary.overviewHeading')}</p>
+                  <p className="qoves-pdf-body-text">{overviewText || '—'}</p>
+                </div>
+                <div className="qoves-protocol-dashboard-panel qoves-protocol-dashboard-panel--stack">
+                  <p className="qoves-pdf-label">{t('executiveSummary.featureEvaluation')}</p>
+                  <p className="qoves-pdf-body-text text-ink-muted">—</p>
+                </div>
+              </div>
+            </div>
+            <div className="qoves-protocol-dashboard-right">
+              <TreatmentProtocolPhases
+                title={t('executiveSummary.treatmentProtocol')}
+                phases={treatment.phases}
+                summary={treatment.summary}
+                className="qoves-protocol-dashboard-phases"
+              />
+            </div>
+          </div>
+          <div className="qoves-protocol-dashboard-footer">
+            <span>—</span>
+            <span>{t('executiveSummary.footerMetrics', { points: String(dash.evaluatedPoints || '—') })}</span>
+          </div>
         </div>
       </section>
     ),

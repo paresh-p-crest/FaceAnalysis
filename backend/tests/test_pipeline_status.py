@@ -20,7 +20,8 @@ def test_next_pipeline_stage_order():
     assert next_pipeline_stage("cv") == "narratives"
     assert next_pipeline_stage("narratives") == "parsing"
     assert next_pipeline_stage("parsing") == "projected_after"
-    assert next_pipeline_stage("projected_after") == "done"
+    assert next_pipeline_stage("projected_after") == "ai_visuals"
+    assert next_pipeline_stage("ai_visuals") == "done"
 
 
 def test_pipeline_is_processing():

@@ -28,6 +28,18 @@ def normalize_report_status(status: Optional[str]) -> str:
     return "pending_review"
 
 
+def assessment_is_submitted(doc: Optional[dict]) -> bool:
+    """True after the user finalized upload (POST …/submit), not for photo-only drafts."""
+    if not doc or not isinstance(doc, dict):
+        return False
+    if normalize_report_status(doc.get("status")) == "draft":
+        return False
+    pipeline = doc.get("pipeline")
+    if not pipeline or not isinstance(pipeline, dict):
+        return False
+    return bool(pipeline.get("status"))
+
+
 def format_report_status(status: Optional[str]) -> str:
     return STATUS_LABELS.get(normalize_report_status(status), "Pending Review")
 
@@ -73,7 +85,7 @@ def _prune_analysis_for_summary(analysis: Optional[dict]) -> dict:
     overall = cv.get("overall") if isinstance(cv.get("overall"), dict) else None
     if overall and overall.get("score") is not None:
         pruned_cv["overall"] = {"score": overall.get("score")}
-    for key in ("symmetry", "proportions", "skin", "structure"):
+    for key in ("symmetry", "proportions", "skin", "structure", "jaw", "jawChin"):
         section = cv.get(key)
         if isinstance(section, dict) and section.get("score") is not None:
             pruned_cv[key] = {"score": section.get("score")}

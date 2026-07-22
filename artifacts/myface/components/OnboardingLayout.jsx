@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, CheckCircle2, Shield, Sparkles } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { ONBOARDING_STEPS } from '../utils/onboarding'
+import { BrandLogo } from './BrandLogo'
 
 const TRUST_ITEM_KEYS = ['clinical', 'photosNeverStored', 'aiPowered']
 const TRUST_ICONS = { clinical: CheckCircle2, photosNeverStored: Shield, aiPowered: Sparkles }
@@ -33,7 +34,7 @@ export function OnboardingLayout({
       {/* Sidebar */}
       <aside className="hidden lg:flex w-[340px] shrink-0 flex-col border-r border-surface-border bg-white dark:bg-surface-card px-10 py-10">
         <div className="flex items-center gap-2.5 mb-auto">
-          <span className="font-serif font-bold text-ink text-2xl tracking-tight">MyFace</span>
+          <BrandLogo size="lg" />
         </div>
 
         <div className="my-auto">

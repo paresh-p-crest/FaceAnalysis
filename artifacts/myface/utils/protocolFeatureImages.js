@@ -60,61 +60,86 @@ export function afterCropKeyForFeature(featureId) {
   }
 }
 
+function asImageUrl(value) {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (value && typeof value === 'object') {
+    const u = value.publicUrl || value.url || value.src
+    if (typeof u === 'string' && u.trim()) return u.trim()
+  }
+  return null
+}
+
 function storedCrop(cvReport, eyeAnalysis, featureId) {
+  let raw = null
   switch (featureId) {
     case 'hair': {
       const hair = cvReport?.hair
       // Never use top-of-head photo for protocol BEFORE
       if (hair?.photoSource === 'topHead' || hair?.imageSrcTopHead === hair?.imageSrc) {
-        return hair?.imageSrcFront || null
+        raw = hair?.imageSrcFront || null
+      } else {
+        raw = hair?.imageSrcFront || hair?.imageSrc || null
       }
-      return hair?.imageSrcFront || hair?.imageSrc || null
+      break
     }
     case 'eyes':
-      return eyeAnalysis?.eyesCrop || cvReport?.eyebrows?.crop || cvReport?.eyes?.ocular?.imageSrc || null
+      raw = eyeAnalysis?.eyesCrop || cvReport?.eyebrows?.crop || cvReport?.eyes?.ocular?.imageSrc || null
+      break
     case 'eyebrows':
-      return cvReport?.eyebrows?.crop || cvReport?.eyes?.eyebrows?.imageSrc || null
+      raw = cvReport?.eyebrows?.crop || cvReport?.eyes?.eyebrows?.imageSrc || null
+      break
     case 'nose':
-      return cvReport?.nose?.imageSrc || null
+      raw = cvReport?.nose?.imageSrc || null
+      break
     case 'cheeks':
-      return cvReport?.cheeks?.imageSrc || null
+      raw = cvReport?.cheeks?.imageSrc || null
+      break
     case 'jaw': {
       const jaw = cvReport?.jaw
       if (jaw?.photoSource === 'rightProfile') {
-        return jaw.imageSrcFront || cvReport?.jawChin?.imageSrcFront || null
+        raw = jaw.imageSrcFront || cvReport?.jawChin?.imageSrcFront || null
+      } else {
+        raw = jaw?.imageSrc || cvReport?.jawChin?.imageSrc || jaw?.imageSrcFront || null
       }
-      return jaw?.imageSrc || cvReport?.jawChin?.imageSrc || jaw?.imageSrcFront || null
+      break
     }
     case 'lips':
-      return cvReport?.lips?.imageSrc || null
+      raw = cvReport?.lips?.imageSrc || null
+      break
     case 'chin': {
       // Prefer frontal mouth/chin crop — never the right-profile full photo
       const chin = cvReport?.chin
       if (chin?.photoSource === 'rightProfile') {
-        return chin.imageSrcFront || cvReport?.jawChin?.imageSrcFront || null
+        raw = chin.imageSrcFront || cvReport?.jawChin?.imageSrcFront || null
+      } else {
+        raw = chin?.imageSrc || cvReport?.jawChin?.imageSrc || chin?.imageSrcFront || null
       }
-      return chin?.imageSrc || cvReport?.jawChin?.imageSrc || chin?.imageSrcFront || null
+      break
     }
     case 'skin':
-      return (
+      raw =
         cvReport?.cheeks?.imageSrc ||
         cvReport?.symmetry?.imageSrc ||
         cvReport?.faceShape?.imageSrc ||
         null
-      )
+      break
     case 'neck':
-      return cvReport?.neck?.imageSrc || null
+      raw = cvReport?.neck?.imageSrc || null
+      break
     case 'ears': {
       // Frontal ear crop only — ignore profile photo bindings for BEFORE
       const ears = cvReport?.ears
       if (ears?.photoSource === 'profile' || ears?.photoSource === 'rightProfile') {
-        return ears.imageSrcFront || null
+        raw = ears.imageSrcFront || null
+      } else {
+        raw = ears?.imageSrc || ears?.imageSrcFront || null
       }
-      return ears?.imageSrc || ears?.imageSrcFront || null
+      break
     }
     default:
-      return null
+      raw = null
   }
+  return asImageUrl(raw)
 }
 
 function isFullFrameCrop(dataUrl, photoJpeg) {
@@ -303,16 +328,19 @@ export async function resolveFeatureImageSlots({
  * @returns {Promise<{ src: string, isRealProfile: boolean }|null>}
  */
 export async function resolveProfileBeforeImage({ photos, cvReport }) {
-  if (photos?.rightProfile) {
-    return { src: await normalizeToJpegDataUrl(photos.rightProfile), isRealProfile: true }
+  const right = typeof photos?.rightProfile === 'string' ? photos.rightProfile : photos?.rightProfile?.publicUrl
+  const left = typeof photos?.leftProfile === 'string' ? photos.leftProfile : photos?.leftProfile?.publicUrl
+  if (right) {
+    return { src: await normalizeToJpegDataUrl(right), isRealProfile: true }
   }
-  if (photos?.leftProfile) {
-    return { src: await normalizeToJpegDataUrl(photos.leftProfile), isRealProfile: true }
+  if (left) {
+    return { src: await normalizeToJpegDataUrl(left), isRealProfile: true }
   }
 
   const nasoAural = cvReport?.proportions?.ratios?.nasoAural
-  if (nasoAural?.photoSource === 'rightProfile' && nasoAural?.imageSrc) {
-    return { src: nasoAural.imageSrc, isRealProfile: true }
+  const nasoSrc = typeof nasoAural?.imageSrc === 'string' ? nasoAural.imageSrc : null
+  if (nasoAural?.photoSource === 'rightProfile' && nasoSrc) {
+    return { src: nasoSrc, isRealProfile: true }
   }
 
   return null

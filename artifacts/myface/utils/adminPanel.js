@@ -1,4 +1,4 @@
-export const ADMIN_TABS = ['overview', 'users', 'review', 'payments', 'settings']
+export const ADMIN_TABS = ['overview', 'users', 'review', 'payments']
 
 export const ADMIN_TAB_STORAGE_KEY = 'myface_admin_tab'
 
@@ -8,7 +8,6 @@ export const ADMIN_TAB_SEGMENTS = {
   users: 'admin-users',
   review: 'admin-review',
   payments: 'admin-payments',
-  settings: 'admin-settings',
 }
 
 const SEGMENT_TO_TAB = Object.fromEntries(

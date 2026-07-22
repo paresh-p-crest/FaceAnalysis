@@ -66,7 +66,7 @@ Key rules enforced:
 - **Brand color:** Always use `#5e9f8b` (Tailwind: `bg-brand`, `text-brand`, `border-brand`) and `#548f7d` for hover states. Never use arbitrary teal/green shades (`teal-400`, `green-500`, `#0d9488`, etc.).
 - **Tokens first:** Use `bg-surface`, `bg-surface-card`, `text-ink`, `text-ink-muted`, and `border-surface-border` for all surface and text colors. Never hardcode hex values for these.
 - **Buttons:** Use `.btn-primary` and `.btn-ghost` component classes from `globals.css`. All buttons are pill-shaped (`rounded-[50px]`).
-- **Typography:** Body = `font-sans` (Inter). Headings/logo = `font-serif` or `font-display` (Sora). No other fonts.
+- **Typography:** App UI = `Inter, Helvetica` only. Protocol PDF = `Helvetica` only. No other fonts.
 - **Dark mode mandatory:** Every component must include `dark:` variants for background and text colors.
 - **Animations:** Use only `animate-*` tokens defined in `tailwind.config.js`. Add new ones there — never inline `@keyframes`.
 - **Border-radius:** Follow the approved set only (`rounded-xl`, `rounded-2xl`, `rounded-3xl`, `rounded-[50px]`, `rounded-full`).

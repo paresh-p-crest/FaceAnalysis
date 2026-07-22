@@ -696,12 +696,14 @@ Status: accepted
 ### Decision
 - **Shared opening.** All three variants start with `SHARED_VISUAL_OPENING` (identity lock + no medical/surgical imagery) in natural prose.
 - **Scope-fence first.** Each variant’s body opens with an explicit change-only / leave-unchanged sentence before creative instruction (aging uses “skin maturation only” plus the shared identity opening).
-- **Inline CV phrases.** `_cv_anchors` returns ready-to-insert phrases (`face_shape_phrase`, `hairline_phrase`, `skin_tone_phrase`) woven into sentences; missing/unknown values use grammatical fallbacks (`their face shape`, etc.), never the literal word `unknown`. No `Client:` / `Context:` appendix; `answers` / `metrics` unused in prompt text.
+- **Inline CV phrases.** `_cv_anchors` returns ready-to-insert phrases (`face_shape_phrase`, `hairline_phrase`, `hair_detail_suffix`, `skin_tone_phrase` from `skin.skinTone`) woven into sentences; missing/unknown values use grammatical fallbacks (`their face shape`, etc.), never the literal word `unknown`. Do not use `skin.tone` (evenness) for outfit color. No `Client:` / `Context:` appendix; `answers` / `metrics` unused in prompt text.
 - **Three separate calls.** Keep `generate_visual_variants` calling `build_visual_prompt` once per selected type — no mega-prompt.
 
 ### Consequences
 - Prompt text shape in `aiVisuals.variants[].prompt` changes; API response schema unchanged.
 - Isolation is prompt-level only (not pixel masks); bleed risk remains bounded by single-purpose calls + fence wording.
+
+**Amendment (2026-07-20):** Aging scope-fence expanded from skin-only to skin + hair + soft tissue per tier (ADR-038); `hairColor` gates temple-graying language.
 
 ---
 
@@ -751,3 +753,50 @@ The Protocol tab rendered an HTML approximation of A4 pages (`QovesProtocolRepor
 - `mergeNarrativesForPdf` merges `featureNarratives` into `protocolNarrative.features` before PDF generation (viewer + download).
 - HTML `.qoves-report-a4-page` mock is unused in Protocol tab preview; may be removed later.
 - Direct API calls cannot mutate protocol text on approved assessments.
+
+---
+## ADR-038: Multi-variant AI visuals galleries (5 hair + 5 outfit + 3 aging)
+Date: 2026-07-20
+Status: accepted
+
+### Context
+The existing AI visuals feature generated three previews (hair / outfit / aging) using a single “most flattering” edit instruction per category. That produced visible variety that could be too small because the prompt was not explicitly steering toward multiple named style directions.
+
+### Decision
+1. **Keep ADR-035 structure.** Maintain `SHARED_VISUAL_OPENING` + scope-fence-first bodies, and keep one `generate_image_edit` call per variant (no mega-prompt).
+2. **Use static style banks.** Introduce `backend/visual_style_banks.py` with curated, named style descriptors:
+   - Hair: 5 styles per CV face shape (`Oval`, `Round`, `Square`, `Heart`, `Oblong`) plus a `neutral` fallback bank for missing/unknown values (no silent Oval mapping).
+   - Outfit: 5 fixed occasion/register entries.
+   - Aging: 3 tiers using parametric magnitude text for `+3`, `+5`, and `+10` years.
+3. **Extend the returned variant schema additively.** Each card includes `styleId` and a human-readable `title` in addition to the existing `type`, `prompt`, `imageSrc`, `status`, and `error`.
+4. **Expand total generation calls.** When all categories are requested, generate up to **13** single-call image edits sequentially (hair 5 + outfit 5 + aging 3).
+
+**Amendment (2026-07-20):** Generation is temporarily capped to **1 variant per type** (3 total) per request: first hair style in the face-shape bank, first outfit occasion, **+5 years** aging. Banks and prompt builders unchanged for future gallery expansion.
+
+**Amendment (2026-07-20, aging axes):** Aging tiers now specify skin, hair, and soft-tissue magnitude per tier. Temple graying language branches on CV `hairColor` (dark vs light/gray); no new baldness patterns beyond the reference.
+
+**Amendment (2026-07-21):** Lift the 1-per-type cap — `generate_visual_variants` emits the full **13** cards when all types are requested. Source image is **projected AFTER only** (no front/CV fallbacks). Pipeline worker runs a new **`ai_visuals`** stage after `projected_after` (soft-skips when AFTER is not ready). Admin `POST …/ai-visuals` requires AFTER `ready` and regenerates all 13.
+
+### Consequences
+- Users see grouped galleries with distinct prompt directions per card (hair styles differ by named style, not random sampling noise).
+- Prompt text becomes more deterministic and reviewable via the “View prompt” affordance in the UI.
+- The backend continues to avoid identity drift by preserving the “same person / same framing / no medical/surgical imagery” constraints.
+
+---
+## ADR-039: Dedicated LLM call for dashboard treatment protocol phases
+Date: 2026-07-21
+Status: accepted
+
+### Context
+The report overview dashboard shows three “Treatment Protocol” phase cards (Phase 01–03) beside priority-feature mini-cards. These were static placeholders (`—`) while overview prose came from a separate `generate_protocol_overview_async` call.
+
+### Decision
+1. Add a **second structured LLM call** in `generate_all_protocol_text`: `generate_treatment_phases_async`, validated by `TreatmentPhases` / `treatment_phases_json_schema()`.
+2. Persist on `protocolNarrative.treatmentPhases` (`phase01`–`phase03` + `summary`), generated in parallel with overview after feature narratives exist (so items can reference priority regions).
+3. Frontend resolves via `resolveTreatmentPhases`: use LLM data when `phase01` is populated; otherwise **CV-driven fallback** — Phase 01 only from priority mini-card findings + clinical summary i18n (no static phases 02–03).
+4. Same non-surgical guardrails as all protocol text (`STRICT_NON_SURGICAL_RULES`).
+
+### Consequences
+- Existing assessments need protocol regen (`POST …/ai-protocol?force=true`) to populate `treatmentPhases`.
+- PDF, HTML protocol cover, and live overview share one resolver; no duplicate phase logic in each renderer.
+- Fallback copy is medical/third-person and references priority anatomical zones from CV, not casual “you look great” messaging.

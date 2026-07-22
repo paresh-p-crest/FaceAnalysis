@@ -53,7 +53,7 @@ FEATURE_SUBSECTION_BODY_LIMITS: dict[str, dict[str, tuple[int, int]]] = {
     },
     "jaw": {
         "Jaw Structure": SUBSECTION_BODY_LONG,
-        "Further Enhancement": SUBSECTION_BODY_STANDARD,
+        "Further Enhancement": SUBSECTION_BODY_SHORT,
     },
     "lips": {
         "Lips": SUBSECTION_BODY_LONG,
@@ -166,6 +166,24 @@ class ProtocolOverview(BaseModel):
     summary: str = Field(..., min_length=40, max_length=500)
 
 
+class TreatmentPhaseItem(BaseModel):
+    name: str = Field(..., min_length=2, max_length=80)
+    detail: str = Field(..., min_length=2, max_length=120)
+
+
+class TreatmentPhase(BaseModel):
+    title: str = Field(..., min_length=4, max_length=80)
+    duration: str = Field(..., min_length=4, max_length=80)
+    items: list[TreatmentPhaseItem] = Field(..., min_length=2, max_length=3)
+
+
+class TreatmentPhases(BaseModel):
+    phase01: TreatmentPhase
+    phase02: TreatmentPhase
+    phase03: TreatmentPhase
+    summary: str = Field(..., min_length=40, max_length=500)
+
+
 class ExecutiveNarrative(BaseModel):
     summary: str = Field(..., min_length=40, max_length=600)
     strengths: list[str] = Field(..., min_length=1, max_length=5)
@@ -252,6 +270,39 @@ def protocol_overview_json_schema() -> dict:
             "summary": {"type": "string", "minLength": 40, "maxLength": 500},
         },
         "required": ["summary"],
+        "additionalProperties": False,
+    }
+
+
+def treatment_phases_json_schema() -> dict:
+    item = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "minLength": 2, "maxLength": 80},
+            "detail": {"type": "string", "minLength": 2, "maxLength": 120},
+        },
+        "required": ["name", "detail"],
+        "additionalProperties": False,
+    }
+    phase = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "minLength": 4, "maxLength": 80},
+            "duration": {"type": "string", "minLength": 4, "maxLength": 80},
+            "items": {"type": "array", "items": item, "minItems": 2, "maxItems": 3},
+        },
+        "required": ["title", "duration", "items"],
+        "additionalProperties": False,
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "phase01": phase,
+            "phase02": phase,
+            "phase03": phase,
+            "summary": {"type": "string", "minLength": 40, "maxLength": 500},
+        },
+        "required": ["phase01", "phase02", "phase03", "summary"],
         "additionalProperties": False,
     }
 

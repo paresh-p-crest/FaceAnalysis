@@ -39,6 +39,7 @@ def pipeline_poll_interval_sec() -> float:
 
 async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
     from .pipeline_stages import (
+        run_ai_visuals_stage,
         run_cv_stage,
         run_narratives_stage,
         run_parsing_stage,
@@ -55,6 +56,7 @@ async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
         "narratives": run_narratives_stage,
         "parsing": run_parsing_stage,
         "projected_after": run_projected_after_stage,
+        "ai_visuals": run_ai_visuals_stage,
     }
     runner = runners[stage]
 
@@ -91,7 +93,7 @@ async def _process_assessment(assessment: dict) -> None:
     pipeline = dict(assessment.get("pipeline") or {})
     current_stage = pipeline.get("stage") or "cv"
 
-    stage_sequence = ("cv", "narratives", "parsing", "projected_after")
+    stage_sequence = ("cv", "narratives", "parsing", "projected_after", "ai_visuals")
     start_idx = stage_sequence.index(current_stage) if current_stage in stage_sequence else 0
 
     for stage in stage_sequence[start_idx:]:

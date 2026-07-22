@@ -4,7 +4,6 @@ export const ADMIN_TAB_RESOURCES = {
   users: ['users'],
   review: ['assessments'],
   payments: ['payments'],
-  settings: [],
 }
 
 export function resourcesForAdminTab(tab) {

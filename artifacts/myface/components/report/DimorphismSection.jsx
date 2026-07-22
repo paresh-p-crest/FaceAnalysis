@@ -68,7 +68,7 @@ function FeatureCard({ feature, imageSrc, t }) {
         </span>
       </div>
 
-      <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4 flex items-center justify-center min-h-[9rem]">
+      <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4 flex items-center justify-center min-h-[9rem]">
         {imageSrc ? (
           <img
             src={imageSrc}

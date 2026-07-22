@@ -9,8 +9,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Sora', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'Helvetica'],
+        serif: ['Inter', 'Helvetica'],
+        display: ['Inter', 'Helvetica'],
       },
       colors: {
         surface: {
@@ -19,6 +20,17 @@ export default {
           card: 'var(--color-surface-card)',
           raised: 'var(--color-surface-raised)',
           border: 'var(--color-surface-border)',
+        },
+        landing: {
+          mint: '#eef6f3',
+          mintAlt: '#f0f7f7',
+          divider: '#e8eeec',
+          ink: '#04211d',
+          body: '#3c3c3c',
+          muted: 'rgba(60,60,60,0.60)',
+          caption: '#818784',
+          highlight: '#509180',
+          track: '#00000014',
         },
         brand: {
           DEFAULT: '#5e9f8b',
@@ -51,6 +63,9 @@ export default {
         'modal': '0 20px 60px rgba(0,0,0,0.12), 0 8px 20px rgba(0,0,0,0.06)',
         'glow': '0 0 20px rgba(94,159,139,0.15)',
         'brand': '0 2px 8px rgba(94,159,139,0.25)',
+        'dashboard-glass': '0px 4px 24px rgba(118,118,118,0.12), inset 0 1px 0 rgba(255,255,255,0.60), inset 1px 0 0 rgba(255,255,255,0.50)',
+        'dashboard-card': '0px 2px 16px rgba(67,67,67,0.10)',
+        'dashboard-navbar': '0px 2px 16px rgba(133,133,133,0.25)',
       },
       borderRadius: {
         '4xl': '2rem',

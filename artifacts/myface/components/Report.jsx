@@ -1,21 +1,20 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import { useTranslations } from 'next-intl'
-import { RotateCcw, Loader2, AlertTriangle, Download, Lock, ShieldCheck, X, Sparkles, ImagePlus } from 'lucide-react'
+import { useTranslations, useLocale } from 'next-intl'
+import { RotateCcw, Loader2, AlertTriangle, Lock } from 'lucide-react'
 import { saveHistoryEntry, createHistoryId, loadHistory } from '../utils/historyStorage'
 import {
   downloadAssessmentPdf,
+  fetchAdminAssessments,
   fetchAssessment,
   fetchAssessmentProtocol,
-  fetchAssistantConversation,
-  generateAssessmentVisuals,
+  fetchMyAssessments,
   isBackendApiEnabled,
-  sendAssistantMessage,
   updateAssessmentStatus,
 } from '../utils/apiClient'
-import { resolveProjectedAfterUrl } from '../utils/projectedAfter'
 import {
   canClientViewFullReport,
   canDownloadReportPdf,
+  isAssessmentSubmitted,
   isDevAutoApproveEnabled,
   isReportApproved,
   isAssessmentProcessing,
@@ -29,11 +28,12 @@ import {
   ASSESSMENT_SECTIONS,
   FEATURE_SECTIONS,
   PROTOCOL_SECTIONS,
-  TOOL_SECTIONS,
 } from './report/reportNavConfig'
 import { CvReportView } from './report/CvReportView'
+import { PastAssessmentsPanel } from './report/PastAssessmentsPanel'
 import AdminReviewPanel from './AdminReviewPanel'
 import ConfirmDialog from './ConfirmDialog'
+import { useApp } from './providers/AppProvider'
 
 function ErrorPanel({ title, message }) {
   return (
@@ -79,11 +79,15 @@ export default function Report({
   historyId,
   cloudAssessment = null,
   onCloudAssessmentChange = null,
+  sectionId = 'intro',
+  onSectionChange = null,
   onRestart,
   user,
   onClose,
 }) {
   const t = useTranslations('Report')
+  const locale = useLocale()
+  const { setReportToolbar, adminWorkspace, viewCloudAssessment, openingReportId } = useApp()
   const [protocolNarrative, setProtocolNarrative] = useState(null)
   const [featureNarratives, setFeatureNarratives] = useState(null)
   const [featureParsing, setFeatureParsing] = useState(null)
@@ -95,8 +99,6 @@ export default function Report({
   const [aiNarrativeLoading, setAiNarrativeLoading] = useState(false)
   const [aiNarrativeError, setAiNarrativeError] = useState('')
   const [aiVisuals, setAiVisuals] = useState(null)
-  const [aiVisualsLoading, setAiVisualsLoading] = useState(false)
-  const [aiVisualsError, setAiVisualsError] = useState('')
   const [sessionId] = useState(() => createHistoryId())
   const [pdfLoading, setPdfLoading] = useState(false)
   const [statusOverride, setStatusOverride] = useState('')
@@ -104,8 +106,19 @@ export default function Report({
   const [adminAssessment, setAdminAssessment] = useState(null)
   const [adminView, setAdminView] = useState(null) // null | 'narrative' | 'after' — admin-only overlays
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false)
-  const [activeSectionId, setActiveSectionId] = useState('intro')
+  const [pastAssessmentsOpen, setPastAssessmentsOpen] = useState(false)
+  const [showPastAssessmentsNav, setShowPastAssessmentsNav] = useState(false)
+  const [activeSectionId, setActiveSectionId] = useState(sectionId || 'intro')
   const nlHydratedForId = useRef(null)
+
+  const handlePastAssessments = useCallback(() => {
+    setPastAssessmentsOpen(true)
+  }, [])
+
+  const handleSelectPastAssessment = useCallback(async (item) => {
+    setPastAssessmentsOpen(false)
+    await viewCloudAssessment(item)
+  }, [viewCloudAssessment])
 
   const historyEntry = useMemo(() => {
     if (!historyId) return null
@@ -143,13 +156,33 @@ export default function Report({
   const canDownloadPdf = canDownloadReportPdf(reportStatus, requiresApproval)
   const clientReportLocked = isUser && requiresApproval && !canClientViewFullReport(reportStatus, false)
 
+  useEffect(() => {
+    if (!user || !isBackendApiEnabled() || !showQovesReport) {
+      setShowPastAssessmentsNav(false)
+      return undefined
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const items = user.role === 'admin'
+          ? await fetchAdminAssessments(30)
+          : await fetchMyAssessments(30)
+        if (cancelled) return
+        const submitted = (Array.isArray(items) ? items : []).filter(isAssessmentSubmitted)
+        setShowPastAssessmentsNav(submitted.length > 1)
+      } catch {
+        if (!cancelled) setShowPastAssessmentsNav(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [user, showQovesReport])
+
   const sectionIds = useMemo(() => {
     return [
       ...INTRO_SECTIONS,
       ...ASSESSMENT_SECTIONS,
       ...FEATURE_SECTIONS,
       ...PROTOCOL_SECTIONS,
-      ...TOOL_SECTIONS,
     ].map((section) => section.id)
   }, [])
 
@@ -158,6 +191,17 @@ export default function Report({
       setActiveSectionId(sectionIds[0] || 'intro')
     }
   }, [sectionIds, activeSectionId])
+
+  useEffect(() => {
+    if (sectionId && sectionIds.includes(sectionId) && sectionId !== activeSectionId) {
+      setActiveSectionId(sectionId)
+    }
+  }, [sectionId, sectionIds])
+
+  const selectSection = useCallback((id) => {
+    setActiveSectionId(id)
+    onSectionChange?.(id)
+  }, [onSectionChange])
 
   useEffect(() => {
     if (!isAdmin || !assessmentId || !isBackendApiEnabled()) {
@@ -191,10 +235,24 @@ export default function Report({
     if (updated.projectedAnalysis) setProjectedAnalysis(updated.projectedAnalysis)
   }, [onCloudAssessmentChange])
 
-  const showAdminTools = isAdmin && !!adminAssessment && !isReportApproved(reportStatus)
+  const showAdminTools = isAdmin && !!assessmentId && !isReportApproved(reportStatus)
   const toggleAdminView = useCallback((next) => {
     setAdminView((prev) => (prev === next ? null : next))
   }, [])
+
+  const assessmentRecord = cloudAssessment || adminAssessment
+  const assessmentCreatedAt = assessmentRecord?.createdAt ?? null
+  const assessmentUpdatedAt = assessmentRecord?.updatedAt ?? null
+  // Subject who took the analysis — not the viewer (admin may open others' reports)
+  const assessmentOwner = useMemo(() => {
+    if (assessmentRecord?.ownerUser) return assessmentRecord.ownerUser
+    const uid = assessmentRecord?.userId
+    if (!uid) return null
+    const fromWorkspace = adminWorkspace?.users?.find((u) => u.id === uid)
+    if (fromWorkspace) return fromWorkspace
+    if (user?.id && String(user.id) === String(uid)) return user
+    return { id: uid }
+  }, [assessmentRecord, adminWorkspace?.users, user])
 
   const handleDownloadPdf = useCallback(async () => {
     const canUseBackendPdf = assessmentId && displayAnalysis?.savedToDb && isBackendApiEnabled()
@@ -204,6 +262,9 @@ export default function Report({
       if (displayPhoto) {
         const { downloadMyFacePdf } = await import('../utils/reportPdf')
         const { mergeNarrativesForPdf } = await import('../utils/protocolSections')
+        const messagesModule = locale === 'de'
+          ? await import('../messages/de.json')
+          : await import('../messages/en.json')
         await downloadMyFacePdf({
           photo: displayPhoto,
           photos,
@@ -215,8 +276,13 @@ export default function Report({
           eyeAnalysis,
           aiNarrative,
           user,
+          assessmentOwner,
           projectedAfter,
           projectedAnalysis,
+          assessmentId,
+          createdAt: assessmentCreatedAt,
+          updatedAt: assessmentUpdatedAt,
+          pdfMessages: messagesModule.default,
         })
       } else if (canUseBackendPdf) {
         await downloadAssessmentPdf(assessmentId)
@@ -227,7 +293,38 @@ export default function Report({
     } finally {
       setPdfLoading(false)
     }
-  }, [displayPhoto, photos, cvReport, metrics, landmarks, protocolNarrative, featureNarratives, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis, user, projectedAfter, projectedAnalysis])
+  }, [displayPhoto, photos, cvReport, metrics, landmarks, protocolNarrative, featureNarratives, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis, user, assessmentOwner, projectedAfter, projectedAnalysis, locale, t, assessmentCreatedAt, assessmentUpdatedAt])
+
+  useEffect(() => {
+    if (!showQovesReport) {
+      setReportToolbar(null)
+      return undefined
+    }
+    setReportToolbar({
+      onDownloadPdf: handleDownloadPdf,
+      pdfLoading,
+      canDownloadPdf,
+      showAdminTools,
+      adminView,
+      onToggleAdminView: toggleAdminView,
+      canApprove: showAdminTools && !!assessmentId && !isReportApproved(reportStatus),
+      onApprove: () => setApproveConfirmOpen(true),
+      statusUpdating,
+    })
+    return () => setReportToolbar(null)
+  }, [
+    showQovesReport,
+    handleDownloadPdf,
+    pdfLoading,
+    canDownloadPdf,
+    setReportToolbar,
+    showAdminTools,
+    adminView,
+    toggleAdminView,
+    assessmentId,
+    reportStatus,
+    statusUpdating,
+  ])
 
   const persistHistory = useCallback(
     (content, source, error) => {
@@ -293,26 +390,20 @@ export default function Report({
   }, [showQovesReport, cvReport, persistHistory])
 
   useEffect(() => {
+    nlHydratedForId.current = null
+  }, [assessmentId])
+
+  useEffect(() => {
     setAiNarrative(historyEntry?.aiNarrative || displayAnalysis?.aiNarrative || null)
     setAiNarrativeError('')
     setAiVisuals(historyEntry?.aiVisuals || displayAnalysis?.aiVisuals || null)
-    setAiVisualsError('')
     setProtocolNarrative(historyEntry?.protocolNarrative || displayAnalysis?.protocolNarrative || null)
     setFeatureNarratives(historyEntry?.featureNarratives || displayAnalysis?.featureNarratives || null)
     setFeatureParsing(historyEntry?.featureParsing || displayAnalysis?.featureParsing || null)
-    setProjectedAfter((prev) => {
-      const next = historyEntry?.projectedAfter || displayAnalysis?.projectedAfter || null
-      // Don't clobber a ready API hydration with stale analysis/history payload
-      if (resolveProjectedAfterUrl(prev) && !resolveProjectedAfterUrl(next)) return prev
-      return next
-    })
-    setProjectedAnalysis((prev) => {
-      const next = historyEntry?.projectedAnalysis || displayAnalysis?.projectedAnalysis || null
-      if (prev?.status === 'ready' && next?.status !== 'ready') return prev
-      return next
-    })
+    setProjectedAfter(historyEntry?.projectedAfter || displayAnalysis?.projectedAfter || null)
+    setProjectedAnalysis(historyEntry?.projectedAnalysis || displayAnalysis?.projectedAnalysis || null)
     setProtocolError('')
-  }, [historyEntry, displayAnalysis])
+  }, [historyEntry, displayAnalysis, assessmentId])
 
   // Hydrate NL from the open-path payload when available; otherwise one GET (legacy / incomplete).
   useEffect(() => {
@@ -409,30 +500,6 @@ export default function Report({
     return () => { cancelled = true }
   }, [showQovesReport, assessmentId, cloudAssessment, displayAnalysis, aiNarrative, protocolNarrative, featureNarratives])
 
-  const handleGenerateVisuals = useCallback(async () => {
-    if (!assessmentId || !isBackendApiEnabled() || aiVisualsLoading) return
-    setAiVisualsLoading(true)
-    setAiVisualsError('')
-    try {
-      const updated = await generateAssessmentVisuals(assessmentId)
-      setAiVisuals(updated?.aiVisuals || null)
-    } catch (err) {
-      setAiVisualsError(err.message || 'AI visuals unavailable')
-    } finally {
-      setAiVisualsLoading(false)
-    }
-  }, [assessmentId, aiVisualsLoading])
-
-  const handleLoadAssistant = useCallback(async () => {
-    if (!assessmentId || !isBackendApiEnabled()) return { messages: [] }
-    return await fetchAssistantConversation(assessmentId)
-  }, [assessmentId])
-
-  const handleSendAssistant = useCallback(async (message) => {
-    if (!assessmentId || !isBackendApiEnabled()) return { messages: [] }
-    return await sendAssistantMessage(assessmentId, message)
-  }, [assessmentId])
-
   const confirmAdminApprove = useCallback(async () => {
     if (!assessmentId || statusUpdating) return
     setApproveConfirmOpen(false)
@@ -472,77 +539,7 @@ export default function Report({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 py-3 border-b border-surface-border bg-surface-card shrink-0">
-        <h2 className="font-display text-sm font-semibold text-ink truncate min-w-0">{t('shell.title')}</h2>
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end">
-          {showAdminTools && (
-            <>
-              <button
-                type="button"
-                onClick={() => toggleAdminView('narrative')}
-                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-medium font-display border transition-colors ${
-                  adminView === 'narrative'
-                    ? 'bg-brand-50 border-brand/30 text-brand'
-                    : 'bg-white border-surface-border text-ink-secondary hover:border-brand/30'
-                }`}
-                title="Edit PDF narrative (admin)"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline sm:inline">{t('shell.editPdfNarrative')}</span>
-                <span className="sm:hidden">{t('shell.narrative')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleAdminView('after')}
-                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-medium font-display border transition-colors ${
-                  adminView === 'after'
-                    ? 'bg-brand-50 border-brand/30 text-brand'
-                    : 'bg-white border-surface-border text-ink-secondary hover:border-brand/30'
-                }`}
-                title="Generate projected AFTER (admin)"
-              >
-                <ImagePlus className="w-3.5 h-3.5" />
-                <span>{t('shell.editAfterImage')}</span>
-              </button>
-            </>
-          )}
-          {showQovesReport && isAdmin && assessmentId && !isReportApproved(reportStatus) && (
-            <button
-              type="button"
-              onClick={() => setApproveConfirmOpen(true)}
-              disabled={!!statusUpdating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium font-display bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
-            >
-              {statusUpdating === 'approved' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-              {t('shell.approve')}
-            </button>
-          )}
-          {showQovesReport && (
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={pdfLoading || !canDownloadPdf}
-              className="btn-primary text-xs px-4 py-2 shadow-brand"
-              title={!canDownloadPdf ? t('shell.pdfAfterApproval') : t('shell.downloadPdf')}
-            >
-              {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              {t('shell.pdf')}
-            </button>
-          )}
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center justify-center min-h-[36px] min-w-[36px] rounded-xl text-ink-muted hover:text-ink hover:bg-surface-warm transition-colors"
-              aria-label={t('shell.closeReport')}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0 flex flex-col px-3 sm:px-4 pb-3 pt-3">
+      <div className="report-shell-body report-shell-inner">
         {displayAnalysis?.protocolWarnings?.length > 0 && (
           <div className="mb-3 shrink-0 p-4 rounded-2xl bg-amber-50 border border-amber-200">
             <p className="text-sm font-display font-semibold text-amber-700 mb-2">{t('shell.protocolWarnings')}</p>
@@ -576,9 +573,11 @@ export default function Report({
           <div className="flex-1 min-h-0">
             <ReportDocumentLayout
               activeId={activeSectionId}
-              onSelect={setActiveSectionId}
-              showAiVisuals={!!assessmentId && isBackendApiEnabled()}
-              showAssistant={!!assessmentId && isBackendApiEnabled()}
+              onSelect={selectSection}
+              sidebarFooter={showPastAssessmentsNav ? {
+                label: t('nav.pastAssessments'),
+                onClick: handlePastAssessments,
+              } : null}
             >
               <LockedSectionGate
                 locked={clientReportLocked && !isPublicSection(activeSectionId)}
@@ -600,21 +599,17 @@ export default function Report({
                   metrics={metrics}
                   answers={displayAnswers}
                   user={user}
-                  aiVisuals={aiVisuals}
-                  aiVisualsLoading={aiVisualsLoading}
-                  aiVisualsError={aiVisualsError}
-                  onGenerateVisuals={handleGenerateVisuals}
-                  canGenerateVisuals={!!assessmentId && isBackendApiEnabled()}
+                  assessmentOwner={assessmentOwner}
                   assessmentId={assessmentId}
-                  canUseAssistant={!!assessmentId && isBackendApiEnabled()}
-                  onLoadAssistant={handleLoadAssistant}
-                  onSendAssistant={handleSendAssistant}
+                  createdAt={assessmentCreatedAt}
+                  updatedAt={assessmentUpdatedAt}
                   onDownloadPdf={handleDownloadPdf}
                   pdfLoading={pdfLoading}
                   canDownloadPdf={canDownloadPdf}
                   showAdminEdit={showAdminTools}
                   adminAssessment={adminAssessment}
                   onNarrativesSaved={handleAdminReviewSaved}
+                  onNavigate={selectSection}
                 />
               </LockedSectionGate>
             </ReportDocumentLayout>
@@ -644,10 +639,10 @@ export default function Report({
         )}
       </div>
 
-      {showAdminTools && adminView && adminAssessment && (
+      {showAdminTools && adminView && (adminAssessment || cloudAssessment) && (
         <AdminReviewPanel
           view={adminView}
-          assessment={adminAssessment}
+          assessment={adminAssessment || cloudAssessment}
           onClose={() => setAdminView(null)}
           onSaved={handleAdminReviewSaved}
         />
@@ -661,6 +656,17 @@ export default function Report({
         onConfirm={confirmAdminApprove}
         onCancel={() => setApproveConfirmOpen(false)}
       />
+
+      {showPastAssessmentsNav ? (
+        <PastAssessmentsPanel
+          open={pastAssessmentsOpen}
+          onClose={() => setPastAssessmentsOpen(false)}
+          onSelect={handleSelectPastAssessment}
+          user={user}
+          currentAssessmentId={assessmentId}
+          openingReportId={openingReportId}
+        />
+      ) : null}
     </div>
   )
 }

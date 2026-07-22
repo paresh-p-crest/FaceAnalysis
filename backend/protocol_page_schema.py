@@ -26,7 +26,7 @@ GENERATED_PAGE_IDS = frozenset(
 )
 
 PROTOCOL_PAGE_META: list[dict] = [
-    {"id": "cover", "page": 1, "kind": "static", "label": "Cover"},
+    {"id": "cover", "page": 1, "kind": "static", "label": "Protocol Dashboard"},
     {"id": "disclaimer", "page": 2, "kind": "static", "label": "Disclaimer"},
     {"id": "intro", "page": 3, "kind": "static", "label": "Introduction"},
     {"id": "understanding", "page": 4, "kind": "static", "label": "Understanding Your Results"},

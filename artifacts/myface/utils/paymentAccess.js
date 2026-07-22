@@ -1,4 +1,5 @@
 import { fetchMyAssessments, fetchMyPayments, isBackendApiEnabled } from './apiClient'
+import { isAssessmentSubmitted } from './reportWorkflow'
 
 export const PAID_PAYMENT_STATUSES = ['paid', 'complete', 'completed']
 
@@ -17,6 +18,6 @@ export async function userHasAnalysisAccess(user) {
     return true
   }
 
-  const assessments = await fetchMyAssessments(1)
-  return assessments.length > 0
+  const assessments = await fetchMyAssessments(20)
+  return assessments.some((item) => isAssessmentSubmitted(item))
 }

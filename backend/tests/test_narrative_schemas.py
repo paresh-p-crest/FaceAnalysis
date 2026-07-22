@@ -10,8 +10,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from backend.narrative_schemas import (
     FEATURE_SUBSECTION_TITLES,
     FeatureNarrative,
+    TreatmentPhases,
     feature_narrative_json_schema,
     subsection_body_limits,
+    treatment_phases_json_schema,
 )
 
 
@@ -93,3 +95,40 @@ def test_hair_narrative_rejects_overlong_health_body():
             summary="Hair priorities focused on framing and scalp care for 30 days.",
             subsections=subs,
         )
+
+
+def test_treatment_phases_schema_and_validation():
+    schema = treatment_phases_json_schema()
+    assert set(schema["required"]) == {"phase01", "phase02", "phase03", "summary"}
+    sample = {
+        "phase01": {
+            "title": "Foundation & Photoprotection",
+            "duration": "Immediate · Weeks 1–12",
+            "items": [
+                {"name": "Broad-spectrum SPF 50+", "detail": "Daily · UV photoprotection"},
+                {"name": "Niacinamide 10%", "detail": "Morning · sebum regulation"},
+            ],
+        },
+        "phase02": {
+            "title": "Barrier Reinforcement",
+            "duration": "Weeks 12–24 · maintenance cycle",
+            "items": [
+                {"name": "Antioxidant serum", "detail": "Morning · oxidative stress"},
+                {"name": "Ceramide emollient", "detail": "Evening · barrier repair"},
+            ],
+        },
+        "phase03": {
+            "title": "Long-Term Support",
+            "duration": "6+ months · sustained regimen",
+            "items": [
+                {"name": "Retinoid rotation", "detail": "Cycled evenings"},
+                {"name": "Collagen nutrition", "detail": "Daily micronutrients"},
+            ],
+        },
+        "summary": (
+            "Harmonic indices indicate a favorable baseline with localized refinement in periorbital "
+            "and mandibular zones; staged OTC topical protocol emphasises photoprotection first."
+        ),
+    }
+    validated = TreatmentPhases.model_validate(sample)
+    assert validated.phase01.items[0].name.startswith("Broad-spectrum")

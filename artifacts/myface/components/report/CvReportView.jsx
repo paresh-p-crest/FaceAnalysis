@@ -5,7 +5,7 @@ import { EyeReportPanel } from '../EyeReportPanel'
 import { SymmetryOverlay, FaceShapeOverlay } from './FaceImageFrame'
 import { FeatureRegionHero } from './FeatureRegionHero'
 import { BrowReportPanel } from './BrowReportPanel'
-import { FeatureReportPanel } from './FeatureReportPanel'
+import { EarReportPanel } from './EarReportPanel'
 import { NoseReportPanel } from './NoseReportPanel'
 import { LipsReportPanel } from './LipsReportPanel'
 import { CheekReportPanel } from './CheekReportPanel'
@@ -18,8 +18,6 @@ import { SkinReportPanel } from './SkinReportPanel'
 import { DimorphismSection } from './DimorphismSection'
 import { AveragenessSection } from './AveragenessSection'
 import { ProportionsSection } from './ProportionsSection'
-import { AiVisualsSection } from './AiVisualsSection'
-import { BeautyAssistantSection } from './BeautyAssistantSection'
 import { IntroductionSection } from './IntroductionSection'
 import { DisclaimerSection } from './DisclaimerSection'
 import { ProtocolDocumentViewer } from './ProtocolDocumentViewer'
@@ -44,27 +42,23 @@ export function CvReportView({
   protocolNarrative,
   protocolLoading,
   aiNarrative,
-  aiVisuals,
-  aiVisualsLoading,
-  aiVisualsError,
-  onGenerateVisuals,
-  canGenerateVisuals,
   assessmentId,
-  canUseAssistant,
-  onLoadAssistant,
-  onSendAssistant,
   photo,
   photos,
   landmarks,
   metrics,
   answers,
   user = null,
+  assessmentOwner = null,
   onDownloadPdf,
   pdfLoading,
   canDownloadPdf,
   showAdminEdit = false,
   adminAssessment = null,
   onNarrativesSaved,
+  createdAt = null,
+  updatedAt = null,
+  onNavigate,
 }) {
   const t = useTranslations('Report')
 
@@ -370,34 +364,11 @@ export function CvReportView({
       e.imageSrc
 
     return (
-      <FeatureReportPanel
-        title={t('ears.title')}
-        featureName="ears"
-        data={e}
-        narrative={narrativeFor('ears')}
-        featureId="ears"
+      <EarReportPanel
+        ears={e}
         featureParsing={featureParsing}
+        narrative={narrativeFor('ears')}
         imageSrc={earHero}
-        imageAlt={t('ears.imageAlt')}
-        sections={[
-          {
-            title: t('ears.proportionsTitle'),
-            metrics: [
-              { label: t('ears.earSize'), value: `${e.earSize}× IPD`, tooltip: t('ears.earSizeTooltip') },
-              { label: t('ears.sizeClass'), value: e.earSizeClass, tooltip: t('ears.sizeClassTooltip') },
-              { label: t('ears.symmetry'), value: e.earSymmetry, tooltip: t('ears.symmetryTooltip') },
-              { label: t('ears.sizeDifference'), value: `${e.sizeDifference}%`, tooltip: t('ears.sizeDifferenceTooltip') },
-            ],
-          },
-          {
-            title: t('ears.positionTitle'),
-            metrics: [
-              { label: t('ears.protrusion'), value: e.protrusion, tooltip: t('ears.protrusionTooltip') },
-              { label: t('ears.protrusionDepth'), value: `${e.earProtrusion}`, tooltip: t('ears.protrusionDepthTooltip') },
-              { label: t('ears.verticalPosition'), value: e.earPosition, tooltip: t('ears.verticalPositionTooltip') },
-            ],
-          },
-        ]}
       />
     )
   }
@@ -442,6 +413,7 @@ export function CvReportView({
         metrics={metrics}
         answers={answers}
         user={user}
+        assessmentOwner={assessmentOwner}
         eyeAnalysis={eyeAnalysis}
         protocolNarrative={protocolNarrative}
         featureNarratives={featureNarratives}
@@ -456,29 +428,6 @@ export function CvReportView({
         assessmentId={assessmentId}
         adminAssessment={adminAssessment}
         onNarrativesSaved={onNarrativesSaved}
-      />
-    )
-  }
-
-  if (activeId === 'aiVisuals') {
-    return (
-      <AiVisualsSection
-        aiVisuals={aiVisuals}
-        loading={aiVisualsLoading}
-        error={aiVisualsError}
-        onGenerate={onGenerateVisuals}
-        canGenerate={canGenerateVisuals}
-      />
-    )
-  }
-
-  if (activeId === 'beautyAssistant') {
-    return (
-      <BeautyAssistantSection
-        assessmentId={assessmentId}
-        canUseAssistant={canUseAssistant}
-        onLoad={onLoadAssistant}
-        onSend={onSendAssistant}
       />
     )
   }

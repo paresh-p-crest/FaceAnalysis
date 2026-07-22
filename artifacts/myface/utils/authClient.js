@@ -47,6 +47,58 @@ export function login(email, password) {
   return authRequest('/api/auth/login', { email, password })
 }
 
+export async function resetPassword({ email, newPassword }) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, newPassword }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const detail = data.detail
+    throw new Error(typeof detail === 'string' ? detail : 'Password reset failed')
+  }
+  return data
+}
+
+async function authedJsonRequest(path, { method = 'GET', body } = {}) {
+  const base = getApiBaseUrl()
+  const token = getAuthToken()
+  if (!token) throw new Error('Not signed in')
+
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: body != null ? JSON.stringify(body) : undefined,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const detail = data.detail
+    throw new Error(typeof detail === 'string' ? detail : 'Request failed')
+  }
+  return data
+}
+
+export async function updateProfile({ firstName, lastName, email }) {
+  const data = await authedJsonRequest('/api/auth/me', {
+    method: 'PATCH',
+    body: { firstName, lastName, email },
+  })
+  saveSession({ token: getAuthToken(), user: data.user })
+  return data.user
+}
+
+export async function changePassword({ currentPassword, newPassword }) {
+  return authedJsonRequest('/api/auth/change-password', {
+    method: 'POST',
+    body: { currentPassword, newPassword },
+  })
+}
+
 export async function fetchCurrentUser({ timeoutMs = 12000, retries = 4 } = {}) {
   const base = getApiBaseUrl()
   const token = getAuthToken()

@@ -55,7 +55,7 @@ export default function PipelineStatusPanel({ assessment, onUpdated }) {
 
   if (!pipeline) {
     return (
-      <div className="rounded-xl border border-surface-border bg-surface-warm/50 dark:bg-surface-raised/20 px-3 py-2.5 text-[11px] text-ink-muted">
+      <div className="rounded-xl border border-surface-border bg-surface-warm/50 dark:bg-surface-raised px-3 py-2.5 text-[11px] text-ink-muted">
         {t('notStarted')}
       </div>
     )
@@ -114,7 +114,7 @@ export default function PipelineStatusPanel({ assessment, onUpdated }) {
         />
       </div>
 
-      <div className="rounded-lg bg-surface-warm/50 dark:bg-surface-raised/20 px-3">
+      <div className="rounded-lg bg-surface-warm/50 dark:bg-surface-raised px-3">
         {PIPELINE_UI_STAGES.map((stage) => (
           <StageRow
             key={stage.id}

@@ -17,6 +17,7 @@ import { PHOTO_POSES } from '../utils/constants'
 import { getAllDemoPhotos } from '../utils/demoPhotos'
 import { uploadAssessmentPhoto, deleteAssessmentPhoto } from '../utils/apiClient'
 import { validatePhoto } from '../utils/photoValidation'
+import { BrandLogo } from './BrandLogo'
 
 const CHECKLIST_ITEM_KEYS = [
   'glassesHat',
@@ -343,7 +344,7 @@ export default function PhotoUpload({
         {/* Right Column (Dark Slate-Teal Visual Page) — DESKTOP ONLY */}
         <div className="hidden lg:flex flex-1 flex-col justify-center items-center p-12 bg-gradient-to-br from-[#0d1e1f] via-[#091516] to-[#04090a] relative">
           <div className="absolute top-10 left-10">
-            <span className="font-serif font-bold text-white text-2xl tracking-tight">MyFace</span>
+            <BrandLogo size="lg" invert />
           </div>
 
           <div className="max-w-xl w-full bg-white/[0.03] backdrop-blur-md rounded-3xl p-8 border border-white/10 shadow-2xl space-y-6">
@@ -586,7 +587,7 @@ export default function PhotoUpload({
       {/* Right Column (Dark Slate-Teal Visual Page) */}
       <div className="hidden lg:flex flex-1 flex-col justify-center items-center p-12 bg-gradient-to-br from-[#0d1e1f] via-[#091516] to-[#04090a] relative">
         <div className="absolute top-10 left-10">
-          <span className="font-serif font-bold text-white text-2xl tracking-tight">MyFace</span>
+          <BrandLogo size="lg" invert />
         </div>
 
         {/* Center Glassmorphic Dropzone */}

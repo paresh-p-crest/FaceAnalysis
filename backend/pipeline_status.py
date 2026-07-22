@@ -6,14 +6,15 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 PIPELINE_STATUSES = frozenset({"queued", "running", "ready", "failed"})
-PIPELINE_STAGES = ("queued", "cv", "narratives", "parsing", "projected_after", "done")
-STAGE_ORDER = ("cv", "narratives", "parsing", "projected_after")
+PIPELINE_STAGES = ("queued", "cv", "narratives", "parsing", "projected_after", "ai_visuals", "done")
+STAGE_ORDER = ("cv", "narratives", "parsing", "projected_after", "ai_visuals")
 
 STAGE_LABELS = {
     "cv": "Facial Data Processing",
     "parsing": "Aesthetic Assessment",
     "narratives": "Protocol Preparation",
     "projected_after": "Projected Preview",
+    "ai_visuals": "AI Visual Previews",
 }
 
 WORKFLOW_STAGE_LABELS = {
@@ -34,7 +35,7 @@ def new_queued_pipeline() -> dict:
     return {
         "status": "queued",
         "stage": "queued",
-        "attempts": {"cv": 0, "narratives": 0, "parsing": 0, "projected_after": 0},
+        "attempts": {"cv": 0, "narratives": 0, "parsing": 0, "projected_after": 0, "ai_visuals": 0},
         "maxAttempts": DEFAULT_MAX_ATTEMPTS,
         "lastError": None,
         "queuedAt": now,
@@ -83,6 +84,8 @@ def next_pipeline_stage(current: str) -> Optional[str]:
     if current == "parsing":
         return "projected_after"
     if current == "projected_after":
+        return "ai_visuals"
+    if current == "ai_visuals":
         return "done"
     return None
 

@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { ChevronDown, ChevronRight, Menu } from 'lucide-react'
+import { ChevronDown, ChevronRight, History, Menu } from 'lucide-react'
 import {
   REPORT_NAV_GROUPS,
-  TOOL_SECTIONS,
   findNavGroupForSection,
 } from './reportNavConfig'
 
@@ -46,32 +45,38 @@ function NavGroup({ label, items, activeId, onSelect, defaultOpen = false, t }) 
   )
 }
 
+function SidebarFooter({ label, onClick }) {
+  return (
+    <div className="qoves-report-nav-footer shrink-0 pt-3 mt-2 border-t border-surface-border">
+      <button type="button" onClick={onClick} className="qoves-report-nav-footer-btn">
+        <History className="w-4 h-4 shrink-0" aria-hidden />
+        <span>{label}</span>
+      </button>
+    </div>
+  )
+}
+
+/** Report-style sidebar. Pass `groups` + `tNamespace` for AI Visuals etc. */
 export function ReportNavSidebar({
   activeId,
   onSelect,
-  showAiVisuals = true,
-  showAssistant = true,
+  groups = REPORT_NAV_GROUPS,
+  tNamespace = 'Report',
+  titleKey = 'nav.report',
+  defaultOpenGroupId = 'introduction',
+  footerAction = null,
 }) {
-  const t = useTranslations('Report')
+  const t = useTranslations(tNamespace)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const toolItems = useMemo(() => {
-    return TOOL_SECTIONS.filter((item) => {
-      if (item.id === 'aiVisuals') return showAiVisuals
-      if (item.id === 'beautyAssistant') return showAssistant
-      return true
-    })
-  }, [showAiVisuals, showAssistant])
-
-  const activeGroup = findNavGroupForSection(activeId)
+  const activeGroup = findNavGroupForSection(activeId, groups)
   const activeLabel = useMemo(() => {
-    for (const group of REPORT_NAV_GROUPS) {
+    for (const group of groups) {
       const hit = group.items.find((item) => item.id === activeId)
       if (hit) return t(hit.labelKey)
     }
-    const tool = toolItems.find((item) => item.id === activeId)
-    return tool ? t(tool.labelKey) : t('nav.report')
-  }, [activeId, toolItems, t])
+    return t(titleKey)
+  }, [activeId, groups, t, titleKey])
 
   const handleSelect = (id) => {
     onSelect(id)
@@ -79,41 +84,19 @@ export function ReportNavSidebar({
   }
 
   const navBody = (
-    <>
-      <div className="flex-1 space-y-1 min-h-0 overflow-y-auto pr-1">
-        {REPORT_NAV_GROUPS.map((group) => (
-          <NavGroup
-            key={group.id}
-            label={t(group.labelKey)}
-            items={group.items}
-            activeId={activeId}
-            onSelect={handleSelect}
-            defaultOpen={activeGroup === group.id || group.id === 'features'}
-            t={t}
-          />
-        ))}
-      </div>
-
-      {toolItems.length > 0 && (
-        <div className="pt-4 mt-4 border-t border-surface-border shrink-0">
-          <p className="text-[10px] uppercase tracking-wider text-ink-muted font-semibold mb-2 px-2">
-            {t('nav.tools')}
-          </p>
-          <div className="space-y-0.5">
-            {toolItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleSelect(item.id)}
-                className={`qoves-report-nav-item ${activeId === item.id ? 'qoves-report-nav-item--active' : ''}`}
-              >
-                {t(item.labelKey)}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
+    <div className="qoves-report-nav-scroll flex-1 space-y-1 min-h-0 overflow-y-auto pr-1">
+      {groups.map((group) => (
+        <NavGroup
+          key={group.id}
+          label={t(group.labelKey)}
+          items={group.items}
+          activeId={activeId}
+          onSelect={handleSelect}
+          defaultOpen={activeGroup === group.id || group.id === defaultOpenGroupId}
+          t={t}
+        />
+      ))}
+    </div>
   )
 
   return (
@@ -122,7 +105,7 @@ export function ReportNavSidebar({
         <button
           type="button"
           onClick={() => setMobileOpen((v) => !v)}
-          className="w-full inline-flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-surface-border bg-white dark:bg-surface-card text-sm font-medium text-ink"
+          className="w-full inline-flex items-center justify-between gap-2 px-3 py-2.5 rounded-full border border-surface-border bg-white dark:bg-surface-card text-sm font-medium text-ink shadow-soft"
         >
           <span className="inline-flex items-center gap-2 min-w-0">
             <Menu className="w-4 h-4 shrink-0 text-ink-muted" />
@@ -131,17 +114,26 @@ export function ReportNavSidebar({
           {mobileOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
         </button>
         {mobileOpen && (
-          <div className="mt-2 rounded-2xl border border-surface-border bg-surface-raised p-3 max-h-[50vh] overflow-y-auto">
+          <div className="qoves-report-nav-scroll mt-2 rounded-2xl border border-surface-border bg-surface-raised p-3 max-h-[50vh] overflow-y-auto">
             {navBody}
+            {footerAction ? (
+              <SidebarFooter label={footerAction.label} onClick={footerAction.onClick} />
+            ) : null}
           </div>
         )}
+        {!mobileOpen && footerAction ? (
+          <SidebarFooter label={footerAction.label} onClick={footerAction.onClick} />
+        ) : null}
       </div>
 
       <div className="hidden lg:flex flex-col h-full min-h-0">
         <p className="text-[10px] uppercase tracking-wider text-ink-muted font-semibold mb-4 px-2 shrink-0">
-          {t('nav.report')}
+          {t(titleKey)}
         </p>
         {navBody}
+        {footerAction ? (
+          <SidebarFooter label={footerAction.label} onClick={footerAction.onClick} />
+        ) : null}
       </div>
     </nav>
   )

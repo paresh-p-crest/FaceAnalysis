@@ -187,16 +187,32 @@ function mergeFeaturePage(defaults, narrativeFeature) {
   })
 }
 
-export function getClientName(answers, user = null) {
+export function getClientName(answers, user = null, assessmentOwner = null) {
   const fromAnswers = [answers?.name, answers?.fullName, answers?.clientName]
     .find((v) => typeof v === 'string' && v.trim())
   if (fromAnswers) return fromAnswers.trim()
 
-  const fromUser = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
-  if (fromUser) return fromUser
+  // Prefer the assessment subject (owner), not the viewer — admins open other users' reports
+  const owner = assessmentOwner && typeof assessmentOwner === 'object' ? assessmentOwner : null
+  if (owner) {
+    const fromOwner = [owner.firstName, owner.lastName].filter(Boolean).join(' ').trim()
+    if (fromOwner) return fromOwner
+    if (typeof owner.name === 'string' && owner.name.trim()) return owner.name.trim()
+    if (typeof owner.email === 'string' && owner.email.includes('@')) {
+      return owner.email.split('@')[0]
+    }
+  }
 
-  if (typeof user?.email === 'string' && user.email.includes('@')) {
-    return user.email.split('@')[0]
+  // Session user only when they own the assessment (or owner unknown / same id)
+  const ownerId = owner?.id || null
+  const sessionIsOwner = !ownerId || !user?.id || String(ownerId) === String(user.id)
+  if (sessionIsOwner && user) {
+    const fromUser = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+    if (fromUser) return fromUser
+    if (typeof user.name === 'string' && user.name.trim()) return user.name.trim()
+    if (typeof user.email === 'string' && user.email.includes('@')) {
+      return user.email.split('@')[0]
+    }
   }
 
   return 'Client'
@@ -533,4 +549,612 @@ export function getFeatureComparisonData(cvReport) {
 /** @deprecated Use getFeatureComparisonData */
 export function getRadarData(cvReport) {
   return getFeatureComparisonData(cvReport)
+}
+
+const REVIEW_THRESHOLD = 75
+
+function zoneScore(value) {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : null
+}
+
+function pickScoreLabel(obj) {
+  if (!obj) return null
+  return obj.scoreLabel || obj.classification || obj.shape || null
+}
+
+/** Reject CV explanation sentences — mini-cards show short metrics only. */
+function isProseMetric(text) {
+  const s = String(text || '').trim()
+  if (!s) return true
+  if (s.length > 42) return true
+  if (/^(the subject|your |the client's|the patient)/i.test(s)) return true
+  if (/\.\s+[A-Z]/.test(s)) return true
+  return false
+}
+
+/** Left-rail cards: lowest-scoring protocol features (interactive nav + PDF page links). */
+export const DASHBOARD_PRIORITY_FEATURE_LIMIT = 5
+
+/** @deprecated Prefer buildPriorityFeatureMiniCards — kept for older callers. */
+export const DASHBOARD_MINI_CARDS = [
+  { id: 'skin', pdfPage: 13 },
+  { id: 'hair', pdfPage: 6 },
+  { id: 'eyes', pdfPage: 7 },
+]
+
+/** MediaPipe Face Mesh landmark count shown on the protocol dashboard KPI. */
+export const DASHBOARD_EVALUATED_POINTS = '468+'
+
+/** Coerce CV values to short preview text (avoid "[object Object]"). */
+function asPreviewText(value) {
+  if (value == null || value === '') return null
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    const s = String(value).trim()
+    return s || null
+  }
+  if (Array.isArray(value)) {
+    const parts = value.map(asPreviewText).filter(Boolean)
+    return parts.length ? parts.join(', ') : null
+  }
+  if (typeof value === 'object') {
+    const preferred = value.label || value.name || value.title || value.scoreLabel
+      || value.classification || value.shape || value.value || value.text
+    if (preferred != null) return asPreviewText(preferred)
+    if (value.score != null) return `${value.score}/100`
+    return null
+  }
+  return null
+}
+
+function featureNumericScore(cvReport, eyeAnalysis, sectionId) {
+  switch (sectionId) {
+    case 'hair':
+      return zoneScore(cvReport?.hair?.score)
+    case 'eyes':
+      return zoneScore(cvReport?.eyes?.score ?? eyeAnalysis?.overallScore)
+    case 'nose':
+      return zoneScore(cvReport?.nose?.score)
+    case 'cheeks':
+      return zoneScore(cvReport?.cheeks?.score)
+    case 'jaw':
+      return zoneScore(cvReport?.jaw?.score ?? cvReport?.jawChin?.score)
+    case 'lips':
+      return zoneScore(cvReport?.lips?.score)
+    case 'chin':
+      return zoneScore(cvReport?.chin?.score ?? cvReport?.jawChin?.score)
+    case 'skin':
+      return zoneScore(cvReport?.skin?.score)
+    case 'neck':
+      return zoneScore(cvReport?.neck?.score)
+    case 'ears':
+      return zoneScore(cvReport?.ears?.score)
+    default:
+      return null
+  }
+}
+
+/** Dynamic findings for left mini-cards (metric title + detail). Metrics only — no prose. */
+export function buildLeftMiniCardFindings(cvReport, eyeAnalysis, sectionId) {
+  const findings = []
+  const add = (title, detail) => {
+    if (findings.length >= 3) return
+    const t = asPreviewText(title)
+    if (!t || isProseMetric(t)) return
+    const rawDetail = asPreviewText(detail)
+    const d = rawDetail && !isProseMetric(rawDetail) ? rawDetail : null
+    if (findings.some((f) => f.title === t)) return
+    findings.push({ title: t, detail: d })
+  }
+
+  switch (sectionId) {
+    case 'skin': {
+      const s = cvReport?.skin
+      if (!s) break
+      add(s.texture, [asPreviewText(s.hydration), asPreviewText(s.tone)].filter(Boolean).join(' · ') || null)
+      add(s.scoreLabel || s.clarity, s.pigmentation || null)
+      if (s.redness && !/^normal$/i.test(String(asPreviewText(s.redness) || ''))) {
+        add(s.redness, s.skinTone || s.tone || null)
+      } else {
+        add(s.pigmentation || s.skinTone, s.tone || (s.uniformity != null ? `Uniformity ${s.uniformity}` : null))
+      }
+      break
+    }
+    case 'hair': {
+      const h = cvReport?.hair
+      if (!h) break
+      add(h.textureType || h.scoreLabel, h.hairColor || null)
+      add(h.hairline, h.density || h.recession || null)
+      add(h.density, h.score != null ? `${h.score}/100` : null)
+      break
+    }
+    case 'eyes': {
+      const e = cvReport?.eyes
+      const ea = eyeAnalysis
+      add(pickScoreLabel(e) || pickScoreLabel(ea) || e?.shape || ea?.eyeShape, e?.canthalTilt || ea?.canthalTilt || null)
+      add(e?.symmetry || ea?.symmetryLabel, e?.spacing || ea?.spacing || null)
+      add(ea?.underEyeHealth || e?.underEye, ea?.overallScore != null ? `${ea.overallScore}/100` : null)
+      break
+    }
+    case 'nose': {
+      const n = cvReport?.nose
+      if (!n) break
+      add(n.widthClassification || n.scoreLabel || n.shape, n.widthLengthRatio != null ? `Ratio ${n.widthLengthRatio}` : null)
+      add(n.tip || n.shape, n.idealRatio != null ? `Ideal ${n.idealRatio}` : null)
+      break
+    }
+    case 'cheeks': {
+      const c = cvReport?.cheeks
+      if (!c) break
+      add(c.scoreLabel || c.fullness, c.hollowing || null)
+      add(c.prominence, c.score != null ? `${c.score}/100` : null)
+      break
+    }
+    case 'jaw': {
+      const j = cvReport?.jaw || cvReport?.jawChin
+      if (!j) break
+      add(
+        j.jawWidthClass || j.scoreLabel || j.jawShape || j.shape,
+        j.jawWidth != null ? `${j.jawWidth}% width` : null,
+      )
+      add(
+        j.mandibularDefinition || j.definition || j.jawlineDefinition,
+        j.jawAngle != null ? `${j.jawAngle}°` : (j.angle != null ? `${j.angle}°` : null),
+      )
+      add(j.jawLengthClass, j.jawLength != null ? `${j.jawLength}% length` : null)
+      break
+    }
+    case 'lips': {
+      const l = cvReport?.lips
+      if (!l) break
+      add(l.scoreLabel || l.fullness, l.ratio || l.cupidBow || null)
+      add(l.shape, l.score != null ? `${l.score}/100` : null)
+      break
+    }
+    case 'chin': {
+      const c = cvReport?.chin || cvReport?.jawChin
+      if (!c) break
+      add(c.scoreLabel || c.projection || c.shape, c.width || null)
+      add(c.profile, c.score != null ? `${c.score}/100` : null)
+      break
+    }
+    case 'neck': {
+      const n = cvReport?.neck
+      if (!n) break
+      add(n.scoreLabel || n.definition, n.laxity || null)
+      add(n.contour, n.score != null ? `${n.score}/100` : null)
+      break
+    }
+    case 'ears': {
+      const e = cvReport?.ears
+      if (!e) break
+      add(e.scoreLabel || e.prominence, e.symmetry || null)
+      add(e.projection, e.score != null ? `${e.score}/100` : null)
+      break
+    }
+    default:
+      break
+  }
+
+  return findings.slice(0, 3)
+}
+
+/** @deprecated Prefer buildLeftMiniCardFindings */
+export function buildLeftMiniCardLines(cvReport, eyeAnalysis, sectionId) {
+  return buildLeftMiniCardFindings(cvReport, eyeAnalysis, sectionId).map((f) => f.title)
+}
+
+function miniCardScoreMeta(cvReport, eyeAnalysis, sectionId) {
+  const scoreNum = featureNumericScore(cvReport, eyeAnalysis, sectionId)
+  const score = scoreNum != null ? `${scoreNum}/100` : null
+  switch (sectionId) {
+    case 'skin':
+      return { score, scoreLabel: asPreviewText(cvReport?.skin?.scoreLabel) }
+    case 'hair':
+      return { score, scoreLabel: asPreviewText(cvReport?.hair?.scoreLabel) || asPreviewText(cvReport?.hair?.textureType) }
+    case 'eyes':
+      return {
+        score,
+        scoreLabel: asPreviewText(pickScoreLabel(cvReport?.eyes)) || asPreviewText(pickScoreLabel(eyeAnalysis)),
+      }
+    case 'nose':
+      return { score, scoreLabel: asPreviewText(cvReport?.nose?.scoreLabel) || asPreviewText(cvReport?.nose?.shape) }
+    case 'cheeks':
+      return { score, scoreLabel: asPreviewText(cvReport?.cheeks?.scoreLabel) || asPreviewText(cvReport?.cheeks?.fullness) }
+    case 'jaw':
+      return {
+        score,
+        scoreLabel: asPreviewText(cvReport?.jaw?.scoreLabel)
+          || asPreviewText(cvReport?.jaw?.jawShape)
+          || asPreviewText(cvReport?.jawChin?.jawShape),
+      }
+    case 'lips':
+      return { score, scoreLabel: asPreviewText(cvReport?.lips?.scoreLabel) || asPreviewText(cvReport?.lips?.fullness) }
+    case 'chin':
+      return {
+        score,
+        scoreLabel: asPreviewText(cvReport?.chin?.scoreLabel)
+          || asPreviewText(cvReport?.chin?.projection)
+          || asPreviewText(cvReport?.jawChin?.scoreLabel),
+      }
+    case 'neck':
+      return { score, scoreLabel: asPreviewText(cvReport?.neck?.scoreLabel) || asPreviewText(cvReport?.neck?.definition) }
+    case 'ears':
+      return { score, scoreLabel: asPreviewText(cvReport?.ears?.scoreLabel) || asPreviewText(cvReport?.ears?.prominence) }
+    default:
+      return { score, scoreLabel: null }
+  }
+}
+
+/** Top N lowest-scoring features for dashboard priority cards. */
+export function buildPriorityFeatureMiniCards(cvReport, eyeAnalysis, limit = DASHBOARD_PRIORITY_FEATURE_LIMIT) {
+  const ranked = QOVES_PROTOCOL_FEATURES
+    .map((f) => ({
+      id: f.id,
+      pdfPage: f.page,
+      title: f.title,
+      scoreNum: featureNumericScore(cvReport, eyeAnalysis, f.id),
+    }))
+    .filter((f) => f.scoreNum != null)
+    .sort((a, b) => a.scoreNum - b.scoreNum)
+    .slice(0, limit)
+
+  return ranked.map((f) => {
+    const findings = buildLeftMiniCardFindings(cvReport, eyeAnalysis, f.id)
+    return {
+      ...f,
+      ...miniCardScoreMeta(cvReport, eyeAnalysis, f.id),
+      findings,
+    }
+  })
+}
+
+/** Best available crop for a dashboard mini-card preview (stored CV crops, else full photo). */
+export function resolveMiniCardPreviewSrc(sectionId, { photo, cvReport, eyeAnalysis } = {}) {
+  switch (sectionId) {
+    case 'skin':
+      return cvReport?.cheeks?.imageSrc || cvReport?.skin?.imageSrc || photo || null
+    case 'hair': {
+      const hair = cvReport?.hair
+      if (hair?.photoSource === 'topHead') return hair?.imageSrcFront || photo || null
+      return hair?.imageSrcFront || hair?.imageSrc || photo || null
+    }
+    case 'eyes':
+      return eyeAnalysis?.eyesCrop
+        || cvReport?.eyes?.ocular?.imageSrc
+        || cvReport?.eyebrows?.crop
+        || photo
+        || null
+    case 'nose':
+      return cvReport?.nose?.imageSrc || photo || null
+    case 'cheeks':
+      return cvReport?.cheeks?.imageSrc || photo || null
+    case 'jaw':
+      return cvReport?.jaw?.imageSrcFront || cvReport?.jaw?.imageSrc || cvReport?.jawChin?.imageSrc || photo || null
+    case 'lips':
+      return cvReport?.lips?.imageSrc || photo || null
+    case 'chin':
+      return cvReport?.chin?.imageSrcFront || cvReport?.chin?.imageSrc || cvReport?.jawChin?.imageSrc || photo || null
+    case 'neck':
+      return cvReport?.neck?.imageSrc || photo || null
+    case 'ears':
+      return cvReport?.ears?.imageSrc || photo || null
+    default:
+      return photo || null
+  }
+}
+
+/** CV-driven finding/reference for dashboard feature rows (i18n fallback in UI/PDF). */
+export function buildFeatureRowDisplay(cvReport, eyeAnalysis, zoneKey) {
+  const sym = cvReport?.symmetry
+  const foreheadRegion = sym?.regions?.find((r) => /forehead|brow/i.test(String(r.label || r.id || '')))
+
+  switch (zoneKey) {
+    case 'forehead':
+      return {
+        finding: foreheadRegion?.score != null
+          ? `${Math.round(foreheadRegion.score)}/100`
+          : pickScoreLabel(sym),
+        ref: sym?.scaleLeft || null,
+      }
+    case 'eyes':
+      return {
+        finding: pickScoreLabel(cvReport?.eyes) || pickScoreLabel(eyeAnalysis),
+        ref: cvReport?.eyes?.reference || null,
+      }
+    case 'nose':
+      return {
+        finding: cvReport?.nose?.widthLengthRatio
+          ? `Ratio ${cvReport.nose.widthLengthRatio}`
+          : pickScoreLabel(cvReport?.nose),
+        ref: cvReport?.nose?.idealRatio || cvReport?.nose?.reference || null,
+      }
+    case 'lips':
+      return {
+        finding: pickScoreLabel(cvReport?.lips),
+        ref: cvReport?.lips?.reference || null,
+      }
+    case 'jawline':
+      return {
+        finding: pickScoreLabel(cvReport?.jaw) || pickScoreLabel(cvReport?.jawChin),
+        ref: cvReport?.jaw?.reference || null,
+      }
+    default:
+      return { finding: null, ref: null }
+  }
+}
+
+/** Canonical client-facing overall harmony score (matches dashboard KPI / score ring). */
+export function resolveOverallHarmonyScore(analysisOrParts) {
+  const cvReport = analysisOrParts?.cvReport ?? analysisOrParts?.analysis?.cvReport
+  const metrics = analysisOrParts?.metrics ?? analysisOrParts?.analysis?.metrics
+  const raw =
+    cvReport?.overall?.score ??
+    metrics?.harmonyScore ??
+    null
+  if (raw == null || raw === '') return null
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Days between assessment createdAt and updatedAt (min 1 when positive span). */
+export function computeAnalysisDurationDays(createdAt, updatedAt) {
+  if (!createdAt || !updatedAt) return null
+  const startMs = Date.parse(createdAt)
+  const endMs = Date.parse(updatedAt)
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null
+  return Math.max(1, Math.round((endMs - startMs) / 86_400_000))
+}
+
+/** @deprecated Use computeAnalysisDurationDays */
+export function computeAnalysisDurationSec(createdAt, updatedAt) {
+  const days = computeAnalysisDurationDays(createdAt, updatedAt)
+  return days == null ? null : days * 86_400
+}
+
+/** Midpoint of questionnaire ageRange (`25-34` → 30, `55+` → 55) for scale/diff math. */
+export function parseAgeRangeMidpoint(ageRange) {
+  const bounds = parseAgeRangeBounds(ageRange)
+  if (!bounds) return null
+  return Math.round((bounds.lo + bounds.hi) / 2)
+}
+
+/** Inclusive age band from questionnaire (`25-34` → {lo:25,hi:34}, `55+` → {lo:55,hi:70}). */
+export function parseAgeRangeBounds(ageRange) {
+  if (ageRange == null || ageRange === '') return null
+  const s = String(ageRange).trim()
+  if (s.endsWith('+')) {
+    const n = parseInt(s, 10)
+    if (!Number.isFinite(n)) return null
+    return { lo: n, hi: n + 15 }
+  }
+  const m = s.match(/^(\d+)\s*[-–]\s*(\d+)$/)
+  if (!m) return null
+  const lo = parseInt(m[1], 10)
+  const hi = parseInt(m[2], 10)
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return null
+  return { lo, hi }
+}
+
+/** Display form of ageRange (`25-34` → `25–34`). */
+export function formatAgeRangeDisplay(ageRange) {
+  if (ageRange == null || ageRange === '') return null
+  return String(ageRange).trim().replace(/-/g, '–')
+}
+
+export function buildProtocolDashboardData({ cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt }) {
+  const overall = cvReport?.overall || {}
+  const faceAge = metrics?.visualAge ?? overall?.visualAge ?? null
+  const ageRange = answers?.ageRange || null
+  // Prefer questionnaire age band; numeric mid only for scale/diff
+  const ageNum = (() => {
+    if (answers?.age == null || answers?.age === '') return null
+    const n = typeof answers.age === 'number' ? answers.age : parseInt(String(answers.age), 10)
+    return Number.isFinite(n) ? n : null
+  })()
+  const bioAgeBounds = parseAgeRangeBounds(ageRange)
+  const bioAge = parseAgeRangeMidpoint(ageRange)
+    ?? ageNum
+    ?? overall?.chronologicalAge
+    ?? null
+  const bioAgeLabel = formatAgeRangeDisplay(ageRange)
+    ?? (bioAge != null ? String(bioAge) : null)
+  const overallScore = resolveOverallHarmonyScore({ cvReport, metrics })
+  // Protocol dashboard cites MediaPipe Face Mesh density (468 landmarks).
+  const evaluatedPoints = cvReport ? DASHBOARD_EVALUATED_POINTS : null
+
+  const radarScores = {
+    symmetry: zoneScore(metrics?.symmetryScore ?? cvReport?.symmetry?.score),
+    smoothness: zoneScore(cvReport?.skin?.uniformity ?? cvReport?.skin?.score),
+    jawline: zoneScore(metrics?.jawlineScore ?? cvReport?.jaw?.score ?? cvReport?.structure?.score),
+    skin: zoneScore(metrics?.skinScore ?? cvReport?.skin?.score),
+    volume: zoneScore(metrics?.proportionsScore ?? cvReport?.proportions?.score),
+    harmony: zoneScore(overall?.score ?? metrics?.harmonyScore),
+  }
+
+  const foreheadRegion = cvReport?.symmetry?.regions?.find((r) => /forehead|brow/i.test(String(r.label || r.id || '')))
+  const featureRows = [
+    { zoneKey: 'forehead', score: zoneScore(foreheadRegion?.score ?? cvReport?.symmetry?.score) },
+    { zoneKey: 'eyes', score: zoneScore(cvReport?.eyes?.score ?? eyeAnalysis?.overallScore) },
+    { zoneKey: 'nose', score: zoneScore(cvReport?.nose?.score) },
+    { zoneKey: 'lips', score: zoneScore(cvReport?.lips?.score) },
+    { zoneKey: 'jawline', score: zoneScore(cvReport?.jaw?.score ?? cvReport?.jawChin?.score) },
+  ].map((row) => {
+    const display = buildFeatureRowDisplay(cvReport, eyeAnalysis, row.zoneKey)
+    return {
+      ...row,
+      ...display,
+      isOk: row.score != null ? row.score >= REVIEW_THRESHOLD : null,
+    }
+  })
+
+  return {
+    overallScore,
+    evaluatedPoints,
+    analysisTimeDays: computeAnalysisDurationDays(createdAt, updatedAt),
+    /** @deprecated Prefer analysisTimeDays */
+    analysisTimeSec: computeAnalysisDurationDays(createdAt, updatedAt),
+    faceAge,
+    bioAge,
+    bioAgeLabel,
+    bioAgeBounds,
+    radarScores,
+    featureRows,
+    miniCards: buildPriorityFeatureMiniCards(cvReport, eyeAnalysis),
+  }
+}
+
+export function formatProtocolId(assessmentId) {
+  if (!assessmentId) return '—'
+  const raw = String(assessmentId).replace(/\D/g, '')
+  if (raw.length >= 5) return raw.slice(-5)
+  return raw.padStart(5, '0') || '—'
+}
+
+/** Dashboard / report row label — prefers backend scanId, else protocol id suffix. */
+export function formatAssessmentRef(assessment) {
+  const scan = assessment?.scanId && String(assessment.scanId).trim()
+  if (scan) {
+    const compact = scan.replace(/[^a-zA-Z0-9]/g, '')
+    return compact.length > 8 ? compact.slice(-8).toUpperCase() : compact.toUpperCase()
+  }
+  return formatProtocolId(assessment?.id)
+}
+
+export const TREATMENT_PHASE_KEYS = ['phase01', 'phase02', 'phase03']
+
+/** Approximate face-region anchors for overview feature-preview portrait (0–1). */
+export const FEATURE_PREVIEW_CALLOUTS = [
+  { id: 'forehead', x: 0.5, y: 0.22 },
+  { id: 'eyes', x: 0.62, y: 0.36 },
+  { id: 'nose', x: 0.5, y: 0.48 },
+  { id: 'mouth', x: 0.5, y: 0.62 },
+]
+
+/** MediaPipe indices for feature-preview callouts (viewer-right / subject-left preferred). */
+const FEATURE_PREVIEW_LANDMARK_IDS = {
+  forehead: 10,
+  eyes: 263, // left eye outer (appears on viewer's right)
+  nose: 1,
+  mouth: 13, // upper lip mid
+}
+
+/**
+ * Resolve callout anchors in normalized image space (0–1).
+ * Prefers MediaPipe landmarks when present; else static FEATURE_PREVIEW_CALLOUTS.
+ */
+export function resolveFeaturePreviewCallouts(landmarks) {
+  if (!Array.isArray(landmarks) || landmarks.length < 10) {
+    return FEATURE_PREVIEW_CALLOUTS.map((c) => ({ ...c }))
+  }
+  const byIndex = (idx) => {
+    const pt = landmarks[idx]
+    if (pt && Number.isFinite(pt.x) && Number.isFinite(pt.y)) return pt
+    // Sparse / id-keyed lists
+    const found = landmarks.find((p) => p && (p.id === idx || p.index === idx))
+    if (found && Number.isFinite(found.x) && Number.isFinite(found.y)) return found
+    return null
+  }
+  return FEATURE_PREVIEW_CALLOUTS.map((c) => {
+    const pt = byIndex(FEATURE_PREVIEW_LANDMARK_IDS[c.id])
+    if (!pt) return { ...c }
+    return {
+      id: c.id,
+      x: Math.min(0.92, Math.max(0.08, pt.x)),
+      y: Math.min(0.92, Math.max(0.08, pt.y)),
+    }
+  })
+}
+
+/**
+ * Map normalized image coords → container fraction under object-fit:cover + object-position:top center.
+ */
+export function mapCoverTopCenter(nx, ny, imgW, imgH, boxW, boxH) {
+  if (!imgW || !imgH || !boxW || !boxH) return { x: nx, y: ny }
+  const scale = Math.max(boxW / imgW, boxH / imgH)
+  const dispW = imgW * scale
+  const dispH = imgH * scale
+  const ox = (boxW - dispW) / 2
+  const oy = 0
+  return {
+    x: (nx * imgW * scale + ox) / boxW,
+    y: (ny * imgH * scale + oy) / boxH,
+  }
+}
+
+function normalizeTreatmentItem(item) {
+  if (!item) return { name: '—', detail: '' }
+  if (typeof item === 'string') return { name: item, detail: '' }
+  return {
+    name: item.name || '—',
+    detail: item.detail || '',
+  }
+}
+
+function phaseHasContent(phase) {
+  return Boolean(phase?.title && Array.isArray(phase?.items) && phase.items.length > 0)
+}
+
+function attachPhaseLabels(phases, t) {
+  const out = {}
+  TREATMENT_PHASE_KEYS.forEach((key) => {
+    const phase = phases[key]
+    if (!phase) return
+    out[key] = {
+      ...phase,
+      label: t(`executiveSummary.phases.${key}.label`),
+      items: (phase.items || []).map(normalizeTreatmentItem),
+    }
+  })
+  return out
+}
+
+function buildTreatmentPhaseFallback(dash, t) {
+  const miniCards = dash?.miniCards || []
+  const zoneLabels = miniCards.slice(0, 3).map((card) => t(`nav.${card.id}`))
+
+  const phase01Items = miniCards.slice(0, 3).map((card) => {
+    const finding = (card.findings || []).find((f) => f?.title)
+    return {
+      name: finding?.title || t(`nav.${card.id}`),
+      detail: finding?.detail || card.scoreLabel || t('executiveSummary.phases.fallback.itemDetailDefault'),
+    }
+  })
+  if (phase01Items.length === 0) {
+    phase01Items.push({
+      name: t('executiveSummary.phases.fallback.phase01.items.0.name'),
+      detail: t('executiveSummary.phases.fallback.phase01.items.0.detail'),
+    })
+  }
+
+  const phases = {
+    phase01: {
+      title: t('executiveSummary.phases.fallback.phase01.title'),
+      duration: t('executiveSummary.phases.fallback.phase01.duration'),
+      items: phase01Items,
+    },
+  }
+
+  const summary = t('executiveSummary.phases.fallback.summary', {
+    zones: zoneLabels.length ? zoneLabels.join(', ') : t('executiveSummary.phases.fallback.zonesDefault'),
+    score: dash?.overallScore != null ? String(dash.overallScore) : '—',
+  })
+
+  return { phases: attachPhaseLabels(phases, t), summary, source: 'fallback' }
+}
+
+/**
+ * LLM treatment phases from protocolNarrative, or CV-driven clinical fallback
+ * when phase01 is missing (favorable baseline + priority-region refinements).
+ */
+export function resolveTreatmentPhases({ protocolNarrative, dash, t }) {
+  const stored = protocolNarrative?.treatmentPhases
+  if (stored && phaseHasContent(stored.phase01)) {
+    return {
+      phases: attachPhaseLabels(stored, t),
+      summary: stored.summary || null,
+      source: 'llm',
+    }
+  }
+  return buildTreatmentPhaseFallback(dash, t)
 }

@@ -2,11 +2,17 @@
 
 import { useEffect } from 'react'
 import { useRouter } from '../../../i18n/navigation'
-import DashboardPage from '../../../components/DashboardPage'
+import CustomerOverviewDashboard from '../../../components/CustomerOverviewDashboard'
+import PaymentSuccessPage from '../../../components/PaymentSuccessPage'
 import { AppBootScreen } from '../../../components/AppBootScreen'
 import { useApp } from '../../../components/providers/AppProvider'
 import { adminTabToPath } from '../../../utils/adminPanel'
+import { ROUTES } from '../../../utils/routes'
 
+/**
+ * Customer home — `/dashboard` (protocol overview).
+ * Admins redirect to `/dashboard/admin-overview`. Stripe return lands here too.
+ */
 export default function DashboardRoutePage() {
   const router = useRouter()
   const {
@@ -15,14 +21,22 @@ export default function DashboardRoutePage() {
     hasAnalysisAccess,
     accessReady,
     startNewAnalysis,
-    openHistory,
-    openBilling,
-    viewCloudAssessment,
-    openingReportId,
+    resumeDraftAnalysis,
+    startStripeCheckout,
+    startAnalysisAfterPayment,
+    billingMessage,
+    paymentReturn,
+    grantPaidAccess,
+    refreshAnalysisAccess,
+    openAuth,
   } = useApp()
 
   useEffect(() => {
-    if (!authReady || !user) return
+    if (!authReady) return
+    if (!user) {
+      router.replace(ROUTES.auth)
+      return
+    }
     if (user.role === 'admin') {
       router.replace(adminTabToPath('overview'))
     }
@@ -36,16 +50,33 @@ export default function DashboardRoutePage() {
     return <AppBootScreen withNavbarOffset />
   }
 
+  if (paymentReturn) {
+    return (
+      <PaymentSuccessPage
+        user={user}
+        sessionId={paymentReturn?.sessionId}
+        onAuth={openAuth}
+        onStartAnalysis={startAnalysisAfterPayment}
+        onRetryCheckout={startStripeCheckout}
+        onAccessRefresh={refreshAnalysisAccess}
+        onPaymentConfirmed={grantPaidAccess}
+      />
+    )
+  }
+
+  if (!accessReady) {
+    return <AppBootScreen withNavbarOffset />
+  }
+
   return (
-    <DashboardPage
+    <CustomerOverviewDashboard
       user={user}
       hasAnalysisAccess={hasAnalysisAccess}
       accessReady={accessReady}
       onStartAssessment={startNewAnalysis}
-      onHistory={openHistory}
-      onBilling={openBilling}
-      onViewCloudItem={viewCloudAssessment}
-      openingReportId={openingReportId}
+      onResumeDraft={resumeDraftAnalysis}
+      onStartCheckout={startStripeCheckout}
+      billingMessage={billingMessage}
     />
   )
 }

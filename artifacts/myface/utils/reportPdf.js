@@ -1,4 +1,4 @@
-import { defaultPdfT, createPdfTranslator } from './pdfI18n'
+import { defaultPdfT, createPdfTranslator, createReportTranslator } from './pdfI18n'
 import { jsPDF } from 'jspdf'
 import { normalizeToJpegDataUrl } from './aestheticProjection'
 import {
@@ -19,8 +19,9 @@ import {
   buildClosingRecommendations,
   buildFeaturePages,
   buildProtocolContents,
+  buildProtocolDashboardData,
   DISCLAIMER_PARAGRAPHS,
-  formatProtocolEditionLabel,
+  formatProtocolId,
   formatProtocolMonth,
   getClientName,
   getFeatureComparisonData,
@@ -28,16 +29,24 @@ import {
   LIMITATIONS_PARAGRAPH,
   PRIVACY_PARAGRAPHS,
   QOVES_PROTOCOL_FEATURES,
+  resolveTreatmentPhases,
+  resolveFeaturePreviewCallouts,
+  mapCoverTopCenter,
   UNDERSTANDING_RESULTS,
 } from './qovesProtocolModel'
 
 // MyFace theme tokens (docs/design/theme.md)
 const BRAND = { r: 94, g: 159, b: 139 }
+const MINT_BG = { r: 232, g: 243, b: 240 }
+/** Page-1 dashboard canvas — light grey like interactive overview chrome (#F8F9FA). */
+const PAGE1_BG = { r: 248, g: 249, b: 250 }
 const SLATE = { r: 55, g: 65, b: 81 }
+const FACE_MAP_BG = { r: 139, g: 154, b: 163 }
 const INK = { r: 17, g: 24, b: 39 }
 const MUTED = { r: 107, g: 114, b: 128 }
 const SURFACE_WARM = { r: 250, g: 251, b: 253 }
-const SUMMARY_BG = { r: 55, g: 65, b: 81 }
+const SUMMARY_BG = { r: 219, g: 238, b: 232 } // brand-100 mint (#dbeee8) — feature summary cards/bars
+
 const PAGE_W = 595.28
 const PAGE_H = 841.89
 const MARGIN = 48
@@ -203,6 +212,21 @@ function wrapText(doc, text, x, y, maxWidth, lineHeight = 13) {
   return y + lines.length * lineHeight
 }
 
+function wrapTextMaxLines(doc, text, x, y, maxWidth, lineHeight = 8.5, maxLines = 6) {
+  const safe = sanitizePdfText(text || '')
+  if (!safe) return y
+  const lines = doc.splitTextToSize(safe, maxWidth)
+  const shown = lines.slice(0, maxLines)
+  shown.forEach((line, i) => {
+    let out = sanitizePdfText(line)
+    if (i === maxLines - 1 && lines.length > maxLines) {
+      out = out.length > 3 ? `${out.slice(0, Math.max(0, out.length - 1))}…` : `${out}…`
+    }
+    doc.text(out, x, y + i * lineHeight)
+  })
+  return y + shown.length * lineHeight
+}
+
 function drawSplitTitle(doc, x, y, primary, secondary, size = 26) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(size)
@@ -242,7 +266,9 @@ function createCoverCropSession() {
 
   return {
     async warm(urls) {
-      const unique = [...new Set(urls.filter(Boolean))]
+      const unique = [...new Set(
+        (urls || []).filter((url) => typeof url === 'string' && url.trim()),
+      )]
       await Promise.all(
         unique.map(async (url) => {
           if (imgByUrl.has(url)) return
@@ -490,10 +516,11 @@ function drawSummaryCard(
   doc.roundedRect(x, cardY, w, cardH, 6, 6, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  setWhite(doc)
+  setInk(doc)
   doc.text(title, x + pad, cardY + 16)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
+  setInk(doc)
   visible.forEach((line, i) => {
     doc.text(line, x + pad, cardY + titleBlock + 6 + i * lineH)
   })
@@ -596,10 +623,11 @@ function drawSummaryBar(doc, y, title, summary) {
   doc.roundedRect(MARGIN, barY, CONTENT_W, barH, 6, 6, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  setWhite(doc)
+  setInk(doc)
   doc.text(title, MARGIN + 12, barY + 16)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
+  setInk(doc)
   summaryLines.slice(0, 4).forEach((line, i) => {
     doc.text(line, MARGIN + 140, barY + 16 + i * lineH)
   })
@@ -694,6 +722,16 @@ function drawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profile
 
 function drawRadarChart(doc, cx, cy, rMax, items) {
   const numAxes = items.length
+  if (!numAxes) return
+
+  const axisScore = (item) => {
+    const n = Number(item?.score)
+    return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0
+  }
+  const axisProjected = (item) => {
+    const n = Number(item?.projected)
+    return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : axisScore(item)
+  }
   
   // 1. Draw concentric background polygons (gridlines at 20%, 40%, 60%, 80%, 100%)
   doc.setLineWidth(0.5)
@@ -750,7 +788,7 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
   const clientPts = []
   items.forEach((item, i) => {
     const angle = (i * 2 * Math.PI) / numAxes - Math.PI / 2
-    const dist = rMax * (item.score / 100)
+    const dist = rMax * (axisScore(item) / 100)
     clientPts.push({ x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) })
   })
   
@@ -766,7 +804,7 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
   const projectedPts = []
   items.forEach((item, i) => {
     const angle = (i * 2 * Math.PI) / numAxes - Math.PI / 2
-    const dist = rMax * (item.projected / 100)
+    const dist = rMax * (axisProjected(item) / 100)
     projectedPts.push({ x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) })
   })
   
@@ -1328,6 +1366,769 @@ function drawEarsFeaturePage(doc, section, pageNum, beforeJpeg) {
   drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, 'Ear Summary', section.summary)
 }
 
+function reportFeatureCopy(pdfMessages, zoneKey, field) {
+  return pdfMessages?.Report?.executiveSummary?.featureRows?.[zoneKey]?.[field] ?? zoneKey
+}
+
+function reportPhaseCopy(pdfMessages, phaseKey, field) {
+  return pdfMessages?.Report?.executiveSummary?.phases?.[phaseKey]?.[field] ?? ''
+}
+
+function reportPhaseItem(pdfMessages, phaseKey, index) {
+  return pdfMessages?.Report?.executiveSummary?.phases?.[phaseKey]?.items?.[String(index)] ?? ''
+}
+
+function drawCompactRadarChart(doc, boxX, boxY, boxW, boxH, items) {
+  const numAxes = items.length
+  if (!numAxes) return
+
+  const axisScore = (item) => {
+    const n = Number(item?.score)
+    return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0
+  }
+
+  const cx = boxX + boxW / 2
+  const cy = boxY + boxH / 2 + 2
+  const rMax = Math.min(boxW, boxH) / 2 - 16
+
+  doc.setLineWidth(0.4)
+  doc.setDrawColor(229, 231, 235)
+  ;[0.4, 0.7, 1].forEach((scale) => {
+    const pts = []
+    for (let i = 0; i < numAxes; i++) {
+      const angle = (i * 2 * Math.PI) / numAxes - Math.PI / 2
+      pts.push([cx + rMax * scale * Math.cos(angle), cy + rMax * scale * Math.sin(angle)])
+    }
+    for (let i = 0; i < numAxes; i++) {
+      const p1 = pts[i]
+      const p2 = pts[(i + 1) % numAxes]
+      doc.line(p1[0], p1[1], p2[0], p2[1])
+    }
+  })
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(5)
+  items.forEach((item, i) => {
+    const angle = (i * 2 * Math.PI) / numAxes - Math.PI / 2
+    const xLine = cx + rMax * Math.cos(angle)
+    const yLine = cy + rMax * Math.sin(angle)
+    doc.line(cx, cy, xLine, yLine)
+    const cosVal = Math.cos(angle)
+    const xLabel = cx + (rMax + 10) * cosVal
+    const yLabel = cy + (rMax + 10) * Math.sin(angle) + 2
+    let align = 'center'
+    if (cosVal > 0.15) align = 'left'
+    else if (cosVal < -0.15) align = 'right'
+    setMuted(doc)
+    doc.text(item.label, xLabel, yLabel, { align })
+  })
+
+  const pts = items.map((item, i) => {
+    const angle = (i * 2 * Math.PI) / numAxes - Math.PI / 2
+    const dist = rMax * (axisScore(item) / 100)
+    return { x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) }
+  })
+
+  doc.setDrawColor(BRAND.r, BRAND.g, BRAND.b)
+  doc.setLineWidth(1.2)
+  for (let i = 0; i < numAxes; i++) {
+    const p1 = pts[i]
+    const p2 = pts[(i + 1) % numAxes]
+    doc.line(p1.x, p1.y, p2.x, p2.y)
+  }
+}
+
+function drawPanel(doc, x, y, w, h, radius = 4, fillRgb = null) {
+  const fill = fillRgb || { r: 249, g: 250, b: 251 }
+  doc.setFillColor(fill.r, fill.g, fill.b)
+  if (fillRgb) doc.setDrawColor(200, 220, 214)
+  else doc.setDrawColor(236, 236, 236)
+  doc.setLineWidth(0.4)
+  doc.roundedRect(x, y, w, h, radius, radius, 'FD')
+}
+
+/** Page 1 — light-grey protocol dashboard (header + body; no action buttons). */
+function drawProtocolDashboardPage1(doc, ctx) {
+  const {
+    t,
+    pdfMessages,
+    clientName,
+    protocolId,
+    reportDate,
+    photoJpeg,
+    overviewAfterJpeg,
+    cvReport,
+    metrics,
+    answers,
+    eyeAnalysis,
+    protocolNarrative,
+    aiNarrative,
+    miniPreviews = {},
+    featurePageById = {},
+    createdAt = null,
+    updatedAt = null,
+    landmarks = null,
+  } = ctx
+
+  const dash = buildProtocolDashboardData({
+    cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt,
+  })
+  const reportT = createReportTranslator(pdfMessages)
+  const treatment = resolveTreatmentPhases({ protocolNarrative, dash, t: reportT })
+  const firstName = clientName.split(/\s+/)[0] || clientName
+  const overviewText = protocolNarrative?.summary
+    || aiNarrative?.content?.summary
+    || ''
+  const miniLinks = []
+
+  // Full-page light grey (no mint frame / brand hairline)
+  doc.setFillColor(PAGE1_BG.r, PAGE1_BG.g, PAGE1_BG.b)
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F')
+
+  const pad = 22
+  const innerRight = PAGE_W - pad
+  const headerH = 36
+
+  // Soft-grey header bar — PROTOCOL | meta left, MyFace centered, empty right (no buttons)
+  doc.setFillColor(238, 240, 243)
+  doc.rect(0, 0, PAGE_W, headerH, 'F')
+  doc.setDrawColor(220, 223, 228)
+  doc.setLineWidth(0.5)
+  doc.line(0, headerH, PAGE_W, headerH)
+
+  const headerY = Math.round(headerH / 2) + 2
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  setInk(doc)
+  doc.text(t('dashProtocol'), pad, headerY)
+  const protocolLabelW = doc.getTextWidth(t('dashProtocol'))
+  doc.setDrawColor(209, 213, 219)
+  doc.setLineWidth(0.5)
+  doc.line(pad + protocolLabelW + 5, headerY - 4, pad + protocolLabelW + 5, headerY + 2)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  setMuted(doc)
+  doc.text(`${clientName}  #${protocolId}  ${reportDate}`, pad + protocolLabelW + 12, headerY)
+
+  const logoDataUrl = ctx.brandWordmarkDataUrl
+  if (logoDataUrl) {
+    const logoH = 12
+    const logoW = 48
+    try {
+      doc.addImage(logoDataUrl, 'PNG', PAGE_W / 2 - logoW / 2, headerY - 9, logoW, logoH)
+    } catch {
+  doc.setFont('helvetica', 'bold')
+      doc.setFontSize(13)
+  setInk(doc)
+      doc.text('MyFace', PAGE_W / 2, headerY - 1, { align: 'center' })
+    }
+  } else {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    setInk(doc)
+    doc.text('MyFace', PAGE_W / 2, headerY - 1, { align: 'center' })
+  }
+
+  let y = headerH + 22
+
+  // KPI strip — labels/units muted/ink; numeric values brand green
+  const kpiGap = 8
+  const kpiW = (innerRight - pad - kpiGap * 2) / 3
+  const kpiH = 48
+  const evaluatedFull = dash.evaluatedPoints != null
+      ? t('dashKpiEvaluatedValue', { count: dash.evaluatedPoints })
+    : null
+  const splitLeadingNum = (text) => {
+    if (text == null) return null
+    // Keep trailing + with the number (e.g. "468+ points")
+    const m = String(text).match(/^(\d[\d,]*\+?)(.*)$/)
+    if (!m) return [{ text: String(text), brand: false }]
+    const parts = [{ text: m[1], brand: true }]
+    if (m[2]) parts.push({ text: m[2], brand: false })
+    return parts
+  }
+  const kpiRows = [
+    {
+      label: t('dashKpiOverall'),
+      parts: dash.overallScore != null
+        ? [
+            { text: String(dash.overallScore), brand: true },
+            { text: ' / 100', brand: false },
+          ]
+        : null,
+    },
+    {
+      label: t('dashKpiEvaluated'),
+      parts: splitLeadingNum(evaluatedFull),
+    },
+    {
+      label: t('dashKpiAnalysisTime'),
+      parts: dash.analysisTimeDays != null
+        ? [
+            { text: String(dash.analysisTimeDays), brand: true },
+            { text: dash.analysisTimeDays === 1 ? ' day' : ' days', brand: false },
+          ]
+        : null,
+    },
+  ]
+  kpiRows.forEach(({ label, parts }, i) => {
+    const kx = pad + i * (kpiW + kpiGap)
+    drawPanel(doc, kx, y, kpiW, kpiH, 5)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    setMuted(doc)
+    doc.text(label, kx + 8, y + 15)
+    doc.setFontSize(13)
+    let vx = kx + 8
+    if (!parts) {
+    setInk(doc)
+      doc.text('—', vx, y + 36)
+      return
+    }
+    parts.forEach(({ text, brand }) => {
+      if (brand) setBrand(doc)
+      else setInk(doc)
+      doc.text(text, vx, y + 36)
+      vx += doc.getTextWidth(text)
+    })
+  })
+  y += kpiH + 18
+
+  const footerY = PAGE_H - 18
+  const bodyBottom = footerY - 12
+  const colGap = 10
+  const innerW = innerRight - pad
+  // Left a bit wider for hero copy; right a bit narrower for treatment phases
+  const leftW = Math.round(innerW * 0.30)
+  const rightW = Math.round(innerW * 0.24)
+  const centerW = innerW - leftW - rightW - colGap * 2
+  const leftX = pad
+  const centerX = leftX + leftW + colGap
+  const rightX = centerX + centerW + colGap
+
+  // Name / protocol plate — same box size; first name + protocol + assessed + overall score
+  const namePlateW = leftW
+  const namePlateH = Math.round(leftW * 0.72)
+  const treatmentTop = y
+  doc.setFillColor(FACE_MAP_BG.r, FACE_MAP_BG.g, FACE_MAP_BG.b)
+  doc.roundedRect(leftX, y, namePlateW, namePlateH, 8, 8, 'F')
+  const plateCx = leftX + namePlateW / 2
+  // Pack four lines into the fixed plate height (centered stack, no box resize)
+  const plateMid = y + namePlateH / 2
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  setWhite(doc)
+  doc.text(firstName, plateCx, plateMid - 14, { align: 'center' })
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(5)
+  doc.setTextColor(255, 255, 255)
+  doc.text(
+    reportT('executiveSummary.protocolIdLine', { id: protocolId }),
+    plateCx,
+    plateMid - 3,
+    { align: 'center' },
+  )
+  doc.setFontSize(4.5)
+  doc.setTextColor(235, 238, 240)
+  doc.text(
+    reportT('executiveSummary.namePlateAssessed', { date: reportDate }),
+    plateCx,
+    plateMid + 7,
+    { align: 'center' },
+  )
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(5)
+  setWhite(doc)
+  doc.text(
+    dash.overallScore != null
+      ? reportT('executiveSummary.namePlateOverallScore', { score: dash.overallScore })
+      : '—',
+    plateCx,
+    plateMid + 16,
+    { align: 'center' },
+  )
+  y += namePlateH + 8
+
+  // Hero — mirrors FeatureAnalysisHero: copy | portrait, metrics full-width below
+  const heroH = 168
+  const heroW = leftW
+  doc.setFillColor(255, 255, 255)
+  doc.setDrawColor(229, 231, 235)
+  doc.setLineWidth(0.5)
+  doc.roundedRect(leftX, y, heroW, heroH, 7, 7, 'FD')
+  const heroPad = 7
+  const metricsBandH = 28
+  const topBandH = heroH - metricsBandH - heroPad
+  const heroImgW = Math.round((heroW - heroPad * 3) * 0.42)
+  const heroImgH = topBandH - 2
+  const heroImgX = leftX + heroW - heroPad - heroImgW
+  const heroImgY = y + heroPad
+  const heroTextX = leftX + heroPad
+  const heroTextW = Math.max(36, heroImgX - heroTextX - heroPad)
+
+  const heroPrefix = reportT('executiveSummary.heroTitlePrefix')
+  const heroAccent = reportT('executiveSummary.heroTitleAccent')
+  let textY = y + heroPad + 9
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  const titleOneLine = `${heroPrefix} ${heroAccent}`
+  if (doc.getTextWidth(sanitizePdfText(titleOneLine)) <= heroTextW) {
+    setInk(doc)
+    doc.text(sanitizePdfText(heroPrefix), heroTextX, textY)
+    const pw = doc.getTextWidth(`${sanitizePdfText(heroPrefix)} `)
+    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.text(sanitizePdfText(heroAccent), heroTextX + pw, textY)
+    textY += 10
+  } else {
+    setInk(doc)
+    doc.text(sanitizePdfText(heroPrefix), heroTextX, textY)
+    textY += 9
+    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+    const accentLines = doc.splitTextToSize(sanitizePdfText(heroAccent), heroTextW)
+    doc.text(accentLines[0] || heroAccent, heroTextX, textY)
+    textY += 10
+  }
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(5)
+  setMuted(doc)
+  textY = wrapTextMaxLines(
+    doc,
+    reportT('executiveSummary.heroBody'),
+    heroTextX,
+    textY + 1,
+    heroTextW,
+    6,
+    3,
+  )
+
+  textY += 5
+  for (let i = 0; i < 3; i += 1) {
+    const featTitle = reportT(`executiveSummary.heroFeatures.${i}.title`)
+    const featDetail = reportT(`executiveSummary.heroFeatures.${i}.detail`)
+    const cy = textY + 2
+    const featTextW = heroTextW - 12
+    doc.setFillColor(219, 238, 232)
+    doc.circle(heroTextX + 3.5, cy, 3.5, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(5)
+    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.text(String(i + 1), heroTextX + 3.5, cy + 1.5, { align: 'center' })
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(5.5)
+    setInk(doc)
+    const titleParts = doc.splitTextToSize(sanitizePdfText(featTitle), featTextW)
+    doc.text(titleParts[0] || featTitle, heroTextX + 10, cy + 1)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(4.5)
+    setMuted(doc)
+    const detailParts = doc.splitTextToSize(sanitizePdfText(featDetail), featTextW)
+    doc.text(detailParts[0] || featDetail, heroTextX + 10, cy + 7)
+    textY += 14
+  }
+
+  doc.setFillColor(232, 240, 238)
+  doc.setDrawColor(229, 231, 235)
+  doc.roundedRect(heroImgX, heroImgY, heroImgW, heroImgH, 5, 5, 'FD')
+  let imgNatW = 0
+  let imgNatH = 0
+  if (photoJpeg) {
+    try {
+      const props = doc.getImageProperties(photoJpeg)
+      imgNatW = props.width
+      imgNatH = props.height
+      addPdfImage(doc, photoJpeg, heroImgX + 1, heroImgY + 1, heroImgW - 2, heroImgH - 2, true)
+    } catch {
+      /* mint fill */
+    }
+  }
+  const faceMapKey = {
+    forehead: 'dashFaceMapForehead',
+    eyes: 'dashFaceMapEyes',
+    nose: 'dashFaceMapNose',
+    mouth: 'dashFaceMapMouth',
+  }
+  const callouts = resolveFeaturePreviewCallouts(landmarks)
+  const boxW = heroImgW - 2
+  const boxH = heroImgH - 2
+  callouts.forEach((c) => {
+    const mapped = imgNatW && imgNatH
+      ? mapCoverTopCenter(c.x, c.y, imgNatW, imgNatH, boxW, boxH)
+      : { x: c.x, y: c.y }
+    const ax = heroImgX + 1 + mapped.x * boxW
+    const ay = heroImgY + 1 + mapped.y * boxH
+    const lx = heroImgX + heroImgW - 3
+    doc.setFillColor(255, 255, 255)
+    doc.circle(ax, ay, 1.1, 'F')
+    doc.setDrawColor(255, 255, 255)
+    doc.setLineWidth(0.35)
+    doc.line(ax, ay, lx, ay)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(3.5)
+    setInk(doc)
+    const label = t(faceMapKey[c.id] || 'dashFaceMapNose')
+    const tw = doc.getTextWidth(label) + 3
+    doc.setFillColor(255, 255, 255)
+    doc.setDrawColor(229, 231, 235)
+    doc.setLineWidth(0.3)
+    doc.roundedRect(lx - tw, ay - 2.4, tw, 5, 1.5, 1.5, 'FD')
+    doc.text(label, lx - 1.5, ay + 1, { align: 'right' })
+  })
+
+  // Metrics band — same labels/values as interactive hero summary row
+  const metricTop = y + heroH - metricsBandH
+  doc.setDrawColor(229, 231, 235)
+  doc.setLineWidth(0.4)
+  doc.line(leftX + heroPad, metricTop, leftX + heroW - heroPad, metricTop)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(4)
+  setMuted(doc)
+  doc.text(reportT('executiveSummary.heroSummaryLabel').toUpperCase(), leftX + heroPad, metricTop + 7)
+  const metricVals = [
+    [
+      dash.overallScore != null ? `${dash.overallScore} / 100` : '—',
+      t('dashKpiOverall'),
+    ],
+    [
+      dash.evaluatedPoints
+        ? t('dashKpiEvaluatedValue', { count: dash.evaluatedPoints })
+        : '—',
+      t('dashKpiEvaluated'),
+    ],
+    [
+      dash.analysisTimeDays
+        ? (dash.analysisTimeDays === 1 ? '1 day' : `${dash.analysisTimeDays} days`)
+        : '—',
+      t('dashKpiAnalysisTime'),
+    ],
+  ]
+  const metricColW = (heroW - heroPad * 2) / 3
+  metricVals.forEach(([value, label], i) => {
+    const mx = leftX + heroPad + i * metricColW
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    setInk(doc)
+    const clipped = String(value)
+    doc.text(clipped.length > 14 ? `${clipped.slice(0, 13)}…` : clipped, mx, metricTop + 18)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(4)
+    setMuted(doc)
+    doc.text(label, mx, metricTop + 24)
+  })
+
+  y += heroH + 12
+
+  const bodyH = bodyBottom - y
+  const bodyTop = y
+
+  // ── Left column: priority mini cards (same column as name + hero) ──
+  let miniY = bodyTop
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6)
+  setMuted(doc)
+  doc.text(reportT('executiveSummary.priorityFeatures'), leftX, miniY)
+  miniY += 8
+  const miniGap = 3
+  const miniCards = dash.miniCards?.length ? dash.miniCards : []
+  const availableMiniH = Math.max(0, bodyBottom - miniY)
+  // Content-sized cards — no equal-height stretch (avoids empty whitespace)
+  const estimateCardH = (card) => {
+    const findings = (card.findings || []).filter((f) => f?.title).slice(0, 3)
+    let h = 10 // padding / title row
+    h += 8
+    if (card.scoreLabel) h += 6
+    if (findings.length) {
+      h += 6
+      h += findings.length * 8
+    }
+    return h + 4
+  }
+  let totalEst = miniCards.reduce((sum, c) => sum + estimateCardH(c), 0)
+    + Math.max(0, miniCards.length - 1) * miniGap
+  if (totalEst > availableMiniH && miniCards.length) {
+    // Content already compact without thumbs — no further thumb shrink needed
+    totalEst = miniCards.reduce((sum, c) => sum + estimateCardH(c), 0)
+      + Math.max(0, miniCards.length - 1) * miniGap
+  }
+  miniCards.forEach((card) => {
+    const findings = (card.findings || []).filter((f) => f?.title).slice(0, 3)
+    let cardH = estimateCardH(card)
+    const remaining = bodyBottom - miniY
+    if (remaining < 28) return
+    cardH = Math.min(cardH, remaining)
+    drawPanel(doc, leftX, miniY, leftW, cardH, 3)
+    let textY = miniY + 10
+    const miniTitle = card.title
+      || pdfMessages?.Report?.executiveSummary?.miniCards?.[card.id]?.title
+      || card.id
+    const miniTitleText = String(miniTitle)
+    const scoreText = card.score ? String(card.score) : ''
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6)
+    setInk(doc)
+    doc.text(miniTitleText, leftX + 5, textY)
+    if (scoreText) {
+      doc.text(scoreText, leftX + leftW - 5, textY, { align: 'right' })
+    }
+    textY += 7
+    if (card.scoreLabel && textY < miniY + cardH - 2) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(5)
+      setMuted(doc)
+      doc.text(String(card.scoreLabel), leftX + leftW - 5, textY, { align: 'right' })
+      textY += 5
+    }
+    if (findings.length && textY < miniY + cardH - 4) {
+      doc.setDrawColor(229, 231, 235)
+      doc.line(leftX + 5, textY, leftX + leftW - 5, textY)
+      textY += 6
+      findings.forEach((finding) => {
+        if (textY > miniY + cardH - 3) return
+        const key = String(finding.title || '')
+        const val = finding.detail != null && finding.detail !== '' ? String(finding.detail) : '—'
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(5)
+        setInk(doc)
+        doc.text(key, leftX + 5, textY)
+        doc.setFont('helvetica', 'normal')
+        setMuted(doc)
+        doc.text(val, leftX + leftW - 5, textY, { align: 'right' })
+        textY += 7
+      })
+    }
+    const pageNumber = featurePageById[card.id] || card.pdfPage
+    if (pageNumber) {
+      miniLinks.push({ x: leftX, y: miniY, w: leftW, h: cardH, pageNumber })
+    }
+    miniY += cardH + miniGap
+  })
+
+  // ── Center column (proportional stack) ──
+  let cy = treatmentTop
+  const pairGap = 6
+  // Center column height from name plate top down — fills beside hero + priority
+  const pairH = Math.round((bodyBottom - treatmentTop) * 0.29)
+  const halfW = (centerW - pairGap) / 2
+  drawImageFrame(doc, centerX, cy, halfW, pairH, photoJpeg, t('dashBefore'), { cover: true, gap: 0, pdfT: t })
+  drawImageFrame(doc, centerX + halfW + pairGap, cy, halfW, pairH, overviewAfterJpeg, t('dashPotential'), { cover: true, gap: 0, pdfT: t })
+  cy += pairH + 8
+
+  const ageH = 58
+  drawPanel(doc, centerX, cy, centerW, ageH)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  setMuted(doc)
+  doc.text(t('dashFacialAgeVsBio'), centerX + 8, cy + 11)
+  const faceAge = dash.faceAge
+  const bioLabel = dash.bioAgeLabel || null
+  const bounds = dash.bioAgeBounds
+  doc.setFontSize(14)
+  setInk(doc)
+  doc.text(faceAge != null ? String(faceAge) : '—', centerX + 8, cy + 28)
+  doc.setFontSize(5.5)
+  setMuted(doc)
+  doc.text(t('dashFace'), centerX + 8, cy + 35)
+  doc.setFontSize(bioLabel && bioLabel.length > 3 ? 11 : 14)
+  doc.setTextColor(120, 120, 120)
+  doc.text(bioLabel || '—', centerX + 48, cy + 28)
+  doc.setFontSize(5.5)
+  setMuted(doc)
+  doc.text(t('dashBio'), centerX + 48, cy + 35)
+
+  // Age bar: questionnaire range ± pad; facial age marker (outlier if outside input range)
+  if (bounds?.lo != null && bounds?.hi != null) {
+    const padYrs = 5
+    let axisMin = bounds.lo - padYrs
+    let axisMax = bounds.hi + padYrs
+    if (faceAge != null) {
+      axisMin = Math.min(axisMin, faceAge - 2)
+      axisMax = Math.max(axisMax, faceAge + 2)
+    }
+    if (axisMax <= axisMin) axisMax = axisMin + 10
+    const barX = centerX + 8
+    const barW = centerW - 16
+    const barY = cy + 44
+    const toX = (val) => barX + ((val - axisMin) / (axisMax - axisMin)) * barW
+    doc.setFillColor(241, 245, 249)
+    doc.roundedRect(barX, barY, barW, 3, 1.5, 1.5, 'F')
+    const rangeX = toX(bounds.lo)
+    const rangeW = Math.max(2, toX(bounds.hi) - rangeX)
+    doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
+    // light brand band for input range
+    doc.setFillColor(168, 217, 203)
+    doc.roundedRect(rangeX, barY, rangeW, 3, 1.5, 1.5, 'F')
+    if (faceAge != null) {
+      const isOutlier = faceAge < bounds.lo || faceAge > bounds.hi
+      const fx = toX(faceAge)
+      if (isOutlier) doc.setFillColor(245, 158, 11)
+      else doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
+      doc.circle(fx, barY + 1.5, 2.2, 'F')
+    doc.setFont('helvetica', 'bold')
+      doc.setFontSize(5)
+      if (isOutlier) doc.setTextColor(180, 83, 9)
+      else doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+      const faceLabel = isOutlier ? `${faceAge} · ${t('dashAgeOutlier')}` : String(faceAge)
+      doc.text(faceLabel, fx, barY - 2, { align: 'center' })
+    }
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(4.5)
+    setMuted(doc)
+    doc.text(String(Math.round(axisMin)), barX, barY + 10)
+    doc.text(bioLabel || `${bounds.lo}–${bounds.hi}`, barX + barW / 2, barY + 10, { align: 'center' })
+    doc.text(String(Math.round(axisMax)), barX + barW, barY + 10, { align: 'right' })
+  }
+  cy += ageH + 8
+
+  const stackH = bodyBottom - cy - 16
+  const graphH = Math.floor(stackH * (1 / 3.35))
+  const overviewH = Math.floor(stackH * (1.35 / 3.35))
+  const tableH = stackH - graphH - overviewH
+
+  drawPanel(doc, centerX, cy, centerW, graphH)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  setMuted(doc)
+  doc.text(t('dashHarmonyProfile'), centerX + 8, cy + 12)
+  const radarBoxW = Math.min(98, Math.round(centerW * 0.42))
+  const radarItems = [
+    { label: 'Sym', score: dash.radarScores.symmetry },
+    { label: 'Smo', score: dash.radarScores.smoothness },
+    { label: 'Jaw', score: dash.radarScores.jawline },
+    { label: 'Skin', score: dash.radarScores.skin },
+    { label: 'Vol', score: dash.radarScores.volume },
+    { label: 'Har', score: dash.radarScores.harmony },
+  ]
+  const hasRadar = radarItems.some((item) => item.score != null)
+  if (hasRadar) {
+    drawCompactRadarChart(doc, centerX + (centerW - radarBoxW) / 2, cy + 14, radarBoxW, graphH - 22, radarItems)
+  } else {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    setMuted(doc)
+    doc.text('—', centerX + centerW / 2, cy + graphH / 2 + 2, { align: 'center' })
+  }
+  cy += graphH + 8
+
+  drawPanel(doc, centerX, cy, centerW, overviewH)
+  const overviewLineH = 7.5
+  const overviewMaxLines = Math.max(4, Math.floor((overviewH - 28) / overviewLineH))
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  setMuted(doc)
+  doc.text(t('dashOverview'), centerX + 8, cy + 12)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6.5)
+  setInk(doc)
+  wrapTextMaxLines(doc, overviewText || '—', centerX + 8, cy + 22, centerW - 16, overviewLineH, overviewMaxLines)
+  cy += overviewH + 8
+
+  drawPanel(doc, centerX, cy, centerW, tableH)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  setMuted(doc)
+  doc.text(t('dashFeatureEvaluation'), centerX + 8, cy + 12)
+  const colZone = centerX + 8
+  const colFinding = centerX + Math.round(centerW * 0.28)
+  const colRef = centerX + Math.round(centerW * 0.58)
+  ;[t('dashZone'), t('dashFinding'), t('dashReference')].forEach((h, i) => {
+    doc.text(h, [colZone, colFinding, colRef][i], cy + 24)
+  })
+  let rowY = cy + 34
+  const rowStep = Math.min(11, Math.floor((tableH - 38) / Math.max(1, dash.featureRows.length)))
+  dash.featureRows.forEach((row) => {
+    const finding = row.finding || '—'
+    const ref = row.ref || '—'
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6)
+    setInk(doc)
+    doc.text(reportFeatureCopy(pdfMessages, row.zoneKey, 'zone'), colZone, rowY)
+    doc.setFont('helvetica', 'normal')
+    setMuted(doc)
+    doc.text(finding.length > 28 ? `${finding.slice(0, 27)}…` : finding, colFinding, rowY)
+    doc.text(ref.length > 22 ? `${ref.slice(0, 21)}…` : ref, colRef, rowY)
+    rowY += rowStep
+  })
+
+  // ── Right column: treatment protocol (aligned with name plate, not below hero) ──
+  const treatmentTitleBaseline = treatmentTop + 7
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  setMuted(doc)
+  doc.text(t('dashTreatmentProtocol'), rightX, treatmentTitleBaseline)
+  let ry = treatmentTitleBaseline + 12
+
+  const phaseKeys = ['phase01', 'phase02', 'phase03'].filter((k) => treatment.phases?.[k])
+  const phaseGap = 5
+  const itemLineH = 9
+  const phaseHeaderH = 38
+  const phasePadBottom = 8
+  phaseKeys.forEach((phaseKey) => {
+    const phase = treatment.phases?.[phaseKey]
+    const items = (phase?.items || []).slice(0, 3)
+    const rowCount = Math.max(items.length, 1)
+    // Content-sized cards (do not stretch a single phase to fill the column)
+    const phaseCardH = phaseHeaderH + rowCount * itemLineH + phasePadBottom
+    const remaining = bodyBottom - ry - 40
+    if (remaining < 36) return
+    const drawH = Math.min(phaseCardH, remaining)
+
+    doc.setFillColor(255, 255, 255)
+    doc.setDrawColor(236, 236, 236)
+    doc.roundedRect(rightX, ry, rightW, drawH, 4, 4, 'FD')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6)
+    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.text(phase?.label || reportPhaseCopy(pdfMessages, phaseKey, 'label'), rightX + 6, ry + 10)
+    doc.setFontSize(7.5)
+    setInk(doc)
+    const title = phase?.title || '—'
+    doc.text(title.length > 34 ? `${title.slice(0, 33)}…` : title, rightX + 6, ry + 20)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6)
+    setMuted(doc)
+    const duration = phase?.duration || '—'
+    doc.text(duration.length > 38 ? `${duration.slice(0, 37)}…` : duration, rightX + 6, ry + 28)
+    doc.setDrawColor(236, 236, 236)
+    doc.line(rightX + 6, ry + 32, rightX + rightW - 6, ry + 32)
+    doc.setFontSize(6)
+    setInk(doc)
+    for (let i = 0; i < rowCount; i += 1) {
+      const itemY = ry + 40 + i * itemLineH
+      if (itemY > ry + drawH - 4) break
+      const item = items[i]
+      const line = item
+        ? `· ${item.name}${item.detail ? `: ${item.detail}` : ''}`
+        : '· —'
+      const clipped = line.length > 52 ? `${line.slice(0, 51)}…` : line
+      doc.text(clipped, rightX + 6, itemY)
+    }
+    ry += drawH + phaseGap
+  })
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(5.5)
+  setMuted(doc)
+  if (treatment.summary && ry < bodyBottom - 12) {
+    wrapText(doc, treatment.summary, rightX, ry + 2, rightW, 7)
+  }
+
+  // Footer
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6)
+  setMuted(doc)
+  doc.text('—', pad, footerY)
+  doc.text(
+    t('dashFooterMetrics', {
+      points: String(dash.evaluatedPoints || '—'),
+    }),
+    innerRight,
+    footerY,
+    { align: 'right' },
+  )
+
+  return { miniLinks }
+}
+
 function triggerBlobDownload(blob, filename) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -1352,8 +2153,12 @@ export async function buildMyFacePdf({
   eyeAnalysis,
   aiNarrative,
   user = null,
+  assessmentOwner = null,
   projectedAfter = null,
   projectedAnalysis = null,
+  assessmentId = null,
+  createdAt = null,
+  updatedAt = null,
   pdfT = defaultPdfT,
   pdfMessages = null,
 }) {
@@ -1462,9 +2267,8 @@ export async function buildMyFacePdf({
   const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
   let pageNum = 1
   let y = 0
-  const clientName = getClientName(answers, user)
+  const clientName = getClientName(answers, user, assessmentOwner)
   const monthLabel = formatProtocolMonth()
-  const editionLabel = formatProtocolEditionLabel()
   const closingParagraphs = buildClosingRecommendations(
     aiNarrative,
     cvReport,
@@ -1476,62 +2280,41 @@ export async function buildMyFacePdf({
   const chartItems = getFeatureComparisonData(cvReport)
 
   try {
-  // ── Page 1: Cover — simple dark background, no photo ──
-  doc.setFillColor(INK.r, INK.g, INK.b)
-  doc.rect(0, 0, PAGE_W, PAGE_H, 'F')
-  
-  // Top Header Line & Brand
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  setWhite(doc)
-  doc.text(t('brandHeader'), MARGIN, 72)
-  
-  doc.setDrawColor(58, 74, 90) // accent dark blue-gray line
-  doc.setLineWidth(1)
-  doc.line(MARGIN, 85, PAGE_W - MARGIN, 85)
-  
-  // Center-Left Title
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(38)
-  doc.setTextColor(255, 255, 255)
-  doc.text(t('coverAesthetic'), MARGIN, 370)
+  const protocolId = formatProtocolId(assessmentId)
+  const reportDateSource = updatedAt || createdAt
+  const reportDateMs = reportDateSource ? Date.parse(reportDateSource) : NaN
+  const reportDate = Number.isFinite(reportDateMs)
+    ? new Date(reportDateMs).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '—'
 
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(181, 199, 211)
-  doc.text(t('coverProtocol'), MARGIN, 415)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(180, 190, 200)
-  doc.text(t('preparedFor'), MARGIN, 480)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  doc.setTextColor(255, 255, 255)
-  doc.text(clientName.toUpperCase(), MARGIN, 498)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(180, 190, 200)
-  doc.text(t('edition'), MARGIN + 220, 480)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  doc.setTextColor(255, 255, 255)
-  doc.text(editionLabel.toUpperCase(), MARGIN + 220, 498)
-
-  // Bottom Footer
-  doc.setDrawColor(58, 74, 90)
-  doc.setLineWidth(1)
-  doc.line(MARGIN, PAGE_H - 80, PAGE_W - MARGIN, PAGE_H - 80)
-  
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(140, 150, 160)
-  doc.text(t('siteUrl'), MARGIN, PAGE_H - 62)
-
-  doc.setFont('helvetica', 'normal')
-  doc.text(t('coverFooter'), PAGE_W - MARGIN, PAGE_H - 62, { align: 'right' })
-
-  // Increment page count
+  // ── Page 1: Protocol dashboard (mint clinical overview) ──
+  const featurePageById = Object.fromEntries(sectionPairs.map((s, i) => [s.id, 6 + i]))
+  const miniPreviews = Object.fromEntries(
+    sectionPairs.map((s) => [
+      s.id,
+      s.imageSlots?.preview || s.imageSlots?.pairBefore || s.beforeJpeg || featureImages[s.id]?.before || photoJpeg,
+    ]),
+  )
+  const { miniLinks = [] } = drawProtocolDashboardPage1(doc, {
+    t,
+    pdfMessages,
+    clientName,
+    protocolId,
+    reportDate,
+    photoJpeg,
+    overviewAfterJpeg,
+    cvReport,
+    metrics,
+    answers,
+    eyeAnalysis,
+    protocolNarrative,
+    aiNarrative,
+    miniPreviews,
+    featurePageById,
+    createdAt,
+    updatedAt,
+    landmarks,
+  }) || {}
   pageNum++
 
   // ── Page 2: Disclaimer + Privacy (two columns) ──
@@ -1841,6 +2624,16 @@ export async function buildMyFacePdf({
     }
     pageNum++ // Increment page count for each feature page
     featurePageNum += 1
+  }
+
+  // Dashboard mini-cards → feature page GoTo links (after pages exist)
+  if (miniLinks.length) {
+    const lastPage = doc.getNumberOfPages()
+    doc.setPage(1)
+    miniLinks.forEach(({ x, y, w, h, pageNumber }) => {
+      doc.link(x, y, w, h, { pageNumber })
+    })
+    doc.setPage(lastPage)
   }
 
   // ── Page 16: Closing Recommendations (two columns) ──

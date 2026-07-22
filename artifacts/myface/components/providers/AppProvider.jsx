@@ -14,16 +14,18 @@ import {
   stageToPath,
   adminTabToPath,
   stripLocaleFromPath,
+  isReportModalHostPath,
 } from '../../utils/routes'
-import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser } from '../../utils/authClient'
-import { isBackendApiEnabled, confirmStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, isFullCloudAssessment, submitAssessment } from '../../utils/apiClient'
+import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser, saveSession } from '../../utils/authClient'
+import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMyAssessments, isFullCloudAssessment, submitAssessment } from '../../utils/apiClient'
 import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
 import { dedupeAssessments } from '../../utils/assessmentDedupe'
-import { isAssessmentProcessing } from '../../utils/reportWorkflow'
+import { isAssessmentProcessing, userReportReady } from '../../utils/reportWorkflow'
 import { createHistoryId } from '../../utils/historyStorage'
 import { userHasAnalysisAccess } from '../../utils/paymentAccess'
+import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../../utils/withTimeout'
 import { DEV_SAMPLE_QUESTIONNAIRE_ANSWERS } from '../../utils/devSampleAnswers'
 
 const EMPTY_PHOTOS = {
@@ -56,7 +58,6 @@ export function AppProvider({ children }) {
   const [photos, setPhotos] = useState(EMPTY_PHOTOS)
   const [analysis, setAnalysis] = useState(null)
   const [historyId, setHistoryId] = useState(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   const [hasAnalysisAccess, setHasAnalysisAccess] = useState(false)
@@ -69,6 +70,9 @@ export function AppProvider({ children }) {
   const [questionnaireStartAtEnd, setQuestionnaireStartAtEnd] = useState(false)
   const [analysisStep, setAnalysisStep] = useState(ANALYSIS_STEPS.WELCOME)
   const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [reportSectionId, setReportSectionId] = useState('intro')
+  /** PDF actions while report modal is open — set by Report.jsx */
+  const [reportToolbar, setReportToolbar] = useState(null)
   const [openingReportId, setOpeningReportId] = useState(null)
   /** Full GET assessment used to open the report — reused by Report (no re-fetch). */
   const [cloudAssessment, setCloudAssessment] = useState(null)
@@ -81,6 +85,9 @@ export function AppProvider({ children }) {
   })
   const activeScanIdRef = useRef(null)
   const bootstrappedRef = useRef(false)
+  const prevPathnameRef = useRef(null)
+  const pathnameRef = useRef(pathname)
+  const accessCheckedOnceRef = useRef(false)
   const userRef = useRef(user)
   const adminCacheRef = useRef({ assessments: null, payments: null, users: null })
   const adminInflightRef = useRef(new Set())
@@ -190,16 +197,20 @@ export function AppProvider({ children }) {
     userRef.current = user
   }, [user])
 
+  useEffect(() => {
+    pathnameRef.current = pathname
+  }, [pathname])
+
   const primaryPhoto = photos.front
 
   const goTo = useCallback((path, { replace = false } = {}) => {
     const legacy = resolveLegacyPath(path)
     const target = legacy || path
-    if (target !== pathname) {
+    if (target !== pathnameRef.current) {
       if (replace) router.replace(target)
       else router.push(target)
     }
-  }, [pathname, router])
+  }, [router])
 
   const goToStage = useCallback((stage, { replace = false } = {}) => {
     goTo(stageToPath(stage), { replace })
@@ -208,9 +219,31 @@ export function AppProvider({ children }) {
   const openReportModal = useCallback(() => setReportModalOpen(true), [])
   const closeReportModal = useCallback(() => {
     setReportModalOpen(false)
+    setReportSectionId('intro')
     setHistoryId(null)
     setCloudAssessment(null)
   }, [])
+
+  /** Open modal on /report (or admin tab); navigate there first from overview/other routes. */
+  const openReportModalOnRoute = useCallback(() => {
+    if (!isReportModalHostPath(pathnameRef.current)) {
+      goTo(ROUTES.report)
+    }
+    openReportModal()
+  }, [goTo, openReportModal])
+
+  useEffect(() => {
+    if (prevPathnameRef.current === null) {
+      prevPathnameRef.current = pathname
+      return
+    }
+    const prev = prevPathnameRef.current
+    if (prev === pathname) return
+    if (reportModalOpen && isReportModalHostPath(prev) && !isReportModalHostPath(pathname)) {
+      closeReportModal()
+    }
+    prevPathnameRef.current = pathname
+  }, [pathname, reportModalOpen, closeReportModal])
 
   const resetAnalysisFlow = useCallback(() => {
     setAnalysisStep(ANALYSIS_STEPS.WELCOME)
@@ -323,24 +356,14 @@ export function AppProvider({ children }) {
       const sid = sessionId || localStorage.getItem(PAYMENT_SESSION_KEY)
       if (sid) localStorage.setItem(PAYMENT_SESSION_KEY, sid)
       setPaymentReturn({ provider: 'stripe', sessionId: sid })
-      setReturnPath(ROUTES.billing)
-      goTo(ROUTES.billing, { replace: true })
+      setReturnPath(ROUTES.dashboard)
+      goTo(ROUTES.dashboard, { replace: true })
       restored = true
-      if (sid && storedUser && isBackendApiEnabled()) confirmStripeCheckout(sid).catch(() => {})
     } else if (payment === 'stripe-cancel') {
       setBillingMessage('Payment was cancelled. You can restart checkout when ready.')
       setReturnPath(ROUTES.dashboard)
-      goTo(ROUTES.billing, { replace: true })
+      goTo(ROUTES.dashboard, { replace: true })
       restored = true
-    }
-
-    if (!restored && localStorage.getItem(PAYMENT_SESSION_KEY)) {
-      const sid = localStorage.getItem(PAYMENT_SESSION_KEY)
-      setPaymentReturn({ provider: 'stripe', sessionId: sid })
-      setReturnPath(ROUTES.billing)
-      goTo(ROUTES.billing, { replace: true })
-      restored = true
-      if (sid && storedUser && isBackendApiEnabled()) confirmStripeCheckout(sid).catch(() => {})
     }
 
     if (!restored && isKnownAppPath(currentPath)) {
@@ -355,6 +378,7 @@ export function AppProvider({ children }) {
     }
 
     bootstrappedRef.current = true
+    const bootPath = currentPath
 
     fetchCurrentUser()
       .then((currentUser) => {
@@ -364,7 +388,10 @@ export function AppProvider({ children }) {
         if (roleChanged || sessionCleared) {
           localStorage.removeItem(STAGE_STORAGE_KEY)
           clearAdminTab()
-          goTo(dashboardPathForUser(resolved), { replace: true })
+          const stillOnBootPath = stripLocaleFromPath(window.location.pathname) === bootPath
+          if (sessionCleared || stillOnBootPath) {
+            goTo(resolved ? dashboardPathForUser(resolved) : ROUTES.auth, { replace: true })
+          }
         }
         setUser(resolved)
       })
@@ -401,17 +428,79 @@ export function AppProvider({ children }) {
     if (!isBackendApiEnabled()) {
       setHasAnalysisAccess(false)
       setAccessReady(true)
+      accessCheckedOnceRef.current = true
       return
     }
-    setAccessReady(false)
+    if (!accessCheckedOnceRef.current) {
+      setAccessReady(false)
+    }
     try {
-      setHasAnalysisAccess(await userHasAnalysisAccess(subject))
+      const allowed = await withTimeout(
+        userHasAnalysisAccess(subject),
+        DEFAULT_FETCH_TIMEOUT_MS,
+        'Payment access check timed out',
+      )
+      setHasAnalysisAccess(allowed)
     } catch {
       setHasAnalysisAccess(false)
     } finally {
+      accessCheckedOnceRef.current = true
       setAccessReady(true)
     }
   }, [])
+
+  // Never strand the UI if auth/access checks hang (cold backend, stale Stripe session, etc.)
+  useEffect(() => {
+    if (authReady && accessReady) return undefined
+    const timer = setTimeout(() => {
+      if (!authReady) {
+        setUser(getAuthToken() ? getStoredUser() : null)
+        setAuthReady(true)
+      }
+      setAccessReady(true)
+    }, 18000)
+    return () => clearTimeout(timer)
+  }, [authReady, accessReady])
+
+  const grantPaidAccess = useCallback(() => {
+    localStorage.removeItem(PAYMENT_SESSION_KEY)
+    setHasAnalysisAccess(true)
+    setAccessReady(true)
+  }, [])
+
+  // Restore Stripe return session after refresh / race, then confirm + unlock access
+  useEffect(() => {
+    if (!authReady) return
+    if (!paymentReturn) {
+      const sid = localStorage.getItem(PAYMENT_SESSION_KEY)
+      if (sid && sid.startsWith('cs_')) {
+        setPaymentReturn({ provider: 'stripe', sessionId: sid })
+      }
+      return
+    }
+    const sid = paymentReturn.sessionId
+    if (!sid || !user || !isBackendApiEnabled()) {
+      if (user) refreshAnalysisAccess(user)
+      return undefined
+    }
+    let cancelled = false
+    withTimeout(confirmStripeCheckout(sid), DEFAULT_FETCH_TIMEOUT_MS, 'Stripe confirm timed out')
+      .then(async (result) => {
+        if (cancelled) return
+        const status = String(result?.payment?.status || '').toLowerCase()
+        if (['paid', 'complete', 'completed'].includes(status)) {
+          setHasAnalysisAccess(true)
+          setAccessReady(true)
+        }
+        await refreshAnalysisAccess(user)
+      })
+      .catch(() => {
+        if (!cancelled) refreshAnalysisAccess(user)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [authReady, user, paymentReturn, refreshAnalysisAccess])
 
   useEffect(() => {
     if (!authReady) return
@@ -476,11 +565,52 @@ export function AppProvider({ children }) {
     goTo(ROUTES.history)
   }, [pathname, goTo])
 
+  const dismissPaymentReturn = useCallback(() => {
+    localStorage.removeItem(PAYMENT_SESSION_KEY)
+    setPaymentReturn(null)
+  }, [])
+
+  const clearPaymentSession = useCallback(() => {
+    localStorage.removeItem(PAYMENT_SESSION_KEY)
+  }, [])
+
   const openBilling = useCallback(() => {
+    // Customer billing page is deprecated — unpaid users pay via Stripe Checkout from /dashboard.
     setBillingMessage('')
-    setReturnPath(pathname)
-    goTo(ROUTES.billing)
-  }, [pathname, goTo])
+    dismissPaymentReturn()
+    goTo(ROUTES.dashboard)
+  }, [goTo, dismissPaymentReturn])
+
+  const startStripeCheckout = useCallback(async () => {
+    if (!user) {
+      goTo(ROUTES.auth)
+      return
+    }
+    trackEvent('checkout_start', { provider: 'stripe', planId: 'myface_report' })
+    const result = await createStripeCheckout()
+    if (result?.checkoutUrl) {
+      window.location.href = result.checkoutUrl
+      return
+    }
+    throw new Error('Stripe checkout URL missing')
+  }, [user, goTo])
+
+  const resumeDraftAnalysis = useCallback((draft) => {
+    if (!draft?.id) return
+    setAnswers(draft.answers || INITIAL_ANSWERS)
+    setPhotos(hydratePhotosFromAssessment(draft))
+    setDraftAssessmentId(draft.id)
+    const sid = draft.scanId || createHistoryId()
+    activeScanIdRef.current = sid
+    setScanId(sid)
+    draftPromiseRef.current = Promise.resolve(draft.id)
+    setAnalysis(null)
+    setHistoryId(null)
+    setSubmitError('')
+    setQuestionnaireStartAtEnd(false)
+    goTo(ROUTES.analysis)
+    setAnalysisStep(ANALYSIS_STEPS.UPLOAD)
+  }, [goTo])
 
   const openAuth = useCallback(() => {
     goTo(ROUTES.auth)
@@ -529,10 +659,9 @@ export function AppProvider({ children }) {
       goTo(ROUTES.auth)
       return
     }
-    localStorage.removeItem(PAYMENT_SESSION_KEY)
-    setPaymentReturn(null)
+    dismissPaymentReturn()
     refreshAnalysisAccess().then(() => startNewAnalysis())
-  }, [user, startNewAnalysis, refreshAnalysisAccess])
+  }, [user, startNewAnalysis, refreshAnalysisAccess, dismissPaymentReturn])
 
   /**
    * Finalize the already-uploaded draft: enqueue the pipeline and drop the user on
@@ -563,7 +692,7 @@ export function AppProvider({ children }) {
     setPreparingAssessmentId(null)
     resetAnalysisFlow()
     openReportModal()
-    goTo(ROUTES.history)
+    goTo(ROUTES.report)
     trackEvent('assessment_complete', {
       success: true,
       provider: 'backend',
@@ -580,6 +709,7 @@ export function AppProvider({ children }) {
     clearSession()
     setUser(null)
     setHasAnalysisAccess(false)
+    accessCheckedOnceRef.current = false
     setAccessReady(true)
     localStorage.removeItem(STAGE_STORAGE_KEY)
     localStorage.removeItem(PAYMENT_SESSION_KEY)
@@ -602,50 +732,108 @@ export function AppProvider({ children }) {
     if (pathname === ROUTES.billing && (paymentReturn || localStorage.getItem(PAYMENT_SESSION_KEY))) {
       const sid = localStorage.getItem(PAYMENT_SESSION_KEY)
       if (sid) setPaymentReturn({ provider: 'stripe', sessionId: sid })
-      if (sid && isBackendApiEnabled()) confirmStripeCheckout(sid).catch(() => {})
       await refreshAnalysisAccess(nextUser)
+      goTo(ROUTES.dashboard, { replace: true })
       return
     }
     await refreshAnalysisAccess(nextUser)
     goTo(ROUTES.dashboard, { replace: true })
   }, [pathname, goTo, paymentReturn, refreshAnalysisAccess])
 
+  const updateSessionUser = useCallback((nextUser) => {
+    setUser(nextUser)
+    const token = getAuthToken()
+    if (token && nextUser) saveSession({ token, user: nextUser })
+  }, [])
+
   const viewHistoryItem = useCallback((id) => {
     setHistoryId(id)
     setAnalysis(null)
-    openReportModal()
-  }, [openReportModal])
+    openReportModalOnRoute()
+  }, [openReportModalOnRoute])
 
-  const viewCloudAssessment = useCallback(async (assessment) => {
+  const viewCloudAssessment = useCallback(async (assessment, sectionId = 'intro') => {
+    const originPath = pathnameRef.current
+    if (sectionId) setReportSectionId(sectionId)
     if (isAssessmentProcessing(assessment)) {
       alert('This analysis is still being prepared. Check back shortly from your dashboard.')
       return
     }
     if (!assessment?.id || !isBackendApiEnabled()) {
+      if (pathnameRef.current !== originPath) return
       hydrateFromCloudAssessment(assessment)
       setCloudAssessment(null)
-      openReportModal()
+      openReportModalOnRoute()
       return
     }
-    // Admin (and other callers) may already pass a full GET payload — skip a second fetch.
-    if (isFullCloudAssessment(assessment)) {
-      hydrateFromCloudAssessment(assessment)
-      setCloudAssessment(assessment)
-      openReportModal()
+    // Reuse in-memory full GET only for the same assessment; list summaries always refetch.
+    if (cloudAssessment?.id === assessment.id && isFullCloudAssessment(cloudAssessment)) {
+      if (pathnameRef.current !== originPath) return
+      hydrateFromCloudAssessment(cloudAssessment)
+      openReportModalOnRoute()
       return
     }
     setOpeningReportId(assessment.id)
     try {
       const full = await fetchAssessment(assessment.id)
+      if (pathnameRef.current !== originPath) return
       hydrateFromCloudAssessment(full)
       setCloudAssessment(full)
-      openReportModal()
+      openReportModalOnRoute()
     } catch (err) {
-      alert(err?.message || 'Could not load report')
+      if (pathnameRef.current === originPath) {
+        alert(err?.message || 'Could not load report')
+      }
     } finally {
       setOpeningReportId(null)
     }
-  }, [hydrateFromCloudAssessment, openReportModal])
+  }, [hydrateFromCloudAssessment, openReportModalOnRoute, cloudAssessment])
+
+  /** Navbar: open latest ready cloud report at a report section (overview / aiVisuals / beautyAssistant). */
+  const openReportSection = useCallback(async (sectionId = 'intro') => {
+    const originPath = pathnameRef.current
+    setReportSectionId(sectionId)
+    if (reportModalOpen && (cloudAssessment || analysis)) {
+      return
+    }
+    if (!user || user.role === 'admin') {
+      if (pathnameRef.current !== originPath) return
+      goTo(ROUTES.report)
+      return
+    }
+    if (!hasAnalysisAccess) {
+      if (pathnameRef.current !== originPath) return
+      goTo(ROUTES.dashboard)
+      return
+    }
+    try {
+      if (!isBackendApiEnabled()) {
+        if (pathnameRef.current !== originPath) return
+        goTo(ROUTES.dashboard)
+        return
+      }
+      const items = await fetchMyAssessments(20)
+      if (pathnameRef.current !== originPath) return
+      const ready = items.find((item) => userReportReady(item)) || items[0]
+      if (!ready) {
+        goTo(ROUTES.dashboard)
+        return
+      }
+      await viewCloudAssessment(ready, sectionId)
+    } catch (err) {
+      if (pathnameRef.current !== originPath) return
+      alert(err?.message || 'Could not open report')
+      goTo(ROUTES.dashboard)
+    }
+  }, [
+    reportModalOpen,
+    cloudAssessment,
+    analysis,
+    user,
+    hasAnalysisAccess,
+    viewCloudAssessment,
+    goTo,
+  ])
 
   const skipQuestionnaireWithSampleData = useCallback(() => {
     setAnswers(DEV_SAMPLE_QUESTIONNAIRE_ANSWERS)
@@ -680,8 +868,9 @@ export function AppProvider({ children }) {
     setPhotos,
     analysis,
     historyId,
-    settingsOpen,
-    setSettingsOpen,
+    dismissPaymentReturn,
+    clearPaymentSession,
+    grantPaidAccess,
     returnPath,
     billingMessage,
     paymentReturn,
@@ -694,6 +883,10 @@ export function AppProvider({ children }) {
     setQuestionnaireStartAtEnd,
     analysisStep,
     reportModalOpen,
+    reportSectionId,
+    setReportSectionId,
+    reportToolbar,
+    setReportToolbar,
     openingReportId,
     cloudAssessment,
     setCloudAssessment,
@@ -704,11 +897,15 @@ export function AppProvider({ children }) {
     openDashboard,
     openHistory,
     openBilling,
+    startStripeCheckout,
     openAuth,
+    openReportSection,
     startNewAnalysis,
+    resumeDraftAnalysis,
     startAnalysisAfterPayment,
     logout,
     handleAuthenticated,
+    updateSessionUser,
     viewHistoryItem,
     viewCloudAssessment,
     adminWorkspace,
@@ -734,14 +931,14 @@ export function AppProvider({ children }) {
     resetAnalysisFlow,
   }), [
     user, authReady, hasAnalysisAccess, accessReady, refreshAnalysisAccess,
-    answers, photos, analysis, historyId, settingsOpen, returnPath,
+    answers, photos, analysis, historyId, dismissPaymentReturn, clearPaymentSession, grantPaidAccess, returnPath,
     billingMessage, paymentReturn, logoutConfirmOpen, scanId,
     adminWorkspace,
-    questionnaireStartAtEnd, analysisStep, reportModalOpen, openingReportId, cloudAssessment, primaryPhoto, pathname,
+    questionnaireStartAtEnd, analysisStep, reportModalOpen, reportSectionId, reportToolbar, openingReportId, cloudAssessment, primaryPhoto, pathname,
     preparingAssessmentId, draftAssessmentId, submitError,
-    goTo, goToStage, openDashboard, openHistory, openBilling, openAuth, startNewAnalysis,
+    goTo, goToStage, openDashboard, openHistory, openBilling, startStripeCheckout, openAuth, openReportSection, startNewAnalysis, resumeDraftAnalysis,
     startAnalysisAfterPayment, logout,
-    handleAuthenticated, viewHistoryItem, viewCloudAssessment,
+    handleAuthenticated, updateSessionUser, viewHistoryItem, viewCloudAssessment,
     adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace,
     skipQuestionnaireWithSampleData, handleLogo,
     openReportModal, closeReportModal, goToWelcome, goToQuestionnaire,

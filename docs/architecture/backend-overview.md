@@ -11,7 +11,7 @@ Python FastAPI service for MyFace. It runs computer vision on uploaded photos, s
 ```
 Photos + questionnaire
   → POST /api/assessments (validate + persist + enqueue)
-  → pipeline worker: analyze_face → NL enrichment → face parsing → projected_after
+  → pipeline worker: analyze_face → NL enrichment → face parsing → projected_after → ai_visuals
   → Report UI / browser PDF / Beauty Assistant
   → Admin approve → PDF download gate opens
 ```
@@ -57,7 +57,8 @@ If the backend API is disabled, the FE can run a browser-local MediaPipe path (`
 3. **narratives** — `enrich_assessment_nl_content`  
 4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (torch/torchvision/transformers are core deps installed from `requirements.txt`; the stage disables gracefully via `face_parsing_enabled()` only if they are somehow absent or `FACE_PARSING_ENABLED=false`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
 5. **projected_after** — **generative** AFTER image via `projected_after_ai.generate_projected_after_bytes` → `image_client` (fixed best-groomed makeover prompt, ADR-034) → `projected_after` + `projected/full.jpg` or `full.png` (skipped when `PROJECTED_AFTER_ENABLED=false`); provider unavailable/fail → status **`pending`** (retryable). On success, MediaPipe/OpenCV on that image → `projected_analysis` (BEFORE `analysis` untouched). (ADR-029, ADR-034)  
-6. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
+6. **ai_visuals** — `pipeline_stages.run_ai_visuals_stage` → `generate_visual_variants` (13 cards: 5 hair + 5 outfit + 3 aging) from projected AFTER only; soft-skips when AFTER is not `ready` (ADR-038 amendment 2026-07-21).  
+7. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
 
 ### Stage 2 — Computer vision (`analyze_face.py`)
 
