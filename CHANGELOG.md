@@ -6,13 +6,15 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Fixed
-- **Admin protocol review** — HTML protocol editor skips the client dashboard cover (PDF page 1) and opens on the editable overview section; PDF export unchanged.
+- **Treatment protocol phases LLM** — `generate_treatment_phases_async` and `generate_protocol_overview_async` now retry up to `FEATURE_NARRATIVE_MAX_ATTEMPTS` with 429 backoff (same as feature narratives) and log `WARNING` on validation/empty/rate-limit failures instead of dropping phases silently.
 - **Admin panel report actions while pipeline running** — Approve, Open, and Delete are hidden on overview/review cards until the analysis pipeline finishes (`isAssessmentProcessing`); a spinner + “Pipeline running…” label shows instead. Overview shows separate **processing** (sky) and **ready for review** (amber) banners with accurate counts.
 - **Windows `npm run dev`** — Replaced Unix-only `predev` (`lsof`/`xargs`) with cross-platform `scripts/kill-port.mjs` (Windows `netstat`/`taskkill`, Linux/Replit `lsof`/`kill`).
 - **Replit Preview Invalid hook call / hydration** — `GET /` health short-circuit was matching Next.js RSC flight requests and Preview `Accept: */*` navigations, returning `{"ok":true}` JSON instead of HTML/Flight. Middleware now only short-circuits **explicit** probes (JSON Accept, probe UA, or empty/`*/*` + non-browser UA) and always passes RSC/`text/html`/iframe traffic to the app.
 
 ### Changed
-- **Admin navbar** — Renamed overview tab to **Dashboard** (avoids confusion with report “Overview” sections). No admin tab stays highlighted while a report modal is open.
+- **Assessment limit (2 per package)** — Customers may submit at most two facial analyses. `/analysis` requires auth, payment, and eligibility; users at the limit see a subtle limit screen with a link to their report. Admins are redirected away from `/analysis`. Backend enforces the cap on draft, photo upload, submit, and legacy create endpoints (**403**).
+- **AI visuals comparison baseline** — Hair/outfit/aging sliders and aging grid use the projected AFTER portrait as the left/baseline image (labeled “Potential”) instead of the original front photo, matching AFTER-only generation.
+- **Protocol dashboard facial age** — Overview shows CV `visualAge` only (removed unused bio-age column/range from questionnaire). Shared `FacialAgePanel` keeps the same card footprint with a centered estimate on an 18–65 reference scale (interactive + PDF).
 - **Skin analysis (LAB + skin-mask)** — Backend replaces region-box brightness metrics with notebook-aligned Qoves fields (undertone, blemishing, evenness, texture, roughness/homogeneity RIN, oiliness skew, under-eye L*). `SkinReportPanel` shows those fields in the existing summary/carousel/table layout.
 
 ### Added

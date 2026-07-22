@@ -1918,65 +1918,41 @@ function drawProtocolDashboardPage1(doc, ctx) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(6.5)
   setMuted(doc)
-  doc.text(t('dashFacialAgeVsBio'), centerX + 8, cy + 11)
+  doc.text(t('dashFacialAge'), centerX + 8, cy + 11)
   const faceAge = dash.faceAge
-  const bioLabel = dash.bioAgeLabel || null
-  const bounds = dash.bioAgeBounds
   doc.setFontSize(14)
   setInk(doc)
-  doc.text(faceAge != null ? String(faceAge) : '—', centerX + 8, cy + 28)
+  const faceText = faceAge != null ? String(faceAge) : '—'
+  doc.text(faceText, centerX + centerW / 2, cy + 28, { align: 'center' })
   doc.setFontSize(5.5)
   setMuted(doc)
-  doc.text(t('dashFace'), centerX + 8, cy + 35)
-  doc.setFontSize(bioLabel && bioLabel.length > 3 ? 11 : 14)
-  doc.setTextColor(120, 120, 120)
-  doc.text(bioLabel || '—', centerX + 48, cy + 28)
-  doc.setFontSize(5.5)
-  setMuted(doc)
-  doc.text(t('dashBio'), centerX + 48, cy + 35)
+  doc.text(t('dashFacialAgeLabel'), centerX + centerW / 2, cy + 35, { align: 'center' })
 
-  // Age bar: questionnaire range ± pad; facial age marker (outlier if outside input range)
-  if (bounds?.lo != null && bounds?.hi != null) {
-    const padYrs = 5
-    let axisMin = bounds.lo - padYrs
-    let axisMax = bounds.hi + padYrs
-    if (faceAge != null) {
-      axisMin = Math.min(axisMin, faceAge - 2)
-      axisMax = Math.max(axisMax, faceAge + 2)
-    }
-    if (axisMax <= axisMin) axisMax = axisMin + 10
-    const barX = centerX + 8
-    const barW = centerW - 16
-    const barY = cy + 44
-    const toX = (val) => barX + ((val - axisMin) / (axisMax - axisMin)) * barW
-    doc.setFillColor(241, 245, 249)
-    doc.roundedRect(barX, barY, barW, 3, 1.5, 1.5, 'F')
-    const rangeX = toX(bounds.lo)
-    const rangeW = Math.max(2, toX(bounds.hi) - rangeX)
-    doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
-    // light brand band for input range
-    doc.setFillColor(168, 217, 203)
-    doc.roundedRect(rangeX, barY, rangeW, 3, 1.5, 1.5, 'F')
-    if (faceAge != null) {
-      const isOutlier = faceAge < bounds.lo || faceAge > bounds.hi
-      const fx = toX(faceAge)
-      if (isOutlier) doc.setFillColor(245, 158, 11)
-      else doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
-      doc.circle(fx, barY + 1.5, 2.2, 'F')
-    doc.setFont('helvetica', 'bold')
-      doc.setFontSize(5)
-      if (isOutlier) doc.setTextColor(180, 83, 9)
-      else doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
-      const faceLabel = isOutlier ? `${faceAge} · ${t('dashAgeOutlier')}` : String(faceAge)
-      doc.text(faceLabel, fx, barY - 2, { align: 'center' })
-    }
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(4.5)
-    setMuted(doc)
-    doc.text(String(Math.round(axisMin)), barX, barY + 10)
-    doc.text(bioLabel || `${bounds.lo}–${bounds.hi}`, barX + barW / 2, barY + 10, { align: 'center' })
-    doc.text(String(Math.round(axisMax)), barX + barW, barY + 10, { align: 'right' })
+  const axisMin = 18
+  let axisMax = 65
+  if (faceAge != null) {
+    axisMax = Math.max(axisMax, faceAge + 4)
   }
+  const barX = centerX + 8
+  const barW = centerW - 16
+  const barY = cy + 44
+  const toX = (val) => barX + ((val - axisMin) / (axisMax - axisMin)) * barW
+  doc.setFillColor(241, 245, 249)
+  doc.roundedRect(barX, barY, barW, 3, 1.5, 1.5, 'F')
+  if (faceAge != null) {
+    const fx = toX(faceAge)
+    doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.circle(fx, barY + 1.5, 2.2, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(5)
+    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.text(String(faceAge), fx, barY - 2, { align: 'center' })
+  }
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(4.5)
+  setMuted(doc)
+  doc.text(String(axisMin), barX, barY + 10)
+  doc.text(String(Math.round(axisMax)), barX + barW, barY + 10, { align: 'right' })
   cy += ageH + 8
 
   const stackH = bodyBottom - cy - 16

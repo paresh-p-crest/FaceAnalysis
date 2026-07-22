@@ -6,7 +6,7 @@ import copy
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -159,6 +159,35 @@ async def list_assessments(limit: int = 20, *, summary: bool = True) -> list[dic
         rows = result.scalars().all()
         mapper = _summary_dict if summary else _assessment_to_dict
         return [mapper(r) for r in rows]
+
+
+async def count_submitted_assessments_for_user(user_id: str) -> int:
+    uid = parse_uuid(user_id)
+    if uid is None:
+        return 0
+    async with session_scope() as session:
+        result = await session.execute(
+            select(func.count())
+            .select_from(Assessment)
+            .where(
+                Assessment.user_id == uid,
+                Assessment.status != AssessmentStatus.draft,
+                Assessment.pipeline.isnot(None),
+            )
+        )
+        return int(result.scalar() or 0)
+
+
+async def get_assessment_by_user_scan(user_id: str, scan_id: str) -> Optional[dict]:
+    uid = parse_uuid(user_id)
+    if uid is None or not scan_id:
+        return None
+    async with session_scope() as session:
+        result = await session.execute(
+            select(Assessment).where(Assessment.user_id == uid, Assessment.scan_id == scan_id)
+        )
+        row = result.scalar_one_or_none()
+        return _assessment_to_dict(row) if row else None
 
 
 async def list_assessments_for_user(user_id: str, limit: int = 20, *, summary: bool = True) -> list[dict]:

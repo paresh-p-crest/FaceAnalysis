@@ -336,7 +336,7 @@ function AgingProgressionGrid({ beforeSrc, variants, aspectRatio, t, onOpenImage
 
 /**
  * @param {string|null} activeType — when set (hair|outfit|aging), show only that category
- * @param {string|null} beforeSrc — original before/front photo for comparisons
+ * @param {string|null} beforeSrc — projected AFTER portrait URL for comparisons
  */
 export function AiVisualsSection({
   aiVisuals,

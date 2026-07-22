@@ -75,6 +75,17 @@ _RETRY_USER_HINT = (
     "Use qualitative labels from supplied cues only."
 )
 
+_PROTOCOL_OVERVIEW_RETRY_HINT = (
+    'Previous JSON failed validation. Return ONLY {"summary": "..."} with summary between '
+    "40 and 500 characters, third-person clinical tone, no numeric scores."
+)
+
+_TREATMENT_PHASES_RETRY_HINT = (
+    "Previous JSON failed validation. Return phase01, phase02, and phase03; each phase needs "
+    "title (4-80 chars), duration (4-80 chars), and 2-3 items ({name, detail} with detail "
+    "under 120 chars). Include summary (40-500 chars). Third-person clinical tone; no numeric scores."
+)
+
 def _null_path_grounding_hint(feature_id: str, ctx: dict) -> str:
     """Corrective hint when a null-path section reads as ungrounded boilerplate."""
     terms = sorted(null_path_grounding_terms(feature_id, ctx))
@@ -248,6 +259,87 @@ async def _chat_feature_with_rate_limit_backoff(
             return result
 
     return result
+
+
+async def _chat_protocol_structured(
+    *,
+    schema_name: str,
+    json_schema: dict,
+    messages: list[dict],
+    temperature: float,
+    api_key: Optional[str],
+    schema_suffix: str = "",
+) -> dict:
+    return await asyncio.to_thread(
+        chat_structured_completion,
+        schema_name=f"{schema_name}{schema_suffix}",
+        json_schema=json_schema,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
+        api_key_override=api_key,
+    )
+
+
+async def _chat_protocol_with_rate_limit_backoff(
+    *,
+    label: str,
+    schema_name: str,
+    json_schema: dict,
+    messages: list[dict],
+    temperature: float,
+    api_key: Optional[str],
+    attempt: int,
+) -> dict:
+    """Protocol-panel structured LLM call; on 429, extra tries with exponential backoff."""
+    suffix = "" if attempt == 1 else f"_retry{attempt}"
+    result = await _chat_protocol_structured(
+        schema_name=schema_name,
+        json_schema=json_schema,
+        messages=messages,
+        temperature=temperature,
+        api_key=api_key,
+        schema_suffix=suffix,
+    )
+    if not _is_rate_limit_result(result):
+        return result
+
+    for extra in range(1, FEATURE_NARRATIVE_RATE_LIMIT_RETRIES + 1):
+        delay = FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC * (2 ** (extra - 1))
+        logger.info(
+            "%s rate limited (429); backoff %ss then extra retry %s/%s",
+            label,
+            delay,
+            extra,
+            FEATURE_NARRATIVE_RATE_LIMIT_RETRIES,
+        )
+        await asyncio.sleep(delay)
+        result = await _chat_protocol_structured(
+            schema_name=schema_name,
+            json_schema=json_schema,
+            messages=messages,
+            temperature=temperature,
+            api_key=api_key,
+            schema_suffix=f"{suffix}_rl{extra}",
+        )
+        if not _is_rate_limit_result(result):
+            return result
+
+    return result
+
+
+def _parse_treatment_phases(raw: Any) -> dict:
+    from .clinical_guardrails import strip_score_language
+
+    data = TreatmentPhases.model_validate(raw).model_dump()
+    data["summary"] = strip_score_language(data.get("summary") or "")
+    for phase_key in ("phase01", "phase02", "phase03"):
+        phase = data.get(phase_key) or {}
+        for item in phase.get("items") or []:
+            if isinstance(item, dict):
+                item["name"] = strip_score_language(item.get("name") or "")
+                item["detail"] = strip_score_language(item.get("detail") or "")
+    return data
 
 
 async def generate_feature_narrative_async(
@@ -695,31 +787,67 @@ async def generate_treatment_phases_async(
             ),
         },
     ]
-    result = await asyncio.to_thread(
-        chat_structured_completion,
-        schema_name="treatment_phases",
-        json_schema=treatment_phases_json_schema(),
-        messages=messages,
-        temperature=0.35,
-        max_tokens=LLM_MAX_OUTPUT_TOKENS,
-        api_key_override=api_key,
-    )
-    if not result.get("content"):
-        return None
-    try:
-        from .clinical_guardrails import strip_score_language
 
-        data = TreatmentPhases.model_validate(result["content"]).model_dump()
-        data["summary"] = strip_score_language(data.get("summary") or "")
-        for phase_key in ("phase01", "phase02", "phase03"):
-            phase = data.get(phase_key) or {}
-            for item in phase.get("items") or []:
-                if isinstance(item, dict):
-                    item["name"] = strip_score_language(item.get("name") or "")
-                    item["detail"] = strip_score_language(item.get("detail") or "")
-        return data
-    except Exception:
-        return None
+    max_hard = max(1, FEATURE_NARRATIVE_MAX_ATTEMPTS)
+    msgs = list(messages)
+    for attempt in range(1, max_hard + 1):
+        temperature = 0.35 if attempt == 1 else 0.25
+        result = await _chat_protocol_with_rate_limit_backoff(
+            label="treatment_phases",
+            schema_name="treatment_phases",
+            json_schema=treatment_phases_json_schema(),
+            messages=msgs,
+            temperature=temperature,
+            api_key=api_key,
+            attempt=attempt,
+        )
+
+        if _is_rate_limit_result(result):
+            logger.warning(
+                "treatment_phases: rate limit after %s backoff retries; omitting from protocolNarrative",
+                FEATURE_NARRATIVE_RATE_LIMIT_RETRIES,
+            )
+            return None
+
+        raw = result.get("content")
+        if result.get("error") and not raw:
+            logger.warning(
+                "treatment_phases: LLM error / empty (attempt %s/%s): %s",
+                attempt,
+                max_hard,
+                result.get("error") or "no content",
+            )
+            if attempt < max_hard:
+                msgs = msgs + [{"role": "user", "content": _TREATMENT_PHASES_RETRY_HINT}]
+            continue
+
+        if not raw:
+            logger.warning("treatment_phases: empty content (attempt %s/%s)", attempt, max_hard)
+            if attempt < max_hard:
+                msgs = msgs + [{"role": "user", "content": _TREATMENT_PHASES_RETRY_HINT}]
+            continue
+
+        try:
+            data = _parse_treatment_phases(raw)
+            label = "LLM accepted" if attempt == 1 else f"LLM accepted (call {attempt})"
+            logger.info("treatment_phases structured: %s", label)
+            return data
+        except Exception as exc:
+            logger.warning(
+                "treatment_phases: schema validation failed (attempt %s/%s): %s",
+                attempt,
+                max_hard,
+                exc,
+            )
+            if attempt < max_hard:
+                msgs = msgs + [{"role": "user", "content": _TREATMENT_PHASES_RETRY_HINT}]
+            continue
+
+    logger.warning(
+        "treatment_phases: all %s attempts failed; omitting from protocolNarrative",
+        max_hard,
+    )
+    return None
 
 
 async def generate_protocol_overview_async(
@@ -751,24 +879,66 @@ async def generate_protocol_overview_async(
             ),
         },
     ]
-    result = await asyncio.to_thread(
-        chat_structured_completion,
-        schema_name="protocol_overview",
-        json_schema=protocol_overview_json_schema(),
-        messages=messages,
-        temperature=0.35,
-        max_tokens=LLM_MAX_OUTPUT_TOKENS,
-        api_key_override=api_key,
-    )
-    if result.get("content"):
+
+    max_hard = max(1, FEATURE_NARRATIVE_MAX_ATTEMPTS)
+    msgs = list(messages)
+    for attempt in range(1, max_hard + 1):
+        temperature = 0.35 if attempt == 1 else 0.25
+        result = await _chat_protocol_with_rate_limit_backoff(
+            label="protocol_overview",
+            schema_name="protocol_overview",
+            json_schema=protocol_overview_json_schema(),
+            messages=msgs,
+            temperature=temperature,
+            api_key=api_key,
+            attempt=attempt,
+        )
+
+        if _is_rate_limit_result(result):
+            logger.warning(
+                "protocol_overview: rate limit after %s backoff retries; using template fallback",
+                FEATURE_NARRATIVE_RATE_LIMIT_RETRIES,
+            )
+            break
+
+        raw = result.get("content")
+        if result.get("error") and not raw:
+            logger.warning(
+                "protocol_overview: LLM error / empty (attempt %s/%s): %s",
+                attempt,
+                max_hard,
+                result.get("error") or "no content",
+            )
+            if attempt < max_hard:
+                msgs = msgs + [{"role": "user", "content": _PROTOCOL_OVERVIEW_RETRY_HINT}]
+            continue
+
+        if not raw:
+            logger.warning("protocol_overview: empty content (attempt %s/%s)", attempt, max_hard)
+            if attempt < max_hard:
+                msgs = msgs + [{"role": "user", "content": _PROTOCOL_OVERVIEW_RETRY_HINT}]
+            continue
+
         try:
             from .clinical_guardrails import strip_score_language
 
-            data = ProtocolOverview.model_validate(result["content"]).model_dump()
+            data = ProtocolOverview.model_validate(raw).model_dump()
             data["summary"] = strip_score_language(data["summary"])
+            label = "LLM accepted" if attempt == 1 else f"LLM accepted (call {attempt})"
+            logger.info("protocol_overview structured: %s", label)
             return data
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "protocol_overview: schema validation failed (attempt %s/%s): %s",
+                attempt,
+                max_hard,
+                exc,
+            )
+            if attempt < max_hard:
+                msgs = msgs + [{"role": "user", "content": _PROTOCOL_OVERVIEW_RETRY_HINT}]
+            continue
+
+    logger.warning("protocol_overview: all %s attempts failed; using template fallback", max_hard)
     overall = (cv_report or {}).get("overall") or {}
     label = overall.get("scoreLabel") or "balanced"
     return {

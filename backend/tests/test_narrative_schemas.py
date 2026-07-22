@@ -132,3 +132,38 @@ def test_treatment_phases_schema_and_validation():
     }
     validated = TreatmentPhases.model_validate(sample)
     assert validated.phase01.items[0].name.startswith("Broad-spectrum")
+
+
+def test_parse_treatment_phases_normalizes():
+    from backend.narrative_orchestrator import _parse_treatment_phases
+
+    raw = {
+        "phase01": {
+            "title": "Foundation",
+            "duration": "Weeks 1-12",
+            "items": [
+                {"name": "SPF 50+", "detail": "Daily photoprotection"},
+                {"name": "Niacinamide", "detail": "Morning serum"},
+            ],
+        },
+        "phase02": {
+            "title": "Barrier",
+            "duration": "Weeks 12-24",
+            "items": [
+                {"name": "Ceramide cream", "detail": "Evening barrier"},
+                {"name": "Antioxidant", "detail": "Morning defense"},
+            ],
+        },
+        "phase03": {
+            "title": "Maintenance",
+            "duration": "6+ months",
+            "items": [
+                {"name": "Retinoid cycle", "detail": "Evenings only"},
+                {"name": "Hydration", "detail": "Daily moisture"},
+            ],
+        },
+        "summary": "Staged non-surgical plan grounded in measured priority regions and baseline harmony.",
+    }
+    parsed = _parse_treatment_phases(raw)
+    assert parsed["phase01"]["items"][0]["name"] == "SPF 50+"
+    assert len(parsed["summary"]) >= 40

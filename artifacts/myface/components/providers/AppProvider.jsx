@@ -22,9 +22,14 @@ import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
 import { dedupeAssessments } from '../../utils/assessmentDedupe'
-import { isAssessmentProcessing, userReportReady } from '../../utils/reportWorkflow'
 import { createHistoryId } from '../../utils/historyStorage'
 import { userHasAnalysisAccess } from '../../utils/paymentAccess'
+import { isAssessmentProcessing, userReportReady } from '../../utils/reportWorkflow'
+import {
+  canStartNewAssessment,
+  countSubmittedAssessments,
+  isAnalysisLimitReached,
+} from '../../utils/assessmentEligibility'
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../../utils/withTimeout'
 import { DEV_SAMPLE_QUESTIONNAIRE_ANSWERS } from '../../utils/devSampleAnswers'
 
@@ -595,8 +600,18 @@ export function AppProvider({ children }) {
     throw new Error('Stripe checkout URL missing')
   }, [user, goTo])
 
-  const resumeDraftAnalysis = useCallback((draft) => {
+  const resumeDraftAnalysis = useCallback(async (draft) => {
     if (!draft?.id) return
+    if (!user || user.role === 'admin') return
+    if (isBackendApiEnabled()) {
+      try {
+        const list = await fetchMyAssessments(20)
+        const submittedCount = countSubmittedAssessments(list)
+        if (!canStartNewAssessment({ user, submittedCount })) return
+      } catch {
+        return
+      }
+    }
     setAnswers(draft.answers || INITIAL_ANSWERS)
     setPhotos(hydratePhotosFromAssessment(draft))
     setDraftAssessmentId(draft.id)
@@ -610,7 +625,7 @@ export function AppProvider({ children }) {
     setQuestionnaireStartAtEnd(false)
     goTo(ROUTES.analysis)
     setAnalysisStep(ANALYSIS_STEPS.UPLOAD)
-  }, [goTo])
+  }, [goTo, user])
 
   const openAuth = useCallback(() => {
     goTo(ROUTES.auth)
@@ -632,6 +647,14 @@ export function AppProvider({ children }) {
         setHasAnalysisAccess(false)
         goTo(ROUTES.dashboard)
         return
+      }
+      if (isBackendApiEnabled()) {
+        const list = await fetchMyAssessments(20)
+        const submittedCount = countSubmittedAssessments(list)
+        if (isAnalysisLimitReached({ user, submittedCount })) {
+          goTo(ROUTES.report)
+          return
+        }
       }
       setBillingMessage('')
       setAnswers(INITIAL_ANSWERS)

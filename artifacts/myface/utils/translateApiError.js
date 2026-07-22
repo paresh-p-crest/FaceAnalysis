@@ -12,6 +12,14 @@ export function isApiErrorKey(message) {
  * Prefers Errors namespace translation when err.code is set; falls back to server detail.
  */
 export function translateApiError(err, tErrors) {
+  const detail = err?.detail
+  if (typeof detail === 'string' && detail.includes('Assessment limit reached')) {
+    try {
+      return tErrors('assessmentLimitReached')
+    } catch {
+      /* fall through */
+    }
+  }
   const code = err?.code
   if (code && typeof tErrors === 'function') {
     try {
@@ -20,7 +28,6 @@ export function translateApiError(err, tErrors) {
       /* missing key — fall through */
     }
   }
-  const detail = err?.detail
   if (typeof detail === 'string' && detail.trim()) return detail
   const message = err?.message
   if (typeof message === 'string' && message.trim() && !isApiErrorKey(message)) return message

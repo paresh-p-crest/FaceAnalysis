@@ -25,12 +25,14 @@ from ..protocol_service import (
     refresh_protocol_closing_for_assessment,
     regenerate_protocol_section,
 )
+from ..assessment_limits import require_assessment_slot
 from ..repositories.assessment_repository import (
     create_assessment,
     delete_all_assessment_data,
     delete_assessment,
     finalize_assessment_for_processing,
     get_assessment_by_id,
+    get_assessment_by_user_scan,
     get_latest_draft_for_user,
     list_assessments_for_user,
     list_assessments,
@@ -318,6 +320,12 @@ async def post_assessment(
             detail="Payment required before starting analysis.",
         )
 
+    existing_scan = await get_assessment_by_user_scan(current_user["id"], req.scanId) if req.scanId else None
+    if existing_scan:
+        await require_assessment_slot(current_user, assessment_id=existing_scan["id"])
+    else:
+        await require_assessment_slot(current_user)
+
     if not req.scanId:
         raise HTTPException(status_code=400, detail="scanId is required for assessment creation")
 
@@ -406,6 +414,12 @@ async def post_assessment_draft(
         )
     await _require_payment_or_admin(current_user)
 
+    existing_scan = await get_assessment_by_user_scan(current_user["id"], req.scanId) if req.scanId else None
+    if existing_scan:
+        await require_assessment_slot(current_user, assessment_id=existing_scan["id"])
+    else:
+        await require_assessment_slot(current_user)
+
     saved = await create_assessment(
         answers={},
         provider="local",
@@ -442,6 +456,8 @@ async def put_assessment_photo(
         raise HTTPException(status_code=403, detail="You do not have access to this assessment")
     if existing.get("pipeline") is not None:
         raise HTTPException(status_code=400, detail="Assessment already submitted; photos are locked")
+
+    await require_assessment_slot(current_user, assessment_id=assessment_id)
 
     data = await file.read()
     if not data:
@@ -525,6 +541,8 @@ async def post_assessment_submit(
             status_code=400,
             detail=f"Missing required photo poses: {', '.join(missing)}",
         )
+
+    await require_assessment_slot(current_user, assessment_id=assessment_id)
 
     provider = _normalize_cv_provider(req.provider)
     pipeline = new_queued_pipeline()

@@ -1,3 +1,5 @@
+import { resolveProjectedAfterUrl } from './projectedAfter'
+
 /** Coerce photo metadata or string to a usable URL (never `[object Object]`). */
 export function coercePhotoUrl(value) {
   if (!value) return null
@@ -26,6 +28,11 @@ export function resolveAssessmentFrontPhoto(assessment) {
     || coercePhotoUrl(report?.nose?.imageSrc)
     || null
   )
+}
+
+/** Projected AFTER portrait URL — baseline for AI visual comparisons (AFTER-only generation). */
+export function resolveAssessmentAiVisualsBaseline(assessment) {
+  return resolveProjectedAfterUrl(assessment?.projectedAfter)
 }
 
 /**

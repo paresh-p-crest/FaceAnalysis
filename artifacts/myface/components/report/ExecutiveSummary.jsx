@@ -15,6 +15,7 @@ import { shareReportPage } from '../../utils/reportShare'
 import { FeatureAnalysisHero } from './FeaturePreviewPortrait'
 import { NameProtocolPlate } from './NameProtocolPlate'
 import { TreatmentProtocolPhases } from './TreatmentProtocolPhases'
+import { FacialAgePanel } from './FacialAgePanel'
 
 const RADAR_AXIS_KEYS = ['symmetry', 'smoothness', 'jawline', 'skin', 'volume', 'harmony']
 
@@ -82,86 +83,6 @@ function RadarChart({ scores, t }) {
         })}
         <polygon points={clientPoints} fill="rgba(94, 159, 139, 0.12)" stroke="#5e9f8b" strokeWidth="2" />
       </svg>
-    </div>
-  )
-}
-
-function BiologicalAgeScale({ faceAge, bioAgeBounds, bioAgeLabel, t }) {
-  const face = typeof faceAge === 'number' && Number.isFinite(faceAge) ? faceAge : null
-  const lo = bioAgeBounds?.lo ?? null
-  const hi = bioAgeBounds?.hi ?? null
-  const hasRange = lo != null && hi != null
-  const bioDisplay = bioAgeLabel || (hasRange ? `${lo}–${hi}` : null)
-  const isOutlier = face != null && hasRange && (face < lo || face > hi)
-
-  // Axis: questionnaire range ± pad; expand if face sits outside so the marker stays on-line
-  const pad = 5
-  let axisMin = hasRange ? lo - pad : 20
-  let axisMax = hasRange ? hi + pad : 50
-  if (face != null) {
-    axisMin = Math.min(axisMin, face - 2)
-    axisMax = Math.max(axisMax, face + 2)
-  }
-  if (axisMax <= axisMin) axisMax = axisMin + 10
-  const getPct = (val) => ((val - axisMin) / (axisMax - axisMin)) * 100
-  const rangeLeft = hasRange ? getPct(lo) : 0
-  const rangeWidth = hasRange ? Math.max(2, getPct(hi) - getPct(lo)) : 0
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 items-end gap-3">
-        <div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{dashBlank(face)}</p>
-          <p className="text-[9px] uppercase tracking-wider text-slate-400 mt-1">{t('common.face')}</p>
-        </div>
-        <div>
-          <p className={`font-bold text-slate-400 leading-none ${bioDisplay && String(bioDisplay).length > 3 ? 'text-2xl' : 'text-3xl'}`}>
-            {bioDisplay || '—'}
-          </p>
-          <p className="text-[9px] uppercase tracking-wider text-slate-400 mt-1">{t('common.bio')}</p>
-        </div>
-      </div>
-
-      {hasRange ? (
-        <div className="relative pt-5 pb-4">
-          <div className="h-1.5 bg-slate-100 rounded-full w-full relative">
-            <div
-              className="absolute top-0 bottom-0 rounded-full bg-brand/35"
-              style={{ left: `${rangeLeft}%`, width: `${rangeWidth}%` }}
-              title={bioDisplay || undefined}
-            />
-            {face != null ? (
-              <div
-                className={`absolute -top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm ${
-                  isOutlier ? 'bg-amber-500' : 'bg-[#5e9f8b]'
-                }`}
-                style={{ left: `calc(${getPct(face)}% - 7px)` }}
-                title={isOutlier ? t('executiveSummary.ageOutlier') : String(face)}
-              />
-            ) : null}
-          </div>
-          {face != null ? (
-            <p
-              className={`absolute text-[9px] font-bold tabular-nums -top-0.5 ${
-                isOutlier ? 'text-amber-600' : 'text-brand-dark'
-              }`}
-              style={{
-                left: `${getPct(face)}%`,
-                transform: 'translateX(-50%)',
-              }}
-            >
-              {face}{isOutlier ? ` · ${t('executiveSummary.ageOutlier')}` : ''}
-            </p>
-          ) : null}
-          <div className="flex justify-between text-[8px] text-slate-400 mt-2 font-mono tabular-nums">
-            <span>{Math.round(axisMin)}</span>
-            {hasRange ? <span className="text-ink-muted">{bioDisplay || `${lo}–${hi}`}</span> : null}
-            <span>{Math.round(axisMax)}</span>
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-slate-400">—</p>
-      )}
     </div>
   )
 }
@@ -436,14 +357,9 @@ export function ExecutiveSummary({
 
           <div className="rounded-xl border border-surface-border bg-white dark:bg-surface-card p-4">
             <p className="text-[9px] font-bold uppercase tracking-wider text-ink-muted mb-2">
-              {t('executiveSummary.facialAgeVsBio')}
+              {t('executiveSummary.facialAge')}
             </p>
-            <BiologicalAgeScale
-              faceAge={dash.faceAge}
-              bioAgeBounds={dash.bioAgeBounds}
-              bioAgeLabel={dash.bioAgeLabel}
-              t={t}
-            />
+            <FacialAgePanel faceAge={dash.faceAge} t={t} />
           </div>
 
           <div className="grid grid-rows-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)] gap-4 flex-1 min-h-[360px]">

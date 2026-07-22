@@ -9,7 +9,7 @@ import {
   generateAssessmentVisuals,
   isBackendApiEnabled,
 } from '../utils/apiClient'
-import { resolveAssessmentFrontPhoto } from '../utils/assessmentPhotos'
+import { resolveAssessmentAiVisualsBaseline } from '../utils/assessmentPhotos'
 import { userReportReady } from '../utils/reportWorkflow'
 import { translateApiError } from '../utils/translateApiError'
 import { AiVisualsSection } from './AiVisualsSection'
@@ -149,7 +149,7 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
             canGenerate={canGenerate}
             activeType={activeType}
             showGenerate={isAdmin}
-            beforeSrc={resolveAssessmentFrontPhoto(assessment)}
+            beforeSrc={resolveAssessmentAiVisualsBaseline(assessment)}
           />
         </ReportDocumentLayout>
       </div>

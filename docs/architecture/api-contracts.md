@@ -164,6 +164,7 @@ Creates (or returns) an idempotent draft assessment used to collect per-pose upl
 - **Request Body:** `{ "scanId": "client-uuid" }`
 - **Idempotency:** `(userId, scanId)` reuses the existing draft.
 - **Behavior:** Creates `status = "draft"`, `pipeline = null`, `featureParsing`/`projectedAfter` pending, `photos = {}`.
+- **Rejects (403)** when the user has already submitted the maximum allowed assessments for their plan (currently **2** for non-admins). Orphan drafts cannot be resumed after the limit is reached.
 - **Response (200 OK):**
   ```json
   { "assessmentId": "uuid", "scanId": "client-uuid" }
@@ -175,6 +176,7 @@ Uploads a single pose image (original bytes) to the bucket and merges it into th
 - **Content-Type:** `multipart/form-data` with a `file` field (the raw `File`; no base64, no re-encode)
 - **`pose_id`:** one of the allowed poses (`front`, `left`, `right`, `left45`, `right45`, `smile`, `topHead`). **400** for unknown pose.
 - **Rejects (409)** if the assessment is already submitted (`pipeline` not null).
+- **Rejects (403)** when the user has reached the per-plan submitted assessment limit (non-admin).
 - **Behavior:** Reads raw bytes + sniffs content-type from magic bytes, `save_pose(...)` stores the image (always keyed `{pose_id}.jpg` for pipeline compatibility while preserving original bytes/format), updates `photos` JSONB + `photos_keys`.
 - **Response (200 OK):** The stored photo dict, e.g. `{ "pose": "front", "publicUrl": "/api/media/assessments/{id}/front.jpg", ... }`
 
@@ -189,6 +191,7 @@ Finalizes a draft and enqueues the async pipeline (no image re-upload).
 - **Auth:** Private (paid user or admin) + ownership
 - **Request Body:** `{ "answers": { ... }, "provider": "openai" }`
 - **Behavior:** Verifies all required poses are present in stored `photos` (**400** if missing), persists `answers`/`provider`, sets `pipeline = queued`. The background worker takes over.
+- **Rejects (403)** when the user has reached the per-plan submitted assessment limit (non-admin); idempotent re-submit of an already-submitted assessment is allowed.
 - **Response (200 OK):**
   ```json
   { "assessmentId": "uuid", "processing": true, "pipeline": { "status": "queued", "stage": "queued" } }

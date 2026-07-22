@@ -7,7 +7,7 @@ export function isPaidPaymentStatus(status) {
   return PAID_PAYMENT_STATUSES.includes(String(status || '').toLowerCase())
 }
 
-/** One-time payment unlocks repeat facial analysis for this account. */
+/** One-time payment unlocks up to two facial analyses per account. */
 export async function userHasAnalysisAccess(user) {
   if (!user) return false
   if (user.role === 'admin') return true

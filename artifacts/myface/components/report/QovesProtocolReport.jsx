@@ -37,6 +37,7 @@ import { BrandLogo } from '../BrandLogo'
 import { FeatureAnalysisHero } from './FeaturePreviewPortrait'
 import { NameProtocolPlate } from './NameProtocolPlate'
 import { TreatmentProtocolPhases } from './TreatmentProtocolPhases'
+import { FacialAgePanel } from './FacialAgePanel'
 
 const EVIDENCE_TIER_LABELS = {
   lifestyle: 'Routine / Topical',
@@ -751,59 +752,8 @@ export default function QovesProtocolReport({
                 </div>
               </div>
               <div className="qoves-protocol-dashboard-panel">
-                <p className="qoves-pdf-label">{t('executiveSummary.facialAgeVsBio')}</p>
-                <div className="flex gap-4 items-end text-ink mb-1.5">
-                  <div><p className="text-xl font-bold">{dash.faceAge ?? '—'}</p><p className="qoves-pdf-label">{t('common.face')}</p></div>
-                  <div><p className="text-xl font-bold text-ink-muted">{dash.bioAgeLabel ?? '—'}</p><p className="qoves-pdf-label">{t('common.bio')}</p></div>
-                </div>
-                {dash.bioAgeBounds ? (
-                  <div className="relative pt-3 pb-2">
-                    {(() => {
-                      const { lo, hi } = dash.bioAgeBounds
-                      const face = dash.faceAge
-                      const pad = 5
-                      let axisMin = lo - pad
-                      let axisMax = hi + pad
-                      if (face != null) {
-                        axisMin = Math.min(axisMin, face - 2)
-                        axisMax = Math.max(axisMax, face + 2)
-                      }
-                      const pct = (v) => ((v - axisMin) / (axisMax - axisMin)) * 100
-                      const outlier = face != null && (face < lo || face > hi)
-                      return (
-                        <>
-                          <div className="h-1 bg-slate-100 rounded-full relative">
-                            <div
-                              className="absolute inset-y-0 rounded-full bg-brand/35"
-                              style={{ left: `${pct(lo)}%`, width: `${Math.max(2, pct(hi) - pct(lo))}%` }}
-                            />
-                            {face != null ? (
-                              <div
-                                className={`absolute -top-1 w-2.5 h-2.5 rounded-full border border-white ${
-                                  outlier ? 'bg-amber-500' : 'bg-brand'
-                                }`}
-                                style={{ left: `calc(${pct(face)}% - 5px)` }}
-                              />
-                            ) : null}
-                          </div>
-                          {face != null ? (
-                            <p
-                              className={`absolute text-[6px] font-bold -top-0.5 ${outlier ? 'text-amber-600' : 'text-brand-dark'}`}
-                              style={{ left: `${pct(face)}%`, transform: 'translateX(-50%)' }}
-                            >
-                              {face}{outlier ? ` · ${t('executiveSummary.ageOutlier')}` : ''}
-                            </p>
-                          ) : null}
-                          <div className="flex justify-between text-[5px] text-ink-muted mt-1 font-mono">
-                            <span>{Math.round(axisMin)}</span>
-                            <span>{lo}–{hi}</span>
-                            <span>{Math.round(axisMax)}</span>
-                          </div>
-                        </>
-                      )
-                    })()}
-                  </div>
-                ) : null}
+                <p className="qoves-pdf-label">{t('executiveSummary.facialAge')}</p>
+                <FacialAgePanel faceAge={dash.faceAge} t={t} compact />
               </div>
               <div className="qoves-protocol-dashboard-center-stack">
                 <div className="qoves-protocol-dashboard-panel qoves-protocol-dashboard-panel--stack">

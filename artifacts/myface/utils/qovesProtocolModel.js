@@ -945,20 +945,6 @@ export function formatAgeRangeDisplay(ageRange) {
 export function buildProtocolDashboardData({ cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt }) {
   const overall = cvReport?.overall || {}
   const faceAge = metrics?.visualAge ?? overall?.visualAge ?? null
-  const ageRange = answers?.ageRange || null
-  // Prefer questionnaire age band; numeric mid only for scale/diff
-  const ageNum = (() => {
-    if (answers?.age == null || answers?.age === '') return null
-    const n = typeof answers.age === 'number' ? answers.age : parseInt(String(answers.age), 10)
-    return Number.isFinite(n) ? n : null
-  })()
-  const bioAgeBounds = parseAgeRangeBounds(ageRange)
-  const bioAge = parseAgeRangeMidpoint(ageRange)
-    ?? ageNum
-    ?? overall?.chronologicalAge
-    ?? null
-  const bioAgeLabel = formatAgeRangeDisplay(ageRange)
-    ?? (bioAge != null ? String(bioAge) : null)
   const overallScore = resolveOverallHarmonyScore({ cvReport, metrics })
   // Protocol dashboard cites MediaPipe Face Mesh density (468 landmarks).
   const evaluatedPoints = cvReport ? DASHBOARD_EVALUATED_POINTS : null
@@ -995,9 +981,6 @@ export function buildProtocolDashboardData({ cvReport, metrics, answers, eyeAnal
     /** @deprecated Prefer analysisTimeDays */
     analysisTimeSec: computeAnalysisDurationDays(createdAt, updatedAt),
     faceAge,
-    bioAge,
-    bioAgeLabel,
-    bioAgeBounds,
     radarScores,
     featureRows,
     miniCards: buildPriorityFeatureMiniCards(cvReport, eyeAnalysis),
