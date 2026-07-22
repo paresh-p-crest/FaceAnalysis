@@ -9,7 +9,7 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 - **DB migrations:** `python -m alembic upgrade head` — run from project root
 - **Smoke test:** `python scripts/smoke_test.py`
 - **App health (API):** `GET /api/health` (FastAPI via Next rewrite)
-- **Deploy health (Replit Autoscale):** probes **`GET /`** (not `previewPath`). Middleware does **not** return JSON on `/` — the real HTML app answers 200 (JSON on `/` broke Agent Preview). Explicit liveness: `GET /healthz`.
+- **Deploy health (Replit Autoscale):** probes **`GET /`** (not `previewPath`). Middleware returns cheap `200 {"ok":true}` only for **explicit** probe UAs (`Go-http-client`, `kube-probe`, `curl`, …) or `Accept: application/json`. Browsers, Agent Preview / `Replit/*` UAs, and RSC always get real HTML. Explicit JSON liveness also on `GET /healthz`. Smoke: `node scripts/test-middleware-probes.js`.
 
 ## Stack
 
@@ -67,7 +67,7 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 
 - Use `python -m uvicorn` not `uvicorn` — the binary isn't on PATH in Replit workflows
 - Do not set `PORT` as a shared env var — it conflicts with the artifact's PORT=22039 for the Next.js service
-- Replit Autoscale healthchecks **`GET /`**. Do **not** short-circuit `/` with JSON in middleware — that caused Invalid hook call + hydration in Agent Preview. `/` serves the real HTML app (200 is enough); use `GET /healthz` for JSON liveness. Smoke: `node scripts/test-middleware-probes.js`.
+- Replit Autoscale healthchecks **`GET /`**. Short-circuit with JSON **only** for known probe UAs / JSON Accept — never for `Replit/*`, browsers, iframe/`text/html`, or RSC (those false-matches caused Invalid hook call in Agent Preview). Also: `GET /healthz`. Smoke: `node scripts/test-middleware-probes.js`.
 - Replit Agent Preview injects `/__replco/static/devtools/injected.js` into `<head>`. **Never** put Google Fonts `<link>`s or theme `<script>`s in `LocaleLayout` `<head>` — React hydrates them against Replit’s script and throws Recoverable Error. Inter comes from `globals.css` `@import`.
 - **Open URL works, Agent chat Preview fails:** also use `ClientAppShell` + `scripts/dev.mjs` (no React Refresh). Restart web workflow after layout/`next.config` changes. Tell Agent not to restore manual `<head>` tags.
 - Production start: `artifacts/myface/start-prod.sh` starts **Next and FastAPI in parallel**. `backend.main` is **import-light** (no assessments/protocol routers at import time); uvicorn yields immediately so `:8000` is open while routers + DB `create_all` + pipeline worker load in deferred boot. `/api/*` waits up to 120s for boot instead of `ECONNREFUSED`.

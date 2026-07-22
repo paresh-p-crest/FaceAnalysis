@@ -47,6 +47,10 @@ FEATURE_NARRATIVE_RATE_LIMIT_RETRIES = int(
 FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC = int(
     os.environ.get("FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC", "30") or "30"
 )
+# Max concurrent feature narrative LLM calls (asyncio.gather + semaphore). Default 11 = all features.
+FEATURE_NARRATIVE_CONCURRENCY = max(
+    1, int(os.environ.get("FEATURE_NARRATIVE_CONCURRENCY", "11") or "11")
+)
 
 # Beauty Assistant — cost controls
 ASSISTANT_HOURLY_MESSAGE_LIMIT = 20

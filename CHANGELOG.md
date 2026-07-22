@@ -5,7 +5,10 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Fixed
+- **Outfit style titles** — Occasion names use title case (e.g. Professional/Business); UI also title-cases legacy lowercase titles.
 ### Changed
+- **Feature narrative concurrency** — All 11 feature LLM calls may run at once (`FEATURE_NARRATIVE_CONCURRENCY` default 11; was hard-capped at 2). Executive / overview / treatment phases / closing unchanged. Lower the env var if the provider rate-limits.
 - **AI visuals hair/outfit layout** — Single before/after hero with recommendation side panel (static attribute grid + explanation; panel height matches the compare image) and round style thumbnails below the image (`max-w-sm`, same as prior cards).
 - **AI visuals healthy aging** — Two centered panels (Now → selected age) with a right arrow between; circular +3/+5/+10 selectors under the right image.
 - **Priority feature cards** — All overview/PDF priority findings use labeled key→value rows (e.g. `Blemishing`, `Texture`, `Shape`) instead of bare metric values as titles.
@@ -15,6 +18,8 @@ All notable changes to this project will be documented in this file. The format 
 - **Chat + AI Visuals assessment binding** — Both routes use only the chronologically latest submitted assessment when it is report-ready; no fallback to an older ready report (`fetchLatestSubmittedAssessment`).
 - **Dimorphism chin/cheeks highlights** — Per-feature cards reuse Features Analysis region fills (`FeatureRegionHero`) at dimorphism card scale (`max-h-40`).
 ### Fixed
+- **Questionnaire underline inputs** — Details follow-up fields use the same single-line underline input as “Please list” questions (dropped tall `min-h` textarea). Motivation/notes textareas no longer reserve a tall empty box either. Placeholders unchanged.
+- **Replit Autoscale deploy health** — Restored today's explicit `GET /` probe short-circuit (`073cd44`): cheap `200 {"ok":true}` only for known probe UAs (`Go-http-client`, `kube-probe`, `curl`, …) or `Accept: application/json`. Browsers, Preview/Agent `Replit/*` UAs, and RSC still get real HTML (no empty/`*/*` guessing). Smoke: `node scripts/test-middleware-probes.js`.
 - **Replit Agent Preview hydration (root cause)** — Overlay showed our Google Fonts `<link>` vs Replit’s injected `/__replco/static/devtools/injected.js` in `<head>`. Removed all manual `<head>` children from `LocaleLayout` (Inter already via `globals.css` `@import`). Keep `ClientAppShell` + no theme bootstrap script.
 - **Replit hydration (confirmed)** — Error overlay: server rendered `localStorage` theme `<script>` while client had `__html: ""`. Removed that script from `app/[locale]/layout.jsx`. Theme only via `ThemeProvider` after mount. Re-applied `ClientAppShell` + React Refresh disable (`scripts/dev.mjs`) after Replit sync had restored the old layout.
 - **Replit Agent chat Preview `/auth` crash** — Hydration broke when `usePathname()` disagreed between SSR and the Agent iframe (`key={pathname}` on the boot screen + path-based boot copy + shell branching). RouteLayout now mounts a pathname-agnostic boot screen until client mount; AppBootScreen defers path-based labels; artifact sets `NEXT_DISABLE_REACT_REFRESH=1`.

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Smoke test: GET `/` must never return health JSON (breaks Replit Preview).
- * GET `/healthz` is the explicit liveness JSON endpoint.
+ * Smoke test: GET `/` health short-circuit only for explicit Autoscale-style probes.
+ * Preview / RSC / Replit product UAs must get the real app (never health JSON).
+ * GET `/healthz` remains the explicit JSON liveness endpoint.
  */
 const http = require('http')
 
@@ -29,25 +30,47 @@ function fetchPath(path, headers) {
 
 async function main() {
   const rootCases = [
-    ['curl', { 'user-agent': 'curl/8.0' }],
-    ['go-http-client', { 'user-agent': 'Go-http-client/1.1', accept: '*/*' }],
-    ['kube-probe', { 'user-agent': 'kube-probe/1.28', accept: '*/*' }],
-    ['json Accept', { accept: 'application/json', 'user-agent': 'probe/1' }],
-    ['browser html', { accept: 'text/html', 'user-agent': 'Mozilla/5.0 Chrome/120', 'sec-fetch-dest': 'document' }],
-    ['preview iframe', { accept: 'text/html', 'user-agent': 'Mozilla/5.0 Chrome/120', 'sec-fetch-dest': 'iframe' }],
-    ['star Accept mozilla', { accept: '*/*', 'user-agent': 'Mozilla/5.0 Chrome/120' }],
-    ['Replit/1.0 empty', { accept: '', 'user-agent': 'Replit/1.0' }],
-    ['Replit Agent star', { accept: '*/*', 'user-agent': 'Replit-Agent/1.0' }],
-    ['RSC text/x-component', { accept: 'text/x-component', rsc: '1', 'user-agent': 'Mozilla/5.0' }],
-    ['RSC star', { accept: '*/*', rsc: '1', 'user-agent': 'Mozilla/5.0' }],
+    ['curl -> health JSON', { 'user-agent': 'curl/8.0' }, true],
+    ['go-http-client -> health JSON', { 'user-agent': 'Go-http-client/1.1', accept: '*/*' }, true],
+    ['kube-probe -> health JSON', { 'user-agent': 'kube-probe/1.28', accept: '*/*' }, true],
+    ['json Accept non-browser -> health JSON', { accept: 'application/json', 'user-agent': 'probe/1' }, true],
+    [
+      'browser html -> NOT health JSON',
+      { accept: 'text/html', 'user-agent': 'Mozilla/5.0 Chrome/120', 'sec-fetch-dest': 'document' },
+      false,
+    ],
+    [
+      'preview iframe -> NOT health JSON',
+      { accept: 'text/html', 'user-agent': 'Mozilla/5.0 Chrome/120', 'sec-fetch-dest': 'iframe' },
+      false,
+    ],
+    [
+      'preview star Accept mozilla -> NOT health JSON',
+      { accept: '*/*', 'user-agent': 'Mozilla/5.0 Chrome/120' },
+      false,
+    ],
+    // Regression: Replit product UAs must never get JSON (was false-positive → Invalid hook call).
+    ['Replit/1.0 empty Accept -> NOT health JSON', { accept: '', 'user-agent': 'Replit/1.0' }, false],
+    ['Replit Agent star Accept -> NOT health JSON', { accept: '*/*', 'user-agent': 'Replit-Agent/1.0' }, false],
+    [
+      'RSC text/x-component -> NOT health JSON',
+      { accept: 'text/x-component', rsc: '1', 'user-agent': 'Mozilla/5.0' },
+      false,
+    ],
+    ['RSC star Accept -> NOT health JSON', { accept: '*/*', rsc: '1', 'user-agent': 'Mozilla/5.0' }, false],
+    [
+      'next-url star Accept -> NOT health JSON',
+      { accept: '*/*', 'next-url': '/', 'user-agent': 'Mozilla/5.0' },
+      false,
+    ],
   ]
 
-  console.log(`Testing http://${HOST}:${PORT} (no health JSON on /)…\n`)
+  console.log(`Testing http://${HOST}:${PORT}/ middleware probes...\n`)
   let failed = 0
 
-  for (const [label, headers] of rootCases) {
+  for (const [label, headers, expectHealth] of rootCases) {
     const result = await fetchPath('/', headers)
-    const pass = !result.isHealthJson && result.status >= 200 && result.status < 500
+    const pass = result.isHealthJson === expectHealth
     if (!pass) failed += 1
     console.log(
       `${pass ? 'PASS' : 'FAIL'} | GET / ${label} | status=${result.status} healthJson=${result.isHealthJson}`,

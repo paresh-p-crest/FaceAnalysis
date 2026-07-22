@@ -17,6 +17,7 @@ from .clinical_guardrails import (
     validate_or_template,
 )
 from .config import (
+    FEATURE_NARRATIVE_CONCURRENCY,
     FEATURE_NARRATIVE_IDS,
     FEATURE_NARRATIVE_MAX_ATTEMPTS,
     FEATURE_NARRATIVE_RATE_LIMIT_BACKOFF_SEC,
@@ -58,7 +59,7 @@ from .vision_context import (
     vision_instruction_for_feature,
 )
 
-_FEATURE_SEMAPHORE = asyncio.Semaphore(2)
+_FEATURE_SEMAPHORE = asyncio.Semaphore(FEATURE_NARRATIVE_CONCURRENCY)
 
 logger = logging.getLogger(__name__)
 

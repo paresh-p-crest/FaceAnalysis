@@ -32,12 +32,19 @@ useEffect(() => {
 
 **Why:** React's hydration must produce identical HTML on server and client for the first render. The `useState` lazy initializer runs during render on both sides — accessing `localStorage` there violates this constraint. `useEffect` only runs client-side, after hydration completes.
 
-## Middleware — never JSON on `/`
-Do **not** short-circuit `GET /` with `{"ok":true}` in `middleware.js`. That repeatedly matched Replit Agent Preview / Port Authority / RSC and caused `Invalid hook call` + hydration failure.
+## Middleware — JSON on `/` only for explicit Autoscale probes
+Short-circuit `GET /` with `{"ok":true}` **only** for known probe UAs (`Go-http-client`, `kube-probe`, `curl`, `googlehc`, …) or `Accept: application/json`.
 
-- Autoscale only needs HTTP **200** on `/` within ~5s — the real HTML app is fine.
-- Explicit JSON liveness: `GET /healthz` → `{"ok":true}`.
-- Smoke: `node scripts/test-middleware-probes.js` (asserts `/` never returns health JSON; `/healthz` does).
+Never short-circuit for:
+- Browser / Mozilla UAs
+- `Replit/*` / `Replit-Agent/*` (Preview / Port Authority)
+- `sec-fetch-dest: document|iframe`, `Accept: text/html`, RSC headers
+
+Guessing from empty or `*/*` Accept alone false-matched Preview → `Invalid hook call` + hydration failure.
+
+- Autoscale needs HTTP **200** on `/` within ~5s; probe JSON avoids next-intl/SSR delay/500 during cold start.
+- Explicit JSON liveness also: `GET /healthz` → `{"ok":true}`.
+- Smoke: `node scripts/test-middleware-probes.js`.
 
 After changing middleware on Replit: restart the **artifacts/myface: web** workflow, then **Republish** (or hard-refresh Preview / Open dev URL) so the live preview is not on a stale process.
 

@@ -138,7 +138,7 @@ Triggered by `enrich_assessment_nl_content` on create (not on report open). Idem
 
 - `narrative_orchestrator.generate_all_protocol_text`  
 - Features (`PROTOCOL_FEATURE_IDS`): hair, eyes, nose, cheeks, jaw, lips, chin, skin, neck, ears  
-- Parallel generation (semaphore = 2) with `feature_context`, `recommendation_rules`, and optional Vision poses  
+- Parallel generation (`FEATURE_NARRATIVE_CONCURRENCY`, default 11) with `feature_context`, `recommendation_rules`, and optional Vision poses  
 - Overview + closing synthesis; closing falls back to `stitch_closing_paragraphs` if the LLM fails  
 - Persist via `persist_protocol_bundle` → Mongo + `protocol.json`
 

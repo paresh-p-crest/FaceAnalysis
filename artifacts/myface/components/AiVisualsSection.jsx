@@ -5,6 +5,13 @@ import { useTranslations } from 'next-intl'
 import { ChevronRight, Image, Loader2, Sparkles, X } from 'lucide-react'
 import { resolveStylePanelCopy } from '../utils/aiVisualStyleCopy'
 
+/** Title-case each alphabetic run (Professional/Business, Smart-Casual). */
+function titleCaseLabel(value) {
+  return String(value || '').replace(/[A-Za-z]+/g, (word) => (
+    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  ))
+}
+
 function ImagePreviewModal({ src, title, onClose, closeLabel }) {
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -207,6 +214,7 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
 
   const hasCompare = Boolean(beforeSrc && selected.imageSrc)
   const isQovesChoice = variantKey(selected) === recommendedKey
+  const displayTitle = type === 'outfit' ? titleCaseLabel(selected.title) : selected.title
   const attrLabel = (key) => (t.has(`panel.attrs.${key}`) ? t(`panel.attrs.${key}`) : key)
   const attrValue = (raw) => (t.has(`panel.values.${raw}`) ? t(`panel.values.${raw}`) : raw)
 
@@ -220,7 +228,7 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
               afterSrc={selected.imageSrc}
               beforeLabel={t('compareBefore')}
               afterLabel={t('compareAfter')}
-              title={selected.title}
+              title={displayTitle}
               aspectRatio={aspectRatio}
             />
           ) : (
@@ -253,7 +261,7 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
             ) : null}
           </div>
           <h4 className="mb-4 font-sans text-base font-semibold text-ink leading-snug">
-            {selected.title}
+            {displayTitle}
           </h4>
 
           {panel ? (
@@ -288,7 +296,7 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
         {hasCompare ? (
           <button
             type="button"
-            onClick={() => onOpenImage(selected.imageSrc, selected.title)}
+            onClick={() => onOpenImage(selected.imageSrc, displayTitle)}
             className="w-full text-center text-[11px] font-medium text-brand hover:underline"
           >
             {t('openPreviewHint')}
@@ -300,13 +308,14 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
             const key = variantKey(variant)
             const selectedThumb = key === variantKey(selected)
             const thumbSrc = variant.imageSrc
+            const thumbTitle = type === 'outfit' ? titleCaseLabel(variant.title) : variant.title
             return (
               <button
                 key={key}
                 type="button"
                 role="option"
                 aria-selected={selectedThumb}
-                aria-label={t('panel.selectStyle', { title: variant.title })}
+                aria-label={t('panel.selectStyle', { title: thumbTitle })}
                 disabled={!thumbSrc}
                 onClick={() => thumbSrc && setSelectedKey(key)}
                 className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-40 ${

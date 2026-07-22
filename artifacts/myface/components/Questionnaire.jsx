@@ -305,12 +305,13 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
                   )
                 })}
                 {answers[currentQuestion.key] === 'yes' && (
-                  <textarea
+                  <input
+                    type="text"
                     autoFocus
                     value={answers[`${currentQuestion.key}Details`] || ''}
                     onChange={(e) => setDetailsText(currentQuestion.key, e.target.value)}
                     placeholder={t('common.pleaseProvideDetails')}
-                    className="w-full mt-2 bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-base rounded-none outline-none transition-all resize-none min-h-[80px]"
+                    className="w-full mt-2 bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-base rounded-none outline-none transition-all"
                   />
                 )}
               </div>
@@ -318,10 +319,11 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
 
             {currentQuestion.type === 'textarea' && (
               <textarea
+                rows={2}
                 value={answers[currentQuestion.key] || ''}
                 onChange={(e) => set(currentQuestion.key, e.target.value)}
                 placeholder={currentQuestion.placeholderKey ? t(currentQuestion.placeholderKey) : undefined}
-                className="w-full bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-lg rounded-none outline-none transition-all resize-none min-h-[100px]"
+                className="w-full bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-lg rounded-none outline-none transition-all resize-none leading-normal"
               />
             )}
 

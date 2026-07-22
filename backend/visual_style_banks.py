@@ -205,27 +205,27 @@ HAIR_STYLES_BY_FACE_SHAPE: dict[str, list[HairStyleSpec]] = {
 OUTFIT_STYLES: list[OutfitStyleSpec] = [
     OutfitStyleSpec(
         style_id="professional",
-        occasion_name="professional/business",
+        occasion_name="Professional/Business",
         descriptor="a tailored blazer or structured shirt, polished and office-appropriate",
     ),
     OutfitStyleSpec(
         style_id="smart_casual",
-        occasion_name="smart-casual",
+        occasion_name="Smart-Casual",
         descriptor="a knit or oxford with a light jacket, refined but relaxed",
     ),
     OutfitStyleSpec(
         style_id="casual_everyday",
-        occasion_name="casual everyday",
+        occasion_name="Casual Everyday",
         descriptor="a clean tee or casual shirt, approachable weekend wear",
     ),
     OutfitStyleSpec(
         style_id="minimalist_monochrome",
-        occasion_name="minimalist monochrome",
+        occasion_name="Minimalist Monochrome",
         descriptor="simple tonal layers in a restrained palette with clean lines",
     ),
     OutfitStyleSpec(
         style_id="textured_layered",
-        occasion_name="textured layered",
+        occasion_name="Textured Layered",
         descriptor="a cardigan or light overshirt with subtle depth and layering",
     ),
 ]
