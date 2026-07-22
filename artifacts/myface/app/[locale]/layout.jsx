@@ -30,6 +30,12 @@ export async function generateMetadata({ params }) {
   }
 }
 
+/**
+ * Do NOT put manual <head> children here (font <link>s, theme <script>, etc.).
+ * Replit Agent Preview injects `/__replco/static/devtools/injected.js` into <head>;
+ * React then hydrates our font <link> against that <script> → Recoverable Error.
+ * Inter is already loaded via `globals.css` @import.
+ */
 export default async function LocaleLayout({ children, params }) {
   const { locale } = await params
   if (!hasLocale(routing.locales, locale)) notFound()
@@ -37,20 +43,8 @@ export default async function LocaleLayout({ children, params }) {
   setRequestLocale(locale)
   const messages = await getMessages()
 
-  // IMPORTANT: Do NOT inject a localStorage theme <script> here.
-  // It caused Recoverable Error hydration mismatches in Replit Agent Preview
-  // (server HTML had the script; client tree had empty __html).
-  // Theme is applied after mount in ThemeProvider instead.
   return (
     <html lang={locale} suppressHydrationWarning data-scroll-behavior="smooth">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body className="min-h-screen bg-surface text-ink font-sans antialiased" suppressHydrationWarning>
         <AnalyticsScripts />
         <ClientAppShell locale={locale} messages={messages}>

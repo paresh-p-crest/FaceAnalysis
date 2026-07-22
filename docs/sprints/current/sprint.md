@@ -113,6 +113,7 @@
 - [x] Protocol admin inline editing: contentEditable overview/features/closing; lightweight dock (section + generate + Save); shared local draft until Save (status: completed)
 - [x] Replit cold-start: import-light `backend.main` (routers mount after bind) so `:8000` opens in seconds, not minutes (status: completed)
 - [x] Locale switcher: re-enable `localeDetection` for cookie-based switching + `router.refresh()` after change (status: completed)
+- [x] Replit Agent Preview: drop LocaleLayout `<head>` font links (clash with `__replco/static/devtools/injected.js`); Inter via globals.css only (status: completed)
 - [x] Replit Agent Preview `/auth`: fix usePathname hydration (stable boot mount + no pathname key); artifact NEXT_DISABLE_REACT_REFRESH (status: completed)
 - [x] Replit Agent chat Preview iframe: disable React Fast Refresh on Replit + broaden allowedDevOrigins / frame-ancestors (Open URL already worked) (status: completed)
 - [x] Replit Preview: remove all GET `/` JSON health short-circuits from middleware; `/healthz` only; republish after change (status: completed)

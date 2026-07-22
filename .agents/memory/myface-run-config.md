@@ -41,20 +41,23 @@ Do **not** short-circuit `GET /` with `{"ok":true}` in `middleware.js`. That rep
 
 After changing middleware on Replit: restart the **artifacts/myface: web** workflow, then **Republish** (or hard-refresh Preview / Open dev URL) so the live preview is not on a stale process.
 
-## Theme `<script>` — DO NOT restore
-Never put a `localStorage` theme bootstrap `<script dangerouslySetInnerHTML>` in `app/[locale]/layout.jsx`.
+## Theme `<script>` / manual `<head>` — DO NOT restore
+Never put in `app/[locale]/layout.jsx`:
+- `localStorage` theme bootstrap `<script>`
+- Google Fonts `<link>` tags (or any other manual `<head>` children)
 
-Next overlay proof (Replit Agent Preview):
-- Server: `__html` = `(function(){try{var t=localStorage.getItem('myface_theme')…`
-- Client: `__html: ""`
+**Proof from Next overlay (Agent Preview):**
+```
++ <link href="fonts.googleapis.com/...Inter...">
+- <script src="/__replco/static/devtools/injected.js">
+```
+Replit injects that script into `<head>`; React hydrates our font link against it → Recoverable Error.
 
-That mismatch → Recoverable Error / hydration failure / Invalid hook call.
-
-Theme only via `ThemeProvider` after mount (`useState('light')` then `useEffect`).
+Inter is loaded from `globals.css` (`@import`). Theme only via `ThemeProvider` after mount. Use Metadata API for title/icons only.
 
 ## Agent chat Preview vs Open URL
-1. No theme `<head>` script (above).
+1. No manual `<head>` children (above).
 2. `ClientAppShell` — static first paint, full app after mount.
-3. `scripts/dev.mjs` + webpack strip React Refresh (`package.json` `"dev": "node ./scripts/dev.mjs"`).
+3. `scripts/dev.mjs` + webpack strip React Refresh.
 
-If Replit Agent “fixes” Preview by putting the theme script back, revert it. Restart **artifacts/myface: web** after sync.
+Restart **artifacts/myface: web** after sync. If Replit Agent restores font `<link>`s or the theme script, remove them again.
