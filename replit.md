@@ -67,7 +67,7 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 
 - Use `python -m uvicorn` not `uvicorn` — the binary isn't on PATH in Replit workflows
 - Do not set `PORT` as a shared env var — it conflicts with the artifact's PORT=22039 for the Next.js service
-- Replit Autoscale healthchecks **`GET /`**, not `/api/health` or `previewPath`. Middleware returns fast `200 {"ok":true}` for non-navigational probes. Treat `sec-fetch-dest: document|iframe` or `Accept: text/html` as navigation (HTML). Do not require `document` alone — Preview iframes use `iframe`.
+- Replit Autoscale healthchecks **`GET /`**, not `/api/health` or `previewPath`. Middleware returns fast `200 {"ok":true}` only for **explicit** probes (`Accept: application/json`, probe-like UA, or empty/`*/*` Accept with a non-browser UA and no Sec-Fetch). Never short-circuit RSC flight (`RSC` / `text/x-component`) or browser/Preview navigations — that caused Invalid hook call + hydration failures in Preview.
 - Production start: `artifacts/myface/start-prod.sh` starts **Next and FastAPI in parallel**. `backend.main` is **import-light** (no assessments/protocol routers at import time); uvicorn yields immediately so `:8000` is open while routers + DB `create_all` + pipeline worker load in deferred boot. `/api/*` waits up to 120s for boot instead of `ECONNREFUSED`.
 - Heavy CV (MediaPipe/torch) stays lazy-imported until the first pipeline job.
 - `PYTHONUNBUFFERED=1`, `MPLCONFIGDIR` / `MPLBACKEND=Agg` are set in `start-prod.sh`.

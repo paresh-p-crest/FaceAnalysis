@@ -5,7 +5,18 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Fixed
+- **Admin protocol review** — HTML protocol editor skips the client dashboard cover (PDF page 1) and opens on the editable overview section; PDF export unchanged.
+- **Admin panel report actions while pipeline running** — Approve, Open, and Delete are hidden on overview/review cards until the analysis pipeline finishes (`isAssessmentProcessing`); a spinner + “Pipeline running…” label shows instead. Overview shows separate **processing** (sky) and **ready for review** (amber) banners with accurate counts.
+- **Windows `npm run dev`** — Replaced Unix-only `predev` (`lsof`/`xargs`) with cross-platform `scripts/kill-port.mjs` (Windows `netstat`/`taskkill`, Linux/Replit `lsof`/`kill`).
+- **Replit Preview Invalid hook call / hydration** — `GET /` health short-circuit was matching Next.js RSC flight requests and Preview `Accept: */*` navigations, returning `{"ok":true}` JSON instead of HTML/Flight. Middleware now only short-circuits **explicit** probes (JSON Accept, probe UA, or empty/`*/*` + non-browser UA) and always passes RSC/`text/html`/iframe traffic to the app.
+
+### Changed
+- **Admin navbar** — Renamed overview tab to **Dashboard** (avoids confusion with report “Overview” sections). No admin tab stays highlighted while a report modal is open.
+- **Skin analysis (LAB + skin-mask)** — Backend replaces region-box brightness metrics with notebook-aligned Qoves fields (undertone, blemishing, evenness, texture, roughness/homogeneity RIN, oiliness skew, under-eye L*). `SkinReportPanel` shows those fields in the existing summary/carousel/table layout.
+
 ### Added
+- **`scripts/rerun_skin_analysis.py`** — Recomputes LAB skin metrics from stored `front.jpg` + landmarks and patches only `analysis.cvReport.skin` on one assessment (in-place, with fingerprint verification). Supports `--dry-run` and `-o report.json`.
 - **Forgot password** — Auth page “Forgot password?” opens a modal (email, new password, confirm); `POST /api/auth/reset-password` updates the account password.
 - **Customer dashboard (`/dashboard`)** — Protocol overview (`ExecutiveSummary`) is a standalone customer home after login; same billing, draft, start, and preparing gates as before. Full report remains at `/report` (modal). Legacy `DashboardPage.jsx` kept unchanged.
 - **Shared customer gates** — `CustomerAssessmentGate` reused by `/dashboard` and `/report`.

@@ -156,6 +156,20 @@ export function ProtocolDocumentViewer({
   }, [])
 
   useEffect(() => {
+    if (!showHtmlPreview || protocolLoading) return undefined
+    const root = scrollRef.current
+    if (!root) return undefined
+    const frame = requestAnimationFrame(() => {
+      const target = root.querySelector('[data-protocol-section="overview"]')
+      if (target) {
+        target.scrollIntoView({ block: 'start' })
+        setSectionId('overview')
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [showHtmlPreview, protocolLoading, assessmentId])
+
+  useEffect(() => {
     const root = scrollRef.current
     if (!showHtmlPreview || protocolLoading || !root) return undefined
     let raf = 0

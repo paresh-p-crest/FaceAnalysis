@@ -22,7 +22,7 @@ from .face_crop import (
     APPLE_LEFT, APPLE_RIGHT,
 )
 from .eye_analysis import crop_normalized, sample_region_stats, analyze_brows_crop
-from .skin_texture import analyze_skin_texture
+from .skin_texture import analyze_skin_lab
 from .opencv_metrics import analyze_image_stats
 from .pose_analysis import (
     analyze_with_pose,
@@ -700,158 +700,89 @@ def ear_metrics(landmarks: list) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def skin_quality_metrics(landmarks: list, image_bytes: bytes, metrics: Optional[dict] = None) -> dict:
-    face_box = bbox_full_face(landmarks, 0.02)
+    """LAB + skin-mask Qoves metrics (notebook-aligned)."""
+    analysis = analyze_skin_lab(image_bytes, landmarks)
 
-    def _box(expr, fw, fh, fh_expr=None):
-        return {"x": face_box["x"] + face_box["w"] * fw, "y": face_box["y"] + face_box["h"] * (fh_expr or fh),
-                "w": face_box["w"] * fw, "h": face_box["h"] * fh}
-
-    forehead_box = _box(0.6, 0, 0.15, 0.02)
-    forehead_box["x"] = face_box["x"] + face_box["w"] * 0.2
-    left_cheek_box = _box(0.3, 0.4, 0.25, 0.05)
-    right_cheek_box = {"x": face_box["x"] + face_box["w"] * 0.65, "y": face_box["y"] + face_box["h"] * 0.4,
-                       "w": face_box["w"] * 0.3, "h": face_box["h"] * 0.25}
-    chin_box = {"x": face_box["x"] + face_box["w"] * 0.25, "y": face_box["y"] + face_box["h"] * 0.8,
-                "w": face_box["w"] * 0.5, "h": face_box["h"] * 0.15}
-    under_eye_l = {"x": face_box["x"] + face_box["w"] * 0.15, "y": face_box["y"] + face_box["h"] * 0.3,
-                   "w": face_box["w"] * 0.25, "h": face_box["h"] * 0.1}
-    under_eye_r = {"x": face_box["x"] + face_box["w"] * 0.6, "y": face_box["y"] + face_box["h"] * 0.3,
-                   "w": face_box["w"] * 0.25, "h": face_box["h"] * 0.1}
-    nose_bridge_box = {"x": face_box["x"] + face_box["w"] * 0.35, "y": face_box["y"] + face_box["h"] * 0.3,
-                       "w": face_box["w"] * 0.3, "h": face_box["h"] * 0.3}
-    jaw_box = {"x": face_box["x"] + face_box["w"] * 0.15, "y": face_box["y"] + face_box["h"] * 0.7,
-               "w": face_box["w"] * 0.7, "h": face_box["h"] * 0.15}
-
-    try:
-        forehead = sample_region_stats(image_bytes, forehead_box)
-        left_cheek = sample_region_stats(image_bytes, left_cheek_box)
-        right_cheek = sample_region_stats(image_bytes, right_cheek_box)
-        chin_stat = sample_region_stats(image_bytes, chin_box)
-        under_eye_l_stat = sample_region_stats(image_bytes, under_eye_l)
-        under_eye_r_stat = sample_region_stats(image_bytes, under_eye_r)
-        nose_bridge = sample_region_stats(image_bytes, nose_bridge_box)
-        jaw = sample_region_stats(image_bytes, jaw_box)
-    except Exception:
-        return {
-            "score": 75, "scoreLabel": "Good condition",
-            "tone": "Even", "texture": "Moderate", "clarity": "Moderate",
-            "redness": "Normal", "brightness": "0", "underEyeHealth": "Good",
-            "underEyeBrightness": "0", "regions": [],
-            "explanation": "Skin quality analysis could not be performed on this image.",
-        }
-
-    avg_brightness = (_safe_num(forehead["brightness"]) + _safe_num(left_cheek["brightness"])
-                      + _safe_num(right_cheek["brightness"]) + _safe_num(chin_stat["brightness"])) / 4
-    avg_redness = (abs(_safe_num(forehead["redness"])) + abs(_safe_num(left_cheek["redness"]))
-                   + abs(_safe_num(right_cheek["redness"])) + abs(_safe_num(chin_stat["redness"]))) / 4
-    under_eye_avg = (_safe_num(under_eye_l_stat["brightness"]) + _safe_num(under_eye_r_stat["brightness"])) / 2
-
-    texture_analysis = analyze_skin_texture(
-        image_bytes,
-        {
-            "Forehead": forehead_box,
-            "Left cheek": left_cheek_box,
-            "Right cheek": right_cheek_box,
-            "Nose bridge": nose_bridge_box,
-            "Chin": chin_box,
-        },
-    )
-
-    regions = [
-        {"name": "Forehead", "brightness": _safe_round(forehead["brightness"]), "redness": round(forehead["redness"], 1)},
-        {"name": "Left cheek", "brightness": _safe_round(left_cheek["brightness"]), "redness": round(left_cheek["redness"], 1)},
-        {"name": "Right cheek", "brightness": _safe_round(right_cheek["brightness"]), "redness": round(right_cheek["redness"], 1)},
-        {"name": "Nose bridge", "brightness": _safe_round(nose_bridge["brightness"]), "redness": round(nose_bridge["redness"], 1)},
-        {"name": "Chin", "brightness": _safe_round(chin_stat["brightness"]), "redness": round(chin_stat["redness"], 1)},
-        {"name": "Jaw line", "brightness": _safe_round(jaw["brightness"]), "redness": round(jaw["redness"], 1)},
-    ]
-
-    tone_variance = abs(left_cheek["brightness"] - right_cheek["brightness"])
-    tone = "Even"
-    if tone_variance > 15:
-        tone = "Slightly uneven"
-    if tone_variance > 30:
-        tone = "Noticeably uneven"
-
-    region_brights = [r["brightness"] for r in regions]
-    regional_variance = max(region_brights) - min(region_brights)
-
-    skin_tone = "Medium"
-    if avg_brightness > 180: skin_tone = "Fair"
-    elif avg_brightness > 150: skin_tone = "Light"
-    elif avg_brightness > 120: skin_tone = "Medium"
-    elif avg_brightness > 90: skin_tone = "Olive"
-    elif avg_brightness > 60: skin_tone = "Tan"
-    else: skin_tone = "Deep"
-
-    redness_label = texture_analysis.get("redness") or "Normal"
-    if avg_redness > 12 and redness_label == "Normal":
-        redness_label = "Mild redness"
-    if avg_redness > 20:
-        redness_label = "Moderate redness"
-
-    texture = texture_analysis.get("texture") or "Smooth"
-    pore_estimate = texture_analysis.get("oiliness") or (
-        "Oily T-zone" if nose_bridge["brightness"] > forehead["brightness"] + 10
-        else ("Dry T-zone" if nose_bridge["brightness"] < forehead["brightness"] - 15 else "Balanced T-zone")
-    )
-
-    pigmentation = "Even"
-    if regional_variance > 25: pigmentation = "Mild variation"
-    if regional_variance > 40: pigmentation = "Noticeable hyperpigmentation"
-
-    under_eye = "Good"
-    if under_eye_avg < 120: under_eye = "Shadowed"
-    if under_eye_avg < 95: under_eye = "Dark circles present"
-    if under_eye_avg > 140: under_eye = "Bright"
-
-    clarity = "Good"
-    if avg_redness > 15 or tone_variance > 20: clarity = "Moderate"
-    if avg_redness > 25 or tone_variance > 35: clarity = "Needs attention"
+    undertone = analysis.get("undertone") or "Neutral"
+    blemishing = analysis.get("blemishing") or "Clear"
+    evenness = analysis.get("evenness") or "Even"
+    texture = analysis.get("texture") or "Smooth"
+    oiliness = analysis.get("oiliness") or "Normal/Combination"
+    dark_circles = analysis.get("darkCircles") or "Not Prominent"
+    roughness_rin = float(analysis.get("roughnessRin") or 0.08)
+    homogeneity_rin = float(analysis.get("homogeneityRin") or 0.15)
+    oiliness_skew = float(analysis.get("oilinessSkew") or 0.0)
+    mean_a = float(analysis.get("meanRednessA") or 128.0)
+    face_l = float(analysis.get("faceLuminance") or 0.0)
+    under_eye_l = float(analysis.get("underEyeLuminance") or 0.0)
+    blemish_count = int(analysis.get("blemishCount") or 0)
 
     score = 70
-    if 120 < avg_brightness < 180: score += 10
-    elif avg_brightness > 100: score += 5
-    if avg_redness > 20: score -= 8
-    elif avg_redness > 12: score -= 3
-    if tone_variance < 10: score += 8
-    elif tone_variance < 20: score += 4
-    elif tone_variance > 30: score -= 5
-    if under_eye_avg > 130: score += 5
-    elif under_eye_avg < 100: score -= 3
-    if regional_variance > 40: score -= 3
+    if blemishing == "Clear":
+        score += 8
+    elif blemishing == "Mild":
+        score += 2
+    elif blemishing == "Moderate":
+        score -= 5
+    else:
+        score -= 10
+    if evenness == "Even":
+        score += 8
+    elif evenness == "Slightly Uneven":
+        score += 2
+    else:
+        score -= 5
+    if texture == "Smooth":
+        score += 5
+    elif texture == "Textured/Rough":
+        score -= 5
+    if dark_circles == "Not Prominent":
+        score += 3
+    else:
+        score -= 5
+    if oiliness == "Oily/Shiny":
+        score -= 2
+    else:
+        score += 2
     if metrics and metrics.get("quality"):
         q = _safe_num(metrics["quality"])
         if q > 0:
             score = round(score * 0.6 + q * 0.4)
-    score = min(99, max(45, score))
+    score = min(99, max(45, int(score)))
 
     return {
         "score": score,
         "scoreLabel": "Clear" if score >= 85 else ("Good condition" if score >= 70 else "Needs attention"),
-        "skinTone": skin_tone,
-        "tone": tone,
+        "undertone": undertone,
+        "blemishing": blemishing,
+        "blemishCount": blemish_count,
+        "evenness": evenness,
         "texture": texture,
-        "clarity": clarity,
-        "redness": redness_label,
-        "brightness": _safe_fixed(avg_brightness, 0),
-        "underEyeHealth": under_eye,
-        "underEyeBrightness": _safe_fixed(under_eye_avg, 0),
-        "poreEstimate": pore_estimate,
-        "pigmentation": pigmentation,
-        "roughnessIndex": texture_analysis.get("roughnessIndex"),
-        "rednessIndex": texture_analysis.get("rednessIndex"),
-        "oilinessIndex": texture_analysis.get("oilinessIndex"),
-        "textureRegions": texture_analysis.get("regions"),
-        "regionalVariance": f"{regional_variance:.0f}",
-        "regions": regions,
+        "oiliness": oiliness,
+        "darkCircles": dark_circles,
+        "roughnessRin": roughness_rin,
+        "homogeneityRin": homogeneity_rin,
+        "oilinessSkew": oiliness_skew,
+        "meanRednessA": mean_a,
+        "faceLuminance": face_l,
+        "underEyeLuminance": under_eye_l,
+        # Compat aliases for narratives / visual generation / older UI
+        "skinTone": analysis.get("skinTone") or "Medium",
+        "tone": evenness,
+        "clarity": "Good" if blemishing in ("Clear", "Mild") else "Needs attention",
+        "redness": "Normal" if mean_a < 140 else ("Mild redness" if mean_a < 150 else "Moderate redness"),
+        "brightness": _safe_fixed(face_l, 0),
+        "underEyeHealth": analysis.get("underEyeHealth") or "Good",
+        "underEyeBrightness": _safe_fixed(under_eye_l, 0),
+        "poreEstimate": oiliness,
+        "pigmentation": evenness,
+        "regions": [],
         "explanation": (
-            f"Forehead brightness {_safe_fixed(avg_brightness, 0)} · cheek redness index "
-            f"{_safe_fixed(avg_redness, 1)} · tone uniformity "
-            f"{'high' if tone_variance < 10 else ('moderate' if tone_variance < 20 else 'varied')}. "
-            f"Under-eye region shows {under_eye.lower()} appearance. "
-            f"{'Tone appears ' + tone.lower() + '.' if tone != 'Even' else 'Skin tone is relatively even across regions.'} "
-            f"{'Mild redness detected — consider anti-inflammatory skincare.' if redness_label != 'Normal' else ''}"
+            f"Undertone {undertone}; texture {texture} ({roughness_rin:.2f} RIN); "
+            f"evenness {evenness} ({homogeneity_rin:.2f} RIN); "
+            f"blemishing {blemishing} ({blemish_count} spots); "
+            f"oiliness {oiliness} (skew {oiliness_skew:.2f}). "
+            f"Dark circles: {dark_circles}."
         ),
     }
 

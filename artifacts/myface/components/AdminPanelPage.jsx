@@ -25,7 +25,7 @@ import { ADMIN_TABS, adminTabToPath, persistAdminTab } from '../utils/adminPanel
 import { isAdminResourceLoading, resourcesForAdminTab } from '../utils/adminWorkspace'
 import { formatHistoryDate } from '../utils/historyStorage'
 import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/qovesProtocolModel'
-import { normalizeReportStatus, REPORT_WORKFLOW_STATUSES } from '../utils/reportWorkflow'
+import { isAssessmentProcessing, normalizeReportStatus, REPORT_WORKFLOW_STATUSES } from '../utils/reportWorkflow'
 import { translateApiError } from '../utils/translateApiError'
 import ConfirmDialog from './ConfirmDialog'
 import { useApp } from './providers/AppProvider'
@@ -165,12 +165,22 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     return stats
   }, [visibleAssessments])
 
+  const processingCount = useMemo(
+    () => visibleAssessments.filter((item) => isAssessmentProcessing(item)).length,
+    [visibleAssessments],
+  )
+
+  const readyForReviewCount = useMemo(
+    () => visibleAssessments.filter(
+      (item) => normalizeReportStatus(item.status) === 'pending_review' && !isAssessmentProcessing(item),
+    ).length,
+    [visibleAssessments],
+  )
+
   const filteredReports = useMemo(() => {
     if (reportFilter === 'all') return visibleAssessments
     return visibleAssessments.filter((item) => normalizeReportStatus(item.status) === reportFilter)
   }, [visibleAssessments, reportFilter])
-
-  const pendingReviewCount = reportStats.pending_review
 
   const paidCount = payments.filter((payment) =>
     ['paid', 'complete', 'completed'].includes(String(payment.status).toLowerCase())
@@ -289,6 +299,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     const score = resolveOverallHarmonyScore(assessment.analysis) ?? '—'
     const normalizedStatus = normalizeReportStatus(assessment.status)
     const refLabel = formatAssessmentRef(assessment)
+    const processing = isAssessmentProcessing(assessment)
     return (
       <div key={assessment.id} className="rounded-xl border border-landing-divider bg-white p-4 transition-colors hover:border-brand/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -303,30 +314,39 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0 lg:justify-end">
-            {normalizedStatus === 'pending_review' && (
-              <button
-                onClick={() => handleApprove(assessment)}
-                disabled={updatingId === assessment.id}
-                className="px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
-              >
-                {t('actions.approve')}
-              </button>
+            {processing ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-ink-muted">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" aria-hidden />
+                {t('actions.pipelineRunning')}
+              </span>
+            ) : (
+              <>
+                {normalizedStatus === 'pending_review' && (
+                  <button
+                    onClick={() => handleApprove(assessment)}
+                    disabled={updatingId === assessment.id}
+                    className="px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                  >
+                    {t('actions.approve')}
+                  </button>
+                )}
+                <button
+                  onClick={() => handleOpenAssessment(assessment)}
+                  disabled={openingId === assessment.id}
+                  className="px-3 py-2 rounded-xl bg-white dark:bg-surface-card border border-surface-border text-xs font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
+                >
+                  {openingId === assessment.id ? t('actions.opening') : t('actions.open')}
+                </button>
+                <button
+                  onClick={() => handleDeleteAssessment(assessment.id)}
+                  disabled={deletingId === assessment.id}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                >
+                  {deletingId === assessment.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  {t('actions.delete')}
+                </button>
+              </>
             )}
-            <button
-              onClick={() => handleOpenAssessment(assessment)}
-              disabled={openingId === assessment.id}
-              className="px-3 py-2 rounded-xl bg-white dark:bg-surface-card border border-surface-border text-xs font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
-            >
-              {openingId === assessment.id ? t('actions.opening') : t('actions.open')}
-            </button>
-            <button
-              onClick={() => handleDeleteAssessment(assessment.id)}
-              disabled={deletingId === assessment.id}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
-            >
-              {deletingId === assessment.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              {t('actions.delete')}
-            </button>
           </div>
         </div>
       </div>
@@ -412,10 +432,19 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
                     </div>
                   ))}
                 </div>
-                {reportStats.pending_review > 0 && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <p className="text-sm text-amber-800 font-medium">{t('pendingBanner', { count: reportStats.pending_review })}</p>
-                    <button type="button" onClick={() => changeTab('review')} className="btn-primary text-sm">{t('reviewReports')}</button>
+                {(processingCount > 0 || readyForReviewCount > 0) && (
+                  <div className="space-y-3">
+                    {processingCount > 0 && (
+                      <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <p className="text-sm text-sky-800 font-medium">{t('processingBanner', { count: processingCount })}</p>
+                      </div>
+                    )}
+                    {readyForReviewCount > 0 && (
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <p className="text-sm text-amber-800 font-medium">{t('pendingBanner', { count: readyForReviewCount })}</p>
+                        <button type="button" onClick={() => changeTab('review')} className="btn-primary text-sm">{t('reviewReports')}</button>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="grid lg:grid-cols-2 gap-6">

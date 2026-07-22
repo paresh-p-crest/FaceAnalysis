@@ -280,7 +280,7 @@ export function SiteNavbar({
         label: tAdmin(`tabs.${tab}`),
         icon: ADMIN_TAB_ICONS[tab],
         href: adminTabToPath(tab),
-        active: activeAdminTab === tab,
+        active: !reportModalOpen && activeAdminTab === tab,
         badge: tab === 'review' ? adminNavBadges?.review : tab === 'users' ? adminNavBadges?.users : undefined,
       }))
     }

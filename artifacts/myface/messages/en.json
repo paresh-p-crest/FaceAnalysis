@@ -986,46 +986,55 @@
       "height": "Cheekbone Height"
     },
     "skin": {
-      "subtitle": "Canvas pixel analysis from 6 facial regions",
+      "subtitle": "Skin tone, texture and uniformity are analysed using LAB color science and Laplacian frequency analysis.",
       "summaryTitle": "Summary of your skin",
       "allMetrics": "All Skin Metrics",
-      "skinTone": "Skin Tone",
-      "texture": "Texture",
-      "hydration": "Hydration",
-      "overviewTitle": "Skin Quality Overview",
-      "toneAndType": "Skin Tone & Type",
-      "skinToneLabel": "{tone} skin tone",
-      "avgBrightness": "Average brightness: {brightness} · {texture}",
-      "toneUniformity": "Tone Uniformity",
-      "toneUniformityTooltip": "Left-right cheek brightness balance. Even tone indicates uniform melanin distribution and healthy skin.",
-      "textureTooltip": "Brightness-based hydration estimate. Well-hydrated skin reflects light more evenly, appearing luminous.",
-      "clarity": "Clarity",
-      "clarityTooltip": "Combination of redness, tone uniformity, and pigmentation. Good clarity means clear, even-toned skin.",
-      "pigmentation": "Pigmentation",
-      "pigmentationTooltip": "Regional brightness variance across face. Even pigmentation indicates uniform melanin, while variation may suggest sun damage.",
-      "rednessSensitivity": "Redness & Sensitivity",
-      "avgRednessIndex": "Average redness index across 4 primary zones",
-      "rednessNormal": "No abnormal redness detected across facial regions. Skin appears calm with healthy circulation.",
-      "rednessReview": "{level} detected. Consider anti-inflammatory ingredients like niacinamide, centella asiatica, or azelaic acid to reduce sensitivity.",
-      "underEye": "Under-Eye Area",
-      "underEyeBrightness": "Under-eye brightness level",
-      "underEyeDark": "Darker under-eye pigmentation detected. Could be caused by thin skin, poor sleep, dehydration, or genetic factors. Retinol eye creams and cold compresses may help.",
-      "underEyeShadowed": "Mild shadowing under the eyes. Adequate sleep, hydration, and vitamin C serums can help brighten the periorbital area.",
-      "underEyeHealthy": "Under-eye area appears {health}, indicating good skin thickness and circulation.",
-      "tZone": "T-Zone & Pore Analysis",
-      "tZoneOily": "The nose bridge shows higher brightness than the forehead, suggesting excess sebum production in the T-zone. Clay masks, salicylic acid, and oil-free moisturizers can help manage oiliness.",
-      "tZoneDry": "The T-zone shows lower brightness than surrounding areas, suggesting dryness. Consider hydrating serums with hyaluronic acid and a richer moisturizer in this area.",
-      "tZoneBalanced": "T-zone brightness is balanced with the forehead, indicating well-regulated sebum production across the central face.",
-      "regionalMap": "Regional Brightness Map",
-      "brightness": "← Brightness",
-      "redness": "Redness →",
-      "cheekSymmetry": "Cheek brightness symmetry",
-      "leftCheek": "L cheek",
-      "rightCheek": "R cheek",
-      "cheeksBalanced": "Cheeks are well-balanced — uniform tone across both sides.",
-      "cheeksMinor": "Tone difference of ~{diff} brightness units. Minor variation that is typically imperceptible.",
-      "cheeksTreatment": "Tone difference of ~{diff} brightness units. Consider even-toning treatments for the darker side.",
-      "overallSkinScore": "Overall Skin Score"
+      "heroAlt": "Face skin region",
+      "undertone": "Skin Undertone",
+      "blemishing": "Skin Blemishing",
+      "evenness": "Skin Evenness",
+      "texture": "Skin Texture",
+      "oiliness": "Skin Oiliness",
+      "darkCircles": "Dark Circles",
+      "roughnessRin": "Roughness (RIN)",
+      "homogeneityRin": "Homogeneity (RIN)",
+      "oilinessSkew": "Oiliness Skewness",
+      "blemishCount": "Blemish Count",
+      "meanRednessA": "Mean Redness (a*)",
+      "faceLuminance": "Face Luminance (L*)",
+      "underEyeLuminance": "Under-Eye Luminance (L*)",
+      "slides": {
+        "roughness": {
+          "titleLead": "Overall Skin",
+          "titleAccent": "Roughness",
+          "body": "Your skin's roughness is estimated from Laplacian variance on skin pixels. Higher RIN means more fine textural grain at close range.",
+          "metricLabel": "Overall Skin Roughness",
+          "sourceLabel": "Laplacian variance"
+        },
+        "homogeneity": {
+          "titleLead": "Skin",
+          "titleAccent": "Evenness",
+          "body": "Colour homogeneity measured from standard deviation across LAB channels. Lower RIN = more even tone.",
+          "metricLabel": "Skin Homogeneity",
+          "sourceLabel": "LAB std → RIN"
+        },
+        "oiliness": {
+          "titleLead": "Skin",
+          "titleAccent": "Oiliness",
+          "body": "Luminance skewness detects specular highlights from sebum. Positive skew → shiny/oily; negative → matte/dry.",
+          "metricLabel": "Luminance Skewness",
+          "sourceLabel": "L* channel"
+        },
+        "underEye": {
+          "titleLead": "Under-Eye",
+          "titleAccent": "Luminance",
+          "body": "Compares under-eye brightness against average face luminance. A lower ratio indicates dark circles.",
+          "metricLabel": "Under-Eye vs Face L*",
+          "sourceLabel": "LAB L channel",
+          "darker": "Darker",
+          "brighter": "Brighter"
+        }
+      }
     }
   },
   "Onboarding": {
@@ -1796,9 +1805,10 @@
       "latestReports": "Latest reports",
       "reportCount": "{count} reports",
       "pendingBanner": "{count} report(s) waiting for review",
+      "processingBanner": "{count} report(s) being processed",
       "pipelineRunning": "running · {stage}",
       "tabs": {
-        "overview": "Overview",
+        "overview": "Dashboard",
         "users": "Users",
         "review": "Review reports",
         "payments": "Payments"
@@ -1838,7 +1848,8 @@
         "approve": "Approve",
         "open": "Open",
         "opening": "Opening…",
-        "delete": "Delete"
+        "delete": "Delete",
+        "pipelineRunning": "Pipeline running…"
       },
       "errors": {
         "cannotDeleteSelf": "You cannot delete your own admin account."

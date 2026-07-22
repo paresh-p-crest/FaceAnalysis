@@ -993,13 +993,16 @@ export default function QovesProtocolReport({
 
   const paginatedPages = [...pages, closingPage]
 
+  // Admin HTML review: skip the client-facing dashboard cover (PDF page 1); editors start at disclaimer + narrative pages.
+  const frontPages = editable ? pages.slice(1) : pages
+
   if (paginated) {
     return <div className="qoves-protocol-document h-full">{paginatedPages[pageIndex] || paginatedPages[0]}</div>
   }
 
   return (
     <div className="qoves-protocol-document">
-      {pages}
+      {frontPages}
 
       {featurePages.map((page) => {
         const qovesMeta = QOVES_PROTOCOL_FEATURES.find((f) => f.id === page.id)

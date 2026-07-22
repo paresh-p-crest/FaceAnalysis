@@ -986,46 +986,55 @@
       "height": "Wangenknochenhöhe"
     },
     "skin": {
-      "subtitle": "Canvas-Pixelanalyse aus 6 Gesichtsregionen",
+      "subtitle": "Hautton, Textur und Gleichmäßigkeit werden mit LAB-Farbwissenschaft und Laplacian-Frequenzanalyse ausgewertet.",
       "summaryTitle": "Zusammenfassung Ihrer Haut",
       "allMetrics": "Alle Haut-Metriken",
-      "skinTone": "Hautton",
-      "texture": "Textur",
-      "hydration": "Hydration",
-      "overviewTitle": "Hautqualitäts-Überblick",
-      "toneAndType": "Hautton & -typ",
-      "skinToneLabel": "{tone} Hautton",
-      "avgBrightness": "Durchschnittliche Helligkeit: {brightness} · {texture}",
-      "toneUniformity": "Tongleichmäßigkeit",
-      "toneUniformityTooltip": "Links-rechts-Wangen-Helligkeitsbalance. Gleichmäßiger Ton deutet auf uniforme Melaninverteilung und gesunde Haut hin.",
-      "textureTooltip": "Helligkeitsbasierte Hydrationsschätzung. Gut hydratisierte Haut reflektiert Licht gleichmäßiger und wirkt leuchtender.",
-      "clarity": "Klarheit",
-      "clarityTooltip": "Kombination aus Rötung, Tongleichmäßigkeit und Pigmentierung. Gute Klarheit bedeutet klare, gleichmäßige Haut.",
-      "pigmentation": "Pigmentierung",
-      "pigmentationTooltip": "Regionale Helligkeitsvarianz im Gesicht. Gleichmäßige Pigmentierung bedeutet uniformes Melanin, Variation kann auf Sonnenschäden hindeuten.",
-      "rednessSensitivity": "Rötung & Empfindlichkeit",
-      "avgRednessIndex": "Durchschnittlicher Rötungsindex über 4 Primärzonen",
-      "rednessNormal": "Keine abnormalen Rötungen in den Gesichtsregionen festgestellt. Haut wirkt ruhig mit gesunder Durchblutung.",
-      "rednessReview": "{level} festgestellt. Erwägen Sie entzündungshemmende Inhaltsstoffe wie Niacinamid, Centella asiatica oder Azelainsäure.",
-      "underEye": "Unter-Augen-Bereich",
-      "underEyeBrightness": "Unter-Augen-Helligkeitsstufe",
-      "underEyeDark": "Dunklere Unter-Augen-Pigmentierung festgestellt. Kann durch dünne Haut, Schlafmangel, Dehydration oder genetische Faktoren verursacht sein.",
-      "underEyeShadowed": "Leichte Schattierung unter den Augen. Ausreichend Schlaf, Hydration und Vitamin-C-Seren können den periorbitalen Bereich aufhellen.",
-      "underEyeHealthy": "Unter-Augen-Bereich wirkt {health}, was auf gute Hautdicke und Durchblutung hindeutet.",
-      "tZone": "T-Zone & Porenanalyse",
-      "tZoneOily": "Die Nasenbrücke zeigt höhere Helligkeit als die Stirn, was auf überschüssige Talgproduktion in der T-Zone hindeutet.",
-      "tZoneDry": "Die T-Zone zeigt niedrigere Helligkeit als die Umgebung, was auf Trockenheit hindeutet.",
-      "tZoneBalanced": "T-Zone-Helligkeit ist mit der Stirn ausgeglichen, was auf gut regulierte Talgproduktion hindeutet.",
-      "regionalMap": "Regionale Helligkeitskarte",
-      "brightness": "← Helligkeit",
-      "redness": "Rötung →",
-      "cheekSymmetry": "Wangen-Helligkeitssymmetrie",
-      "leftCheek": "L Wange",
-      "rightCheek": "R Wange",
-      "cheeksBalanced": "Wangen sind gut ausbalanciert — gleichmäßiger Ton auf beiden Seiten.",
-      "cheeksMinor": "Tonunterschied von ~{diff} Helligkeitseinheiten. Geringe Variation, typischerweise nicht wahrnehmbar.",
-      "cheeksTreatment": "Tonunterschied von ~{diff} Helligkeitseinheiten. Erwägen Sie Ausgleichsbehandlungen für die dunklere Seite.",
-      "overallSkinScore": "Gesamte Hautbewertung"
+      "heroAlt": "Gesichtshautregion",
+      "undertone": "Haut-Unterton",
+      "blemishing": "Hautunreinheiten",
+      "evenness": "Hautgleichmäßigkeit",
+      "texture": "Hauttextur",
+      "oiliness": "Hautöligkeit",
+      "darkCircles": "Augenringe",
+      "roughnessRin": "Rauheit (RIN)",
+      "homogeneityRin": "Homogenität (RIN)",
+      "oilinessSkew": "Öligkeits-Schiefe",
+      "blemishCount": "Anzahl Unreinheiten",
+      "meanRednessA": "Mittlere Rötung (a*)",
+      "faceLuminance": "Gesichtsleuchtdichte (L*)",
+      "underEyeLuminance": "Unter-Augen-Leuchtdichte (L*)",
+      "slides": {
+        "roughness": {
+          "titleLead": "Gesamte Haut",
+          "titleAccent": "Rauheit",
+          "body": "Die Hautrauheit wird aus der Laplacian-Varianz der Hautpixel geschätzt. Höheres RIN bedeutet feinere Texturkörnung aus der Nähe.",
+          "metricLabel": "Gesamte Hautrauheit",
+          "sourceLabel": "Laplacian-Varianz"
+        },
+        "homogeneity": {
+          "titleLead": "Haut",
+          "titleAccent": "Gleichmäßigkeit",
+          "body": "Farbhomogenität aus der Standardabweichung über LAB-Kanäle. Niedrigeres RIN = gleichmäßigerer Ton.",
+          "metricLabel": "Hauthomogenität",
+          "sourceLabel": "LAB-Std → RIN"
+        },
+        "oiliness": {
+          "titleLead": "Haut",
+          "titleAccent": "Öligkeit",
+          "body": "Leuchtdichte-Schiefe erkennt Spiegelhighlights durch Talg. Positive Schiefe → glänzend/ölig; negativ → matt/trocken.",
+          "metricLabel": "Leuchtdichte-Schiefe",
+          "sourceLabel": "L*-Kanal"
+        },
+        "underEye": {
+          "titleLead": "Unter-Augen",
+          "titleAccent": "Leuchtdichte",
+          "body": "Vergleicht die Unter-Augen-Helligkeit mit der durchschnittlichen Gesichtsleuchtdichte. Ein niedrigeres Verhältnis deutet auf Augenringe hin.",
+          "metricLabel": "Unter-Augen vs Gesicht L*",
+          "sourceLabel": "LAB L-Kanal",
+          "darker": "Dunkler",
+          "brighter": "Heller"
+        }
+      }
     }
   },
   "Shared": {
@@ -1165,9 +1174,10 @@
       "latestReports": "Neueste Berichte",
       "reportCount": "{count} Berichte",
       "pendingBanner": "{count} Bericht(e) warten auf Review",
+      "processingBanner": "{count} Bericht(e) werden verarbeitet",
       "pipelineRunning": "läuft · {stage}",
       "tabs": {
-        "overview": "Überblick",
+        "overview": "Dashboard",
         "users": "Benutzer",
         "review": "Berichte prüfen",
         "payments": "Zahlungen"
@@ -1207,7 +1217,8 @@
         "approve": "Freigeben",
         "open": "Öffnen",
         "opening": "Wird geöffnet…",
-        "delete": "Löschen"
+        "delete": "Löschen",
+        "pipelineRunning": "Pipeline läuft…"
       },
       "errors": {
         "cannotDeleteSelf": "Sie können Ihr eigenes Admin-Konto nicht löschen."
