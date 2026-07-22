@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Fixed
+- **Replit Preview Invalid hook call (final)** — Removed all `GET /` JSON health short-circuits from middleware. Autoscale only needs HTTP 200 on `/` (HTML is fine); JSON liveness stays on `/healthz`. The previous probe heuristics still false-matched Preview and caused Invalid hook call + hydration failure. After deploy: restart web workflow + Republish so Preview is not stale.
 - **Facial age card** — Large estimate on the left; thicker reference scale (5–65) on the right with a vertical needle at the CV age and the age label under the needle (HTML panel + PDF dashboard).
 - **Replit Agent Preview Invalid hook call** — Middleware `GET /` health JSON was still matching Replit product UAs (`Replit/…`, `Replit-Agent/…`) with empty/star Accept, and a block comment containing `* / *` broke middleware compile (unterminated comment → 500s). Probe detection is now opt-in only (curl/kube-probe/Go-http-client/JSON Accept); Replit Preview/Agent always get real HTML. Smoke tests cover the regression.
 - **Treatment protocol phases LLM** — `generate_treatment_phases_async` and `generate_protocol_overview_async` now retry up to `FEATURE_NARRATIVE_MAX_ATTEMPTS` with 429 backoff (same as feature narratives) and log `WARNING` on validation/empty/rate-limit failures instead of dropping phases silently.
@@ -18,7 +19,7 @@ All notable changes to this project will be documented in this file. The format 
 - **Photo upload demo photos** — “Use demo photos” on the analysis upload step is shown only when `NEXT_PUBLIC_DEV_SHORTCUTS=true` (same gate as questionnaire dev shortcuts).
 - **AI visuals variant counts** — Hairstyle, outfit, and healthy-aging gallery sizes are configurable via backend `AI_VISUALS_HAIR_COUNT`, `AI_VISUALS_OUTFIT_COUNT`, and `AI_VISUALS_AGING_COUNT` (defaults 5 / 5 / 3).
 - **AI visuals comparison baseline** — Hair/outfit/aging sliders and aging grid use the projected AFTER portrait as the left/baseline image (labeled “Potential”) instead of the original front photo, matching AFTER-only generation.
-- **Protocol dashboard facial age** — Overview shows CV `visualAge` only (removed unused bio-age column/range from questionnaire). Shared `FacialAgePanel` keeps the same card footprint with a centered estimate on an 18–65 reference scale (interactive + PDF).
+- **Protocol dashboard facial age** — Overview shows CV `visualAge` only (removed unused bio-age column/range from questionnaire). Shared `FacialAgePanel`: large age left, 5–65 scale with vertical needle (interactive + PDF).
 - **Skin analysis (LAB + skin-mask)** — Backend replaces region-box brightness metrics with notebook-aligned Qoves fields (undertone, blemishing, evenness, texture, roughness/homogeneity RIN, oiliness skew, under-eye L*). `SkinReportPanel` shows those fields in the existing summary/carousel/table layout.
 
 ### Added

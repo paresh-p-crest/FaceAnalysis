@@ -113,6 +113,7 @@
 - [x] Protocol admin inline editing: contentEditable overview/features/closing; lightweight dock (section + generate + Save); shared local draft until Save (status: completed)
 - [x] Replit cold-start: import-light `backend.main` (routers mount after bind) so `:8000` opens in seconds, not minutes (status: completed)
 - [x] Locale switcher: re-enable `localeDetection` for cookie-based switching + `router.refresh()` after change (status: completed)
+- [x] Replit Preview: remove all GET `/` JSON health short-circuits from middleware; `/healthz` only; republish after change (status: completed)
 - [x] Replit Agent Preview: never health-JSON `Replit/*` UAs; no `*/` inside middleware block comments; probe smoke tests cover regression (status: completed)
 - [x] Replit Autoscale healthcheck: middleware short-circuits only **explicit** `GET /` probes (JSON Accept / probe UA); RSC + Preview `*/*` always get the app (status: completed)
 - [x] Stripe post-payment UX: no stale success trap on reload; Billing CTA dismisses success screen; session cleared on confirm (status: completed)

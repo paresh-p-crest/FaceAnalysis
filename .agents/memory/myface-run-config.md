@@ -32,23 +32,14 @@ useEffect(() => {
 
 **Why:** React's hydration must produce identical HTML on server and client for the first render. The `useState` lazy initializer runs during render on both sides — accessing `localStorage` there violates this constraint. `useEffect` only runs client-side, after hydration completes.
 
-## Middleware `/` must not eat RSC / Preview
-`middleware.js` short-circuits Autoscale health probes on `GET /` with `200 {"ok":true}`. That short-circuit must be **opt-in only**:
+## Middleware — never JSON on `/`
+Do **not** short-circuit `GET /` with `{"ok":true}` in `middleware.js`. That repeatedly matched Replit Agent Preview / Port Authority / RSC and caused `Invalid hook call` + hydration failure.
 
-- Known probe UAs: `curl/`, `wget/`, `kube-probe`, `googlehc`, `Go-http-client`, healthcheck/uptime monitors
-- Explicit `Accept: application/json` from a non-browser UA
+- Autoscale only needs HTTP **200** on `/` within ~5s — the real HTML app is fine.
+- Explicit JSON liveness: `GET /healthz` → `{"ok":true}`.
+- Smoke: `node scripts/test-middleware-probes.js` (asserts `/` never returns health JSON; `/healthz` does).
 
-**Never** short-circuit for:
-- Next.js App Router flight (`RSC: 1`, `Accept: text/x-component`, `next-url`, …)
-- Browser / WebView UAs (`Mozilla`, Chrome, Safari, …)
-- Replit product UAs (`Replit/…`, `Replit-Agent/…`) unless they explicitly look like a healthcheck
-- Empty or star-only Accept alone (this false-positive broke Agent Preview)
-
-Those getting JSON instead of HTML/Flight produces `Invalid hook call` + hydration failure in Preview while a normal browser tab (sends `text/html`) still works.
-
-**Block-comment trap:** never write the characters `*` followed immediately by `/` inside a `/* … */` comment in `middleware.js` (e.g. documenting Accept star-slash-star). It terminates the comment early → SyntaxError → 500s / Fast Refresh full reload → same Preview crash symptoms. Write “star Accept” in prose instead.
-
-Regression smoke: `node scripts/test-middleware-probes.js` (against a running Next on :3000).
+After changing middleware on Replit: restart the **artifacts/myface: web** workflow, then **Republish** (or hard-refresh Preview / Open dev URL) so the live preview is not on a stale process.
 
 ## allowedDevOrigins
 `next.config.js` needs `'127.0.0.1'` in `allowedDevOrigins` to stop Replit's proxy from blocking `/_next/*` HMR requests:

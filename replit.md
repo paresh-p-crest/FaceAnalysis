@@ -9,7 +9,7 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 - **DB migrations:** `python -m alembic upgrade head` — run from project root
 - **Smoke test:** `python scripts/smoke_test.py`
 - **App health (API):** `GET /api/health` (FastAPI via Next rewrite)
-- **Deploy health (Replit Autoscale):** probes **`GET /`** (not `previewPath`). Middleware returns `200 {"ok":true}` only for known probe UAs (`curl`, `kube-probe`, `Go-http-client`, …) or explicit JSON Accept; browsers and Replit Preview/Agent always get the HTML app. `GET /healthz` remains as an explicit liveness route.
+- **Deploy health (Replit Autoscale):** probes **`GET /`** (not `previewPath`). Middleware does **not** return JSON on `/` — the real HTML app answers 200 (JSON on `/` broke Agent Preview). Explicit liveness: `GET /healthz`.
 
 ## Stack
 
@@ -67,7 +67,7 @@ AI-powered facial analysis platform: users upload a photo, complete an onboardin
 
 - Use `python -m uvicorn` not `uvicorn` — the binary isn't on PATH in Replit workflows
 - Do not set `PORT` as a shared env var — it conflicts with the artifact's PORT=22039 for the Next.js service
-- Replit Autoscale healthchecks **`GET /`**, not `/api/health` or `previewPath`. Middleware returns fast `200 {"ok":true}` only for **known** probe UAs (`curl`/`wget`/`kube-probe`/`Go-http-client`/…) or explicit `Accept: application/json`. Never short-circuit RSC flight, browser/WebView UAs, or Replit product UAs (`Replit/…`, `Replit-Agent/…`) — that caused Invalid hook call + hydration failures in Agent Preview. Also never put `*`+/` inside a middleware block comment (terminates the comment → SyntaxError). Smoke: `node scripts/test-middleware-probes.js`.
+- Replit Autoscale healthchecks **`GET /`**. Do **not** short-circuit `/` with JSON in middleware — that caused Invalid hook call + hydration in Agent Preview. `/` serves the real HTML app (200 is enough); use `GET /healthz` for JSON liveness. After middleware changes: restart web workflow + **Republish** / Open dev URL so Preview is not stale. Smoke: `node scripts/test-middleware-probes.js`.
 - Production start: `artifacts/myface/start-prod.sh` starts **Next and FastAPI in parallel**. `backend.main` is **import-light** (no assessments/protocol routers at import time); uvicorn yields immediately so `:8000` is open while routers + DB `create_all` + pipeline worker load in deferred boot. `/api/*` waits up to 120s for boot instead of `ECONNREFUSED`.
 - Heavy CV (MediaPipe/torch) stays lazy-imported until the first pipeline job.
 - `PYTHONUNBUFFERED=1`, `MPLCONFIGDIR` / `MPLBACKEND=Agg` are set in `start-prod.sh`.
