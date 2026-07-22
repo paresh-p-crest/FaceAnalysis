@@ -3,14 +3,18 @@ import createNextIntlPlugin from 'next-intl/plugin'
 const withNextIntl = createNextIntlPlugin('./i18n/request.js')
 
 /** Replit Agent chat webview embeds the app in a cross-origin iframe. */
-const isReplit = Boolean(process.env.REPL_ID || process.env.REPLIT_DEV_DOMAIN)
+const disableReactRefresh = Boolean(
+  process.env.NEXT_DISABLE_REACT_REFRESH === '1' ||
+    process.env.REPL_ID ||
+    process.env.REPLIT_DEV_DOMAIN,
+)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  // Strict mode double-invoke amplifies iframe hydration races in Agent Preview.
+  reactStrictMode: !disableReactRefresh,
 
   // Allow Replit proxy / Agent Preview / Open-dev-URL hosts to hit /_next/* in dev.
-  // Without this, HMR and flight requests from *.replit.dev are blocked → broken hydrate.
   allowedDevOrigins: [
     '127.0.0.1',
     'localhost',
@@ -26,7 +30,6 @@ const nextConfig = {
     '*.replit.com',
   ],
 
-  // Proxy /api to Python backend
   async rewrites() {
     return [
       {
@@ -36,31 +39,14 @@ const nextConfig = {
     ]
   },
 
-  // Allow Agent / workspace iframes to embed the app (Open URL is top-level; chat Preview is iframe).
-  async headers() {
-    return [
-      {
-        source: '/:path*',
-        headers: [
-          {
-            key: 'Content-Security-Policy',
-            value:
-              "frame-ancestors 'self' https://replit.com https://*.replit.com https://*.replit.dev https://*.repl.co",
-          },
-        ],
-      },
-    ]
-  },
-
   images: {
     unoptimized: true,
   },
 
-  // Agent chat Preview is an iframe: Fast Refresh after edits often leaves a corrupted
-  // React dispatcher → "Invalid hook call" + hydration failure, while Open URL (top-level)
-  // still works. Disable React Refresh on Replit only; full reload still picks up changes.
+  // Agent chat Preview is an iframe: Fast Refresh often corrupts React there
+  // (Invalid hook call) while Open URL still works. Disable on Replit / when flagged.
   webpack: (config, { dev, isServer }) => {
-    if (dev && !isServer && isReplit) {
+    if (dev && !isServer && disableReactRefresh) {
       config.plugins = (config.plugins || []).filter(
         (plugin) => plugin?.constructor?.name !== 'ReactRefreshWebpackPlugin',
       )

@@ -41,13 +41,11 @@ Do **not** short-circuit `GET /` with `{"ok":true}` in `middleware.js`. That rep
 
 After changing middleware on Replit: restart the **artifacts/myface: web** workflow, then **Republish** (or hard-refresh Preview / Open dev URL) so the live preview is not on a stale process.
 
-## allowedDevOrigins + Agent chat Preview (iframe)
-`next.config.js` must allow Replit hosts so `/_next/*` HMR/flight works from the proxy:
+## Agent chat Preview vs Open URL
+Open URL (top-level tab) can work while the Agent chat webview fails with Invalid hook call + hydration.
 
-```js
-allowedDevOrigins: ['127.0.0.1', 'localhost', '*.replit.dev', '*.repl.co', …]
-```
+Causes addressed:
+1. **`usePathname()` SSR/iframe mismatch** — `RouteLayout` keyed the boot screen on `pathname` and branched Auth/App shells before mount; AppBootScreen also derived copy from pathname during the first paint. In the Agent iframe those pathnames can disagree with SSR → hydration failure (often reported as Invalid hook call). Fix: pathname-agnostic boot until `useEffect` mount; defer path-based boot labels.
+2. **Fast Refresh in iframe** — set `NEXT_DISABLE_REACT_REFRESH=1` in `artifacts/myface/.replit-artifact/artifact.toml` and drop `ReactRefreshWebpackPlugin` when that env / `REPL_ID` is set.
 
-**Open URL works, Agent chat Preview fails:** the chat-side Preview is a **cross-origin iframe**. Fast Refresh in that iframe commonly corrupts the React dispatcher → `Invalid hook call` + hydration error overlay (“Your MyFace artifact encountered an error”), while the same URL in a top-level tab is fine.
-
-On Replit (`REPL_ID` / `REPLIT_DEV_DOMAIN`), webpack drops `ReactRefreshWebpackPlugin` so the iframe does full reloads instead of Fast Refresh. Restart the web workflow after changing `next.config.js`.
+Restart the **artifacts/myface: web** workflow after `next.config.js` / artifact env changes.

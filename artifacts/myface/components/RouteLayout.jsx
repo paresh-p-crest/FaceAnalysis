@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { usePathname } from '../i18n/navigation'
 import { hasSiteNavbar, ROUTES } from '../utils/routes'
 import { AppShell } from './AppShell'
@@ -14,7 +15,9 @@ function RouteContent({ children }) {
   const withNavbarOffset = hasSiteNavbar(pathname) && authReady && !!user
 
   if (!authReady) {
-    return <AppBootScreen withNavbarOffset={withNavbarOffset} key={pathname} />
+    // Stable key — do NOT key on pathname. In Replit Agent iframe, usePathname() can
+    // disagree with SSR and a mismatched key blows up hydration → Invalid hook call.
+    return <AppBootScreen withNavbarOffset={false} />
   }
 
   return <div key={pathname}>{children}</div>
@@ -22,6 +25,18 @@ function RouteContent({ children }) {
 
 export function RouteLayout({ children }) {
   const pathname = usePathname()
+  const [shellReady, setShellReady] = useState(false)
+
+  useEffect(() => {
+    setShellReady(true)
+  }, [])
+
+  // Until mount, render a pathname-agnostic boot screen so SSR HTML matches the
+  // first client paint even when usePathname() is wrong in an embedded Preview.
+  if (!shellReady) {
+    return <AppBootScreen withNavbarOffset={false} />
+  }
+
   const isAuth = pathname === ROUTES.auth
   const isAnalysis = pathname === ROUTES.analysis
 

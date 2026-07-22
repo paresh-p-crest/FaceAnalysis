@@ -20,3 +20,4 @@ run = [ "pnpm", "--filter", "@workspace/myface", "run", "start:prod" ]
 [services.env]
 PORT = "3000"
 BASE_PATH = "/"
+NEXT_DISABLE_REACT_REFRESH = "1"
