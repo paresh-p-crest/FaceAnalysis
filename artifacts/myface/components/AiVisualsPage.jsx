@@ -7,24 +7,40 @@ import {
   generateAssessmentVisuals,
   isBackendApiEnabled,
 } from '../utils/apiClient'
-import { resolveAssessmentAiVisualsBaseline } from '../utils/assessmentPhotos'
+import {
+  coercePhotoUrl,
+  resolveAssessmentAiVisualsBaseline,
+} from '../utils/assessmentPhotos'
 import { fetchLatestSubmittedAssessment } from '../utils/latestAssessment'
 import { translateApiError } from '../utils/translateApiError'
 import { AiVisualsSection } from './AiVisualsSection'
 import { StandalonePageShell } from './StandalonePageShell'
 import { ReportDocumentLayout } from './report/ReportDocumentLayout'
 import { AI_VISUAL_NAV_GROUPS } from './report/reportNavConfig'
+import { useApp } from './providers/AppProvider'
+
+/** Outfit BEFORE: white-tee baseline when present, else front (legacy assessments). */
+function resolveOutfitBeforeSrc(assessment) {
+  const baseline = assessment?.aiVisuals?.outfitBaseline
+  const fromBaseline = coercePhotoUrl(
+    baseline && typeof baseline === 'object' ? baseline.imageSrc : baseline,
+  )
+  if (fromBaseline) return fromBaseline
+  return resolveAssessmentAiVisualsBaseline(assessment)
+}
 
 /** Standalone `/ai-visuals` — independent of the report modal. */
 export default function AiVisualsPage({ onStartAssessment, user = null }) {
   const t = useTranslations('AiVisuals')
   const tErrors = useTranslations('Errors')
   const tHome = useTranslations('Home')
+  const { latestAssessmentEpoch } = useApp()
   const [activeType, setActiveType] = useState('hair')
   const [assessment, setAssessment] = useState(null)
   const [aiVisuals, setAiVisuals] = useState(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [regeneratingStyleId, setRegeneratingStyleId] = useState(null)
   const [error, setError] = useState('')
   const [genError, setGenError] = useState('')
 
@@ -48,25 +64,44 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, latestAssessmentEpoch])
 
   const assessmentId = assessment?.id || null
   const canGenerate = !!assessmentId && isBackendApiEnabled() && isAdmin
+  const busy = generating || !!regeneratingStyleId
+
+  const applyVisualsUpdate = useCallback((updated) => {
+    setAiVisuals(updated?.aiVisuals || null)
+    if (updated) {
+      setAssessment((prev) => (prev ? { ...prev, ...updated, aiVisuals: updated.aiVisuals } : updated))
+    }
+  }, [])
 
   const handleGenerate = useCallback(async () => {
-    if (!assessmentId || !canGenerate || generating) return
+    if (!assessmentId || !canGenerate || busy) return
     setGenerating(true)
     setGenError('')
     try {
-      const updated = await generateAssessmentVisuals(assessmentId)
-      setAiVisuals(updated?.aiVisuals || null)
-      if (updated) setAssessment((prev) => (prev ? { ...prev, ...updated, aiVisuals: updated.aiVisuals } : updated))
+      applyVisualsUpdate(await generateAssessmentVisuals(assessmentId))
     } catch (err) {
       setGenError(err.message || t('needsBackend'))
     } finally {
       setGenerating(false)
     }
-  }, [assessmentId, canGenerate, generating, t])
+  }, [assessmentId, applyVisualsUpdate, busy, canGenerate, t])
+
+  const handleGenerateStyle = useCallback(async (styleId) => {
+    if (!assessmentId || !canGenerate || busy || !styleId) return
+    setRegeneratingStyleId(styleId)
+    setGenError('')
+    try {
+      applyVisualsUpdate(await generateAssessmentVisuals(assessmentId, undefined, styleId))
+    } catch (err) {
+      setGenError(err.message || t('needsBackend'))
+    } finally {
+      setRegeneratingStyleId(null)
+    }
+  }, [assessmentId, applyVisualsUpdate, busy, canGenerate, t])
 
   if (loading) {
     return (
@@ -132,13 +167,21 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
         >
           <AiVisualsSection
             aiVisuals={aiVisuals}
-            loading={generating}
+            loading={busy}
             error={genError}
             onGenerate={handleGenerate}
+            onGenerateStyle={handleGenerateStyle}
+            regeneratingStyleId={regeneratingStyleId}
             canGenerate={canGenerate}
             activeType={activeType}
             showGenerate={isAdmin}
             beforeSrc={resolveAssessmentAiVisualsBaseline(assessment)}
+            outfitBeforeSrc={resolveOutfitBeforeSrc(assessment)}
+            visualAge={
+              assessment?.analysis?.metrics?.visualAge
+              ?? assessment?.analysis?.cvReport?.overall?.visualAge
+              ?? null
+            }
           />
         </ReportDocumentLayout>
       </div>

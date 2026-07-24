@@ -24,7 +24,8 @@ FEATURE_SUBSECTION_TITLES: dict[str, list[str]] = {
     "smile": ["Smile Shape", "Teeth & Gingiva"],
 }
 
-# Body char bounds: short ≈60–90 words, standard ≈100–140, long ≈120–160.
+# Body char bounds: brief ≈30–45 words, short ≈60–90, standard ≈100–140, long ≈120–160.
+SUBSECTION_BODY_BRIEF = (80, 450)
 SUBSECTION_BODY_SHORT = (80, 1000)
 SUBSECTION_BODY_STANDARD = (80, 1500)
 SUBSECTION_BODY_LONG = (80, 2000)
@@ -32,12 +33,19 @@ SUBSECTION_BODY_LONG = (80, 2000)
 DEFAULT_SUBSECTION_BODY_MIN = SUBSECTION_BODY_STANDARD[0]
 DEFAULT_SUBSECTION_BODY_MAX = SUBSECTION_BODY_STANDARD[1]
 
+# Titles that keep their schema length band even when the feature is minimal-severity
+# (siblings still get the 70–120 word minimal grounding path).
+MINIMAL_SEVERITY_LENGTH_CARVEOUTS: dict[str, tuple[str, ...]] = {
+    "hair": ("Hair Health",),
+    "jaw": ("Further Enhancement",),
+}
+
 # Every feature title has an explicit length band (primary = long, secondary = short).
 FEATURE_SUBSECTION_BODY_LIMITS: dict[str, dict[str, tuple[int, int]]] = {
     "hair": {
         "Hair Style": SUBSECTION_BODY_LONG,
         "Hair Loss": SUBSECTION_BODY_STANDARD,
-        "Hair Health": SUBSECTION_BODY_SHORT,
+        "Hair Health": SUBSECTION_BODY_BRIEF,
     },
     "eyes": {
         "Eyebrows": SUBSECTION_BODY_LONG,
@@ -87,6 +95,8 @@ def subsection_body_limits(feature_id: str, title: str) -> tuple[int, int]:
 
 def subsection_body_word_target(max_len: int) -> str:
     """Prompt-facing word band for a subsection max char cap."""
+    if max_len <= SUBSECTION_BODY_BRIEF[1]:
+        return "~30–45 words (brief; one short complete paragraph; finish the last sentence)"
     if max_len <= SUBSECTION_BODY_SHORT[1]:
         return "~60–90 words (keep shorter; one focused paragraph)"
     if max_len <= SUBSECTION_BODY_STANDARD[1]:
@@ -94,16 +104,41 @@ def subsection_body_word_target(max_len: int) -> str:
     return "~120–160 words (longer guidance allowed)"
 
 
-def feature_subsection_length_prompt(feature_id: str) -> str:
+def feature_subsection_length_prompt(feature_id: str, titles: list[str] | None = None) -> str:
     """Bullet list of per-title length targets for the LLM user message."""
-    titles = FEATURE_SUBSECTION_TITLES.get(feature_id) or []
-    if not titles:
+    use_titles = titles if titles is not None else (FEATURE_SUBSECTION_TITLES.get(feature_id) or [])
+    if not use_titles:
         return ""
     lines = ["Length targets for subsections (qualitative prose only):"]
-    for title in titles:
+    for title in use_titles:
         _min_len, max_len = subsection_body_limits(feature_id, title)
         lines.append(f"- {title}: {subsection_body_word_target(max_len)}.")
     return "\n".join(lines)
+
+
+def minimal_severity_length_carveout_prompt(feature_id: str) -> str:
+    """Exception block: carve-out titles keep schema bands under minimal 70–120 override."""
+    carveouts = MINIMAL_SEVERITY_LENGTH_CARVEOUTS.get(feature_id) or ()
+    if not carveouts:
+        return ""
+    bullets = feature_subsection_length_prompt(feature_id, list(carveouts))
+    titled = ", ".join(carveouts)
+    return (
+        f"Exception — do NOT apply the 70–120 word band to: {titled}. "
+        "Those titles use their own shorter targets below (write a complete paragraph; do not cut mid-sentence).\n"
+        f"{bullets}"
+    )
+
+
+# Treatment-phase string budgets (Pydantic + JSON schema + clamp must stay in lockstep).
+TREATMENT_PHASE_NAME_MAX = 100
+TREATMENT_PHASE_DETAIL_MAX = 280
+TREATMENT_PHASE_TITLE_MAX = 100
+TREATMENT_PHASE_DURATION_MAX = 100
+TREATMENT_PHASE_SUMMARY_MIN = 20
+TREATMENT_PHASE_SUMMARY_MAX = 500
+TREATMENT_PHASE_ITEMS_MIN = 1
+TREATMENT_PHASE_ITEMS_MAX = 3
 
 
 class FeatureSubsection(BaseModel):
@@ -167,21 +202,25 @@ class ProtocolOverview(BaseModel):
 
 
 class TreatmentPhaseItem(BaseModel):
-    name: str = Field(..., min_length=2, max_length=80)
-    detail: str = Field(..., min_length=2, max_length=120)
+    name: str = Field(..., min_length=2, max_length=TREATMENT_PHASE_NAME_MAX)
+    detail: str = Field(..., min_length=2, max_length=TREATMENT_PHASE_DETAIL_MAX)
 
 
 class TreatmentPhase(BaseModel):
-    title: str = Field(..., min_length=4, max_length=80)
-    duration: str = Field(..., min_length=4, max_length=80)
-    items: list[TreatmentPhaseItem] = Field(..., min_length=2, max_length=3)
+    title: str = Field(..., min_length=4, max_length=TREATMENT_PHASE_TITLE_MAX)
+    duration: str = Field(..., min_length=4, max_length=TREATMENT_PHASE_DURATION_MAX)
+    items: list[TreatmentPhaseItem] = Field(
+        ..., min_length=TREATMENT_PHASE_ITEMS_MIN, max_length=TREATMENT_PHASE_ITEMS_MAX
+    )
 
 
 class TreatmentPhases(BaseModel):
     phase01: TreatmentPhase
     phase02: TreatmentPhase
     phase03: TreatmentPhase
-    summary: str = Field(..., min_length=40, max_length=500)
+    summary: str = Field(
+        ..., min_length=TREATMENT_PHASE_SUMMARY_MIN, max_length=TREATMENT_PHASE_SUMMARY_MAX
+    )
 
 
 class ExecutiveNarrative(BaseModel):
@@ -278,8 +317,12 @@ def treatment_phases_json_schema() -> dict:
     item = {
         "type": "object",
         "properties": {
-            "name": {"type": "string", "minLength": 2, "maxLength": 80},
-            "detail": {"type": "string", "minLength": 2, "maxLength": 120},
+            "name": {"type": "string", "minLength": 2, "maxLength": TREATMENT_PHASE_NAME_MAX},
+            "detail": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": TREATMENT_PHASE_DETAIL_MAX,
+            },
         },
         "required": ["name", "detail"],
         "additionalProperties": False,
@@ -287,9 +330,22 @@ def treatment_phases_json_schema() -> dict:
     phase = {
         "type": "object",
         "properties": {
-            "title": {"type": "string", "minLength": 4, "maxLength": 80},
-            "duration": {"type": "string", "minLength": 4, "maxLength": 80},
-            "items": {"type": "array", "items": item, "minItems": 2, "maxItems": 3},
+            "title": {
+                "type": "string",
+                "minLength": 4,
+                "maxLength": TREATMENT_PHASE_TITLE_MAX,
+            },
+            "duration": {
+                "type": "string",
+                "minLength": 4,
+                "maxLength": TREATMENT_PHASE_DURATION_MAX,
+            },
+            "items": {
+                "type": "array",
+                "items": item,
+                "minItems": TREATMENT_PHASE_ITEMS_MIN,
+                "maxItems": TREATMENT_PHASE_ITEMS_MAX,
+            },
         },
         "required": ["title", "duration", "items"],
         "additionalProperties": False,
@@ -300,7 +356,11 @@ def treatment_phases_json_schema() -> dict:
             "phase01": phase,
             "phase02": phase,
             "phase03": phase,
-            "summary": {"type": "string", "minLength": 40, "maxLength": 500},
+            "summary": {
+                "type": "string",
+                "minLength": TREATMENT_PHASE_SUMMARY_MIN,
+                "maxLength": TREATMENT_PHASE_SUMMARY_MAX,
+            },
         },
         "required": ["phase01", "phase02", "phase03", "summary"],
         "additionalProperties": False,

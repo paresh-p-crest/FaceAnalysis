@@ -185,13 +185,30 @@ export function isFullCloudAssessment(assessment) {
 }
 
 export async function fetchMyAssessments(limit = 20) {
+  const page = await fetchMyAssessmentsWithQuota(limit)
+  return page.items
+}
+
+/**
+ * Submitted list + package quota (`submittedCount`, soft-deleted excluded)
+ * + lifetime unlock count (`lifetimeSubmittedCount`, soft-deleted included).
+ */
+export async function fetchMyAssessmentsWithQuota(limit = 20) {
   const base = getApiBaseUrl()
   const res = await fetch(`${base}/api/my/assessments?limit=${limit}`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_MY_ASSESSMENTS_FAILED)
-  return data.items || []
+  return {
+    items: data.items || [],
+    submittedCount: Number.isFinite(Number(data.submittedCount))
+      ? Number(data.submittedCount)
+      : 0,
+    lifetimeSubmittedCount: Number.isFinite(Number(data.lifetimeSubmittedCount))
+      ? Number(data.lifetimeSubmittedCount)
+      : 0,
+  }
 }
 
 /** Latest in-progress draft (uploads without submit). Not in fetchMyAssessments list. */
@@ -354,15 +371,20 @@ export async function ensureAssessmentProtocol(assessmentId) {
   }
 }
 
-export async function generateAssessmentVisuals(assessmentId, variants = ['hair', 'outfit', 'aging']) {
+export async function generateAssessmentVisuals(
+  assessmentId,
+  variants = ['hair', 'outfit', 'aging'],
+  styleId = null,
+) {
   const base = getApiBaseUrl()
+  const body = styleId ? { styleId } : { variants }
   const res = await fetch(`${base}/api/assessments/${assessmentId}/ai-visuals`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(),
     },
-    body: JSON.stringify({ variants }),
+    body: JSON.stringify(body),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throwApiError(res, data, ERROR_KEYS.GENERATE_VISUALS_FAILED)

@@ -20,6 +20,7 @@
   "overlay": {
     "convexityPoints": [
       { "id": "G", "x": 0.8031, "y": 0.3067 },
+      { "id": "N", "x": 0.8400, "y": 0.3800 },
       { "id": "Sn", "x": 0.8765, "y": 0.5124 },
       { "id": "Pog", "x": 0.8336, "y": 0.6481 }
     ],
@@ -36,6 +37,6 @@
   },
   "pdfChinGuides": {
     "topFrame": "One vertical at/just past Pn; four horizontals from soft-tissue Sn / stomion / labiomental / Pog to that vertical (Image-2 chin-show).",
-    "bottomFrame": "Pitched profile (~7° CW for rightProfile); verticals only at Pn + lip plane (slight left nudge). No horizontals / E-line."
+    "bottomFrame": "Pitched profile (~7° CW for rightProfile); Ricketts' E-line (nose tip to chin) + Zero Meridian (Nasion vertical) + Subnasale Perpendicular (Subnasale vertical)."
   }
 }

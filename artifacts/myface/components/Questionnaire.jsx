@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import {
   DRINKING_OPTIONS,
@@ -16,12 +16,39 @@ import {
 import { BrandLogo } from './BrandLogo'
 import './Questionnaire.css'
 
+function isQuestionAnswerComplete(question, answers) {
+  if (!question) return false
+  const val = answers[question.key]
+  switch (question.type) {
+    case 'select':
+    case 'yes_no':
+      return !!val
+    case 'multi_select':
+      return val && val.length > 0
+    case 'text':
+      return val !== undefined && val !== null && String(val).trim().length > 0
+    case 'textarea':
+      if (question.key === 'additionalNotes') return true
+      return val !== undefined && val !== null && String(val).trim().length > 0
+    case 'details': {
+      const yesNo = answers[question.key]
+      if (!yesNo) return false
+      if (yesNo === 'no') return true
+      const detailsText = (answers[`${question.key}Details`] || '').trim()
+      return detailsText.length >= 3
+    }
+    default:
+      return false
+  }
+}
+
 export default function Questionnaire({ answers, setAnswers, onComplete, onBack, startAtEnd = false }) {
   const t = useTranslations('Questionnaire')
   const tWelcome = useTranslations('Questionnaire.welcome')
   const tOnboarding = useTranslations('Onboarding')
   const [currentIdx, setCurrentIdx] = useState(0)
   const [transitionKey, setTransitionKey] = useState(0)
+  const resumeAppliedRef = useRef(false)
 
   const QUESTIONS = useMemo(() => [
     { key: 'occupation', questionKey: 'questions.occupation', type: 'text', placeholderKey: 'common.answerHere' },
@@ -59,8 +86,20 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
   useEffect(() => {
     if (startAtEnd && activeQuestions.length > 0) {
       setCurrentIdx(activeQuestions.length - 1)
+      resumeAppliedRef.current = true
+      return
     }
-  }, [startAtEnd, activeQuestions])
+    if (resumeAppliedRef.current || activeQuestions.length === 0) return
+    const firstIncomplete = activeQuestions.findIndex(
+      (q) => !isQuestionAnswerComplete(q, answers),
+    )
+    if (firstIncomplete > 0) {
+      setCurrentIdx(firstIncomplete)
+    } else if (firstIncomplete === -1) {
+      setCurrentIdx(activeQuestions.length - 1)
+    }
+    resumeAppliedRef.current = true
+  }, [startAtEnd, activeQuestions, answers])
 
   const currentQuestion = activeQuestions[currentIdx]
 
@@ -103,31 +142,7 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
     })
   }
 
-  const isQuestionComplete = () => {
-    if (!currentQuestion) return false
-    const val = answers[currentQuestion.key]
-    switch (currentQuestion.type) {
-      case 'select':
-      case 'yes_no':
-        return !!val
-      case 'multi_select':
-        return val && val.length > 0
-      case 'text':
-        return val !== undefined && val !== null && val.trim().length > 0
-      case 'textarea':
-        if (currentQuestion.key === 'additionalNotes') return true
-        return val !== undefined && val !== null && val.trim().length > 0
-      case 'details': {
-        const yesNo = answers[currentQuestion.key]
-        if (!yesNo) return false
-        if (yesNo === 'no') return true
-        const detailsText = (answers[`${currentQuestion.key}Details`] || '').trim()
-        return detailsText.length >= 3
-      }
-      default:
-        return false
-    }
-  }
+  const isQuestionComplete = () => isQuestionAnswerComplete(currentQuestion, answers)
 
   const isLast = currentIdx === activeQuestions.length - 1
 

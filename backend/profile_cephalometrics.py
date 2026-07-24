@@ -332,6 +332,7 @@ def analyze_profile(
         "overlay": {
             "convexityPoints": [
                 {"id": "G", "x": pts["glabella"]["x"], "y": pts["glabella"]["y"]},
+                {"id": "N", "x": pts["nasion"]["x"], "y": pts["nasion"]["y"]},
                 {"id": "Sn", "x": pts["subnasale"]["x"], "y": pts["subnasale"]["y"]},
                 {"id": "Pog", "x": pts["pogonion"]["x"], "y": pts["pogonion"]["y"]},
             ],
@@ -349,21 +350,38 @@ def build_profile_report(
     photos: Optional[dict] = None,
 ) -> dict:
     photos = photos or {}
+    right45 = views.get("right45", {})
+    left45 = views.get("left45", {})
     right = views.get("rightProfile", {})
     left = views.get("leftProfile", {})
+
+    right45_lm = right45.get("landmarks", []) if right45.get("success") else []
+    left45_lm = left45.get("landmarks", []) if left45.get("success") else []
     right_lm = right.get("landmarks", []) if right.get("success") else []
     left_lm = left.get("landmarks", []) if left.get("success") else []
+
+    right45_bytes = photos.get("right45")
+    left45_bytes = photos.get("left45")
     right_bytes = photos.get("rightProfile")
     left_bytes = photos.get("leftProfile")
 
-    primary_pose = (
-        "rightProfile"
-        if (right_lm or right_bytes)
-        else ("leftProfile" if (left_lm or left_bytes) else None)
-    )
+    primary_pose = None
+    if right45_lm or right45_bytes:
+        primary_pose = "right45"
+    elif right_lm or right_bytes:
+        primary_pose = "rightProfile"
+    elif left45_lm or left45_bytes:
+        primary_pose = "left45"
+    elif left_lm or left_bytes:
+        primary_pose = "leftProfile"
+
     primary = None
-    if primary_pose == "rightProfile":
+    if primary_pose == "right45":
+        primary = analyze_profile(right45_lm or None, "right45", right45_bytes)
+    elif primary_pose == "rightProfile":
         primary = analyze_profile(right_lm or None, "rightProfile", right_bytes)
+    elif primary_pose == "left45":
+        primary = analyze_profile(left45_lm or None, "left45", left45_bytes)
     elif primary_pose == "leftProfile":
         primary = analyze_profile(left_lm or None, "leftProfile", left_bytes)
 

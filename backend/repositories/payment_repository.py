@@ -107,7 +107,15 @@ async def user_has_completed_payment(user_id: str) -> bool:
         )
         if result.scalar_one_or_none() is not None:
             return True
-        assessment = await session.execute(select(Assessment.id).where(Assessment.user_id == uid).limit(1))
+        # Legacy unlock: any active (non-soft-deleted) assessment for this user.
+        assessment = await session.execute(
+            select(Assessment.id)
+            .where(
+                Assessment.user_id == uid,
+                Assessment.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
         return assessment.scalar_one_or_none() is not None
 
 

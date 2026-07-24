@@ -127,8 +127,19 @@ def get_deterministic_recommendation_hints(feature_id: str, ctx: dict) -> list[s
             hints.append("Sensitive skin: introduce actives gradually; patch test; daily SPF 50.")
 
     if feature_id == "hair":
+        q = ctx.get("questionnaireSummary") or {}
+        pref = str(q.get("genderPreference") or "").strip().lower()
+        # Labels from format_answers_summary ("Feminine") or raw values ("feminine").
+        scale = "Ludwig" if pref == "feminine" else "Norwood"
+        hints.append(
+            f"When naming the baldness/thinning stage scale, use the word {scale} "
+            f"(not {'Norwood' if scale == 'Ludwig' else 'Ludwig'})."
+        )
         if cv.get("dataSource") == "estimated" or not cv.get("densityPct"):
-            hints.append("Hair density not directly measured: do not state Norwood stage or prescribe minoxidil; focus on gentle scalp care and photo guidance.")
+            hints.append(
+                f"Hair density not directly measured: do not state {scale} stage or prescribe minoxidil; "
+                "focus on gentle scalp care and photo guidance."
+            )
         elif cv.get("norwoodStage") and int(cv.get("norwoodStage", 1)) >= 3:
             hints.append("Significant thinning signals: suggest discussing options with a dermatologist; OTC scalp care only in report text.")
 

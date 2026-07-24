@@ -19,6 +19,10 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _is_active(row: Optional[Assessment]) -> bool:
+    return bool(row) and row.deleted_at is None
+
+
 def _assessment_to_dict(row: Assessment) -> dict:
     return {
         "id": str(row.id),
@@ -45,6 +49,7 @@ def _assessment_to_dict(row: Assessment) -> dict:
         "reviewLog": row.review_log or [],
         "createdAt": iso(row.created_at),
         "updatedAt": iso(row.updated_at),
+        "deletedAt": iso(row.deleted_at),
     }
 
 
@@ -96,7 +101,11 @@ async def create_assessment(
     if scan_id and uid:
         async with session_scope() as session:
             existing = await session.execute(
-                select(Assessment).where(Assessment.user_id == uid, Assessment.scan_id == scan_id)
+                select(Assessment).where(
+                    Assessment.user_id == uid,
+                    Assessment.scan_id == scan_id,
+                    Assessment.deleted_at.is_(None),
+                )
             )
             row = existing.scalar_one_or_none()
             if row:
@@ -133,7 +142,11 @@ async def create_assessment(
         if scan_id and uid:
             async with session_scope() as session:
                 existing = await session.execute(
-                    select(Assessment).where(Assessment.user_id == uid, Assessment.scan_id == scan_id)
+                    select(Assessment).where(
+                        Assessment.user_id == uid,
+                        Assessment.scan_id == scan_id,
+                        Assessment.deleted_at.is_(None),
+                    )
                 )
                 found = existing.scalar_one_or_none()
                 if found:
@@ -147,7 +160,9 @@ async def get_assessment_by_id(assessment_id: str) -> Optional[dict]:
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        return _assessment_to_dict(row) if row else None
+        if not _is_active(row):
+            return None
+        return _assessment_to_dict(row)
 
 
 ASSESSMENT_SUMMARY_PROJECTION = {}  # kept for import compatibility; summary shaping is in _summary_dict
@@ -155,25 +170,36 @@ ASSESSMENT_SUMMARY_PROJECTION = {}  # kept for import compatibility; summary sha
 
 async def list_assessments(limit: int = 20, *, summary: bool = True) -> list[dict]:
     async with session_scope() as session:
-        result = await session.execute(select(Assessment).order_by(Assessment.created_at.desc()).limit(limit))
+        result = await session.execute(
+            select(Assessment)
+            .where(Assessment.deleted_at.is_(None))
+            .order_by(Assessment.created_at.desc())
+            .limit(limit)
+        )
         rows = result.scalars().all()
         mapper = _summary_dict if summary else _assessment_to_dict
         return [mapper(r) for r in rows]
 
 
-async def count_submitted_assessments_for_user(user_id: str) -> int:
+async def count_submitted_assessments_for_user(
+    user_id: str,
+    *,
+    include_deleted: bool = False,
+) -> int:
+    """Count submitted assessments. Soft-deleted excluded unless include_deleted=True (access unlock)."""
     uid = parse_uuid(user_id)
     if uid is None:
         return 0
+    clauses = [
+        Assessment.user_id == uid,
+        Assessment.status != AssessmentStatus.draft,
+        Assessment.pipeline.isnot(None),
+    ]
+    if not include_deleted:
+        clauses.append(Assessment.deleted_at.is_(None))
     async with session_scope() as session:
         result = await session.execute(
-            select(func.count())
-            .select_from(Assessment)
-            .where(
-                Assessment.user_id == uid,
-                Assessment.status != AssessmentStatus.draft,
-                Assessment.pipeline.isnot(None),
-            )
+            select(func.count()).select_from(Assessment).where(*clauses)
         )
         return int(result.scalar() or 0)
 
@@ -184,7 +210,11 @@ async def get_assessment_by_user_scan(user_id: str, scan_id: str) -> Optional[di
         return None
     async with session_scope() as session:
         result = await session.execute(
-            select(Assessment).where(Assessment.user_id == uid, Assessment.scan_id == scan_id)
+            select(Assessment).where(
+                Assessment.user_id == uid,
+                Assessment.scan_id == scan_id,
+                Assessment.deleted_at.is_(None),
+            )
         )
         row = result.scalar_one_or_none()
         return _assessment_to_dict(row) if row else None
@@ -202,6 +232,7 @@ async def list_assessments_for_user(user_id: str, limit: int = 20, *, summary: b
                 # Submitted only — hide photo-only drafts until POST …/submit.
                 Assessment.status != AssessmentStatus.draft,
                 Assessment.pipeline.isnot(None),
+                Assessment.deleted_at.is_(None),
             )
             .order_by(Assessment.created_at.desc())
             .limit(limit)
@@ -223,6 +254,7 @@ async def get_latest_draft_for_user(user_id: str) -> Optional[dict]:
                 Assessment.user_id == uid,
                 Assessment.status == AssessmentStatus.draft,
                 Assessment.pipeline.is_(None),
+                Assessment.deleted_at.is_(None),
             )
             .order_by(Assessment.updated_at.desc())
             .limit(1)
@@ -232,15 +264,17 @@ async def get_latest_draft_for_user(user_id: str) -> Optional[dict]:
 
 
 async def delete_assessment(assessment_id: str) -> bool:
+    """Soft-delete an assessment. Soft-deleted rows still count toward package limits."""
     aid = parse_uuid(assessment_id)
     if aid is None:
         return False
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return False
-        await session.execute(delete(Conversation).where(Conversation.assessment_id == aid))
-        await session.delete(row)
+        now = _utcnow()
+        row.deleted_at = now
+        row.updated_at = now
         return True
 
 
@@ -260,7 +294,7 @@ async def update_assessment_status(assessment_id: str, status: str) -> Optional[
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         try:
             row.status = AssessmentStatus(status)
@@ -285,7 +319,7 @@ async def update_assessment_admin_review(
     now = _utcnow()
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.updated_at = now
         row.reviewed_at = now
@@ -324,7 +358,7 @@ async def update_assessment_analysis(
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.analysis = analysis
         row.updated_at = _utcnow()
@@ -345,7 +379,7 @@ async def set_assessment_photos(assessment_id: str, photos: dict) -> Optional[di
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.photos = photos or {}
         row.photos_keys = list((photos or {}).keys())
@@ -369,7 +403,7 @@ async def upsert_assessment_photo(
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid, with_for_update=True)
-        if not row:
+        if not _is_active(row):
             return None
         photos = dict(row.photos or {})
         photos[pose_id] = meta
@@ -395,7 +429,7 @@ async def remove_assessment_photo(
         return None, None
     async with session_scope() as session:
         row = await session.get(Assessment, aid, with_for_update=True)
-        if not row:
+        if not _is_active(row):
             return None, None
         photos = dict(row.photos or {})
         removed = photos.pop(pose_id, None)
@@ -421,7 +455,7 @@ async def finalize_assessment_for_processing(
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.answers = answers or {}
         row.provider = provider
@@ -440,7 +474,7 @@ async def update_assessment_ai_narrative(assessment_id: str, ai_narrative: dict)
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.ai_narrative = ai_narrative
         row.updated_at = _utcnow()
@@ -455,7 +489,7 @@ async def update_assessment_ai_visuals(assessment_id: str, ai_visuals: dict) -> 
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.ai_visuals = ai_visuals
         row.updated_at = _utcnow()
@@ -477,7 +511,7 @@ async def update_assessment_protocol(
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.updated_at = _utcnow()
         if protocol_narrative is not None:
@@ -506,7 +540,7 @@ async def update_assessment_pipeline(
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.pipeline = pipeline
         row.updated_at = _utcnow()
@@ -529,7 +563,7 @@ async def update_assessment_feature_parsing(
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.feature_parsing = feature_parsing
         row.updated_at = _utcnow()
@@ -547,7 +581,7 @@ async def update_assessment_projected_after(
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.projected_after = projected_after
         row.updated_at = _utcnow()
@@ -565,7 +599,7 @@ async def update_assessment_projected_analysis(
         return None
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.projected_analysis = projected_analysis
         row.updated_at = _utcnow()
@@ -579,7 +613,10 @@ async def claim_next_queued_assessment() -> Optional[dict]:
     async with session_scope() as session:
         stmt = (
             select(Assessment)
-            .where(Assessment.pipeline["status"].astext == "queued")
+            .where(
+                Assessment.pipeline["status"].astext == "queued",
+                Assessment.deleted_at.is_(None),
+            )
             .order_by(Assessment.created_at.asc())
             .limit(1)
             .with_for_update(skip_locked=True)
@@ -613,7 +650,7 @@ async def requeue_failed_pipeline(assessment_id: str) -> Optional[dict]:
 
     async with session_scope() as session:
         row = await session.get(Assessment, aid)
-        if not row:
+        if not _is_active(row):
             return None
         row.pipeline = new_queued_pipeline()
         row.status = AssessmentStatus.draft

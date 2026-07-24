@@ -13,7 +13,7 @@ This document outlines the coding standards, design practices, and operational b
   - Classes: `PascalCase` (e.g. `RunAnalysisRequest`, `BaseModel`)
   - Constants: `UPPER_CASE` (e.g. `SETTINGS_ID`, `DEFAULT_PREMIUM_AMOUNT_CENTS`)
 - **Modules & Imports:** Group imports in three sections: standard library, third-party libraries, local app modules. Use absolute imports or explicit relative imports starting with `.`.
-- **Async/Await:** All database operations (Motor), network requests (Httpx), and database triggers should be async. Heavy CPU-bound compute tasks (e.g. OpenCV, MediaPipe mesh processing) should be run in a background thread pool using `asyncio.to_thread`.
+- **Async/Await:** All database operations (SQLAlchemy async), network requests (Httpx), and database triggers should be async. Heavy CPU-bound compute tasks (e.g. OpenCV, MediaPipe mesh processing) should be run in a background thread pool using `asyncio.to_thread`.
 
 ### JavaScript / React (Next.js / Frontend)
 - **Styling Guide:** Standard ES6/React formatting.
@@ -22,6 +22,7 @@ This document outlines the coding standards, design practices, and operational b
   - Components: `PascalCase` (e.g. `AuthModal`, `ReportLayout`)
   - Styles: Tailwind CSS utility classes. Match branding colors (brand teal as primary accent).
 - **Client Directives:** Use `'use client'` at the top of the file only for components utilizing state, context, or browser APIs (like `localStorage`).
+- **Analysis questionnaire draft:** In-progress onboarding answers live in `localStorage` key `myface_analysis_draft_{userId}` (`utils/analysisDraftStorage.js`). Persist only while on `/analysis` with non-empty answers; clear on submit, start-new, logout, and server photo-draft resume. Do not put photo File blobs in this draft.
 
 ---
 
@@ -76,7 +77,7 @@ Key rules enforced:
 ## 4. Security Baseline
 - **Secrets Management:** Secrets must reside strictly inside `.env` configurations. Never check in `.env`, `venv/`, or `.next/` directories. Use `.env.example` to document placeholders.
 - **Role Protections:** Protect admin routes using role-based FastAPI dependencies (`require_admin`) and ensure JWT signed session tokens are properly validated server-side.
-- **Database Safety:** Avoid raw MongoDB injections; utilize the motor repository layer to build structured query filters.
+- **Database Safety:** Avoid raw SQL string concatenation; use the SQLAlchemy repository layer and bound parameters for query filters.
 
 ---
 
@@ -96,6 +97,7 @@ Aligned with aesthetic photography standards (PRS GO photographic documentation;
 - Geometric depth fractions (currently 0.03 / 0.07 / 0.13) require calibration via `scripts/calibrate_norwood_temples.py` on labeled top-of-head photos before production trust on the 1/2/3 boundary.
 - Client prose must not leak internal metric keys (`templeRecession`, `jawWidthClass`, …); report human-readable language only.
 - Type A variants and ethnicity-adjusted hairline norms are out of scope for the current geometric path.
+- **PDF stage diagrams:** `genderPreference === feminine` → `/ludwig-stages/stage-N.png`; otherwise `/norwood-stages/`. CV key stays `norwoodStage` (number only); hair LLM hints name Ludwig vs Norwood to match.
 
 ---
 
@@ -110,3 +112,25 @@ Applies to per-feature narratives, closing synthesis, and protocol overview (`ba
 - **Deduplicate deterministically under parallel generation.** Feature sections generate concurrently, so cross-section runtime checks are not possible — instead confine shared advice (SPF/hydration/sleep) to a single owning section (Skin) and instruct the others not to repeat it.
 - **Pair guardrail instructions with a soft, logged validator.** New prose constraints (directional consistency, sclera framing) get a low-cost co-occurrence/regex check in `validate_feature_narrative` that logs a soft warning and retains the LLM copy — surfaces regressions without churning good reports. Escalate to hard-reject only when a check is proven reliable.
 - **Enforce vocabulary bans in code, both sides of generation.** Enumerate banned terms in the prompt AND in `BANNED_TERM_PATTERN`. Scope regexes tightly to avoid false-positives (e.g. `chemical peel`, never bare `peel`). Hard rejects must have a defined recovery: retry with a corrective hint, then a deterministic per-section template — never a failed report.
+
+---
+
+## 8. German UI copy (`messages/de.json`)
+
+Hard rules (client): **du-form only** (never Sie/Ihr/Ihre); **no en/em dashes** (`–`/`—`) — use hyphen in compounds, or comma / period / `und` / `·`; natural product UI, not MT calques; preserve placeholders, ICU plurals, `\n`, and brands (MyFace, Stripe, PayPal, HIPAA).
+
+Locked loanword / localization policy (apply uniformly on every re-run):
+
+| Keep English | Localize |
+| --- | --- |
+| Product names: MyFace, Beauty Assistant, Qoves Choice | Descriptive UI, CTAs, errors, onboarding |
+| SaaS chrome: Score, Checkout, Dashboard, Upload (noun), Prompt, Pipeline, Admin | Upload as verb → hochladen; Report → Bericht; Billing → Abrechnung; Account → Konto; Sign in/up/out → Anmelden/Registrieren/Abmelden |
+| Tech tokens: PDF, SPF, LED, AHA, EAR, RIN, LAB, OTC, KI (for AI), AFTER/BEFORE pipeline labels | Style chips with natural German (Vibe→Ausstrahlung, Casual→Lässig, Smart Casual→Business-leger, Clean→Klar). **Business** and **Smart** stay as fashion-register loanwords (same bucket as Score) |
+| Chat-Assistent (hyphenated DE compound) | — |
+
+Style conventions:
+
+- Prefer **und** over **&** in titles and section headers (not space-constrained tags).
+- Scores out of N: **"… von 100"**, never slash notation (`Harmonie / 100`).
+- No English medical shorthand (**Derm**); write **Dermatologisch** / **Dermatologe**.
+- Compounds: fuse solid German+German (`Gesichtsanalyse`); hyphenate long or loanword hybrids (`KI-Visuals`, `Goldener-Schnitt-Harmonie`, `Chat-Assistent`); leave multi-word English product names as-is (`Beauty Assistant`).

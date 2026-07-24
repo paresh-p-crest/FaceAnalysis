@@ -761,7 +761,14 @@ async function skinQualityMetrics(landmarks, imageSrc, metrics) {
 }
 
 /* ── Sexual Dimorphism Metrics ── */
-function dimorphismMetrics(landmarks, metrics) {
+function resolveStylePreference(answers = {}) {
+  const pref = String(answers?.genderPreference || '').trim().toLowerCase()
+  if (pref === 'masculine' || pref === 'feminine') return pref
+  if (String(answers?.growBeard || '').trim().toLowerCase() === 'yes') return 'masculine'
+  return 'no-preference'
+}
+
+function dimorphismMetrics(landmarks, metrics, answers = {}) {
   const jawL = lm(landmarks, 234)
   const jawR = lm(landmarks, 454)
   const chin = lm(landmarks, 152)
@@ -786,10 +793,34 @@ function dimorphismMetrics(landmarks, metrics) {
   const cheekW = Math.abs(cheekR.x - cheekL.x) || 0.3
 
   // Helper: map 0-1 value to 0-100 scale (0=feminine, 100=masculine)
-  function scoreFeature(masculineScore, label) {
+  function scoreFeature(masculineScore) {
     const clamped = Math.max(0, Math.min(100, masculineScore))
     const rangeLabel = clamped >= 80 ? 'Very Masculine' : clamped >= 60 ? 'Masculine' : clamped >= 40 ? 'Moderate' : clamped >= 20 ? 'Feminine' : 'Very Feminine'
     return { score: clamped, label: rangeLabel }
+  }
+
+  const preference = resolveStylePreference(answers)
+
+  function displayFor(raw) {
+    if (preference === 'feminine') {
+      const opposite = raw >= 60
+      const disp = Math.min(raw, 59)
+      return { ...scoreFeature(disp), opposite }
+    }
+    if (preference === 'masculine') {
+      const opposite = raw < 40
+      const disp = Math.max(raw, 40)
+      return { ...scoreFeature(disp), opposite }
+    }
+    return { ...scoreFeature(raw), opposite: false }
+  }
+
+  function improveNote(featureName, opposite) {
+    if (!opposite) return ''
+    if (preference === 'feminine') {
+      return ` Room for improvement toward a softer, more feminine ${featureName.toLowerCase()} presentation.`
+    }
+    return ` Room for improvement toward a stronger, more masculine ${featureName.toLowerCase()} presentation.`
   }
 
   // Eyebrows: thicker, lower-set, straighter = masculine
@@ -804,7 +835,7 @@ function dimorphismMetrics(landmarks, metrics) {
   browScore += (browThickness > 0.07 ? 15 : browThickness > 0.045 ? 5 : -10)
   browScore += (browEyeGap < 0.1 ? 12 : browEyeGap > 0.16 ? -10 : 0)
   browScore += (Math.abs(browArch) < 0.005 ? 10 : -5) // straighter = more masculine
-  const eyebrows = scoreFeature(browScore, 'Eyebrows')
+  const eyebrowsRaw = scoreFeature(browScore)
 
   // Nose: larger bridge width, more prominent = masculine
   const noseW = distLandmarks(lm(landmarks, 48), lm(landmarks, 278))
@@ -814,7 +845,7 @@ function dimorphismMetrics(landmarks, metrics) {
   let noseScore = 50
   noseScore += (noseFaceRatio > 0.45 ? 15 : noseFaceRatio > 0.35 ? 5 : -10)
   noseScore += (noseRatio > 0.8 ? 10 : noseRatio > 0.6 ? 0 : -8)
-  const nose = scoreFeature(noseScore, 'Nose')
+  const noseRaw = scoreFeature(noseScore)
 
   // Cheeks: wider, flatter = masculine. Prominent cheekbones = feminine
   const cheekProminence = ((cheekL.z || 0) + (cheekR.z || 0)) / 2
@@ -822,7 +853,7 @@ function dimorphismMetrics(landmarks, metrics) {
   let cheekScore = 50
   cheekScore += (cheekWidthRatio > 0.85 ? 8 : cheekWidthRatio < 0.7 ? -5 : 0)
   cheekScore += (cheekProminence > 0.02 ? -10 : cheekProminence < -0.01 ? 8 : 0)
-  const cheeks = scoreFeature(cheekScore, 'Cheeks')
+  const cheeksRaw = scoreFeature(cheekScore)
 
   // Lips: thinner = masculine, fuller = feminine
   const lipFullness = distLandmarks(upperLip, lm(landmarks, 0)) + distLandmarks(lowerLip, lm(landmarks, 17))
@@ -832,7 +863,7 @@ function dimorphismMetrics(landmarks, metrics) {
   let lipScore = 50
   lipScore += (lipFullnessRatio > 0.18 ? -12 : lipFullnessRatio > 0.12 ? -4 : 8)
   lipScore += (philtrumRatio > 1.5 ? 8 : philtrumRatio < 1 ? -5 : 0)
-  const lips = scoreFeature(lipScore, 'Lips')
+  const lipsRaw = scoreFeature(lipScore)
 
   // Jaw: wider, more angular = masculine
   const jawWidth = Math.abs(jawR.x - jawL.x)
@@ -843,7 +874,7 @@ function dimorphismMetrics(landmarks, metrics) {
   let jawScore = 50
   jawScore += (jawWidthRatio > 0.92 ? 15 : jawWidthRatio > 0.8 ? 5 : -8)
   jawScore += (jawAngle < 130 ? 10 : jawAngle > 150 ? -5 : 0)
-  const jaw = scoreFeature(jawScore, 'Jaw')
+  const jawRaw = scoreFeature(jawScore)
 
   // Chin: wider, squarer = masculine
   const chinW = distLandmarks(lm(landmarks, 148), lm(landmarks, 377))
@@ -853,13 +884,13 @@ function dimorphismMetrics(landmarks, metrics) {
   let chinScore = 50
   chinScore += (chinWidthRatio > 0.55 ? 12 : chinWidthRatio < 0.35 ? -8 : 0)
   chinScore += (chinHeightRatio > 0.1 ? 8 : chinHeightRatio < 0.06 ? -5 : 0)
-  const chinFeature = scoreFeature(chinScore, 'Chin')
+  const chinFeatureRaw = scoreFeature(chinScore)
 
   // Neck: thicker = masculine
   const neckWidthRatio = distLandmarks(jawL, jawR) / ipd
   let neckScore = 50
   neckScore += (neckWidthRatio > 3 ? 12 : neckWidthRatio > 2.5 ? 4 : -8)
-  const neck = scoreFeature(neckScore, 'Neck')
+  const neckRaw = scoreFeature(neckScore)
 
   // Eyes: larger = feminine, smaller = masculine
   const eyeSpan = distLandmarks(eyeL, eyeR) / faceW
@@ -869,7 +900,7 @@ function dimorphismMetrics(landmarks, metrics) {
   let eyeScore = 50
   eyeScore += (eyeOpenRatio > 0.2 ? -12 : eyeOpenRatio < 0.12 ? 8 : 0)
   eyeScore += (eyeSpan > 0.42 ? -8 : eyeSpan < 0.32 ? 6 : 0)
-  const eyes = scoreFeature(eyeScore, 'Eyes')
+  const eyesRaw = scoreFeature(eyeScore)
 
   // Ears: larger, more protruding = masculine
   const earL = lm(landmarks, 234)
@@ -879,15 +910,28 @@ function dimorphismMetrics(landmarks, metrics) {
   let earScore = 50
   earScore += (earSize > 1.2 ? 10 : earSize < 0.8 ? -8 : 0)
   earScore += (earProtrusion > 0.06 ? 6 : -4)
-  const ears = scoreFeature(earScore, 'Ears')
+  const earsRaw = scoreFeature(earScore)
 
-  // Overall dimorphism score (weighted average)
-  const allScores = [eyebrows.score, nose.score, cheeks.score, lips.score, jaw.score, chinFeature.score, neck.score, eyes.score, ears.score]
+  // Overall dimorphism score (weighted average of raw scores, then display-clamped)
+  const allScores = [
+    eyebrowsRaw.score, noseRaw.score, cheeksRaw.score, lipsRaw.score, jawRaw.score,
+    chinFeatureRaw.score, neckRaw.score, eyesRaw.score, earsRaw.score,
+  ]
   const weights = [1.2, 1.1, 0.8, 1.0, 1.3, 1.1, 0.7, 0.9, 0.6]
   const weightedSum = allScores.reduce((s, v, i) => s + v * weights[i], 0)
   const weightTotal = weights.reduce((a, b) => a + b, 0)
-  const overallScore = Math.round(weightedSum / weightTotal)
-  const overallLabel = overallScore >= 80 ? CV_LABEL.veryMasculine : overallScore >= 60 ? CV_LABEL.masculine : overallScore >= 40 ? CV_LABEL.moderate : overallScore >= 20 ? CV_LABEL.feminine : CV_LABEL.veryFeminine
+  const overallRaw = Math.round(weightedSum / weightTotal)
+  const overall = displayFor(overallRaw)
+
+  const eyebrows = displayFor(eyebrowsRaw.score)
+  const nose = displayFor(noseRaw.score)
+  const cheeks = displayFor(cheeksRaw.score)
+  const lips = displayFor(lipsRaw.score)
+  const jaw = displayFor(jawRaw.score)
+  const chinFeature = displayFor(chinFeatureRaw.score)
+  const neck = displayFor(neckRaw.score)
+  const eyes = displayFor(eyesRaw.score)
+  const ears = displayFor(earsRaw.score)
 
   const browSet =
     browEyeGap < 0.1 ? 'low-set' : browEyeGap > 0.16 ? 'higher-set' : 'moderately set'
@@ -896,68 +940,86 @@ function dimorphismMetrics(landmarks, metrics) {
   const features = [
     {
       name: 'Eyebrows',
-      ...eyebrows,
+      score: eyebrows.score,
+      label: eyebrows.label,
       explanation:
         `Your brows score ${eyebrows.score} (${eyebrows.label.toLowerCase()}): ` +
-        `${browSet}, ${browForm}, relative thickness ${(browThickness * 100).toFixed(1)}% of face height.`,
+        `${browSet}, ${browForm}, relative thickness ${(browThickness * 100).toFixed(1)}% of face height.` +
+        improveNote('Eyebrows', eyebrows.opposite),
     },
     {
       name: 'Eyes',
-      ...eyes,
+      score: eyes.score,
+      label: eyes.label,
       explanation:
         `Your eyes score ${eyes.score} (${eyes.label.toLowerCase()}): ` +
-        `aperture ${(eyeOpenRatio * 100).toFixed(1)}% of IPD, span ${(eyeSpan * 100).toFixed(1)}% of face width.`,
+        `aperture ${(eyeOpenRatio * 100).toFixed(1)}% of IPD, span ${(eyeSpan * 100).toFixed(1)}% of face width.` +
+        improveNote('Eyes', eyes.opposite),
     },
     {
       name: 'Nose',
-      ...nose,
+      score: nose.score,
+      label: nose.label,
       explanation:
         `Your nose scores ${nose.score} (${nose.label.toLowerCase()}): ` +
-        `alar width ${(noseFaceRatio * 100).toFixed(1)}% of IPD, width-to-length ${noseRatio.toFixed(2)}.`,
+        `alar width ${(noseFaceRatio * 100).toFixed(1)}% of IPD, width-to-length ${noseRatio.toFixed(2)}.` +
+        improveNote('Nose', nose.opposite),
     },
     {
       name: 'Cheeks',
-      ...cheeks,
+      score: cheeks.score,
+      label: cheeks.label,
       explanation:
         `Your cheeks score ${cheeks.score} (${cheeks.label.toLowerCase()}): ` +
         `cheek width ${(cheekWidthRatio * 100).toFixed(1)}% of face width` +
-        `${cheekProminence > 0.01 ? ', more projected cheekbones' : cheekProminence < -0.01 ? ', flatter midface depth' : ''}.`,
+        `${cheekProminence > 0.01 ? ', more projected cheekbones' : cheekProminence < -0.01 ? ', flatter midface depth' : ''}.` +
+        improveNote('Cheeks', cheeks.opposite),
     },
     {
       name: 'Lips',
-      ...lips,
+      score: lips.score,
+      label: lips.label,
       explanation:
         `Your lips score ${lips.score} (${lips.label.toLowerCase()}): ` +
-        `fullness ${(lipFullnessRatio * 100).toFixed(1)}% of IPD, philtrum-to-lip ${philtrumRatio.toFixed(2)}.`,
+        `fullness ${(lipFullnessRatio * 100).toFixed(1)}% of IPD, philtrum-to-lip ${philtrumRatio.toFixed(2)}.` +
+        improveNote('Lips', lips.opposite),
     },
     {
       name: 'Jaw',
-      ...jaw,
+      score: jaw.score,
+      label: jaw.label,
       explanation:
         `Your jaw scores ${jaw.score} (${jaw.label.toLowerCase()}): ` +
-        `width ${(jawWidthRatio * 100).toFixed(1)}% of face width, mean mandibular angle ${jawAngle.toFixed(0)}°.`,
+        `width ${(jawWidthRatio * 100).toFixed(1)}% of face width, mean mandibular angle ${jawAngle.toFixed(0)}°.` +
+        improveNote('Jaw', jaw.opposite),
     },
     {
       name: 'Chin',
-      ...chinFeature,
+      score: chinFeature.score,
+      label: chinFeature.label,
       explanation:
         `Your chin scores ${chinFeature.score} (${chinFeature.label.toLowerCase()}): ` +
-        `width ${(chinWidthRatio * 100).toFixed(1)}% of face width, height ${(chinHeightRatio * 100).toFixed(1)}% of face height.`,
+        `width ${(chinWidthRatio * 100).toFixed(1)}% of face width, height ${(chinHeightRatio * 100).toFixed(1)}% of face height.` +
+        improveNote('Chin', chinFeature.opposite),
     },
     {
       name: 'Neck',
-      ...neck,
+      score: neck.score,
+      label: neck.label,
       explanation:
         `Your neck scores ${neck.score} (${neck.label.toLowerCase()}): ` +
-        `breadth ${neckWidthRatio.toFixed(2)}× IPD from the jaw landmarks.`,
+        `breadth ${neckWidthRatio.toFixed(2)}× IPD from the jaw landmarks.` +
+        improveNote('Neck', neck.opposite),
     },
     {
       name: 'Ears',
-      ...ears,
+      score: ears.score,
+      label: ears.label,
       explanation:
         `Your ears score ${ears.score} (${ears.label.toLowerCase()}): ` +
         `relative size ${earSize.toFixed(2)}× IPD` +
-        `${earProtrusion > 0.06 ? ', with more lateral protrusion' : ''}.`,
+        `${earProtrusion > 0.06 ? ', with more lateral protrusion' : ''}.` +
+        improveNote('Ears', ears.opposite),
     },
   ]
 
@@ -966,14 +1028,19 @@ function dimorphismMetrics(landmarks, metrics) {
     .slice(0, 3)
     .map((f) => `${f.name.toLowerCase()} (${f.label.toLowerCase()}, ${f.score})`)
 
+  let explanation =
+    `Your overall dimorphism reads as ${overall.label.toLowerCase()} (${overall.score}/100). ` +
+    `The strongest measured drivers are ${topDrivers.join(', ')}.`
+  if (overall.opposite) {
+    explanation += improveNote('overall dimorphism', true)
+  }
+
   return {
-    overallScore,
-    overallLabel,
+    overallScore: overall.score,
+    overallLabel: overall.label,
     scaleLeft: CV_LABEL.hyperFeminine,
     scaleRight: CV_LABEL.hyperMasculine,
-    explanation:
-      `Your overall dimorphism reads as ${overallLabel.toLowerCase()} (${overallScore}/100). ` +
-      `The strongest measured drivers are ${topDrivers.join(', ')}.`,
+    explanation,
     features,
   }
 }
@@ -2460,7 +2527,7 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
     skin: {
       ...skin,
     },
-    dimorphism: dimorphismMetrics(landmarks, metrics),
+    dimorphism: dimorphismMetrics(landmarks, metrics, answers),
     averageness: averagenessMetrics(landmarks, metrics, answers),
   }
 

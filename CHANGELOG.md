@@ -5,9 +5,43 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
-### Fixed
-- **Outfit style titles** — Occasion names use title case (e.g. Professional/Business); UI also title-cases legacy lowercase titles.
+### Added
+- **Outfit white-tee comparison baseline** — When outfit AI visuals are generated, a strict white-tee edit is stored as `aiVisuals.outfitBaseline` and used as the outfit slider BEFORE (UI only). Outfit AFTER edits still use the original front photo.
+- **AI visuals media URL storage** — New generations persist preview bytes under `assessments/{id}/ai-visuals/…` (local filesystem or Replit Object Storage) and store `/api/media/…` URLs in `imageSrc`. Legacy inline `data:image/…` values remain readable until regen.
+- **Assessment soft delete** — `assessments.deleted_at`; `DELETE /api/assessments/{id}` soft-deletes. Soft-deleted rows are excluded from the 2-analysis package limit (`submittedCount`); lists/GET hide them. `GET /my/assessments` returns `submittedCount` for eligibility.
+- **Soft-delete access hardening** — Mutators refuse soft-deleted rows; pipeline aborts mid-run; `GET /api/media/assessments/{id}/…` 404s when soft-deleted; payment assessment-fallback is active-only. After deleting the open report, FE clears stale binding and rebinds to the previous ready report (or empty) for report modal / chat / AI visuals.
+- **Admin per-style AI visual regen** — `POST …/ai-visuals` accepts optional `styleId`; admin report overlay **Edit AI Visuals** (same pattern as Edit After Image) can regenerate the full gallery or any single hair/outfit/aging card without wiping siblings. Category-subset regen also merges into existing `aiVisuals`.
+- **German locale (`de.json`)** — Full key-for-key du-form translation of `en.json` (no Sie-form, no en/em dashes); loanword/compound policy in `docs/industry-practices.md` §8.
 ### Changed
+- **Admin PDF download bypass** — Admins can now download the PDF report regardless of approval status. Users still require `status === 'approved'` before the download button is enabled. Implemented by adding an `isAdmin` parameter to `canDownloadReportPdf` in `reportWorkflow.js` (returns `true` immediately for admins) and passing `isAdmin` from `Report.jsx` and `CustomerOverviewDashboard.jsx`.
+- **Nose & Jaw PDF profile image source** — `nose` and `jaw` recommendation pages now use `rightProfile` (strict side profile) as the primary profile inset photo instead of `right45` (3/4 oblique). Fallback order: `rightProfile → leftProfile → right45 → left45`. All other profile-image pages (chin, etc.) retain the existing `right45`-first order. Implemented via `STRICT_PROFILE_FEATURE_IDS` in `protocolFeatureImages.js` with `featureId` passed through `resolveAllFeatureImages`.
+- **Relaxed Profile Photo Validation (FE & BE Alignment)** — Relaxed validation strictness for `leftProfile` and `rightProfile` photos during upload and backend processing. Expanded `leftProfile` range to `{ min: 0.45, max: 1.0 }` and `rightProfile` range to `{ min: 0.0, max: 0.55 }` (matching in `photoValidation.js` and `photo_validation.py`) to accept 3/4 oblique to full profile views. Softened frontal-only checks (expression, hair, centering, glasses) for non-front poses in `photoValidation.js`. Added a low-confidence MediaPipe detector fallback (`min_detection_confidence=0.2`) in `backend/mediapipe_analysis.py` to ensure profile faces are detected reliably during backend pipeline execution.
+- **PDF Chin Recommendation Overlay (Image 2 Style)** — Updated bottom profile frame on the Chin Recommendation PDF page to draw Ricketts' E-line (solid line from nose tip to chin), Zero Meridian (solid vertical line from Nasion down to chin level), and Subnasale Perpendicular (dotted vertical line from Subnasale down to chin level), matching Image 2 in `side_profile_lines.ipynb`. Reduced the bottom extension length of both vertical lines (`extraY = Math.max(6, (chin.y - subnasale.y) * 0.05)`) so they terminate cleanly right below the chin level. Implemented mild Canvas cover-crop zoom (`zoom = 0.85`) in `generateAnnotatedChinProfileImage` matching frame aspect ratio (`COL_W` x `CHIN_PROFILE_FRAME_H`) so the face profile is prominently displayed with comfortable padding, ensuring all guide lines (verticals and horizontals) remain 100% visible without edge clipping. Updated overlay line styling in `generateAnnotatedChinProfileImage` to match the clean white single-pass stroke aesthetic (`#FFFFFF`, ~2px width) used in Cheek Recommendations. Made `right45` (3/4 oblique profile) the primary preferred photo source in both frontend (`resolveProfileBeforeImage`) and backend (`build_profile_report`). Added dynamic client-side `analyzeWithMediaPipe` execution inside `generateAnnotatedChinProfileImage` in `chinProfileGuides.js` to extract real face landmarks (`4`, `2`, `168`, `0`, `152`) directly on the photo Canvas before rendering lines. Updated landmark validation bounds in `extractProfileLandmarks` to preserve real MediaPipe landmarks on 3/4 oblique views (`pn.x ~ 0.81`, `Sn.x ~ 0.73`, `Pog.x ~ 0.66`). Corrected MediaPipe Pronasale landmark index to 4 and added upper lip center (0). Backend cephalometrics and landmark resolution now include Nasion ($N$).
+### Fixed
+- **Soft-delete navigation** — Dashboard/report gates reload on `latestAssessmentEpoch`; deleting the open report rebinds or closes the modal (no stuck “ready” host); missing report opens clear state and return to dashboard; Chat/AI Visuals use first ready report; resume-draft at limit goes to `/analysis`; `lifetimeSubmittedCount` keeps legacy unlock after soft-delete.
+- **Package limit ignores soft-deleted** — `count_submitted_assessments_for_user` / `submittedCount` exclude `deleted_at` rows so deleting a report frees an analysis slot.
+- **Start questionnaire after soft-delete** — Limit-reached no longer redirects to `/report` (empty Start loop when soft-deleted rows still consume the package quota). Dashboard/report empty state shows the analysis-limit message instead of a Start CTA; `/analysis` limit UI only offers “View your report” when an active report exists.
+- **Onboarding questionnaire refresh** — In-progress answers + step persist in `localStorage` (`myface_analysis_draft_{userId}`); refresh/`/analysis` re-entry resumes at the first incomplete question. Cleared on submit, start-new, logout, and server photo-draft resume.
+- **Database branding scrub** — Removed leftover document-store wording from delete-report confirm, comments, SOP/overview/contracts/practices, and `protocol_service`; stack is PostgreSQL-only.
+- **Admin review “Processing…” label** — Replaced “Pipeline running…” / “Pipeline läuft…” with “Processing…” / “Verarbeitung…” on review cards while analysis is in progress.
+- **Forgot password tap target** — Control is text-sized only (`w-fit`); password label uses `htmlFor`/`id` so empty row space no longer opens the reset dialog.
+- **Sign-out confirm copy** — Generic logout dialog text for all roles (`Nav.signOutConfirmTitle` / `signOutConfirmMessage` in `en.json` + `de.json`); no admin-tools mention.
+- **PDF Treatment Protocol truncation** — Phase titles, durations, and item lines on PDF page 1 wrap fully with `splitTextToSize` (no max-line ellipsis); phase cards grow to fit all text. Summary still draws only if space remains below the cards.
+- **Outfit style titles** — Occasion names use title case (e.g. Professional/Business); UI also title-cases legacy lowercase titles.
+- **Treatment phases schema retries** — Liberalized `detail` (280), name/title/duration (100), items min 1, summary min 20; clamp soft overruns before Pydantic so clinical sentences no longer burn all structured retries.
+- **Narrative metric key leakage** — `NO_TECH_JARGON_RULES` forbids pasting camelCase/PascalCase JSON metric names into client-facing prose; paraphrase into plain English.
+- **PDF closing duplicate page number** — Closing page no longer draws a footer `Page N` alongside the standard header `PAGE / NN` (removed sole `addFooter` call).
+### Changed
+- **Admin Edit Generated Images** — AFTER and AI visual thumbnails open a full-size preview on click (Esc / backdrop to close).
+- **Healthy aging AI visuals layout** — Vertical stack of image + age cards (Current, +3, +5, +10) with `visualAge` / `visualAge + n`; photo frame matches hairstyle compare. Static tag + blurb; educational footnote inside each +N card. Shared AI visual frames slightly shorter (`max-w-[22rem]`, mild aspect trim).
+- **Hair Health narrative length** — BRIEF band `80–450` chars (~30–45 words) so the bottom hair-page column fits without mid-sentence clip; minimal-severity carve-outs keep Hair Health + Jaw Further Enhancement on their short bands while sibling subsections still use the 70–120 word grounding path.
+- **Dimorphism display vs preference** — Report dimorphism scores/labels clamp to Moderate or the preferred side (`genderPreference` / `growBeard` fallback); measured metric phrases unchanged; opposite-side features get a room-for-improvement sentence (BE `cv_report.py` + FE `cvReport.js`).
+- **Admin report image tools** — Navbar shows one **Edit Generated Images** control (projected AFTER + AI visuals in a single overlay). **Edit PDF narrative** removed; narrative edits stay in the protocol HTML preview. Pipeline status block in that overlay is temporarily commented out.
+- **PDF baldness stage diagrams** — Feminine `genderPreference` loads `/ludwig-stages/stage-N.png`; otherwise `/norwood-stages/` (same numbering). CV field remains `norwoodStage`. Hair LLM hints use the matching Ludwig/Norwood keyword only.
+- **AI visuals hair color lock** — Hair-style prompts no longer inject CV `hairColor`; color/texture locked from the reference image only (no dye escape hatch). Aging still uses CV color only to gate graying language.
+- **Admin users tab** — Removed the `users` account-count subtitle under Registered users.
+- **Admin report Past Assessments** — Sidebar Past Assessments nav/panel is hidden for admins (platform-wide list was noise while reviewing one report). Users unchanged.
+- **`de.json` style pass** — `&`→`und` in headers; `Höchste Harmonie von 100`; `Dermatologisch freigegeben`; style chips localized (Ausstrahlung, Lässig, Business-leger, Klar).
 - **Feature narrative concurrency** — All 11 feature LLM calls may run at once (`FEATURE_NARRATIVE_CONCURRENCY` default 11; was hard-capped at 2). Executive / overview / treatment phases / closing unchanged. Lower the env var if the provider rate-limits.
 - **AI visuals hair/outfit layout** — Single before/after hero with recommendation side panel (static attribute grid + explanation; panel height matches the compare image) and round style thumbnails below the image (`max-w-sm`, same as prior cards).
 - **AI visuals healthy aging** — Two centered panels (Now → selected age) with a right arrow between; circular +3/+5/+10 selectors under the right image.
@@ -285,9 +319,9 @@ All notable changes to this project will be documented in this file. The format 
 ### Removed
 - **Scanning cycling headline** — dropped rotating `SCAN_MESSAGES` copy; scan UI shows the current progress stage only.
 ### Changed
-- **PostgreSQL greenfield (ADR-023)** — replaced MongoDB/Motor with SQLAlchemy async + asyncpg; UUID PKs; JSONB for nested assessment payloads; `conversation_messages` normalized; env `DATABASE_URL`; gate `is_db_configured`; health field `database`. Removed `motor`/`pymongo`.
+- **PostgreSQL greenfield (ADR-023)** — SQLAlchemy async + asyncpg; UUID PKs; JSONB for nested assessment payloads; `conversation_messages` normalized; env `DATABASE_URL`; gate `is_db_configured`; health field `database`.
 ### Fixed
-- **Domain models doc ↔ Mongo alignment** — documented `users.firstName`/`lastName`, `app_settings.createdAt`, `reviewLog` element shape, partial `user_scan_unique` index, cascade deletes, and `ai_access` owning `assistant_rate_limits`; startup now creates the unique `(userId, hourBucket)` index on that collection.
+- **Domain models doc ↔ database alignment** — documented `users.firstName`/`lastName`, `app_settings.createdAt`, `reviewLog` element shape, partial `user_scan_unique` index, cascade deletes, and `ai_access` owning `assistant_rate_limits`; startup now creates the unique `(userId, hourBucket)` index on that table.
 ### Added
 - **Symmetry regional balance UI** — interactive Symmetry panel shows Eyes/Brows/Mouth/Jaw L–R balance bars from scoring pairs (`cvReport.symmetry.regions`).
 - **Smile LLM narrative** — `FEATURE_NARRATIVE_IDS` includes `smile` (subsections Smile Shape / Teeth & Gingiva); generated into `featureNarratives.smile` and shown on the interactive Smile panel. Protocol PDF page map stays 10 features (ADR-022).
@@ -313,7 +347,7 @@ All notable changes to this project will be documented in this file. The format 
 ### Fixed
 - **Feature LLM discarded for soft guardrail fails** — schema-valid feature narratives are kept (with a warning) when only soft checks fail (ungrounded scores / evidence tiers); templates only on banned procedural terms or unparseable JSON. Stops PDF from showing guardrail templates after successful Groq generations.
 ### Removed
-- **`protocolData` action cards** — dropped from LLM generation, Mongo/`protocol.json` storage, APIs, FE props, and Beauty Assistant `get_protocol_cards`. Protocol completeness uses `protocolNarrative` + `featureNarratives` only (ADR-018).
+- **`protocolData` action cards** — dropped from LLM generation, database/`protocol.json` storage, APIs, FE props, and Beauty Assistant `get_protocol_cards`. Protocol completeness uses `protocolNarrative` + `featureNarratives` only (ADR-018).
 - **Ruler calibration** — deleted `calibration.py` / `test_calibration.py`; no `cvReport.calibration`, `mmPerUnit`, or questionnaire `mouthWidthMm`/`philtrumLengthMm` path (ADR-019). Profile cephalometrics keep angles/ratios in normalized units only.
 ### Added
 - **Cheek PDF ANALYSIS guides from MediaPipe** — Cheek Recommendations ANALYSIS overlay uses DB `analysis.landmarks` with the midface construction from `test.ipynb` (ear-to-ear @ 1.08×, eyes 130/263, nostrils 102/331, mouth 61/291); see `utils/cheekGuides.js`.
@@ -335,7 +369,7 @@ All notable changes to this project will be documented in this file. The format 
 - **PDF feature frame sizes** — hair BEFORE/AFTER 80→100; eyes BEFORE/AFTER pair 100→130; nose/jaw PROFILE shared `COL_W`×300 (`PROFILE_FRAME_H`); cheeks ANALYSIS/BEFORE/AFTER unified at COL_W×180; jaw BEFORE/AFTER 140→150; lips BEFORE/AFTER 150→175; chin guide profiles 100→120; skin half-col BEFORE/AFTER 90→150; neck stacked BEFORE/AFTER 230→280; ear stacked BEFORE/AFTER 200→220.
 - **PDF eyes EYES frame** — landmark eyelid-ring contour clip (same approach as lips); no center-zoom that flattened the tops.
 - **PDF lips LIPS frame** — uses outer-lip (`MOUTH`) contour mask on the protocol panel (`lipPreviewMask: 'contour'`); web protocol UI keeps the oval preview.
-- **Protocol persistence SOT** — Mongo wins when narrative fields are complete; `protocol.json` mirrors narrative/features only; closing always persisted server-side; admin `aiNarrative` edit refreshes closing; FE closing reads stored text only.
+- **Protocol persistence SOT** — database wins when narrative fields are complete; `protocol.json` mirrors narrative/features only; closing always persisted server-side; admin `aiNarrative` edit refreshes closing; FE closing reads stored text only.
 - **Protocol web viewer A4 sheets** — in-app protocol pages use `.qoves-report-a4-page` (210×297 aspect) on a desk canvas so the UI reads like stacked A4 pages, matching the PDF export proportions.
 - **Backend overview doc** — `docs/architecture/backend-overview.md` maps every backend module (routers, CV pipeline, AI, PDF, repos) in plain language with the upload → analyze → store → narrative flow; clarifies FE jsPDF owns the branded protocol PDF vs backend ReportLab fallback.
 ### Changed
@@ -353,7 +387,7 @@ All notable changes to this project will be documented in this file. The format 
 - **Chin PDF guides shifted left of nose tip** — after clockwise pitch, silhouette X sat slightly posterior; Pn / lip / Pog get a small anterior nudge so verticals sit on the nose tip and lip plane (not through the eye/mouth corner).
 - **Chin PDF guide fine-tune** — Pn/Pog inset onto soft tissue (not the bright halo); chin tip band raised off the throat; verticals end at chin-tick height.
 - **Chin PDF pitch direction + simplify overlays** — right-profile pitch is clockwise (+7°) to match the reference forward tilt; bottom plate draws only verticals + chin horizontals (dashed E-line removed).
-- **Chin PDF pitch + Ricketts lock** — re-enabled chin-down pitch; projection guides resolve Pn/Pog/Sn on the pitched photo (not collapsed Mongo overlay); chin ticks span Pog→lip plane and Pog→Pn vertical in full.
+- **Chin PDF pitch + Ricketts lock** — re-enabled chin-down pitch; projection guides resolve Pn/Pog/Sn on the pitched photo (not collapsed overlay); chin ticks span Pog→lip plane and Pog→Pn vertical in full.
 - **Chin PDF guides misaligned into padding** — template band used the frame’s right edge (empty gray); band is now face-content ∩ cover, then landmark X values snap onto the soft-tissue silhouette so Pn / Pog / verticals sit on the profile.
 - **Closing PDF text corruption** — sanitize LLM Unicode (soft hyphens, en/em dashes, curly quotes, control chars) to Helvetica-safe ASCII before `splitTextToSize`/`text`; stops `` glyphs, blown word spacing, and left/right column overlap on Closing Recommendations.
 - **Feature PDF templates instead of LLM copy** — `validated != raw` was always true after subject-voice rewrite, so every feature forced a retry; 429/failed retries then replaced good narratives with guardrail templates. Retries now run only when the first pass fails validation, and concurrency is capped at 2.
@@ -433,7 +467,7 @@ All notable changes to this project will be documented in this file. The format 
 - **Report nav CSS build** — replaced invalid `@apply dark:hover:bg-surface-card/50` (and `/60`) with `hover:bg-surface-warm` so Next.js compiles `globals.css`.
 - **Report header** — PDF (and Approve) sit in the same top bar as the title and close control.
 - **AI narrative / protocol on open** — report open only loads stored NL content; generation runs once in `POST /api/assessments` pipeline.
-- **`POST /api/assessments` 500** — `to_json_safe` now converts NumPy scalars (`np.bool_`, ints, floats, arrays) so MongoDB insert no longer fails with `cannot encode object: np.True_`.
+- **`POST /api/assessments` 500** — `to_json_safe` now converts NumPy scalars (`np.bool_`, ints, floats, arrays) so database insert no longer fails with `cannot encode object: np.True_`.
 - **Top-of-head hair analysis** — fixed grayscale-as-BGR crash in `analyze_hair_photo`; failed enrich no longer overwrites measured hair metrics.
 - **Protocol narratives / summaries** — guardrails no longer reject the phrase `non-surgical`; templates and closing stitch produce measured, feature-specific copy instead of `Non-surgical guidance for X based on stored measurements`.
 - **Report PDF feature crops** — per-feature landmark crops for eyes (brows / periorbital / dual-eye preview), lips (oval masked preview), and cheeks (landmark-based measurement overlays); generic guardrail narrative no longer replaces distinct subsection copy.
@@ -492,7 +526,7 @@ All notable changes to this project will be documented in this file. The format 
 - Payment gating (`backend/ai_access.py`) on all AI endpoints (`402` when unpaid); Beauty Assistant hourly rate limit (20 messages/user/hour).
 - `POST /api/assessments/{id}/ai-protocol` — server-side protocol generation persisted as `protocolData` + `protocolNarrative`.
 - Beauty Assistant session summary compression (refresh after first exchange, then every 6 user messages) stored on `conversations.sessionSummary`.
-- MongoDB `assistant_rate_limits` collection for hourly assistant quotas.
+- `assistant_rate_limits` table for hourly assistant quotas.
 ### Changed
 - Redesigned downloaded PDF report pages 2, 3, and 4 to align with Qoves layout line-by-line, including vertical/horizontal dividers, even text distribution, and MyFace top-left text branding.
 - Redesigned PDF cover page (Page 1) with a centered title, metadata fields grid, top and bottom border accent lines, and brand footers.
@@ -549,7 +583,7 @@ All notable changes to this project will be documented in this file. The format 
 ### Changed
 - Dashboard and report views now hide harmony/summary scores until an assessment is **Approved**; pending reports show an awaiting-review message instead.
 - Assessment API responses now return display-cased workflow statuses (`Pending Review`, `Approved`) while still accepting lowercase/snake_case on input.
-- Completed AuraScan → MyFace rebrand across the codebase: user-facing copy, `AGENTS.md`, architecture docs, `.env.example`, MongoDB/database examples, premium product id (`myface_report`), and browser `localStorage` keys (`myface_*`).
+- Completed AuraScan → MyFace rebrand across the codebase: user-facing copy, `AGENTS.md`, architecture docs, `.env.example`, database examples, premium product id (`myface_report`), and browser `localStorage` keys (`myface_*`).
 - Replaced the separate `QualityBadge` popup box (photo validation failed / passed) with **inline per-item status icons** in the REQUIRED list. Each guideline now shows: `○` idle (no photo), spinning (analyzing), `✓` green (pass), `‼` amber (warn), `✕` red (fail) — keyed to the active pose's validation checks via `GUIDELINE_CHECK_MAP`. Text color also updates (red/amber/neutral) to reinforce the status. Removed `QualityBadge` from both the desktop right panel and mobile upload zone.
 - Made `PhotoUpload.jsx` both steps (confirmation & upload) fully responsive for small screens: layout switches from `h-screen` two-column to `min-h-screen` single-column on mobile, allowing natural scroll.
 - On mobile, the confirmation checklist is now rendered **inline** in the left column (below the subtitle) using `lg:hidden`, so users can interact with it without the hidden right panel.
@@ -605,7 +639,7 @@ All notable changes to this project will be documented in this file. The format 
 - Integrated a Standard Operating Procedures (`docs/sop.md`) handbook for deployment on Replit and integration of Stripe/PayPal sandbox portals.
 
 ### Changed
-- Reorganized `docs/` folder structure, consolidating legacy setup files (`MONGODB_SETUP.md`, `REPLIT_SETUP.md`, `SERVICE_SETUP.md`, `HANDOVER_CHECKLIST.md`, `SPRINT_LOG.md`) into systematic modular files.
+- Reorganized `docs/` folder structure, consolidating legacy setup files (`REPLIT_SETUP.md`, `SERVICE_SETUP.md`, `HANDOVER_CHECKLIST.md`, `SPRINT_LOG.md`) into systematic modular files.
 - Replaced `.cursorrules` and `CLAUDE.md` with lightweight pointers to `AGENTS.md`.
 
 ---
@@ -613,7 +647,7 @@ All notable changes to this project will be documented in this file. The format 
 ## [1.0.0] - 2026-07-07
 ### Added
 - Implemented user and admin roles registration (`/api/auth/register`, `/api/auth/login`).
-- Added database persistence using MongoDB Atlas cluster via async Motor driver.
+- Added database persistence using PostgreSQL via SQLAlchemy async.
 - Created Stripe Checkout and PayPal Orders v2 transaction flows.
 - Built an admin review workspace allowing administrators to write notes, modify client narratives, and publish results.
 - Added dynamic ReportLab server-side PDF compiler gated on report status rules.

@@ -13,11 +13,16 @@ from backend.visual_style_banks import (
     OUTFIT_STYLES,
     AGING_TIERS,
     hair_styles_for,
+    outfit_styles_for,
+    resolve_style_preference,
 )
 from backend.visual_generation import (
     SHARED_VISUAL_OPENING,
+    build_outfit_baseline_prompt,
     build_visual_prompt,
+    find_style_by_id,
     generate_visual_variants,
+    merge_ai_visuals,
     resolve_source_image_bytes,
 )
 
@@ -26,6 +31,19 @@ _CV = {
     "hair": {"hairline": "average", "hairColor": "Brown", "textureType": "Wavy"},
     "skin": {"skinTone": "medium", "tone": "Noticeably uneven"},
 }
+
+_FAKE_EDIT_DATA_URL = (
+    "data:image/png;base64,"
+    + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"x" * 24).decode("ascii")
+)
+
+
+def test_build_outfit_baseline_prompt_strict_white_tee():
+    prompt = build_outfit_baseline_prompt()
+    assert "plain simple white crew-neck t-shirt" in prompt
+    assert "Leave the face and hair exactly as they are" in prompt
+    assert "camera distance" not in prompt.lower()
+    assert "exact same person" in prompt
 
 
 def test_build_visual_prompt_hair_is_identity_preserving():
@@ -37,7 +55,7 @@ def test_build_visual_prompt_hair_is_identity_preserving():
     prompt = build_visual_prompt(
         "hair",
         style,
-        {"ageRange": "25-34", "gender": "female", "goals": ["glow"]},
+        {"ageRange": "25-34", "genderPreference": "feminine", "goals": ["glow"]},
         _CV,
         {"visualAge": 28},
     )
@@ -49,13 +67,57 @@ def test_build_visual_prompt_hair_is_identity_preserving():
     assert fence_idx < give_idx
     assert "this oval face" in prompt
     assert "a average hairline" in prompt
-    assert "brown wavy hair" in prompt
-    assert "keep the same color and natural texture" in prompt
-    assert "Keep the same hair color as the source" not in prompt
+    assert "brown wavy hair" not in prompt
+    assert "preserve the exact hair color" in prompt
+    assert "do not dye, bleach, lighten, darken" in prompt
+    assert "unless the style specifically calls for it" not in prompt
     assert "Textured Crop" in prompt
     assert "Client:" not in prompt
     assert "Context:" not in prompt
     assert "surgical" in prompt.lower()
+
+
+def test_build_visual_prompt_hair_omits_cv_hair_color():
+    style = HairStyleSpec(
+        style_id="soft_layered_bob",
+        display_name="Soft Layered Bob",
+        descriptor="a soft layered bob",
+    )
+    prompt = build_visual_prompt("hair", style, {"genderPreference": "feminine"}, _CV, None)
+    assert "brown" not in prompt.lower()
+    assert "wavy hair" not in prompt.lower()
+    assert "preserve the exact hair color and natural texture from the reference image" in prompt
+
+
+def test_resolve_style_preference_order():
+    assert resolve_style_preference({"genderPreference": "feminine"}) == "feminine"
+    assert resolve_style_preference({"genderPreference": "masculine"}) == "masculine"
+    assert resolve_style_preference({"genderPreference": "no-preference"}) == "no-preference"
+    assert resolve_style_preference({"genderPreference": "no-preference", "growBeard": "yes"}) == "masculine"
+    assert resolve_style_preference({"growBeard": "yes"}) == "masculine"
+    assert resolve_style_preference({"genderPreference": "feminine", "growBeard": "yes"}) == "feminine"
+    assert resolve_style_preference({}) == "no-preference"
+
+
+def test_hair_styles_for_preference_banks():
+    cv = {"faceShape": {"shape": "Oval"}}
+    masc = hair_styles_for(cv, {"genderPreference": "masculine"})
+    fem = hair_styles_for(cv, {"genderPreference": "feminine"})
+    neutral = hair_styles_for(cv, {"genderPreference": "no-preference"})
+    assert {s.style_id for s in masc} != {s.style_id for s in fem}
+    assert any(s.style_id == "buzz_crew_cut" for s in masc)
+    assert not any(s.style_id == "buzz_crew_cut" for s in fem)
+    assert any(s.style_id == "soft_layered_bob" for s in fem)
+    assert any(s.style_id == "medium_soft_layers" for s in neutral)
+
+
+def test_outfit_styles_for_preference_descriptors():
+    masc = outfit_styles_for({"genderPreference": "masculine"})
+    fem = outfit_styles_for({"genderPreference": "feminine"})
+    assert masc[0].style_id == fem[0].style_id == "professional"
+    assert "blouse" in fem[0].descriptor
+    assert "blouse" not in masc[0].descriptor
+    assert "shirt" in masc[0].descriptor
 
 
 def test_build_visual_prompt_outfit_scope_and_anchors():
@@ -119,7 +181,7 @@ def test_build_visual_prompt_empty_cv_uses_fallback_phrases():
     hair = build_visual_prompt("hair", style, {}, {}, None)
     assert "their face shape" in hair
     assert "their hairline" in hair
-    assert "keep the same color and natural texture" in hair
+    assert "preserve the exact hair color" in hair
     assert "unknown" not in hair.lower()
 
     outfit = build_visual_prompt(
@@ -219,7 +281,7 @@ def test_generate_visual_variants_all_thirteen(monkeypatch):
     }
 
     async def _fake_generate_image_edit(prompt, image_bytes, *, log_label=None):
-        return {"dataUrl": "data:image/png;base64,AAA", "error": None}
+        return {"dataUrl": _FAKE_EDIT_DATA_URL, "error": None}
 
     monkeypatch.setattr(vg, "generate_image_edit", _fake_generate_image_edit)
     monkeypatch.setattr(vg, "resolve_image_provider", lambda: "openai")
@@ -250,6 +312,17 @@ def test_generate_visual_variants_all_thirteen(monkeypatch):
     assert len({v["prompt"] for v in variants}) == 13
     aging_ids = {v["styleId"] for v in variants if v["type"] == "aging"}
     assert aging_ids == {"aging_3", "aging_5", "aging_10"}
+    assert all(
+        str(v.get("imageSrc") or "").startswith("/api/media/")
+        for v in variants
+        if v.get("imageSrc")
+    )
+    assert result.get("outfitBaseline") is not None
+    assert "white crew-neck t-shirt" in result["outfitBaseline"]["prompt"]
+    baseline_src = result["outfitBaseline"].get("imageSrc")
+    assert baseline_src and str(baseline_src).startswith("/api/media/")
+    baseline_key = assessment_key(assessment_id, "ai-visuals", "outfit-baseline.jpg")
+    assert get_media_storage().get_bytes(baseline_key) is not None
 
 
 def test_generate_visual_variants_blocks_without_front(monkeypatch):
@@ -332,3 +405,131 @@ def test_resolve_public_url_from_storage():
     )
     assert kind == "cv_report_url_file"
     assert data.startswith(b"\xff\xd8")
+
+
+def test_merge_ai_visuals_by_style_id_keeps_siblings():
+    existing = {
+        "source": "openai",
+        "model": "old",
+        "variants": [
+            {"type": "hair", "styleId": "textured_crop", "imageSrc": "old-crop"},
+            {"type": "hair", "styleId": "side_part_classic", "imageSrc": "old-side"},
+            {"type": "outfit", "styleId": "professional", "imageSrc": "old-outfit"},
+        ],
+    }
+    regenerated = {
+        "source": "openai",
+        "model": "new",
+        "variantCounts": {"hair": 5, "outfit": 5, "aging": 3},
+        "variants": [
+            {"type": "hair", "styleId": "textured_crop", "imageSrc": "new-crop"},
+        ],
+    }
+    merged = merge_ai_visuals(existing, regenerated, style_id="textured_crop")
+    by_id = {v["styleId"]: v for v in merged["variants"]}
+    assert by_id["textured_crop"]["imageSrc"] == "new-crop"
+    assert by_id["side_part_classic"]["imageSrc"] == "old-side"
+    assert by_id["professional"]["imageSrc"] == "old-outfit"
+    assert len(merged["variants"]) == 3
+    assert merged["model"] == "new"
+
+
+def test_merge_ai_visuals_by_category_keeps_other_types():
+    existing = {
+        "variants": [
+            {"type": "hair", "styleId": "textured_crop", "imageSrc": "old-hair"},
+            {"type": "outfit", "styleId": "professional", "imageSrc": "old-outfit"},
+            {"type": "aging", "styleId": "aging_5", "imageSrc": "old-aging"},
+        ],
+    }
+    regenerated = {
+        "variants": [
+            {"type": "hair", "styleId": "textured_crop", "imageSrc": "new-hair"},
+            {"type": "hair", "styleId": "slick_back", "imageSrc": "new-slick"},
+        ],
+    }
+    merged = merge_ai_visuals(existing, regenerated, replaced_types=["hair"])
+    types = [v["type"] for v in merged["variants"]]
+    assert types.count("hair") == 2
+    assert types.count("outfit") == 1
+    assert types.count("aging") == 1
+    hair = [v for v in merged["variants"] if v["type"] == "hair"]
+    assert {v["imageSrc"] for v in hair} == {"new-hair", "new-slick"}
+
+
+def test_find_style_by_id_and_single_style_generate(monkeypatch):
+    import backend.visual_generation as vg
+
+    assessment_id = "vizstyle1"
+    get_media_storage().put_bytes(
+        assessment_key(assessment_id, "front.jpg"),
+        b"\xff\xd8\xff" + b"4" * 250 + b"\xff\xd9",
+    )
+
+    variant_type, spec = find_style_by_id("textured_crop", _CV)
+    assert variant_type == "hair"
+    assert spec.style_id == "textured_crop"
+
+    async def _fake_generate_image_edit(prompt, image_bytes, *, log_label=None):
+        return {"dataUrl": _FAKE_EDIT_DATA_URL, "error": None}
+
+    monkeypatch.setattr(vg, "generate_image_edit", _fake_generate_image_edit)
+    monkeypatch.setattr(vg, "resolve_image_provider", lambda: "openai")
+    monkeypatch.setattr(vg, "has_image_api_key", lambda provider=None: True)
+    monkeypatch.setattr(vg, "_image_model", lambda *args, **kwargs: "mock-model")
+
+    result = asyncio.run(
+        vg.generate_visual_variants(
+            answers={},
+            cv_report=_CV,
+            metrics=None,
+            variant_types=["hair"],
+            style_ids=["textured_crop"],
+            assessment_id=assessment_id,
+            require_projected_after=False,
+        )
+    )
+    assert len(result["variants"]) == 1
+    assert result["variants"][0]["styleId"] == "textured_crop"
+    assert result["variants"][0]["imageSrc"].startswith("/api/media/")
+    assert "outfitBaseline" not in result
+
+
+def test_generate_visual_variants_without_assessment_id_keeps_data_url(monkeypatch):
+    import backend.visual_generation as vg
+
+    async def _fake_generate_image_edit(prompt, image_bytes, *, log_label=None):
+        return {"dataUrl": _FAKE_EDIT_DATA_URL, "error": None}
+
+    monkeypatch.setattr(vg, "generate_image_edit", _fake_generate_image_edit)
+    monkeypatch.setattr(vg, "resolve_image_provider", lambda: "openai")
+    monkeypatch.setattr(vg, "has_image_api_key", lambda provider=None: True)
+    monkeypatch.setattr(vg, "_image_model", lambda *args, **kwargs: "mock-model")
+
+    raw = b"\xff\xd8\xff" + b"1" * 120 + b"\xff\xd9"
+    data_url = "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
+
+    result = asyncio.run(
+        vg.generate_visual_variants(
+            answers={},
+            cv_report=_CV,
+            metrics=None,
+            variant_types=["hair"],
+            style_ids=["textured_crop"],
+            source_image=data_url,
+            require_projected_after=False,
+        )
+    )
+    assert result["variants"][0]["imageSrc"] == _FAKE_EDIT_DATA_URL
+
+
+def test_merge_ai_visuals_hair_regen_preserves_outfit_baseline():
+    existing = {
+        "variants": [{"type": "hair", "styleId": "textured_crop", "imageSrc": "old-hair"}],
+        "outfitBaseline": {"imageSrc": "/api/media/assessments/x/ai-visuals/outfit-baseline.jpg"},
+    }
+    regenerated = {
+        "variants": [{"type": "hair", "styleId": "textured_crop", "imageSrc": "new-hair"}],
+    }
+    merged = merge_ai_visuals(existing, regenerated, replaced_types=["hair"])
+    assert merged["outfitBaseline"]["imageSrc"].endswith("outfit-baseline.jpg")

@@ -4,10 +4,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Loader2, Sparkles, CreditCard, Upload } from 'lucide-react'
 import AnalysisPreparing from './analysis/AnalysisPreparing'
-import { fetchMyAssessmentDraft, fetchMyAssessments, isBackendApiEnabled } from '../utils/apiClient'
+import { Link } from '../i18n/navigation'
+import {
+  fetchMyAssessmentDraft,
+  fetchMyAssessmentsWithQuota,
+  isBackendApiEnabled,
+} from '../utils/apiClient'
+import {
+  isAnalysisLimitReached,
+  MAX_SUBMITTED_ASSESSMENTS_PER_PACKAGE,
+} from '../utils/assessmentEligibility'
 import { isAssessmentSubmitted, userReportReady } from '../utils/reportWorkflow'
+import { ROUTES } from '../utils/routes'
 import { translateApiError } from '../utils/translateApiError'
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../utils/withTimeout'
+import { useApp } from './providers/AppProvider'
 
 const PREP_WINDOW_DAYS = 28
 
@@ -35,9 +46,12 @@ export function CustomerAssessmentGate({
   children,
 }) {
   const t = useTranslations('Home')
+  const tLimit = useTranslations('AnalysisLimit')
   const tErrors = useTranslations('Errors')
+  const { latestAssessmentEpoch } = useApp()
   const loadingMessage = loadingLabel ?? t('loadingDashboard')
   const [submittedItems, setSubmittedItems] = useState([])
+  const [submittedCount, setSubmittedCount] = useState(0)
   const [draftItem, setDraftItem] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -45,12 +59,14 @@ export function CustomerAssessmentGate({
   const [checkoutError, setCheckoutError] = useState('')
 
   const billingLocked = accessReady && !hasAnalysisAccess
+  const limitReached = isAnalysisLimitReached({ user, submittedCount })
 
   const load = useCallback(async (isCancelled) => {
     const cancelled = typeof isCancelled === 'function' ? isCancelled : () => false
     if (!user || !isBackendApiEnabled()) {
       if (!cancelled()) {
         setSubmittedItems([])
+        setSubmittedCount(0)
         setDraftItem(null)
         setLoading(false)
       }
@@ -61,19 +77,21 @@ export function CustomerAssessmentGate({
       setError('')
     }
     try {
-      const [list, draft] = await withTimeout(
-        Promise.all([fetchMyAssessments(20), fetchMyAssessmentDraft()]),
+      const [page, draft] = await withTimeout(
+        Promise.all([fetchMyAssessmentsWithQuota(20), fetchMyAssessmentDraft()]),
         DEFAULT_FETCH_TIMEOUT_MS,
         'Dashboard load timed out',
       )
       if (cancelled()) return
-      const submitted = (Array.isArray(list) ? list : []).filter(isAssessmentSubmitted)
+      const submitted = (Array.isArray(page.items) ? page.items : []).filter(isAssessmentSubmitted)
       setSubmittedItems(submitted)
+      setSubmittedCount(page.submittedCount)
       setDraftItem(draft)
     } catch (err) {
       if (cancelled()) return
       setError(translateApiError(err, tErrors))
       setSubmittedItems([])
+      setSubmittedCount(0)
       setDraftItem(null)
     } finally {
       if (!cancelled()) setLoading(false)
@@ -86,7 +104,7 @@ export function CustomerAssessmentGate({
     return () => {
       cancelled = true
     }
-  }, [load])
+  }, [load, latestAssessmentEpoch])
 
   const latest = submittedItems[0] || null
   const latestReady = latest && userReportReady(latest)
@@ -168,7 +186,7 @@ export function CustomerAssessmentGate({
     )
   }
 
-  if (!latest && draftItem) {
+  if (!latest && draftItem && !limitReached) {
     return (
       <div className="min-h-screen flex items-center justify-center site-navbar-offset bg-surface px-4">
         <div className="max-w-lg w-full rounded-3xl border border-surface-border bg-white p-8 sm:p-10 text-center shadow-card">
@@ -185,6 +203,31 @@ export function CustomerAssessmentGate({
             <Upload className="w-4 h-4" />
             {t('continueCta')}
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Soft-deleted rows do not count toward the package cap; this is for active quota only.
+  if (!latest && limitReached) {
+    return (
+      <div className="min-h-screen flex items-center justify-center site-navbar-offset bg-surface px-4">
+        <div className="max-w-lg w-full rounded-3xl border border-surface-border bg-white p-8 sm:p-10 text-center shadow-card">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted mb-2">
+            {tLimit('eyebrow')}
+          </p>
+          <h1 className="font-serif text-2xl sm:text-3xl text-ink tracking-tight mb-3">
+            {tLimit('title')}
+          </h1>
+          <p className="text-sm text-ink-secondary leading-relaxed mb-8 max-w-md mx-auto">
+            {tLimit('description', {
+              limit: MAX_SUBMITTED_ASSESSMENTS_PER_PACKAGE,
+              count: submittedCount,
+            })}
+          </p>
+          <Link href={ROUTES.dashboard} className="btn-primary inline-flex">
+            {tLimit('dashboardCta')}
+          </Link>
         </div>
       </div>
     )

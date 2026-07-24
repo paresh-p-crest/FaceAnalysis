@@ -152,25 +152,18 @@ function ReportNavbarActions({ toolbar, tReport, className = '', showLabels = tr
         <>
           <button
             type="button"
-            onClick={() => toolbar.onToggleAdminView?.('narrative')}
+            onClick={() => toolbar.onToggleAdminView?.('images')}
             className={`report-shell-btn min-h-[32px] px-2.5 text-[10px] shrink-0 ${
-              toolbar.adminView === 'narrative' ? 'report-shell-btn-active' : ''
+              toolbar.adminView === 'images' ||
+              toolbar.adminView === 'after' ||
+              toolbar.adminView === 'visuals'
+                ? 'report-shell-btn-active'
+                : ''
             }`}
-            title={tReport('shell.editPdfNarrative')}
-          >
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            {showLabels ? <span>{tReport('shell.editPdfNarrative')}</span> : null}
-          </button>
-          <button
-            type="button"
-            onClick={() => toolbar.onToggleAdminView?.('after')}
-            className={`report-shell-btn min-h-[32px] px-2.5 text-[10px] shrink-0 ${
-              toolbar.adminView === 'after' ? 'report-shell-btn-active' : ''
-            }`}
-            title={tReport('shell.editAfterImage')}
+            title={tReport('shell.editGeneratedImages')}
           >
             <ImagePlus className="w-3.5 h-3.5 shrink-0" />
-            {showLabels ? <span>{tReport('shell.editAfterImage')}</span> : null}
+            {showLabels ? <span>{tReport('shell.editGeneratedImages')}</span> : null}
           </button>
           {toolbar.canApprove && (
             <button

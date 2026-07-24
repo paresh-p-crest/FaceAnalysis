@@ -327,19 +327,34 @@ export async function resolveFeatureImageSlots({
  * Profile inset — only when a real profile photo exists (no synthetic front-photo crop).
  * @returns {Promise<{ src: string, isRealProfile: boolean }|null>}
  */
-export async function resolveProfileBeforeImage({ photos, cvReport }) {
+// Features that must use a strict-profile photo (rightProfile/leftProfile) rather than 3/4 oblique.
+const STRICT_PROFILE_FEATURE_IDS = new Set(['nose', 'jaw'])
+
+export async function resolveProfileBeforeImage({ photos, cvReport, featureId = null }) {
+  const right45 = typeof photos?.right45 === 'string' ? photos.right45 : photos?.right45?.publicUrl
+  const left45 = typeof photos?.left45 === 'string' ? photos.left45 : photos?.left45?.publicUrl
   const right = typeof photos?.rightProfile === 'string' ? photos.rightProfile : photos?.rightProfile?.publicUrl
   const left = typeof photos?.leftProfile === 'string' ? photos.leftProfile : photos?.leftProfile?.publicUrl
-  if (right) {
-    return { src: await normalizeToJpegDataUrl(right), isRealProfile: true }
-  }
-  if (left) {
-    return { src: await normalizeToJpegDataUrl(left), isRealProfile: true }
+
+  const useStrictProfile = featureId && STRICT_PROFILE_FEATURE_IDS.has(featureId)
+
+  if (useStrictProfile) {
+    // nose & jaw: prefer rightProfile → leftProfile → right45 → left45
+    if (right) return { src: await normalizeToJpegDataUrl(right), isRealProfile: true }
+    if (left) return { src: await normalizeToJpegDataUrl(left), isRealProfile: true }
+    if (right45) return { src: await normalizeToJpegDataUrl(right45), isRealProfile: true }
+    if (left45) return { src: await normalizeToJpegDataUrl(left45), isRealProfile: true }
+  } else {
+    // all other pages (chin etc.): prefer right45 → right → left45 → left
+    if (right45) return { src: await normalizeToJpegDataUrl(right45), isRealProfile: true }
+    if (right) return { src: await normalizeToJpegDataUrl(right), isRealProfile: true }
+    if (left45) return { src: await normalizeToJpegDataUrl(left45), isRealProfile: true }
+    if (left) return { src: await normalizeToJpegDataUrl(left), isRealProfile: true }
   }
 
   const nasoAural = cvReport?.proportions?.ratios?.nasoAural
   const nasoSrc = typeof nasoAural?.imageSrc === 'string' ? nasoAural.imageSrc : null
-  if (nasoAural?.photoSource === 'rightProfile' && nasoSrc) {
+  if (nasoSrc) {
     return { src: nasoSrc, isRealProfile: true }
   }
 
@@ -371,7 +386,7 @@ export async function resolveAllFeatureImages({
           lipPreviewMask,
         }),
         page.layoutHints?.profileImage
-          ? resolveProfileBeforeImage({ photos, cvReport })
+          ? resolveProfileBeforeImage({ photos, cvReport, featureId: page.id })
           : Promise.resolve(null),
       ])
       return [

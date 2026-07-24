@@ -201,7 +201,7 @@ Finalizes a draft and enqueues the async pipeline (no image re-upload).
 Older docs described synchronous CV+NL in one request — superseded by ADR-025. The compressed base64 create path is no longer used by the web app (superseded by the draft-upload-finalize flow, ADR-026).
 
 ### `POST /api/run-analysis`
-Runs quick mathematical analysis without saving to MongoDB database.
+Runs quick mathematical analysis without saving to the database.
 - **Auth:** None
 - **Request Body:** Same as `POST /api/assessments` (minus `scanId`).
 - **Response Shape (200 OK):** Raw CV analysis results dict.
@@ -219,7 +219,7 @@ Lists recent assessments for the admin panel (summary projection only).
 - **Note:** Un-submitted drafts (`status = "draft"` with `pipeline = null`) are excluded from the user history list, but appear here for admins.
 
 ### `GET /api/my/assessments`
-Lists **submitted** assessments for the current user (summary projection only). Photo-only drafts (`status = draft`, `pipeline = null`) are **excluded** — use `GET /api/my/assessments/draft` to resume an in-progress upload.
+Lists **submitted** assessments for the current user (summary projection only). Photo-only drafts (`status = draft`, `pipeline = null`) and soft-deleted rows (`deleted_at` set) are **excluded** — use `GET /api/my/assessments/draft` to resume an in-progress upload.
 - **Auth:** Private (User)
 - **Query:** `limit` (max 100)
 - **Response Shape (200 OK):**
@@ -236,25 +236,30 @@ Lists **submitted** assessments for the current user (summary projection only). 
           "metrics": { "harmonyScore": 81 }
         }
       }
-    ]
+    ],
+    "submittedCount": 2,
+    "lifetimeSubmittedCount": 2
   }
   ```
+- **`submittedCount`:** total **active** submitted assessments for package-limit checks (soft-deleted excluded). Prefer this over `items.length` if the list is truncated by `limit`.
+- **`lifetimeSubmittedCount`:** total submitted assessments **including soft-deleted** — used for legacy analysis-access unlock when no paid payment row exists. Do not use for the 2-analysis package limit.
 
 ### `GET /api/my/assessments/draft`
-Returns the user's latest in-progress draft (photos may be uploaded; not yet submitted via `POST …/submit`).
+Returns the user's latest in-progress draft (photos may be uploaded; not yet submitted via `POST …/submit`). Soft-deleted drafts are excluded.
 - **Auth:** Private (User)
 - **Response Shape (200 OK):** `{ "item": null }` or `{ "item": { …full draft… } }`
 
 ### `DELETE /api/assessments/{assessment_id}`
-Deletes specific assessment.
+Soft-deletes the assessment (`deleted_at = now`). Row, conversations, and media remain. Soft-deleted assessments **do not** count toward the 2-analysis package limit (slot is freed). Mutators / pipeline / media URLs for that id stop working (404 or no-op); the owner's next list item becomes the previous active report.
 - **Auth:** Owner User or Admin
 - **Response Shape (200 OK):**
   ```json
   {
-    "ok": true
+    "deleted": true,
+    "assessmentId": "…"
   }
   ```
-
+- **404** if already soft-deleted or missing.
 ### `PATCH /api/assessments/{assessment_id}/status`
 Updates assessment status (e.g. submitting for review).
 - **Auth:** Owner User or Admin
@@ -288,6 +293,7 @@ Saves admin review comments, PDF protocol text edits, and/or publishes reports.
     "featureNarratives": { "hair": { "summary": "...", "subsections": [] } }
   }
   ```
+  `treatmentPhases` bounds (Pydantic / structured LLM): `title`/`duration` ≤100 chars; item `name` ≤100; item `detail` ≤280; `items` 1–3 per phase; `summary` 20–500 chars. Soft overruns are clamped before validate.
   Optional legacy `aiNarrative` is still accepted. Protocol text is persisted via protocol storage + DB when `protocolNarrative` / `featureNarratives` are sent.
 - **400:** When assessment status is **Approved**, requests that include `protocolNarrative` or `featureNarratives` are rejected (`Cannot edit protocol narrative on approved reports.`).
 - **Response Shape (200 OK):** Complete updated assessment document.
@@ -302,8 +308,9 @@ Returns stored executive narrative, or generates once if missing. Prefer pipelin
 Streams a stored media object (pose photo, parsing crop, projected AFTER, protocol JSON) from the active media backend (local filesystem or Replit Object Storage; `backend/media_storage.py`). Same URLs in dev and prod. See [ADR-030](decisions.md).
 - **Auth:** None (open, matching prior public `/uploads`; owner-only signed tokens deferred)
 - **Path:** `object_key` must be under `assessments/` (e.g. `assessments/{id}/front.jpg`). Rejects `..`.
+- **Active assessment gate:** For keys matching `assessments/{uuid}/…`, the assessment must exist and not be soft-deleted (`get_assessment_by_id`); otherwise **404**. Bytes remain on disk; only the HTTP serve path is gated.
 - **Response (200 OK):** Raw bytes with a content-type by extension (`image/jpeg`, `image/png`, `application/json`, …) and `Cache-Control: public, max-age=3600`.
-- **404:** Object not found / key outside `assessments/`.
+- **404:** Object not found / key outside `assessments/` / soft-deleted or missing assessment for that UUID prefix.
 
 ### `GET /api/assessments/{assessment_id}/protocol`
 Loads persisted protocol from media storage (`assessments/{id}/protocol.json`) with database fallback.
@@ -357,10 +364,13 @@ Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images 
 - **Request Body:**
   ```json
   {
-    "variants": ["hair", "outfit", "aging"]
+    "variants": ["hair", "outfit", "aging"],
+    "styleId": null
   }
   ```
-- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variantCounts`, `variants[]`). When all categories are requested, `variants[]` length is `AI_VISUALS_HAIR_COUNT + AI_VISUALS_OUTFIT_COUNT + AI_VISUALS_AGING_COUNT` (defaults **13**: 5 hairstyles, 5 outfit occasions, 3 aging previews). Each variant includes `type` (hair/outfit/aging), `styleId`, `title`, `prompt`, `imageSrc`, `status`, and `error`. Failed edits return `status: "blocked"` per variant instead of crashing the request. Prompt text is natural-language with a shared identity opening and per-card scope-fence (ADR-035); image edits are executed as separate single-call prompts (no mega-prompt).
+  - `variants` — category subset to regenerate (default all three). When a subset is sent, regenerated cards for those types are **merged** into the existing `aiVisuals.variants` blob; other categories are preserved.
+  - `styleId` — optional. When set, regenerates **only** that style card and merges it by `styleId` (siblings unchanged). `variants` is ignored for scoping; the type is resolved from the style bank / existing variants. Unknown `styleId` → **400**.
+- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variantCounts`, `variants[]`, optional `outfitBaseline`). When all categories are requested (no `styleId`), `variants[]` length is `AI_VISUALS_HAIR_COUNT + AI_VISUALS_OUTFIT_COUNT + AI_VISUALS_AGING_COUNT` (defaults **13**: 5 hairstyles, 5 outfit occasions, 3 aging previews). Each variant includes `type` (hair/outfit/aging), `styleId`, `title`, `prompt`, `imageSrc`, `status`, and `error`. **`imageSrc`** is a `/api/media/assessments/{id}/ai-visuals/…` URL for new generations; legacy rows may still hold inline `data:image/…;base64,…` until regen. Optional `relativePath` / `contentType` on new cards. **`outfitBaseline`** (present when outfit variants were generated): `{ imageSrc, prompt, status, error, relativePath?, contentType? }` — white-tee comparison image for outfit slider BEFORE only. Failed edits return `status: "blocked"` per variant instead of crashing the request. Prompt text is natural-language with a shared identity opening and per-card scope-fence (ADR-035); image edits are executed as separate single-call prompts (no mega-prompt). Admin report overlay **Edit AI Visuals** (navbar, same pattern as Edit After Image) exposes full-gallery regen plus per-card regen. Projected AFTER regen remains `POST …/projected-after` (Admin After panel).
 
 ### `GET /api/assessments/{assessment_id}/pdf`
 Retrieves generated PDF bytes directly.

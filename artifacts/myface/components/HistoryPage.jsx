@@ -11,6 +11,7 @@ import {
 } from '../utils/apiClient'
 import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/qovesProtocolModel'
 import { isReportApproved, userReportReady } from '../utils/reportWorkflow'
+import { useApp } from './providers/AppProvider'
 
 const STATUS_STYLE = {
   pending_review: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -29,6 +30,7 @@ function StatusBadge({ item, readyLabel, inPreparationLabel }) {
 /** Analysis History — cloud assessments only (no localStorage report list). */
 export default function HistoryPage({ onViewCloudItem, onOpenAdmin, user, openingReportId = null }) {
   const t = useTranslations('History')
+  const { afterAssessmentDeleted } = useApp()
   const [cloudItems, setCloudItems] = useState([])
   const [cloudLoading, setCloudLoading] = useState(false)
   const [cloudError, setCloudError] = useState('')
@@ -61,6 +63,7 @@ export default function HistoryPage({ onViewCloudItem, onOpenAdmin, user, openin
     try {
       await deleteAssessment(assessmentId)
       setCloudItems((prev) => prev.filter((item) => item.id !== assessmentId))
+      await afterAssessmentDeleted?.(assessmentId)
     } catch (err) {
       setCloudError(err.message || t('deleteFailed'))
     } finally {

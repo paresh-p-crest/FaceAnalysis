@@ -81,7 +81,12 @@ async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
                 raise
             backoff = RETRY_BACKOFF_SEC[min(stage_attempts - 1, len(RETRY_BACKOFF_SEC) - 1)]
             await asyncio.sleep(backoff)
-            assessment = await get_assessment_by_id(assessment["id"]) or assessment
+            refreshed = await get_assessment_by_id(assessment["id"])
+            if not refreshed:
+                raise RuntimeError(
+                    f"Assessment {assessment['id']} missing or soft-deleted; aborting stage {stage}"
+                )
+            assessment = refreshed
 
     raise RuntimeError(f"Stage {stage} exhausted retries")
 
@@ -97,15 +102,28 @@ async def _process_assessment(assessment: dict) -> None:
     start_idx = stage_sequence.index(current_stage) if current_stage in stage_sequence else 0
 
     for stage in stage_sequence[start_idx:]:
+        live = await get_assessment_by_id(assessment_id)
+        if not live:
+            logger.info("Assessment %s missing or soft-deleted; aborting pipeline", assessment_id)
+            return
+        assessment = live
+        pipeline = dict(assessment.get("pipeline") or pipeline)
         pipeline = merge_pipeline_update(
             pipeline,
             status="running",
             stage=stage,
             stageStartedAt=_utcnow_iso(),
         )
-        await update_assessment_pipeline(assessment_id, pipeline)
+        updated = await update_assessment_pipeline(assessment_id, pipeline)
+        if not updated:
+            logger.info("Assessment %s not writable (soft-deleted); aborting pipeline", assessment_id)
+            return
         assessment = await _run_stage_with_retry(assessment, stage)
-        pipeline = dict((await get_assessment_by_id(assessment_id) or assessment).get("pipeline") or pipeline)
+        live = await get_assessment_by_id(assessment_id)
+        if not live:
+            logger.info("Assessment %s missing or soft-deleted after stage %s; aborting", assessment_id, stage)
+            return
+        pipeline = dict(live.get("pipeline") or pipeline)
         next_stage = next_pipeline_stage(stage)
         if next_stage:
             pipeline = merge_pipeline_update(pipeline, stage=next_stage, stageStartedAt=_utcnow_iso())

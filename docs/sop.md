@@ -1,4 +1,4 @@
-<!-- Migrated from docs/MONGODB_SETUP.md, docs/REPLIT_SETUP.md, docs/SERVICE_SETUP.md, and docs/HANDOVER_CHECKLIST.md -->
+<!-- Migrated from docs/REPLIT_SETUP.md, docs/SERVICE_SETUP.md, and docs/HANDOVER_CHECKLIST.md -->
 # Standard Operating Procedures (SOP)
 
 This document contains standard step-by-step procedures for local environment setup, testing, external service integrations, and production deployment on Replit.
@@ -10,7 +10,7 @@ This document contains standard step-by-step procedures for local environment se
 ### Prerequisites
 - Node.js (v18+)
 - Python (v3.10 to v3.12)
-- MongoDB Atlas cluster (free tier M0 is sufficient)
+- PostgreSQL (local instance or managed)
 
 ### Steps
 1. **Clone the Repository**
@@ -29,7 +29,7 @@ This document contains standard step-by-step procedures for local environment se
    works out of the box after a fresh install.
 4. **Environment Configuration:**
    - Copy `.env.example` to `.env` in the **project root** (single file for backend + Next.js).
-   - Set `MONGODB_URI`, `AUTH_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
+   - Set `DATABASE_URL`, `AUTH_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
    - Set `NEXT_PUBLIC_API_URL=http://localhost:8000` so the frontend calls the FastAPI backend.
    - For AI narratives/protocol: set `LLM_PROVIDER=groq` + `GROQ_API_KEY`, `LLM_PROVIDER=openai` + `OPENAI_API_KEY`, or `LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY` (optional `OPENROUTER_MODEL`). AI visuals require `OPENAI_API_KEY` regardless of text provider.
 
@@ -48,7 +48,7 @@ npm run dev
 
 Verify service is up by accessing:
 - Frontend: `http://localhost:3000`
-- Backend health check: `http://localhost:8000/api/health` (verify that `"mongodb": "connected"` is reported).
+- Backend health check: `http://localhost:8000/api/health` (verify that `"database": "connected"` is reported).
 
 ---
 
@@ -67,7 +67,7 @@ python scripts/smoke_test.py
 
 Expected output from the smoke test script:
 ```text
-[PASS] health - mongodb=connected
+[PASS] health - database=connected
 [PASS] login - role=admin
 [PASS] my assessments - count=...
 [PASS] my payments - count=...
@@ -83,7 +83,7 @@ Expected output from the smoke test script:
 2. **Import to Replit:** Create a new project in Replit by importing your GitHub repository.
 3. **Configure Secrets:** Open the **Secrets** tool in Replit and add:
    ```text
-   MONGODB_URI=mongodb+srv://USER:PASSWORD@HOST/myface?retryWrites=true&w=majority
+   DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/myface?sslmode=require
    AUTH_SECRET=long-random-secret-key
    ADMIN_EMAIL=admin@example.com
    ADMIN_PASSWORD=strong-admin-password

@@ -69,7 +69,11 @@ NO_TECH_JARGON_RULES = (
     "LANGUAGE: Write only aesthetic/educational clinical report language. "
     "Never mention MediaPipe, OpenCV, computer vision, CV, landmarks, mesh, "
     "models, APIs, LLMs, pipelines, or other implementation details. "
-    "Refer to facial measurements or this analysis instead."
+    "Refer to facial measurements or this analysis instead. "
+    "Never paste camelCase or PascalCase metric/field names from the JSON context "
+    "(e.g. foreheadExposure, densityEstimate, scoreLabel, templeInclination) into prose. "
+    "Use those cues, but phrase them in plain readable English "
+    "(e.g. 'forehead exposure', 'hair density', 'relative strength', 'temple inclination')."
 )
 
 _ASSISTANT_STYLE_RULES = (

@@ -36,7 +36,7 @@ End-to-end path from questionnaire + photos to report, protocol PDF, and Beauty 
 
 **Required poses** (`config.PHOTO_POSES`): `front`, `leftProfile`, `rightProfile`, `left45`, `right45`, `smile`, `topHead`.
 
-If the backend API is disabled, the FE can run a browser-local MediaPipe path (`utils/mediapipeAnalysis.js`) with **no Mongo persistence**.
+If the backend API is disabled, the FE can run a browser-local MediaPipe path (`utils/mediapipeAnalysis.js`) with **no database persistence**.
 
 ### Stage 1 — Create assessment (`POST /api/assessments`)
 
@@ -99,7 +99,7 @@ Front face failure fails the whole analysis. Other poses soft-fail (empty landma
 
 ### Stage 3 — Persistence
 
-**MongoDB `assessments`** (`assessment_repository.py`):
+**PostgreSQL `assessments`** (`assessment_repository.py`):
 
 | Field | Content |
 |-------|---------|
@@ -118,6 +118,8 @@ Front face failure fails the whole analysis. Other poses soft-fail (empty landma
 
 - `{poseId}.jpg` — pose photos  
 - `parsing/{featureId}.jpg` — SegFormer feature crops  
+- `ai-visuals/{type}/{styleId}.jpg` — AI visual preview edits (hair / outfit / aging)  
+- `ai-visuals/outfit-baseline.jpg` — white-tee outfit comparison baseline (UI BEFORE)
 - `projected/full.{jpg|png}` — projected AFTER image  
 - `protocol.json` — `{ version, storedAt, protocolNarrative, featureNarratives }`  
 
@@ -140,9 +142,9 @@ Triggered by `enrich_assessment_nl_content` on create (not on report open). Idem
 - Features (`PROTOCOL_FEATURE_IDS`): hair, eyes, nose, cheeks, jaw, lips, chin, skin, neck, ears  
 - Parallel generation (`FEATURE_NARRATIVE_CONCURRENCY`, default 11) with `feature_context`, `recommendation_rules`, and optional Vision poses  
 - Overview + closing synthesis; closing falls back to `stitch_closing_paragraphs` if the LLM fails  
-- Persist via `persist_protocol_bundle` → Mongo + `protocol.json`
+- Persist via `persist_protocol_bundle` → database + `protocol.json`
 
-**Protocol load precedence:** complete Mongo → disk file → partial Mongo.
+**Protocol load precedence:** complete DB row → disk file → partial DB row.
 
 ### Stage 5 — Clinical guardrails
 
@@ -229,7 +231,7 @@ POST /api/assessments  (assessments.py)
        │     multi_view → mediapipe (478 landmarks)
        │     opencv_metrics → eye_analysis → build_cv_report
        │     enrich: quarter, smile, hair, profile
-       ├─ create_assessment (Mongo)
+       ├─ create_assessment (Postgres)
        ├─ save_all_poses (disk JPGs)
        ├─ update_assessment_analysis (URL rewrite)
        └─ enrich_assessment_nl_content
@@ -254,7 +256,7 @@ POST /api/assessments  (assessments.py)
 |--------|------|
 | `backend/` | Core app, CV, AI, reports |
 | `backend/routers/` | HTTP API endpoints |
-| `backend/repositories/` | MongoDB read/write |
+| `backend/repositories/` | PostgreSQL read/write |
 | `backend/tests/` | Unit tests |
 
 ---
@@ -265,9 +267,9 @@ POST /api/assessments  (assessments.py)
 |------|----------------|
 | `main.py` | Starts FastAPI, CORS, DB lifespan, mounts routers. Also has `/api/health` and quick `/api/run-analysis` (no DB save). |
 | `config.py` | Shared constants (poses, models, thresholds, feature lists). |
-| `database.py` | MongoDB connection via Motor (async). |
+| `database.py` | PostgreSQL connection via SQLAlchemy async + asyncpg. |
 | `logging_config.py` | Makes backend logs visible under uvicorn. |
-| `serialization.py` | Turns numpy/nested CV data into JSON/Mongo-safe values. |
+| `serialization.py` | Turns numpy/nested CV data into JSON/JSONB-safe values. |
 | `dev_config.py` | Dev-only auto-approve reports — remove before production. |
 | `requirements.txt` (root) | Python dependencies. |
 
@@ -350,7 +352,7 @@ This is the core of the product: photos in → structured `cvReport` out.
 | `assistant_agent.py` | ReAct-style Beauty Assistant that calls report tools. |
 | `assistant_tools.py` | Tools that read sections of the stored assessment. |
 | `image_client.py` | Provider-agnostic image edit (OpenAI Images Edits / OpenRouter chat image modalities); provider via `IMAGE_PROVIDER`→`LLM_PROVIDER`→key. |
-| `visual_generation.py` | AI image edits (hair / outfit / aging) via `image_client`: three independent single-call prompts with shared natural-language opening, scope-fence first, inline CV phrase anchors (ADR-035). |
+| `visual_generation.py` | AI image edits (hair / outfit / aging) via `image_client`: independent single-call prompts with shared natural-language opening, scope-fence first, inline CV phrase anchors (ADR-035). New gens persist bytes to `assessments/{id}/ai-visuals/…` and store media URLs in JSONB; outfit category also generates `outfitBaseline` (white-tee UI BEFORE). |
 | `projected_after_ai.py` | Generative projected AFTER face via `image_client` (fixed `PROJECTED_AFTER_PROMPT` best-groomed makeover); owns `projected_after_enabled` flag. |
 
 ---
@@ -362,7 +364,7 @@ This is the core of the product: photos in → structured `cvReport` out.
 | File | What it does | Used on FE PDF download? |
 |------|----------------|---------------------------|
 | `protocol_service.py` | Builds AI protocol narratives and persists the bundle. | **Yes (indirect)** — FE needs `protocolNarrative` / `featureNarratives`. |
-| `protocol_storage.py` | Saves that protocol JSON to disk (+ Mongo fields). | **Yes (indirect)** — load/save path for the bundle. |
+| `protocol_storage.py` | Saves that protocol JSON to disk (+ database fields). | **Yes (indirect)** — load/save path for the bundle. |
 | `protocol_page_schema.py` | Canonical section map for the protocol bundle. | Indirect — shapes what gets generated/stored. |
 | `report_sections.py` | Formats sections for admin review, assistant tools, and markdown fallbacks. | Not for drawing PDF pages. |
 | `report_status.py` | Status labels (draft / pending review / approved) and PDF-gate helpers. | Gates *whether* download is allowed. |

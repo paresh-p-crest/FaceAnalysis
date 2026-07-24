@@ -12,12 +12,14 @@ import { fetchLatestSubmittedAssessment } from '../utils/latestAssessment'
 import { translateApiError } from '../utils/translateApiError'
 import { ChatAssistant } from './ChatAssistant'
 import { StandalonePageShell } from './StandalonePageShell'
+import { useApp } from './providers/AppProvider'
 
 /** Standalone `/chat` — full-page assistant, independent of the report modal. */
 export default function ChatAssistantPage({ onStartAssessment }) {
   const t = useTranslations('Assistant')
   const tErrors = useTranslations('Errors')
   const tHome = useTranslations('Home')
+  const { latestAssessmentEpoch } = useApp()
   const [assessment, setAssessment] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -38,7 +40,7 @@ export default function ChatAssistantPage({ onStartAssessment }) {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, latestAssessmentEpoch])
 
   const assessmentId = assessment?.id || null
   const canUseAssistant = !!assessmentId && isBackendApiEnabled()

@@ -8,7 +8,8 @@ API responses keep **camelCase** field names (`userId`, `createdAt`, …) and st
 | Trigger | Also deleted |
 |---------|----------------|
 | User delete | assessments, conversations (+ messages), payments, assistant_rate_limits (FK `ON DELETE CASCADE`) |
-| Assessment delete | conversations (+ messages) for that assessment |
+| Assessment soft delete | Sets `deleted_at`; conversations/media kept. Soft-deleted do **not** count toward package limit. |
+| Assessment hard wipe (`DELETE /api/assessments` admin) | conversations (+ messages) for those assessments |
 
 Photos, parsing crops, projected AFTER, and `protocol.json` live in media storage under keys `assessments/{id}/...` (local filesystem or Replit Object Storage; `backend/media_storage.py`), served at `/api/media/{key}`. See [ADR-030](decisions.md).
 
@@ -44,8 +45,13 @@ Indexes: unique `email`, `role`.
 | `pipeline`, `feature_parsing`, `projected_after`, `projected_analysis` | `JSONB` nullable | async job progress + SegFormer crops + full-face AFTER URL + AFTER CV report |
 | `review_log` | `JSONB` array | |
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | |
+| `deleted_at` | `TIMESTAMPTZ` nullable | Soft delete; `NULL` = active. Soft-deleted rows stay in DB but are excluded from the per-user submitted analysis limit. |
 
-**Partial unique:** `(user_id, scan_id) WHERE scan_id IS NOT NULL`.
+**Partial unique:** `(user_id, scan_id) WHERE scan_id IS NOT NULL AND deleted_at IS NULL` (soft-deleted rows do not block scan_id reuse).
+
+**Soft delete:** `DELETE /api/assessments/{id}` sets `deleted_at` (does not remove the row, conversations, or media). Active lists / GET by id exclude soft-deleted rows. `count_submitted_assessments_for_user` filters `deleted_at IS NULL` by default (`submittedCount` / package limit); `include_deleted=True` powers `lifetimeSubmittedCount` for legacy analysis-access unlock.
+
+**Soft-delete access hardening:** Repository mutators and `requeue_failed_pipeline` no-op (`None`) when the row is soft-deleted. In-flight pipeline aborts when refresh returns `None` (no continue-on-stale). `GET /api/media/assessments/{id}/…` returns **404** if the assessment is soft-deleted (bytes kept). Payment access fallback that inspects assessments considers **active** rows only. After delete, the next item in `GET /my/assessments` is the previous active report; the client clears stale `cloudAssessment` and rebinds report/chat/AI visuals to that previous ready report (or empty).
 
 **Draft lifecycle (ADR-031):** the web app creates a row with `status="draft"` and `pipeline=null` up front (`POST /assessments/draft`), then populates `photos`/`photos_keys` progressively as each pose is uploaded (`PUT …/photos/{poseId}`). `pipeline` stays `null` until `POST …/submit`, which sets it to `queued` and hands off to the worker. Un-submitted drafts (`status="draft"` AND `pipeline IS NULL`) are excluded from the per-user history list (`list_assessments_for_user`) but remain visible to admins. Pose images are stored at original quality (bytes unchanged; keyed `{poseId}.jpg` regardless of source format).
 

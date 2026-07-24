@@ -72,7 +72,8 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
     onNavigateSection?.(assessment, sectionId)
   }, [assessment, onNavigateSection])
 
-  const canDownloadPdf = canDownloadReportPdf(assessment?.status)
+  const isAdmin = user?.role === 'admin'
+  const canDownloadPdf = canDownloadReportPdf(assessment?.status, true, isAdmin)
   const handleDownloadPdf = useCallback(async () => {
     if (!assessment || pdfLoading || !canDownloadPdf || !cvReport) return
     setPdfLoading(true)

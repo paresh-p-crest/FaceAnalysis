@@ -6,7 +6,6 @@ import { RotateCcw, Loader2, AlertTriangle, Lock } from 'lucide-react'
 import { saveHistoryEntry, createHistoryId, loadHistory } from '../utils/historyStorage'
 import {
   downloadAssessmentPdf,
-  fetchAdminAssessments,
   fetchAssessment,
   fetchAssessmentProtocol,
   fetchMyAssessments,
@@ -106,7 +105,7 @@ export default function Report({
   const [statusOverride, setStatusOverride] = useState('')
   const [statusUpdating, setStatusUpdating] = useState('')
   const [adminAssessment, setAdminAssessment] = useState(null)
-  const [adminView, setAdminView] = useState(null) // null | 'narrative' | 'after' — admin-only overlays
+  const [adminView, setAdminView] = useState(null) // null | 'images' — admin-only generated-images overlay
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false)
   const [pastAssessmentsOpen, setPastAssessmentsOpen] = useState(false)
   const [showPastAssessmentsNav, setShowPastAssessmentsNav] = useState(false)
@@ -155,20 +154,19 @@ export default function Report({
   const requiresApproval = !!displayAnalysis?.savedToDb || !!displayAnalysis?.assessmentId || !!historyEntry?.assessmentId
   const isAdmin = user?.role === 'admin'
   const isUser = !isAdmin
-  const canDownloadPdf = canDownloadReportPdf(reportStatus, requiresApproval)
+  const canDownloadPdf = canDownloadReportPdf(reportStatus, requiresApproval, isAdmin)
   const clientReportLocked = isUser && requiresApproval && !canClientViewFullReport(reportStatus, false)
 
   useEffect(() => {
-    if (!user || !isBackendApiEnabled() || !showQovesReport) {
+    // Admins review one assessment at a time; platform-wide past list is noise.
+    if (!user || isAdmin || !isBackendApiEnabled() || !showQovesReport) {
       setShowPastAssessmentsNav(false)
       return undefined
     }
     let cancelled = false
     ;(async () => {
       try {
-        const items = user.role === 'admin'
-          ? await fetchAdminAssessments(30)
-          : await fetchMyAssessments(30)
+        const items = await fetchMyAssessments(30)
         if (cancelled) return
         const submitted = (Array.isArray(items) ? items : []).filter(isAssessmentSubmitted)
         setShowPastAssessmentsNav(submitted.length > 1)
@@ -177,7 +175,7 @@ export default function Report({
       }
     })()
     return () => { cancelled = true }
-  }, [user, showQovesReport])
+  }, [user, isAdmin, showQovesReport])
 
   const sectionIds = useMemo(() => {
     return [
@@ -235,6 +233,7 @@ export default function Report({
     if (updated.featureNarratives) setFeatureNarratives(updated.featureNarratives)
     if (updated.projectedAfter) setProjectedAfter(updated.projectedAfter)
     if (updated.projectedAnalysis) setProjectedAnalysis(updated.projectedAnalysis)
+    if (updated.aiVisuals) setAiVisuals(updated.aiVisuals)
   }, [onCloudAssessmentChange])
 
   const showAdminTools = isAdmin && !!assessmentId && !isReportApproved(reportStatus)

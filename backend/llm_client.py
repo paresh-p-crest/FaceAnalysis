@@ -144,30 +144,17 @@ def log_llm_usage(
     ok: bool = True,
     error: Optional[str] = None,
 ) -> None:
-    """Pretty multi-line token usage log for each LLM request (always prints to stderr)."""
-    title = f"{op}" + (f" · {label}" if label else "")
+    """Single-line token usage log for each LLM request (always prints to stderr)."""
     status = "OK" if ok else "FAIL"
-    lines = [
-        "",
-        "┌─ LLM request ──────────────────────────────────────────",
-        f"│  status   : {status}",
-        f"│  op       : {title}",
-        f"│  provider : {source}",
-        f"│  model    : {model}",
-        f"│  input    : {_fmt_tokens(usage.get('prompt_tokens'))} tokens",
-        f"│  output   : {_fmt_tokens(usage.get('completion_tokens'))} tokens",
-        f"│  total    : {_fmt_tokens(usage.get('total_tokens'))} tokens",
-        f"│  duration : {_fmt_duration(duration_s)}",
-    ]
-    if error:
-        err = " ".join(str(error).split())
-        if len(err) > 240:
-            err = err[:237] + "..."
-        lines.append(f"│  error    : {err}")
-    lines.append("└────────────────────────────────────────────────────────")
-    message = "\n".join(lines)
-
-    # Always print — uvicorn often hides app INFO unless logging is configured
+    title = f"{op}" + (f"·{label}" if label else "")
+    err_part = f" error={error!r}" if error else ""
+    message = (
+        f"[LLM] {status} {title} | {source}/{model}"
+        f" | in={_fmt_tokens(usage.get('prompt_tokens'))}"
+        f" out={_fmt_tokens(usage.get('completion_tokens'))}"
+        f" total={_fmt_tokens(usage.get('total_tokens'))}"
+        f" dur={_fmt_duration(duration_s)}{err_part}"
+    )
     print(message, file=sys.stderr, flush=True)
 
     if ok:

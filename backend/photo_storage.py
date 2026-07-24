@@ -318,3 +318,20 @@ def save_parsing_crop(assessment_id: str, feature_id: str, image_bytes: bytes) -
         byteSize=len(image_bytes),
         storedAt=_now_iso(),
     )
+
+
+def save_ai_visual_image(assessment_id: str, *path_parts: str, image_bytes: bytes) -> StoredPhoto:
+    """Persist an AI visual preview under ai-visuals/{...}."""
+    media = get_media_storage()
+    key = assessment_key(assessment_id, "ai-visuals", *path_parts)
+    content_type = sniff_image_content_type(image_bytes)
+    media.put_bytes(key, image_bytes)
+    label = path_parts[-1] if path_parts else "image"
+    return StoredPhoto(
+        poseId=label,
+        relativePath=key,
+        publicUrl=public_url_for_key(key),
+        contentType=content_type,
+        byteSize=len(image_bytes),
+        storedAt=_now_iso(),
+    )

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { usePathname } from '../i18n/navigation'
 import { hasSiteNavbar } from '../utils/routes'
 import { normalizeReportStatus } from '../utils/reportWorkflow'
@@ -11,6 +12,7 @@ import { useApp } from './providers/AppProvider'
 
 export function AppShell({ children }) {
   const pathname = usePathname()
+  const t = useTranslations('Nav')
   const {
     user,
     authReady,
@@ -74,9 +76,9 @@ export function AppShell({ children }) {
       )}
       <ConfirmDialog
         open={logoutConfirmOpen}
-        title="Sign out?"
-        message="You will need to sign in again to access your reports, billing, and admin tools."
-        confirmLabel="Sign out"
+        title={t('signOutConfirmTitle')}
+        message={t('signOutConfirmMessage')}
+        confirmLabel={t('signOut')}
         danger
         onConfirm={logout}
         onCancel={() => setLogoutConfirmOpen(false)}

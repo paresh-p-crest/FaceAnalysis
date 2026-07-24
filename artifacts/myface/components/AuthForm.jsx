@@ -323,16 +323,19 @@ export default function AuthForm({ onAuthenticated }) {
                 required
               />
             </label>
-            <label className="block">
+            <div>
               <div className="mb-1.5 flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                <label
+                  htmlFor="auth-password"
+                  className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted"
+                >
                   {t('password')}
-                </span>
+                </label>
                 {!isRegister && (
                   <button
                     type="button"
                     onClick={() => setForgotOpen(true)}
-                    className="text-[10px] font-semibold uppercase tracking-wider text-brand hover:underline"
+                    className="w-fit shrink-0 p-0 text-[10px] font-semibold uppercase tracking-wider text-brand hover:underline"
                   >
                     {t('forgotPassword')}
                   </button>
@@ -340,6 +343,7 @@ export default function AuthForm({ onAuthenticated }) {
               </div>
               <div className="relative">
                 <input
+                  id="auth-password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete={isRegister ? 'new-password' : 'current-password'}
                   value={password}
@@ -357,7 +361,7 @@ export default function AuthForm({ onAuthenticated }) {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-            </label>
+            </div>
           </div>
 
           {error && (

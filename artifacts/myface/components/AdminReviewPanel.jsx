@@ -1,83 +1,103 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { ImagePlus, Loader2, Save, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { ImagePlus, Loader2, Save, Sparkles, X } from 'lucide-react'
 import {
-  generateAssessmentProtocol,
-  generateAssessmentProtocolSection,
+  generateAssessmentVisuals,
   generateProjectedAfter,
   updateAssessmentAdminReview,
 } from '../utils/apiClient'
 import { resolveProjectedAfterUrl } from '../utils/projectedAfter'
-import {
-  PROTOCOL_SECTION_OPTIONS,
-  cloneProtocolDraft,
-  ensureFeatureDraft,
-} from '../utils/protocolSections'
 import { normalizeReportStatus } from '../utils/reportWorkflow'
 import { translateApiError } from '../utils/translateApiError'
 import ConfirmDialog from './ConfirmDialog'
-import PipelineStatusPanel from './admin/PipelineStatusPanel'
+// Temporary: hide pipeline status in generated-images overlay.
+// import PipelineStatusPanel from './admin/PipelineStatusPanel'
 
 const fieldClass =
   'w-full rounded-xl border border-surface-border bg-white dark:bg-surface-card px-3 py-2 text-sm text-ink outline-none focus:border-brand resize-y min-h-[5rem]'
 
+function ImagePreviewModal({ src, title, onClose, closeLabel }) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  if (!src) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-[240] flex items-center justify-center bg-black/70 p-4 sm:p-8"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 w-9 h-9 rounded-xl border border-white/20 bg-white/10 text-white hover:bg-white/20 inline-flex items-center justify-center z-10"
+        aria-label={closeLabel}
+      >
+        <X className="w-4 h-4" />
+      </button>
+      <img
+        src={src}
+        alt={title}
+        className="max-h-[85vh] max-w-full w-auto rounded-2xl shadow-elevated object-contain"
+        onClick={(event) => event.stopPropagation()}
+      />
+    </div>
+  )
+}
+
+/** Admin overlay for projected AFTER + AI visuals (narrative edits live in protocol preview). */
 export default function AdminReviewPanel({
   assessment,
-  view = 'narrative',
+  view = 'images',
   onClose,
   onSaved,
 }) {
   const t = useTranslations('Admin.reviewPanel')
   const tErrors = useTranslations('Errors')
-  const tProtocol = useTranslations('Admin.protocolSections')
   const [adminNotes, setAdminNotes] = useState(assessment?.adminNotes || '')
-  const [sectionId, setSectionId] = useState('overview')
-  const [protocolNarrative, setProtocolNarrative] = useState(
-    () => cloneProtocolDraft(assessment).protocolNarrative
-  )
-  const [featureNarratives, setFeatureNarratives] = useState(
-    () => cloneProtocolDraft(assessment).featureNarratives
-  )
   const [projectedAfter, setProjectedAfter] = useState(assessment?.projectedAfter || null)
+  const [aiVisuals, setAiVisuals] = useState(assessment?.aiVisuals || null)
   const [saving, setSaving] = useState(false)
-  const [generatingWhole, setGeneratingWhole] = useState(false)
-  const [generatingSection, setGeneratingSection] = useState(false)
   const [generatingAfter, setGeneratingAfter] = useState(false)
+  const [generatingVisuals, setGeneratingVisuals] = useState(false)
+  const [regeneratingStyleId, setRegeneratingStyleId] = useState(null)
   const [error, setError] = useState('')
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false)
+  const [preview, setPreview] = useState(null)
 
   const status = normalizeReportStatus(assessment?.status)
   const isApproved = status === 'approved'
-  const busy = saving || generatingWhole || generatingSection || generatingAfter
+  const busy = saving || generatingAfter || generatingVisuals || !!regeneratingStyleId
   const afterUrl = resolveProjectedAfterUrl(projectedAfter)
-  const isNarrative = view === 'narrative'
-  const isAfter = view === 'after'
+  const visualVariants = Array.isArray(aiVisuals?.variants) ? aiVisuals.variants : []
+  // Accept legacy view ids from older sessions.
+  const isImages = view === 'images' || view === 'after' || view === 'visuals'
 
   useEffect(() => {
     if (!assessment) return
-    const draft = cloneProtocolDraft(assessment)
     setAdminNotes(assessment.adminNotes || '')
-    setProtocolNarrative(draft.protocolNarrative)
-    setFeatureNarratives(draft.featureNarratives)
     setProjectedAfter(assessment.projectedAfter || null)
+    setAiVisuals(assessment.aiVisuals || null)
     setError('')
+    setPreview(null)
   }, [assessment?.id, view])
 
-  const featureDraft = useMemo(() => {
-    if (!isNarrative || sectionId === 'overview' || sectionId === 'closing') return null
-    return ensureFeatureDraft(featureNarratives, sectionId)
-  }, [featureNarratives, sectionId, isNarrative])
-
-  if (!assessment) return null
+  if (!assessment || !isImages) return null
 
   const applyAssessmentUpdate = (updated) => {
     if (!updated) return
-    const draft = cloneProtocolDraft(updated)
-    setProtocolNarrative(draft.protocolNarrative)
-    setFeatureNarratives(draft.featureNarratives)
     if (updated.projectedAfter) setProjectedAfter(updated.projectedAfter)
+    if (updated.aiVisuals) setAiVisuals(updated.aiVisuals)
     if (updated.adminNotes != null) setAdminNotes(updated.adminNotes)
     onSaved?.(updated)
   }
@@ -86,12 +106,10 @@ export default function AdminReviewPanel({
     setSaving(true)
     setError('')
     try {
-      const payload = { status: nextStatus, adminNotes }
-      if (isNarrative) {
-        payload.protocolNarrative = protocolNarrative
-        payload.featureNarratives = featureNarratives
-      }
-      const updated = await updateAssessmentAdminReview(assessment.id, payload)
+      const updated = await updateAssessmentAdminReview(assessment.id, {
+        status: nextStatus,
+        adminNotes,
+      })
       applyAssessmentUpdate(updated)
     } catch (err) {
       setError(translateApiError(err, tErrors))
@@ -100,35 +118,11 @@ export default function AdminReviewPanel({
     }
   }
 
-  const handleGenerateWhole = async () => {
-    setGeneratingWhole(true)
-    setError('')
-    try {
-      applyAssessmentUpdate(await generateAssessmentProtocol(assessment.id, { force: true }))
-    } catch (err) {
-      setError(translateApiError(err, tErrors))
-    } finally {
-      setGeneratingWhole(false)
-    }
-  }
-
-  const handleGenerateSection = async () => {
-    setGeneratingSection(true)
-    setError('')
-    try {
-      applyAssessmentUpdate(await generateAssessmentProtocolSection(assessment.id, sectionId))
-    } catch (err) {
-      setError(translateApiError(err, tErrors))
-    } finally {
-      setGeneratingSection(false)
-    }
-  }
-
   const handleGenerateAfter = async () => {
     setGeneratingAfter(true)
     setError('')
     try {
-      applyAssessmentUpdate(await generateProjectedAfter(assessment.id))
+      applyAssessmentUpdate(await generateProjectedAfter(assessment.id, { force: true }))
     } catch (err) {
       setError(translateApiError(err, tErrors))
     } finally {
@@ -136,40 +130,37 @@ export default function AdminReviewPanel({
     }
   }
 
-  const updateOverviewSummary = (value) => {
-    setProtocolNarrative((prev) => ({ ...prev, summary: value }))
+  const handleGenerateAllVisuals = async () => {
+    setGeneratingVisuals(true)
+    setError('')
+    try {
+      applyAssessmentUpdate(await generateAssessmentVisuals(assessment.id, { force: true }))
+    } catch (err) {
+      setError(translateApiError(err, tErrors))
+    } finally {
+      setGeneratingVisuals(false)
+    }
   }
 
-  const updateClosingText = (value) => {
-    const paragraphs = value.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
-    setProtocolNarrative((prev) => ({ ...prev, closing: paragraphs }))
+  const handleGenerateVisualStyle = async (styleId) => {
+    if (!styleId) return
+    setRegeneratingStyleId(styleId)
+    setError('')
+    try {
+      applyAssessmentUpdate(
+        await generateAssessmentVisuals(assessment.id, { force: true, styleId }),
+      )
+    } catch (err) {
+      setError(translateApiError(err, tErrors))
+    } finally {
+      setRegeneratingStyleId(null)
+    }
   }
 
-  const updateFeatureSummary = (value) => {
-    setFeatureNarratives((prev) => {
-      const current = ensureFeatureDraft(prev, sectionId)
-      return { ...prev, [sectionId]: { ...current, summary: value } }
-    })
+  const openPreview = (src, title) => {
+    if (!src) return
+    setPreview({ src, title: title || t('afterPreviewAlt') })
   }
-
-  const updateFeatureSubsection = (title, body) => {
-    setFeatureNarratives((prev) => {
-      const current = ensureFeatureDraft(prev, sectionId)
-      return {
-        ...prev,
-        [sectionId]: {
-          ...current,
-          subsections: current.subsections.map((sub) =>
-            sub.title === title ? { ...sub, body } : sub
-          ),
-        },
-      }
-    })
-  }
-
-  const closingText = Array.isArray(protocolNarrative?.closing)
-    ? protocolNarrative.closing.join('\n\n')
-    : ''
 
   return (
     <>
@@ -184,13 +175,13 @@ export default function AdminReviewPanel({
           <div className="px-4 sm:px-5 py-4 border-b border-surface-border flex items-start justify-between gap-3 shrink-0">
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-9 h-9 shrink-0 rounded-xl bg-brand-50 flex items-center justify-center">
-                {isAfter ? <ImagePlus className="w-4 h-4 text-brand" /> : <ShieldCheck className="w-4 h-4 text-brand" />}
+                <ImagePlus className="w-4 h-4 text-brand" />
               </div>
               <div className="min-w-0">
                 <h3 id="admin-review-title" className="font-display text-base font-semibold text-ink tracking-tight">
-                  {isAfter ? t('titleAfter', { id: assessment.id.slice(-6) }) : t('titleNarrative', { id: assessment.id.slice(-6) })}
+                  {t('titleImages', { id: assessment.id.slice(-6) })}
                 </h3>
-                <p className="text-xs text-ink-muted mt-0.5">{isAfter ? t('subtitleAfter') : t('subtitleNarrative')}</p>
+                <p className="text-xs text-ink-muted mt-0.5">{t('subtitleImages')}</p>
               </div>
             </div>
             <button type="button" onClick={onClose} className="w-9 h-9 shrink-0 rounded-xl border border-surface-border text-ink-muted hover:text-ink hover:border-brand/30 inline-flex items-center justify-center transition-colors" aria-label={t('close')}>
@@ -207,96 +198,107 @@ export default function AdminReviewPanel({
               </span>
             </div>
 
+            {/* Temporary: hide pipeline status in generated-images overlay.
             <PipelineStatusPanel assessment={assessment} onUpdated={applyAssessmentUpdate} />
+            */}
 
-            {isNarrative && (
-              <>
-                <button type="button" onClick={handleGenerateWhole} disabled={busy || isApproved} className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-brand/20 bg-brand-50 text-xs font-semibold text-brand hover:bg-brand/10 transition-colors disabled:opacity-50">
-                  {generatingWhole ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  {t('generateWhole')}
-                </button>
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-ink uppercase tracking-wider">{t('sectionAfter')}</h4>
+              <button type="button" onClick={handleGenerateAfter} disabled={busy || isApproved} className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-brand/20 bg-brand-50 text-xs font-semibold text-brand hover:bg-brand/10 transition-colors disabled:opacity-50">
+                {generatingAfter ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+                {afterUrl ? t('regenerateAfter') : t('generateAfter')}
+              </button>
 
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <label className="sr-only" htmlFor="admin-protocol-section">{t('protocolSectionLabel')}</label>
-                  <select id="admin-protocol-section" value={sectionId} onChange={(e) => setSectionId(e.target.value)} disabled={busy || isApproved} className="w-full sm:flex-1 rounded-xl border border-surface-border bg-white dark:bg-surface-card px-3 py-2.5 text-xs font-semibold text-ink outline-none focus:border-brand disabled:opacity-50">
-                    {PROTOCOL_SECTION_OPTIONS.map((opt) => (
-                      <option key={opt.id} value={opt.id}>{tProtocol(opt.id)}</option>
-                    ))}
-                  </select>
-                  <button type="button" onClick={handleGenerateSection} disabled={busy || isApproved} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-brand/20 bg-white text-xs font-semibold text-brand hover:bg-brand-50 transition-colors disabled:opacity-50">
-                    {generatingSection ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                    {t('generateSection')}
+              {afterUrl ? (
+                <div className="rounded-xl border border-surface-border bg-surface-muted/40 p-3 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => openPreview(afterUrl, t('sectionAfter'))}
+                    className="block w-full rounded-lg border border-surface-border bg-white overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                    aria-label={t('openPreview', { title: t('sectionAfter') })}
+                    title={t('openPreviewHint')}
+                  >
+                    <img src={afterUrl} alt={t('afterPreviewAlt')} className="w-full max-h-[min(40vh,18rem)] object-contain" />
                   </button>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-ink-secondary mb-2">{t('adminNotes')}</label>
-                  <textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} rows={3} disabled={isApproved} className={fieldClass} placeholder={t('adminNotesPlaceholder')} />
-                </div>
-
-                <div className="rounded-xl border border-surface-border p-3 sm:p-4 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                    <h4 className="text-xs font-semibold text-ink">{t('editSection', { section: tProtocol(sectionId) })}</h4>
-                    <p className="text-[11px] text-ink-muted">{t('editSectionHint')}</p>
+                  <div>
+                    <p className="text-xs font-semibold text-ink">{t('afterReady')}</p>
+                    <p className="text-[11px] text-ink-muted break-all mt-1">{afterUrl}</p>
                   </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-surface-border px-4 py-8 text-center text-xs text-ink-muted">{t('noAfterYet')}</div>
+              )}
+            </div>
 
-                  {sectionId === 'overview' && (
-                    <div>
-                      <label className="block text-xs font-semibold text-ink-secondary mb-2">{t('overviewSummary')}</label>
-                      <textarea value={protocolNarrative?.summary || ''} onChange={(e) => updateOverviewSummary(e.target.value)} rows={5} disabled={isApproved} className={fieldClass} placeholder={t('overviewSummaryPlaceholder')} />
-                    </div>
-                  )}
+            <div className="space-y-3 pt-2 border-t border-surface-border">
+              <h4 className="text-xs font-semibold text-ink uppercase tracking-wider">{t('sectionVisuals')}</h4>
+              <button
+                type="button"
+                onClick={handleGenerateAllVisuals}
+                disabled={busy || isApproved}
+                className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-brand/20 bg-brand-50 text-xs font-semibold text-brand hover:bg-brand/10 transition-colors disabled:opacity-50"
+              >
+                {generatingVisuals ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {visualVariants.length ? t('regenerateAllVisuals') : t('generateAllVisuals')}
+              </button>
 
-                  {sectionId === 'closing' && (
-                    <div>
-                      <label className="block text-xs font-semibold text-ink-secondary mb-2">{t('closingParagraphs')}</label>
-                      <textarea value={closingText} onChange={(e) => updateClosingText(e.target.value)} rows={8} disabled={isApproved} className={fieldClass} placeholder={t('closingPlaceholder')} />
-                    </div>
-                  )}
-
-                  {featureDraft && (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-ink-secondary mb-2">{t('featureSummary')}</label>
-                        <textarea value={featureDraft.summary || ''} onChange={(e) => updateFeatureSummary(e.target.value)} rows={3} disabled={isApproved} className={fieldClass} placeholder={t('featureSummaryPlaceholder')} />
-                      </div>
-                      {featureDraft.subsections.map((sub) => (
-                        <div key={sub.title}>
-                          <label className="block text-xs font-semibold text-ink-secondary mb-2">{sub.title}</label>
-                          <textarea value={sub.body || ''} onChange={(e) => updateFeatureSubsection(sub.title, e.target.value)} rows={5} disabled={isApproved} className={fieldClass} placeholder={t('subsectionBodyPlaceholder', { title: sub.title })} />
+              {visualVariants.length ? (
+                <div className="space-y-2">
+                  {visualVariants.map((variant) => {
+                    const styleId = variant.styleId
+                    const thisBusy = regeneratingStyleId === styleId
+                    const title = variant.title || styleId || t('sectionVisuals')
+                    const typeLabel = t.has(`visualType.${variant.type}`)
+                      ? t(`visualType.${variant.type}`)
+                      : variant.type
+                    return (
+                      <div
+                        key={styleId || `${variant.type}:${variant.title}`}
+                        className="flex items-center gap-3 rounded-xl border border-surface-border bg-surface-muted/40 p-2.5"
+                      >
+                        {variant.imageSrc ? (
+                          <button
+                            type="button"
+                            onClick={() => openPreview(variant.imageSrc, title)}
+                            className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-surface-border bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                            aria-label={t('openPreview', { title })}
+                            title={t('openPreviewHint')}
+                          >
+                            <img src={variant.imageSrc} alt="" className="h-full w-full object-cover" />
+                          </button>
+                        ) : (
+                          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-surface-border bg-white flex items-center justify-center text-[10px] text-ink-muted">
+                            —
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-ink truncate">{title}</p>
+                          <p className="text-[11px] text-ink-muted">{typeLabel}</p>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateVisualStyle(styleId)}
+                          disabled={busy || isApproved || !styleId}
+                          className="shrink-0 inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl border border-brand/20 bg-white text-[11px] font-semibold text-brand hover:bg-brand-50 transition-colors disabled:opacity-50"
+                        >
+                          {thisBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                          {t('regenerateVisual')}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
-              </>
-            )}
-
-            {isAfter && (
-              <>
-                <button type="button" onClick={handleGenerateAfter} disabled={busy || isApproved} className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-brand/20 bg-brand-50 text-xs font-semibold text-brand hover:bg-brand/10 transition-colors disabled:opacity-50">
-                  {generatingAfter ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
-                  {afterUrl ? t('regenerateAfter') : t('generateAfter')}
-                </button>
-
-                {afterUrl ? (
-                  <div className="rounded-xl border border-surface-border bg-surface-muted/40 p-3 space-y-3">
-                    <img src={afterUrl} alt={t('afterPreviewAlt')} className="w-full max-h-[min(50vh,22rem)] object-contain rounded-lg border border-surface-border bg-white" />
-                    <div>
-                      <p className="text-xs font-semibold text-ink">{t('afterReady')}</p>
-                      <p className="text-[11px] text-ink-muted break-all mt-1">{afterUrl}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-surface-border px-4 py-8 text-center text-xs text-ink-muted">{t('noAfterYet')}</div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-semibold text-ink-secondary mb-2">{t('adminNotes')}</label>
-                  <textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} rows={3} disabled={isApproved} className={fieldClass} placeholder={t('adminNotesPlaceholder')} />
+              ) : (
+                <div className="rounded-xl border border-dashed border-surface-border px-4 py-8 text-center text-xs text-ink-muted">
+                  {t('noVisualsYet')}
                 </div>
-              </>
-            )}
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-ink-secondary mb-2">{t('adminNotes')}</label>
+              <textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} rows={3} disabled={isApproved} className={fieldClass} placeholder={t('adminNotesPlaceholder')} />
+            </div>
           </div>
 
           <div className="shrink-0 border-t border-surface-border bg-white dark:bg-surface-card px-4 sm:px-5 py-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
@@ -310,6 +312,13 @@ export default function AdminReviewPanel({
           </div>
         </section>
       </div>
+
+      <ImagePreviewModal
+        src={preview?.src}
+        title={preview?.title}
+        onClose={() => setPreview(null)}
+        closeLabel={t('closePreview')}
+      />
 
       <ConfirmDialog
         open={approveConfirmOpen}

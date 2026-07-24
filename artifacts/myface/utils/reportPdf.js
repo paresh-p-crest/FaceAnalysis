@@ -5,6 +5,7 @@ import {
   buildChinProfileGuides,
   buildChinProjectionGuides,
   createProfileSilhouetteSampler,
+  generateAnnotatedChinProfileImage,
   mapNormThroughCover,
   orientProfileForChinShow,
   overlayFromProfileLandmarks,
@@ -134,21 +135,6 @@ function setWhite(doc) {
   doc.setTextColor(255, 255, 255)
 }
 
-function addFooter(doc, pageNum, pdfT = defaultPdfT) {
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setMuted(doc)
-  doc.text(pdfT('footerConfidential'), MARGIN, PAGE_H - 28)
-  doc.text(pdfT('pageNumber', { page: pageNum }), PAGE_W - MARGIN, PAGE_H - 28, { align: 'right' })
-}
-
-function drawPageNumber(doc, num, pdfT = defaultPdfT) {
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  setMuted(doc)
-  doc.text(pdfT('pageHeader', { page: String(num).padStart(2, '0') }), PAGE_W - MARGIN, 40, { align: 'right' })
-}
-
 function drawBrandBar(doc) {
   doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
   doc.rect(0, 0, PAGE_W, 4, 'F')
@@ -227,6 +213,20 @@ function wrapTextMaxLines(doc, text, x, y, maxWidth, lineHeight = 8.5, maxLines 
   return y + shown.length * lineHeight
 }
 
+/** Split to size with a hard max line count; ellipsis only on the last shown line if clipped. */
+function splitTextMaxLines(doc, text, maxWidth, maxLines) {
+  const safe = sanitizePdfText(text || '')
+  if (!safe) return []
+  const lines = doc.splitTextToSize(safe, maxWidth)
+  const shown = lines.slice(0, Math.max(1, maxLines))
+  if (lines.length > maxLines && shown.length) {
+    let last = sanitizePdfText(shown[shown.length - 1])
+    last = last.length > 3 ? `${last.slice(0, Math.max(0, last.length - 1))}…` : `${last}…`
+    shown[shown.length - 1] = last
+  }
+  return shown.map((line) => sanitizePdfText(line))
+}
+
 function drawSplitTitle(doc, x, y, primary, secondary, size = 26) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(size)
@@ -263,6 +263,7 @@ function loadHtmlImage(src) {
 function createCoverCropSession() {
   const imgByUrl = new Map()
   const cropByKey = new Map()
+  const cropOffsets = new Map()
 
   return {
     async warm(urls) {
@@ -283,13 +284,19 @@ function createCoverCropSession() {
     getImage(dataUrl) {
       return dataUrl ? imgByUrl.get(dataUrl) || null : null
     },
+    setCropOffset(dataUrl, sx) {
+      if (dataUrl && typeof sx === 'number') cropOffsets.set(dataUrl, sx)
+    },
+    getCropOffset(dataUrl) {
+      return dataUrl ? cropOffsets.get(dataUrl) ?? null : null
+    },
     /** Register an already-decoded (or freshly rotated) image under a data URL key. */
     putImage(dataUrl, img) {
       if (dataUrl && img) imgByUrl.set(dataUrl, img)
     },
-    crop(dataUrl, maxW, maxH) {
+    crop(dataUrl, maxW, maxH, poseId = null) {
       if (!dataUrl || maxW <= 0 || maxH <= 0) return null
-      const key = `${maxW.toFixed(1)}x${maxH.toFixed(1)}:${dataUrl.length}:${dataUrl.slice(-48)}`
+      const key = `${maxW.toFixed(1)}x${maxH.toFixed(1)}:${poseId || 'none'}:${dataUrl.length}:${dataUrl.slice(-48)}`
       if (cropByKey.has(key)) return cropByKey.get(key)
       const img = imgByUrl.get(dataUrl)
       if (!img || !img.width || !img.height) return null
@@ -299,8 +306,17 @@ function createCoverCropSession() {
       const scale = Math.max(pxW / img.width, pxH / img.height)
       const sw = pxW / scale
       const sh = pxH / scale
-      const sx = (img.width - sw) / 2
+      let sx = (img.width - sw) / 2
       const sy = (img.height - sh) / 2
+
+      const customSx = cropOffsets.get(dataUrl)
+      if (customSx !== undefined && customSx !== null) {
+        sx = customSx
+      } else if (poseId === 'rightProfile') {
+        sx = (img.width - sw) * 0.85
+      } else if (poseId === 'leftProfile') {
+        sx = (img.width - sw) * 0.15
+      }
 
       const canvas = document.createElement('canvas')
       canvas.width = pxW
@@ -366,10 +382,10 @@ function createCoverCropSession() {
 /** Active only while generating a PDF (set in downloadMyFacePdf). */
 let coverCropSession = null
 
-function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false) {
+function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false, poseId = null) {
   if (!dataUrl) return { w: 0, h: 0 }
   if (cover) {
-    const fitted = coverCropSession?.crop(dataUrl, maxW, maxH) || null
+    const fitted = coverCropSession?.crop(dataUrl, maxW, maxH, poseId) || null
     if (fitted) {
       doc.addImage(fitted, 'JPEG', x, y, maxW, maxH, undefined, IMG_QUALITY)
       return { w: maxW, h: maxH, ox: x, oy: y }
@@ -386,7 +402,7 @@ function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false) {
   return { w, h, ox, oy }
 }
 
-function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IMAGE_TEXT_GAP, pdfT = defaultPdfT } = {}) {
+function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IMAGE_TEXT_GAP, pdfT = defaultPdfT, poseId = null } = {}) {
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.roundedRect(x, y, w, h, 6, 6, 'F')
   doc.setDrawColor(229, 231, 235)
@@ -395,7 +411,7 @@ function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IM
 
   if (dataUrl) {
     const pad = 4
-    addPdfImage(doc, dataUrl, x + pad, y + pad, w - pad * 2, h - pad * 2, cover)
+    addPdfImage(doc, dataUrl, x + pad, y + pad, w - pad * 2, h - pad * 2, cover, poseId)
   } else {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
@@ -846,10 +862,15 @@ async function loadImageAsDataUrl(url) {
   })
 }
 
-/** Norwood stages 1–7 (no 3-vertex). Head-only crops from public/norwood-stages/. */
-async function loadNorwoodStageImages() {
+/** Baldness stages 1–7. Ludwig when genderPreference is feminine; else Norwood. */
+function usesLudwigScale(answers) {
+  return String(answers?.genderPreference || '').trim().toLowerCase() === 'feminine'
+}
+
+async function loadBaldnessStageImages(answers) {
+  const folder = usesLudwigScale(answers) ? 'ludwig-stages' : 'norwood-stages'
   return Promise.all(
-    [1, 2, 3, 4, 5, 6, 7].map((n) => loadImageAsDataUrl(`/norwood-stages/stage-${n}.png`)),
+    [1, 2, 3, 4, 5, 6, 7].map((n) => loadImageAsDataUrl(`/${folder}/stage-${n}.png`)),
   )
 }
 
@@ -1096,7 +1117,9 @@ function mapChinGuidePoint(
   nx,
   ny,
   pad = 4,
-  coordSpace = 'image'
+  coordSpace = 'image',
+  poseId = null,
+  cover = true
 ) {
   const boxX = frameX + pad
   const boxY = frameY + pad
@@ -1110,7 +1133,16 @@ function mapChinGuidePoint(
   if (!img?.width || !img?.height) {
     return { x: boxX + nx * boxW, y: boxY + ny * boxH }
   }
-  return mapNormThroughCover(nx, ny, img.width, img.height, boxX, boxY, boxW, boxH)
+  if (!cover) {
+    const ratio = Math.min(boxW / img.width, boxH / img.height)
+    const w = img.width * ratio
+    const h = img.height * ratio
+    const ox = boxX + (boxW - w) / 2
+    const oy = boxY + (boxH - h) / 2
+    return { x: ox + nx * w, y: oy + ny * h }
+  }
+  const customSx = coverCropSession?.getCropOffset?.(profileSrc) ?? null
+  return mapNormThroughCover(nx, ny, img.width, img.height, boxX, boxY, boxW, boxH, poseId, customSx)
 }
 
 function clipSegToBox(a, b, box) {
@@ -1136,81 +1168,76 @@ function guidesForChinFrame(
   const boxH = frameH - pad * 2
   const img = coverCropSession?.getImage?.(profileSrc)
 
-  // Both plates resolve Pn/Sn/Pog on the pitched bitmap (ignore collapsed Mongo).
-  const resolved = img
-    ? resolveChinProjectionOverlay(img, poseId, boxW, boxH)
-    : null
+  const resolved = rawOverlay || (img ? resolveChinProjectionOverlay(img, poseId, boxW, boxH) : null)
   if (!resolved) return null
 
   if (style === 'projection') {
-    return buildChinProjectionGuides(resolved)
+    return buildChinProjectionGuides(resolved, poseId)
   }
 
-  // Top plate: Image-2 chin-show (one anterior vertical + equal-length rays)
-  const guides = buildChinProfileGuides(resolved)
-  if (guides?.chinShow) {
-    const tipY = guides.chinShow.tipY ?? -Infinity
-    const len = guides.chinShow.rayLength ?? 0.08
-    const vx = guides.chinShow.verticalX
-    const noseRight = guides.chinShow.noseIsRight !== false
-    // Keep equal length; only filter stray above-tip rays (do not silhouette-vary x1)
-    guides.chinShow.rays = (guides.chinShow.rays || [])
-      .filter((ray) => ray.y1 > tipY + 0.02)
-      .map((ray) => ({
-        ...ray,
-        x2: vx,
-        x1: noseRight ? Math.max(0, vx - len) : Math.min(1, vx + len),
-        y2: ray.y1,
-      }))
-  }
-  return guides
+  return buildChinProfileGuides(resolved, poseId)
 }
 
-function drawChinProfileGuideOverlays(doc, profileSrc, frameX, frameY, frameW, frameH, guides, mode) {
+function drawChinProfileGuideOverlays(doc, profileSrc, frameX, frameY, frameW, frameH, guides, mode, poseId = null, cover = true) {
   if (!guides || !profileSrc) return
   const pad = 4
-  const box = { x: frameX + pad, y: frameY + pad, w: frameW - pad * 2, h: frameH - pad * 2 }
   const coordSpace = guides.coordSpace || 'image'
   const map = (nx, ny) =>
-    mapChinGuidePoint(profileSrc, frameX, frameY, frameW, frameH, nx, ny, pad, coordSpace)
+    mapChinGuidePoint(profileSrc, frameX, frameY, frameW, frameH, nx, ny, pad, coordSpace, poseId, cover)
 
-  doc.setDrawColor(255, 255, 255)
+  const drawLineWithOutline = (x1, y1, x2, y2, isDashed = false) => {
+    // Dark outline pass for high contrast on light backgrounds
+    doc.setDrawColor(20, 24, 33)
+    doc.setLineWidth(2.6)
+    if (isDashed) doc.setLineDashPattern([3, 2], 0)
+    else doc.setLineDashPattern([], 0)
+    doc.line(x1, y1, x2, y2)
 
-  // Top plate: one nose-tip vertical + horizontals from soft-tissue profile → vertical
-  if (mode === 'thirds' && guides.chinShow) {
-    const c = guides.chinShow
-    const v0 = map(c.verticalX, c.y0)
-    const v1 = map(c.verticalX, c.y1)
-    doc.setLineWidth(1.15)
+    // Crisp white foreground pass
+    doc.setDrawColor(255, 255, 255)
+    doc.setLineWidth(1.5)
+    if (isDashed) doc.setLineDashPattern([3, 2], 0)
+    else doc.setLineDashPattern([], 0)
+    doc.line(x1, y1, x2, y2)
     doc.setLineDashPattern([], 0)
-    // Always draw vertical (even if endpoints sit near the pad edge)
-    doc.line(v0.x, v0.y, v1.x, v1.y)
-    for (const ray of c.rays || []) {
-      const a = map(ray.x1, ray.y1)
-      const b = map(ray.x2, ray.y2)
-      if (ray.dashed) {
-        doc.setLineDashPattern([2.5, 2], 0)
-        doc.setLineWidth(1.0)
-      } else {
-        doc.setLineDashPattern([], 0)
-        doc.setLineWidth(1.1)
-      }
-      doc.line(a.x, a.y, b.x, b.y)
-    }
-    doc.setLineDashPattern([], 0)
-    return
   }
 
-  // Bottom plate: verticals only
+  // Style 1: Nose Projection Lines (Top Image)
+  if (mode === 'thirds' && guides.chinShow) {
+    const c = guides.chinShow
+    const nt = map(c.nose_tip.x, c.nose_tip.y)
+    const sn = map(c.subnasale.x, c.subnasale.y)
+    const ul = map(c.upper_lip.x, c.upper_lip.y)
+    const ch = map(c.chin.x, c.chin.y)
+
+    // Vertical line at nose tip's X coordinate, spanning from subnasale's Y to chin's Y
+    drawLineWithOutline(nt.x, sn.y, nt.x, ch.y, false)
+
+    // Horizontal dashed lines to the nose tip vertical line
+    drawLineWithOutline(sn.x, sn.y, nt.x, sn.y, true)
+    drawLineWithOutline(ul.x, ul.y, nt.x, ul.y, true)
+    drawLineWithOutline(ch.x, ch.y, nt.x, ch.y, true)
+  }
+
+  // Style 2: E-line and True Verticals (Bottom Image)
   if (mode === 'projection' && guides.projection) {
     const p = guides.projection
-    doc.setLineWidth(1.05)
-    doc.setLineDashPattern([], 0)
-    for (const v of p.verticals || []) {
-      const a = map(v.x, v.y0)
-      const b = map(v.x, v.y1)
-      doc.line(a.x, a.y, b.x, b.y)
-    }
+    const nt = map(p.nose_tip.x, p.nose_tip.y)
+    const sn = map(p.subnasale.x, p.subnasale.y)
+    const nas = map(p.nasion.x, p.nasion.y)
+    const ch = map(p.chin.x, p.chin.y)
+
+    // ~20px offset in normalized height: (ch.y - sn.y) * 0.15
+    const extraY = Math.max(15, (ch.y - sn.y) * 0.15)
+
+    // Ricketts' E-line (nose tip to chin)
+    drawLineWithOutline(nt.x, nt.y, ch.x, ch.y, false)
+
+    // Zero Meridian (Vertical from Nasion)
+    drawLineWithOutline(nas.x, nas.y, nas.x, ch.y + extraY, false)
+
+    // Subnasale Perpendicular (Vertical from Subnasale)
+    drawLineWithOutline(sn.x, sn.y, sn.x, ch.y + extraY, false)
   }
 }
 
@@ -1248,57 +1275,20 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
   let rightY = y
 
   if (profileSrc) {
-    // Pitch chin-down for presentation (Image 2 slant), then resolve Pn/Pog on
-    // that pitched bitmap so the Ricketts E-line locks to nose tip and chin.
-    let showSrc = profileSrc
-    const rawImg = coverCropSession?.getImage?.(profileSrc)
-    const oriented = rawImg ? orientProfileForChinShow(rawImg, poseId) : null
-    if (oriented?.dataUrl) {
-      showSrc = oriented.dataUrl
-      try {
-        const orientedImg = await loadHtmlImage(showSrc)
-        coverCropSession?.putImage?.(showSrc, orientedImg)
-      } catch {
-        showSrc = profileSrc
-      }
-    }
+    const showSrc = profileSrc
 
-    const thirdsGuides = guidesForChinFrame(showSrc, COL_W, CHIN_PROFILE_FRAME_H, rawOverlay, poseId, {
-      style: 'thirds',
-    })
-    const projectionGuides = guidesForChinFrame(showSrc, COL_W, CHIN_PROFILE_FRAME_H, rawOverlay, poseId, {
-      style: 'projection',
+    const topAnnotated = await generateAnnotatedChinProfileImage(showSrc, 'thirds', poseId, rawOverlay, COL_W, CHIN_PROFILE_FRAME_H)
+    const botAnnotated = await generateAnnotatedChinProfileImage(showSrc, 'projection', poseId, rawOverlay, COL_W, CHIN_PROFILE_FRAME_H)
+
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, topAnnotated, 'PROFILE', {
+      cover: false,
+      poseId,
     })
 
-    const topFrameY = rightY
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, showSrc, 'PROFILE', {
-      cover: true,
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, botAnnotated, 'PROFILE', {
+      cover: false,
+      poseId,
     })
-    drawChinProfileGuideOverlays(
-      doc,
-      showSrc,
-      rightX,
-      topFrameY,
-      COL_W,
-      CHIN_PROFILE_FRAME_H,
-      thirdsGuides,
-      'thirds'
-    )
-
-    const botFrameY = rightY
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, showSrc, 'PROFILE', {
-      cover: true,
-    })
-    drawChinProfileGuideOverlays(
-      doc,
-      showSrc,
-      rightX,
-      botFrameY,
-      COL_W,
-      CHIN_PROFILE_FRAME_H,
-      projectionGuides,
-      'projection'
-    )
   }
 
   y = Math.max(leftY, rightY) + SECTION_GAP
@@ -2034,49 +2024,102 @@ function drawProtocolDashboardPage1(doc, ctx) {
 
   const phaseKeys = ['phase01', 'phase02', 'phase03'].filter((k) => treatment.phases?.[k])
   const phaseGap = 5
-  const itemLineH = 9
-  const phaseHeaderH = 38
-  const phasePadBottom = 8
-  phaseKeys.forEach((phaseKey) => {
+  const textX = rightX + 6
+  const textW = rightW - 12
+  const titleLineH = 9
+  const bodyLineH = 7.5
+  const padTop = 10
+  const padBottom = 6
+  const labelToTitle = 10
+  const titleToDurationGap = 2
+  const durationToDivider = 4
+  const dividerToItems = 8
+
+  // Full wrap — phase cards grow with content; no max-line ellipsis on items/title/duration.
+  const layouts = phaseKeys.map((phaseKey) => {
     const phase = treatment.phases?.[phaseKey]
     const items = (phase?.items || []).slice(0, 3)
-    const rowCount = Math.max(items.length, 1)
-    // Content-sized cards (do not stretch a single phase to fill the column)
-    const phaseCardH = phaseHeaderH + rowCount * itemLineH + phasePadBottom
-    const remaining = bodyBottom - ry - 40
-    if (remaining < 36) return
-    const drawH = Math.min(phaseCardH, remaining)
+    const itemRows = items.length ? items : [null]
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    const titleLines = doc.splitTextToSize(sanitizePdfText(phase?.title || '—'), textW)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6)
+    const durationLines = doc.splitTextToSize(sanitizePdfText(phase?.duration || '—'), textW)
+
+    const itemLineGroups = itemRows.map((item) => {
+      const line = item
+        ? `· ${item.name}${item.detail ? `: ${item.detail}` : ''}`
+        : '· —'
+      return doc.splitTextToSize(sanitizePdfText(line), textW)
+    })
+
+    const titleH = titleLines.length * titleLineH
+    const durationH = durationLines.length * bodyLineH
+    const itemsH = itemLineGroups.reduce((sum, lines) => sum + lines.length * bodyLineH, 0)
+    const headerH = padTop + labelToTitle + titleH + titleToDurationGap + durationH + durationToDivider
+    const height = headerH + dividerToItems + itemsH + padBottom
+
+    return {
+      phase,
+      phaseKey,
+      titleLines: titleLines.map((line) => sanitizePdfText(line)),
+      durationLines: durationLines.map((line) => sanitizePdfText(line)),
+      itemLineGroups: itemLineGroups.map((group) => group.map((line) => sanitizePdfText(line))),
+      height,
+    }
+  })
+
+  layouts.forEach((layout) => {
+    const drawH = layout.height
 
     doc.setFillColor(255, 255, 255)
     doc.setDrawColor(236, 236, 236)
     doc.roundedRect(rightX, ry, rightW, drawH, 4, 4, 'FD')
+
+    let cursorY = ry + padTop
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6)
     doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
-    doc.text(phase?.label || reportPhaseCopy(pdfMessages, phaseKey, 'label'), rightX + 6, ry + 10)
+    doc.text(
+      layout.phase?.label || reportPhaseCopy(pdfMessages, layout.phaseKey, 'label'),
+      textX,
+      cursorY,
+    )
+
+    cursorY += labelToTitle
+    doc.setFont('helvetica', 'bold')
     doc.setFontSize(7.5)
     setInk(doc)
-    const title = phase?.title || '—'
-    doc.text(title.length > 34 ? `${title.slice(0, 33)}…` : title, rightX + 6, ry + 20)
+    layout.titleLines.forEach((line, i) => {
+      doc.text(line, textX, cursorY + i * titleLineH)
+    })
+    cursorY += layout.titleLines.length * titleLineH + titleToDurationGap
+
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(6)
     setMuted(doc)
-    const duration = phase?.duration || '—'
-    doc.text(duration.length > 38 ? `${duration.slice(0, 37)}…` : duration, rightX + 6, ry + 28)
+    layout.durationLines.forEach((line, i) => {
+      doc.text(line, textX, cursorY + i * bodyLineH)
+    })
+    cursorY += layout.durationLines.length * bodyLineH + durationToDivider
+
     doc.setDrawColor(236, 236, 236)
-    doc.line(rightX + 6, ry + 32, rightX + rightW - 6, ry + 32)
+    doc.line(textX, cursorY, rightX + rightW - 6, cursorY)
+    cursorY += dividerToItems
+
+    doc.setFont('helvetica', 'normal')
     doc.setFontSize(6)
     setInk(doc)
-    for (let i = 0; i < rowCount; i += 1) {
-      const itemY = ry + 40 + i * itemLineH
-      if (itemY > ry + drawH - 4) break
-      const item = items[i]
-      const line = item
-        ? `· ${item.name}${item.detail ? `: ${item.detail}` : ''}`
-        : '· —'
-      const clipped = line.length > 52 ? `${line.slice(0, 51)}…` : line
-      doc.text(clipped, rightX + 6, itemY)
-    }
+    layout.itemLineGroups.forEach((lines) => {
+      lines.forEach((line) => {
+        doc.text(line, textX, cursorY)
+        cursorY += bodyLineH
+      })
+    })
+
     ry += drawH + phaseGap
   })
 
@@ -2165,7 +2208,7 @@ export async function buildMyFacePdf({
   }
   const [featurePages, norwoodImages] = await Promise.all([
     Promise.resolve(buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative)),
-    loadNorwoodStageImages().catch(() => []),
+    loadBaldnessStageImages(answers).catch(() => []),
   ])
 
   const featureImages = await resolveAllFeatureImages({
@@ -2233,14 +2276,13 @@ export async function buildMyFacePdf({
   if (chinSection) {
     const resolved = await resolveChinProfileOverlay(
       cvReport,
-      chinSection.profileIsReal ? chinSection.profileJpeg : null
+      chinSection.profileJpeg || photoJpeg
     )
     chinSection.profileOverlay = resolved?.overlay ?? null
     chinSection.profilePoseId = resolved?.poseId || 'rightProfile'
   }
 
   const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
-  let pageNum = 1
   let y = 0
   const clientName = getClientName(answers, user, assessmentOwner)
   const monthLabel = formatProtocolMonth()
@@ -2290,7 +2332,6 @@ export async function buildMyFacePdf({
     updatedAt,
     landmarks,
   }) || {}
-  pageNum++
 
   // ── Page 2: Disclaimer + Privacy (two columns) ──
   doc.addPage()
@@ -2365,8 +2406,6 @@ export async function buildMyFacePdf({
   setMuted(doc)
   doc.text(t('commissionedFor'), MARGIN + COL_W + COL_GAP, signatureY + 12)
   doc.text(t('commissionedOn', { name: clientName, month: monthLabel }), MARGIN + COL_W + COL_GAP, signatureY + 24)
-
-  pageNum++
 
   // ── Page 3: Introduction + Contents (two columns) ──
   doc.addPage()
@@ -2443,8 +2482,6 @@ export async function buildMyFacePdf({
     rightY += 18
   })
 
-  pageNum++
-
   // ── Page 4: Understanding the Results ──
   doc.addPage()
   drawHeader(doc, 4)
@@ -2506,8 +2543,6 @@ export async function buildMyFacePdf({
     })
   })
 
-  pageNum++
-
   // ── Page 5: Client protocol overview ──
   doc.addPage()
   drawHeader(doc, 5)
@@ -2568,8 +2603,6 @@ export async function buildMyFacePdf({
   const rMax = 42
   drawRadarChart(doc, cx, cy, rMax, chartItems)
 
-  pageNum++
-
   // ── Per-feature pages ──
   let featurePageNum = 6
   for (const section of sectionPairs) {
@@ -2597,7 +2630,6 @@ export async function buildMyFacePdf({
     } else {
       drawFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.profileJpeg, section.profileIsReal)
     }
-    pageNum++ // Increment page count for each feature page
     featurePageNum += 1
   }
 
@@ -2631,7 +2663,6 @@ export async function buildMyFacePdf({
   closingCols.right.forEach((para) => {
     rightY = wrapText(doc, para, MARGIN + COL_W + COL_GAP, rightY, COL_W, 11) + 10
   })
-  addFooter(doc, pageNum++, t)
 
   const safeName = clientName.replace(/[^\w\s-]/g, '').trim() || 'Client'
   const filename = `MyFace-Protocol-${safeName.replace(/\s+/g, '-')}.pdf`

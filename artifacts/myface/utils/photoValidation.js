@@ -114,10 +114,10 @@ function checkPose(landmarks, expectedPose) {
   // noseRatio: 0 = nose far left of image, 0.5 = center, 1 = nose far right of image
   const poseRanges = {
     front:        { min: 0.35, max: 0.65, labelKey: 'Photo.validation.expectedPose.front' },
-    leftProfile:  { min: 0.60, max: 1.0,  labelKey: 'Photo.validation.expectedPose.leftProfile' },
-    rightProfile: { min: 0.0,  max: 0.40, labelKey: 'Photo.validation.expectedPose.rightProfile' },
-    left45:       { min: 0.40, max: 0.85, labelKey: 'Photo.validation.expectedPose.left45' },
-    right45:      { min: 0.15, max: 0.60, labelKey: 'Photo.validation.expectedPose.right45' },
+    leftProfile:  { min: 0.45, max: 1.0,  labelKey: 'Photo.validation.expectedPose.leftProfile' },
+    rightProfile: { min: 0.0,  max: 0.55, labelKey: 'Photo.validation.expectedPose.rightProfile' },
+    left45:       { min: 0.35, max: 0.85, labelKey: 'Photo.validation.expectedPose.left45' },
+    right45:      { min: 0.15, max: 0.65, labelKey: 'Photo.validation.expectedPose.right45' },
     smile:        { min: 0.30, max: 0.70, labelKey: 'Photo.validation.expectedPose.smile' },
     topHead:      { min: 0.20, max: 0.80, labelKey: 'Photo.validation.expectedPose.topHead' },
   }
@@ -670,6 +670,10 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
             messageKey: 'Photo.validation.neutralExpression.smileExpected',
             severity: 'ok',
           })
+        } else if (isNonFront) {
+          const exp = checkExpression(lm)
+          exp.severity = 'info'
+          mpChecks.push(exp)
         } else {
           mpChecks.push(checkExpression(lm))
         }
@@ -686,22 +690,43 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
           mpChecks.push(checkEyesOpen(lm))
         }
 
-        // Hair check — skip for topHead (hair is expected to be prominent)
-        if (poseId !== 'topHead') {
-          mpChecks.push(checkHairCovering(lm))
-        } else {
+        // Hair check — skip for topHead / non-front poses where hair at back/side is expected
+        if (isNonFront) {
           mpChecks.push({
             name: 'hairClear',
             pass: true,
             messageKey: 'Photo.validation.hairClear.skippedTopHead',
             severity: 'info',
           })
+        } else {
+          mpChecks.push(checkHairCovering(lm))
         }
 
-        mpChecks.push(checkFaceCentered(lm))
+        // Face centered — relax for profile/angle poses (face is naturally offset)
+        if (isNonFront) {
+          mpChecks.push({
+            name: 'faceCentered',
+            pass: true,
+            messageKey: 'Photo.validation.correctPose.ok',
+            severity: 'info',
+          })
+        } else {
+          mpChecks.push(checkFaceCentered(lm))
+        }
+
         mpChecks.push(checkFaceSize(lm))
-        // Glasses uses both canvas context and landmarks
-        mpChecks.push(checkGlasses(ctx, w, h, lm))
+
+        // Glasses uses both canvas context and landmarks — soften for profile poses
+        if (isNonFront) {
+          mpChecks.push({
+            name: 'noGlasses',
+            pass: true,
+            messageKey: 'Photo.validation.correctPose.ok',
+            severity: 'info',
+          })
+        } else {
+          mpChecks.push(checkGlasses(ctx, w, h, lm))
+        }
       }
     }
   } catch {

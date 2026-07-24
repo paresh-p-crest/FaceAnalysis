@@ -38,6 +38,14 @@ from .serialization import to_json_safe
 logger = logging.getLogger(__name__)
 
 
+async def _require_live_assessment(assessment_id: str) -> dict:
+    """Abort stage returns when the assessment is missing or soft-deleted."""
+    live = await get_assessment_by_id(assessment_id)
+    if not live:
+        raise RuntimeError(f"Assessment {assessment_id} missing or soft-deleted")
+    return live
+
+
 def _load_pose_bytes(assessment_id: str, pose_id: str) -> Optional[bytes]:
     return get_media_storage().get_bytes(assessment_key(assessment_id, f"{pose_id}.jpg"))
 
@@ -226,7 +234,7 @@ async def run_parsing_stage(assessment: dict) -> dict:
         fp["updatedAt"] = _utcnow_iso()
         await update_assessment_feature_parsing(assessment_id, fp)
 
-    return await get_assessment_by_id(assessment_id) or refreshed
+    return await _require_live_assessment(assessment_id)
 
 
 async def _mark_projected_analysis_skipped(assessment_id: str, existing: Optional[dict] = None) -> None:
@@ -259,7 +267,7 @@ async def run_projected_analysis_now(assessment: dict) -> dict:
     pa_meta = refreshed.get("projectedAfter") or {}
     if pa_meta.get("status") != "ready":
         await _mark_projected_analysis_skipped(assessment_id, existing)
-        return await get_assessment_by_id(assessment_id) or refreshed
+        return await _require_live_assessment(assessment_id)
 
     running = merge_projected_analysis_update(
         existing or new_projected_analysis_pending(),
@@ -280,7 +288,7 @@ async def run_projected_analysis_now(assessment: dict) -> dict:
             eyeAnalysis=None,
         )
         await update_assessment_projected_analysis(assessment_id, failed)
-        return await get_assessment_by_id(assessment_id) or refreshed
+        return await _require_live_assessment(assessment_id)
 
     answers = refreshed.get("answers") or {}
     # Single-image CV: projected full as front only (no multi-view pose enrichments)
@@ -297,7 +305,7 @@ async def run_projected_analysis_now(assessment: dict) -> dict:
             eyeAnalysis=None,
         )
         await update_assessment_projected_analysis(assessment_id, failed)
-        return await get_assessment_by_id(assessment_id) or refreshed
+        return await _require_live_assessment(assessment_id)
 
     ready = merge_projected_analysis_update(
         running,
@@ -310,7 +318,7 @@ async def run_projected_analysis_now(assessment: dict) -> dict:
         error=None,
     )
     await update_assessment_projected_analysis(assessment_id, ready)
-    return await get_assessment_by_id(assessment_id) or refreshed
+    return await _require_live_assessment(assessment_id)
 
 
 async def generate_projected_after_now(
@@ -341,7 +349,7 @@ async def generate_projected_after_now(
         pa = merge_projected_after_update(pa, status="skipped", lastError=None)
         await update_assessment_projected_after(assessment_id, pa)
         await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
-        return await get_assessment_by_id(assessment_id) or refreshed
+        return await _require_live_assessment(assessment_id)
 
     analysis = refreshed.get("analysis") or {}
     cv_report = analysis.get("cvReport") or {}
@@ -355,7 +363,7 @@ async def generate_projected_after_now(
         await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
         if raise_on_error:
             raise ValueError(msg)
-        return await get_assessment_by_id(assessment_id) or refreshed
+        return await _require_live_assessment(assessment_id)
 
     # Generative AFTER (OpenAI Images Edits / OpenRouter chat image modalities).
     try:
@@ -384,7 +392,7 @@ async def generate_projected_after_now(
         await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
         if raise_on_error:
             raise RuntimeError(f"Projected AFTER generation unavailable: {msg}")
-        return await get_assessment_by_id(assessment_id) or refreshed
+        return await _require_live_assessment(assessment_id)
 
     try:
         stored = await asyncio.to_thread(save_projected_full, assessment_id, image_bytes)
@@ -395,7 +403,7 @@ async def generate_projected_after_now(
         pa = merge_projected_after_update(pa, status="pending", lastError=str(exc))
         await update_assessment_projected_after(assessment_id, pa)
         await _mark_projected_analysis_skipped(assessment_id, refreshed.get("projectedAnalysis"))
-        return await get_assessment_by_id(assessment_id) or refreshed
+        return await _require_live_assessment(assessment_id)
 
     pa = merge_projected_after_update(
         pa,
@@ -438,7 +446,9 @@ async def run_ai_visuals_stage(assessment: dict) -> dict:
     #     logger.info("AI visuals skipped for %s: projected AFTER file missing", assessment_id)
     #     return assessment
 
-    refreshed = await get_assessment_by_id(assessment_id) or assessment
+    refreshed = await get_assessment_by_id(assessment_id)
+    if not refreshed:
+        raise RuntimeError("Assessment missing or soft-deleted for AI visuals stage")
     analysis = refreshed.get("analysis") or {}
     cv_report = analysis.get("cvReport")
     if not cv_report:
@@ -460,7 +470,7 @@ async def run_ai_visuals_stage(assessment: dict) -> dict:
         require_projected_after=False,
     )
     await update_assessment_ai_visuals(assessment_id, ai_visuals)
-    return await get_assessment_by_id(assessment_id) or refreshed
+    return await _require_live_assessment(assessment_id)
 
 
 async def finalize_pipeline(assessment_id: str) -> Optional[dict]:
@@ -468,9 +478,11 @@ async def finalize_pipeline(assessment_id: str) -> Optional[dict]:
     from .pipeline_status import merge_pipeline_update
 
     existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        return None
     workflow = "approved" if dev_auto_approve_reports() else "pending_review"
     pipeline = merge_pipeline_update(
-        existing.get("pipeline") if existing else None,
+        existing.get("pipeline"),
         status="ready",
         stage="done",
         completedAt=_utcnow_iso(),

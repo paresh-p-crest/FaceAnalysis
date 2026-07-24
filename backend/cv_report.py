@@ -791,7 +791,11 @@ def skin_quality_metrics(landmarks: list, image_bytes: bytes, metrics: Optional[
 # Dimorphism Metrics
 # ══════════════════════════════════════════════════════════════════════════════
 
-def dimorphism_metrics(landmarks: list, metrics: Optional[dict] = None) -> dict:
+def dimorphism_metrics(
+    landmarks: list,
+    metrics: Optional[dict] = None,
+    answers: Optional[dict] = None,
+) -> dict:
     jaw_l = lm(landmarks, 234)
     jaw_r = lm(landmarks, 454)
     chin = lm(landmarks, 152)
@@ -916,11 +920,37 @@ def dimorphism_metrics(landmarks: list, metrics: Optional[dict] = None) -> dict:
     weights = [1.2, 1.1, 0.8, 1.0, 1.3, 1.1, 0.7, 0.9, 0.6]
     weighted_sum = sum(s * w for s, w in zip(all_scores, weights))
     weight_total = sum(weights)
-    overall_score = round(weighted_sum / weight_total)
-    overall_label = (
-        "Very Masculine" if overall_score >= 80 else ("Masculine" if overall_score >= 60
-        else ("Moderate" if overall_score >= 40 else ("Feminine" if overall_score >= 20 else "Very Feminine")))
-    )
+    overall_raw = round(weighted_sum / weight_total)
+
+    from .visual_style_banks import resolve_style_preference
+    preference = resolve_style_preference(answers)
+
+    def display_for(raw: int) -> tuple[int, str, bool]:
+        """Clamp display score/label to Moderate or preferred side."""
+        if preference == "feminine":
+            opposite = raw >= 60
+            disp = min(raw, 59)
+        elif preference == "masculine":
+            opposite = raw < 40
+            disp = max(raw, 40)
+        else:
+            disp, label = score_feature(raw)
+            return disp, label, False
+        disp, label = score_feature(disp)
+        return disp, label, opposite
+
+    def improve_note(feature_name: str, opposite: bool) -> str:
+        if not opposite:
+            return ""
+        if preference == "feminine":
+            return (
+                f" Room for improvement toward a softer, more feminine "
+                f"{feature_name.lower()} presentation."
+            )
+        return (
+            f" Room for improvement toward a stronger, more masculine "
+            f"{feature_name.lower()} presentation."
+        )
 
     brow_set = "low-set" if brow_eye_gap < 0.1 else ("higher-set" if brow_eye_gap > 0.16 else "moderately set")
     brow_form = "straighter" if abs(brow_arch) < 0.005 else "more arched"
@@ -930,87 +960,112 @@ def dimorphism_metrics(landmarks: list, metrics: Optional[dict] = None) -> dict:
     )
     ear_note = ", with more lateral protrusion" if ear_protrusion > 0.06 else ""
 
+    eyebrows_d, eyebrows_l, eyebrows_opp = display_for(eyebrows_s)
+    eyes_d, eyes_l, eyes_opp = display_for(eyes_s)
+    nose_d, nose_l, nose_opp = display_for(nose_s)
+    cheeks_d, cheeks_l, cheeks_opp = display_for(cheeks_s)
+    lips_d, lips_l, lips_opp = display_for(lips_s)
+    jaw_d, jaw_l_label, jaw_opp = display_for(jaw_s)
+    chin_d, chin_feature_l, chin_opp = display_for(chin_feature_s)
+    neck_d, neck_l, neck_opp = display_for(neck_s)
+    ears_d, ears_l, ears_opp = display_for(ears_s)
+
     features = [
         {
-            "name": "Eyebrows", "score": eyebrows_s, "label": eyebrows_l,
+            "name": "Eyebrows", "score": eyebrows_d, "label": eyebrows_l,
             "explanation": (
-                f"Your brows score {eyebrows_s} ({eyebrows_l.lower()}): "
+                f"Your brows score {eyebrows_d} ({eyebrows_l.lower()}): "
                 f"{brow_set}, {brow_form}, relative thickness {brow_thickness * 100:.1f}% of face height."
+                + improve_note("Eyebrows", eyebrows_opp)
             ),
         },
         {
-            "name": "Eyes", "score": eyes_s, "label": eyes_l,
+            "name": "Eyes", "score": eyes_d, "label": eyes_l,
             "explanation": (
-                f"Your eyes score {eyes_s} ({eyes_l.lower()}): "
+                f"Your eyes score {eyes_d} ({eyes_l.lower()}): "
                 f"aperture {eye_open_ratio * 100:.1f}% of IPD, span {eye_span * 100:.1f}% of face width."
+                + improve_note("Eyes", eyes_opp)
             ),
         },
         {
-            "name": "Nose", "score": nose_s, "label": nose_l,
+            "name": "Nose", "score": nose_d, "label": nose_l,
             "explanation": (
-                f"Your nose scores {nose_s} ({nose_l.lower()}): "
+                f"Your nose scores {nose_d} ({nose_l.lower()}): "
                 f"alar width {nose_face_ratio * 100:.1f}% of IPD, width-to-length {nose_ratio:.2f}."
+                + improve_note("Nose", nose_opp)
             ),
         },
         {
-            "name": "Cheeks", "score": cheeks_s, "label": cheeks_l,
+            "name": "Cheeks", "score": cheeks_d, "label": cheeks_l,
             "explanation": (
-                f"Your cheeks score {cheeks_s} ({cheeks_l.lower()}): "
+                f"Your cheeks score {cheeks_d} ({cheeks_l.lower()}): "
                 f"cheek width {cheek_width_ratio * 100:.1f}% of face width{cheek_note}."
+                + improve_note("Cheeks", cheeks_opp)
             ),
         },
         {
-            "name": "Lips", "score": lips_s, "label": lips_l,
+            "name": "Lips", "score": lips_d, "label": lips_l,
             "explanation": (
-                f"Your lips score {lips_s} ({lips_l.lower()}): "
+                f"Your lips score {lips_d} ({lips_l.lower()}): "
                 f"fullness {lip_fullness_ratio * 100:.1f}% of IPD, philtrum-to-lip {philtrum_ratio:.2f}."
+                + improve_note("Lips", lips_opp)
             ),
         },
         {
-            "name": "Jaw", "score": jaw_s, "label": jaw_l_label,
+            "name": "Jaw", "score": jaw_d, "label": jaw_l_label,
             "explanation": (
-                f"Your jaw scores {jaw_s} ({jaw_l_label.lower()}): "
+                f"Your jaw scores {jaw_d} ({jaw_l_label.lower()}): "
                 f"width {jaw_width_ratio * 100:.1f}% of face width, mean mandibular angle {jaw_angle:.0f}°."
+                + improve_note("Jaw", jaw_opp)
             ),
         },
         {
-            "name": "Chin", "score": chin_feature_s, "label": chin_feature_l,
+            "name": "Chin", "score": chin_d, "label": chin_feature_l,
             "explanation": (
-                f"Your chin scores {chin_feature_s} ({chin_feature_l.lower()}): "
+                f"Your chin scores {chin_d} ({chin_feature_l.lower()}): "
                 f"width {chin_width_ratio * 100:.1f}% of face width, "
                 f"height {chin_height_ratio * 100:.1f}% of face height."
+                + improve_note("Chin", chin_opp)
             ),
         },
         {
-            "name": "Neck", "score": neck_s, "label": neck_l,
+            "name": "Neck", "score": neck_d, "label": neck_l,
             "explanation": (
-                f"Your neck scores {neck_s} ({neck_l.lower()}): "
+                f"Your neck scores {neck_d} ({neck_l.lower()}): "
                 f"breadth {neck_width_ratio:.2f}× IPD from the jaw landmarks."
+                + improve_note("Neck", neck_opp)
             ),
         },
         {
-            "name": "Ears", "score": ears_s, "label": ears_l,
+            "name": "Ears", "score": ears_d, "label": ears_l,
             "explanation": (
-                f"Your ears score {ears_s} ({ears_l.lower()}): "
+                f"Your ears score {ears_d} ({ears_l.lower()}): "
                 f"relative size {ear_size:.2f}× IPD{ear_note}."
+                + improve_note("Ears", ears_opp)
             ),
         },
     ]
+
+    overall_score, overall_label, overall_opp = display_for(overall_raw)
 
     top_drivers = sorted(features, key=lambda f: abs(f["score"] - 50), reverse=True)[:3]
     top_clause = ", ".join(
         f"{f['name'].lower()} ({f['label'].lower()}, {f['score']})" for f in top_drivers
     )
 
+    overall_explanation = (
+        f"Your overall dimorphism reads as {overall_label.lower()} ({overall_score}/100). "
+        f"The strongest measured drivers are {top_clause}."
+    )
+    if overall_opp:
+        overall_explanation += improve_note("overall dimorphism", True)
+
     return {
         "overallScore": overall_score,
         "overallLabel": overall_label,
         "scaleLeft": "Hyper Feminine",
         "scaleRight": "Hyper Masculine",
-        "explanation": (
-            f"Your overall dimorphism reads as {overall_label.lower()} ({overall_score}/100). "
-            f"The strongest measured drivers are {top_clause}."
-        ),
+        "explanation": overall_explanation,
         "features": features,
     }
 
@@ -2176,7 +2231,7 @@ def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict]
             "photoSource": "front",
         },
         "skin": skin,
-        "dimorphism": dimorphism_metrics(landmarks, metrics),
+        "dimorphism": dimorphism_metrics(landmarks, metrics, answers),
         "averageness": averageness_metrics(landmarks, metrics, answers),
     }
 

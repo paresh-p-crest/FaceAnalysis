@@ -33,6 +33,21 @@ export function resolveAssessmentAiVisualsBaseline(assessment) {
   return resolveAssessmentFrontPhoto(assessment)
 }
 
+/** Display URL for an AI visual imageSrc (media URL, legacy data URL, or { publicUrl }). */
+export function resolveAiVisualImageSrc(value) {
+  return coercePhotoUrl(value)
+}
+
+/** Outfit slider BEFORE — white-tee baseline when generated, else front photo. */
+export function resolveAssessmentOutfitBaseline(assessment) {
+  const baseline = assessment?.aiVisuals?.outfitBaseline
+  const fromBaseline = resolveAiVisualImageSrc(
+    baseline && typeof baseline === 'object' ? baseline.imageSrc : baseline,
+  )
+  if (fromBaseline) return fromBaseline
+  return resolveAssessmentFrontPhoto(assessment)
+}
+
 /**
  * Pose map of URL strings for PDF / UI (not `{ publicUrl }` metadata).
  * Matches AppProvider hydratePhotosFromAssessment shape.

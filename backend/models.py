@@ -86,10 +86,15 @@ class Assessment(Base):
             "user_id",
             "scan_id",
             unique=True,
-            postgresql_where=text("scan_id IS NOT NULL"),
+            postgresql_where=text("scan_id IS NOT NULL AND deleted_at IS NULL"),
         ),
         Index("ix_assessments_status", "status"),
         Index("ix_assessments_created_at", "created_at"),
+        Index(
+            "ix_assessments_active",
+            "deleted_at",
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -124,6 +129,7 @@ class Assessment(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Payment(Base):

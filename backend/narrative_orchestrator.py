@@ -30,12 +30,21 @@ from .feature_context import build_feature_context, feature_context_as_prompt_te
 from .llm_client import chat_structured_completion
 from .narrative_schemas import (
     FEATURE_SUBSECTION_TITLES,
+    TREATMENT_PHASE_DETAIL_MAX,
+    TREATMENT_PHASE_DURATION_MAX,
+    TREATMENT_PHASE_ITEMS_MAX,
+    TREATMENT_PHASE_ITEMS_MIN,
+    TREATMENT_PHASE_NAME_MAX,
+    TREATMENT_PHASE_SUMMARY_MAX,
+    TREATMENT_PHASE_SUMMARY_MIN,
+    TREATMENT_PHASE_TITLE_MAX,
     ClosingSynthesis,
     ProtocolOverview,
     TreatmentPhases,
     closing_synthesis_json_schema,
     feature_narrative_json_schema,
     feature_subsection_length_prompt,
+    minimal_severity_length_carveout_prompt,
     protocol_overview_json_schema,
     treatment_phases_json_schema,
 )
@@ -83,8 +92,12 @@ _PROTOCOL_OVERVIEW_RETRY_HINT = (
 
 _TREATMENT_PHASES_RETRY_HINT = (
     "Previous JSON failed validation. Return phase01, phase02, and phase03; each phase needs "
-    "title (4-80 chars), duration (4-80 chars), and 2-3 items ({name, detail} with detail "
-    "under 120 chars). Include summary (40-500 chars). Third-person clinical tone; no numeric scores."
+    f"title (4-{TREATMENT_PHASE_TITLE_MAX} chars), duration (4-{TREATMENT_PHASE_DURATION_MAX} chars), "
+    f"and {TREATMENT_PHASE_ITEMS_MIN}-{TREATMENT_PHASE_ITEMS_MAX} items "
+    f"({{name, detail}} with name under {TREATMENT_PHASE_NAME_MAX} chars and detail under "
+    f"{TREATMENT_PHASE_DETAIL_MAX} chars). Include summary "
+    f"({TREATMENT_PHASE_SUMMARY_MIN}-{TREATMENT_PHASE_SUMMARY_MAX} chars). "
+    "Third-person clinical tone; no numeric scores."
 )
 
 def _null_path_grounding_hint(feature_id: str, ctx: dict) -> str:
@@ -171,6 +184,9 @@ def _build_feature_messages(
             "(roughly 70-120 words). Fully describe the measured attributes before concluding; do not "
             "pad with generic filler.\n"
         )
+        carveout = minimal_severity_length_carveout_prompt(feature_id)
+        if carveout:
+            user += "\n" + carveout + "\n"
         fewshot = get_null_path_fewshot(feature_id)
         if fewshot:
             user += (
@@ -329,10 +345,45 @@ async def _chat_protocol_with_rate_limit_backoff(
     return result
 
 
-def _parse_treatment_phases(raw: Any) -> dict:
-    from .clinical_guardrails import strip_score_language
+def _clamp_str(value: Any, max_len: int) -> str:
+    text = str(value or "").strip()
+    if len(text) <= max_len:
+        return text
+    return text[:max_len].rstrip()
 
-    data = TreatmentPhases.model_validate(raw).model_dump()
+
+def _clamp_treatment_phases_raw(raw: Any) -> Any:
+    """Trim soft overruns before Pydantic so mild length slips don't burn retries."""
+    if not isinstance(raw, dict):
+        return raw
+    out = dict(raw)
+    if "summary" in out:
+        out["summary"] = _clamp_str(out.get("summary"), TREATMENT_PHASE_SUMMARY_MAX)
+    for phase_key in ("phase01", "phase02", "phase03"):
+        phase = out.get(phase_key)
+        if not isinstance(phase, dict):
+            continue
+        phase_out = dict(phase)
+        phase_out["title"] = _clamp_str(phase_out.get("title"), TREATMENT_PHASE_TITLE_MAX)
+        phase_out["duration"] = _clamp_str(phase_out.get("duration"), TREATMENT_PHASE_DURATION_MAX)
+        items = phase_out.get("items")
+        if isinstance(items, list):
+            clamped_items = []
+            for item in items:
+                if not isinstance(item, dict):
+                    clamped_items.append(item)
+                    continue
+                item_out = dict(item)
+                item_out["name"] = _clamp_str(item_out.get("name"), TREATMENT_PHASE_NAME_MAX)
+                item_out["detail"] = _clamp_str(item_out.get("detail"), TREATMENT_PHASE_DETAIL_MAX)
+                clamped_items.append(item_out)
+            phase_out["items"] = clamped_items
+        out[phase_key] = phase_out
+    return out
+
+
+def _parse_treatment_phases(raw: Any) -> dict:
+    data = TreatmentPhases.model_validate(_clamp_treatment_phases_raw(raw)).model_dump()
     data["summary"] = strip_score_language(data.get("summary") or "")
     for phase_key in ("phase01", "phase02", "phase03"):
         phase = data.get(phase_key) or {}
@@ -768,8 +819,12 @@ async def generate_treatment_phases_async(
             "role": "system",
             "content": (
                 "You write the three-phase TREATMENT PROTOCOL panel for a facial aesthetic dashboard.\n"
-                "Return JSON only. Third-person clinical tone. Each phase has title, duration, and 2–3 items "
-                "(name + short detail line like timing or anatomical focus).\n"
+                "Return JSON only. Third-person clinical tone. Each phase has title, duration, and "
+                f"{TREATMENT_PHASE_ITEMS_MIN}–{TREATMENT_PHASE_ITEMS_MAX} items "
+                "(name + detail line like timing or anatomical focus).\n"
+                f"Budgets: title/duration ≤{TREATMENT_PHASE_TITLE_MAX} chars; "
+                f"name ≤{TREATMENT_PHASE_NAME_MAX} chars; detail ≤{TREATMENT_PHASE_DETAIL_MAX} chars; "
+                f"summary {TREATMENT_PHASE_SUMMARY_MIN}–{TREATMENT_PHASE_SUMMARY_MAX} chars.\n"
                 "Phase 01 = foundation topicals/photoprotection; Phase 02 = supervised regeneration; "
                 "Phase 03 = long-term structural optimisation.\n"
                 + STRICT_NON_SURGICAL_RULES

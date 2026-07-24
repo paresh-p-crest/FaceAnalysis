@@ -61,10 +61,10 @@ def test_json_schema_eyes_has_four_subsections():
 
 def test_hair_subsection_body_limits():
     assert subsection_body_limits("hair", "Hair Style") == (80, 2000)
-    assert subsection_body_limits("hair", "Hair Health") == (80, 1000)
+    assert subsection_body_limits("hair", "Hair Health") == (80, 450)
     assert subsection_body_limits("skin", "Skincare Protocol") == (80, 2000)
     assert subsection_body_limits("skin", "Further Skin Enhancement") == (80, 1000)
-    assert subsection_body_limits("jaw", "Further Enhancement") == (80, 1500)
+    assert subsection_body_limits("jaw", "Further Enhancement") == (80, 1000)
     assert subsection_body_limits("eyes", "Eyebrows") == (80, 2000)
     assert subsection_body_limits("eyes", "Under eye") == (80, 2000)
     assert subsection_body_limits("neck", "Neck Skin") == (80, 2000)
@@ -79,16 +79,16 @@ def test_every_feature_title_has_explicit_limits():
         for title in titles:
             assert title in FEATURE_SUBSECTION_BODY_LIMITS[feature_id]
             lo, hi = subsection_body_limits(feature_id, title)
-            assert lo == 80 and hi in (1000, 1500, 2000)
+            assert lo == 80 and hi in (450, 1000, 1500, 2000)
 
 
 def test_hair_narrative_rejects_overlong_health_body():
     from pydantic import ValidationError
 
     subs = _sample_subsections("hair")
-    # Over Hair Health max (1000) but under FeatureSubsection shared ceiling (2000).
-    subs[2]["body"] = "x" * 1001
-    assert len(subs[2]["body"]) > 1000
+    # Over Hair Health max (450) but under FeatureSubsection shared ceiling (2000).
+    subs[2]["body"] = "x" * 451
+    assert len(subs[2]["body"]) > 450
     with pytest.raises(ValidationError):
         FeatureNarrative(
             featureId="hair",
@@ -100,6 +100,12 @@ def test_hair_narrative_rejects_overlong_health_body():
 def test_treatment_phases_schema_and_validation():
     schema = treatment_phases_json_schema()
     assert set(schema["required"]) == {"phase01", "phase02", "phase03", "summary"}
+    item_props = schema["properties"]["phase01"]["properties"]["items"]
+    assert item_props["minItems"] == 1
+    assert item_props["maxItems"] == 3
+    assert item_props["items"]["properties"]["detail"]["maxLength"] == 280
+    assert item_props["items"]["properties"]["name"]["maxLength"] == 100
+    assert schema["properties"]["summary"]["minLength"] == 20
     sample = {
         "phase01": {
             "title": "Foundation & Photoprotection",
@@ -166,4 +172,52 @@ def test_parse_treatment_phases_normalizes():
     }
     parsed = _parse_treatment_phases(raw)
     assert parsed["phase01"]["items"][0]["name"] == "SPF 50+"
-    assert len(parsed["summary"]) >= 40
+    assert len(parsed["summary"]) >= 20
+
+
+def test_parse_treatment_phases_clamps_overlong_detail():
+    from backend.narrative_orchestrator import _parse_treatment_phases
+
+    long_detail = (
+        "Prioritise consistent sleep, photoprotection, and soft-tissue health with supervised "
+        "topical rotation for lower-face transitions under clinician guidance when needed."
+    )
+    assert len(long_detail) > 120
+    raw = {
+        "phase01": {
+            "title": "Foundation",
+            "duration": "Weeks 1-12",
+            "items": [{"name": "SPF 50+", "detail": long_detail}],
+        },
+        "phase02": {
+            "title": "Barrier",
+            "duration": "Weeks 12-24",
+            "items": [{"name": "Ceramide cream", "detail": "Evening barrier"}],
+        },
+        "phase03": {
+            "title": "Maintenance",
+            "duration": "6+ months",
+            "items": [{"name": "Hydration", "detail": "Daily moisture"}],
+        },
+        "summary": "Staged non-surgical plan grounded in measured priority regions and baseline harmony.",
+    }
+    parsed = _parse_treatment_phases(raw)
+    assert len(parsed["phase01"]["items"][0]["detail"]) <= 280
+    assert parsed["phase01"]["items"][0]["detail"].startswith("Prioritise")
+
+
+def test_minimal_severity_carveout_prompt_hair_and_jaw():
+    from backend.narrative_schemas import minimal_severity_length_carveout_prompt
+
+    hair = minimal_severity_length_carveout_prompt("hair")
+    assert "Hair Health" in hair
+    assert "70–120" in hair or "70-120" in hair
+    assert "~30–45 words" in hair
+    assert "Hair Style" not in hair
+
+    jaw = minimal_severity_length_carveout_prompt("jaw")
+    assert "Further Enhancement" in jaw
+    assert "~60–90 words" in jaw
+    assert "Jaw Structure" not in jaw
+
+    assert minimal_severity_length_carveout_prompt("eyes") == ""

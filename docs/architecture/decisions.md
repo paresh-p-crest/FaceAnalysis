@@ -13,13 +13,13 @@ The MyFace platform requires a fast, interactive frontend onboarding process, a 
 We chose a separated, decoupled micro-architecture:
 - **Frontend:** Next.js 15 (React) styling via TailwindCSS. Gated pages are handled inside React components with localStorage fallback.
 - **Backend:** Python FastAPI backend. This allows us to import and execute `mediapipe` (for 478 landmark Face Mesh) and `opencv-python-headless` (for image cropping, pixel skin sampling, and geometry analysis) natively.
-- **Database:** MongoDB Atlas utilizing the async `motor` driver. A document-oriented store is perfect for storing highly nested, unstructured MediaPipe JSON coordinates and the dynamic `cvReport` schemas without requiring complex SQL tables.
+- **Database:** PostgreSQL (see ADR-023; ADR-001 originally chose a document store, later superseded). Nested MediaPipe JSON and dynamic `cvReport` schemas live in JSONB columns.
 - **Integrations:** Direct API integration with Stripe Checkout and PayPal Orders v2 for gated reporting.
 
 ### Consequences
 - Frontend and backend can be hosted and scaled independently (e.g., Vercel for frontend, separate VPS or Replit for backend).
 - Python compute costs are decoupled from the static UI page loads.
-- Complex geometric facial coordinates fit naturally as nested JSON subdocuments in MongoDB assessments.
+- Complex geometric facial coordinates fit naturally as nested JSON in assessment JSONB columns.
 - Local and Replit environments must both support Python and Node.js dependencies.
 
 ---
@@ -33,7 +33,7 @@ Using LLMs like OpenAI GPT to generate facial metrics introduces risk of halluci
 
 ### Decision
 We decoupled numerical measurements from narrative generation:
-- The backend CV engine calculates all landmark coords and metrics first, writing them to `analysis.cvReport` in MongoDB.
+- The backend CV engine calculates all landmark coords and metrics first, writing them to `analysis.cvReport` in the database.
 - OpenAI GPT is only invoked after the report is stored, parsing the *existing* measurements and questionnaire answers to write narrative summaries.
 - The output of the LLM is stored in a separate collection field `aiNarrative`, keeping the `cvReport` field completely deterministic and immutable.
 
@@ -54,7 +54,7 @@ Qoves-style analysis requires multiple photo angles (front, profiles, quarter vi
 - Run MediaPipe independently per uploaded pose via `multi_view.py`.
 - Add ruler calibration fields to questionnaire answers for px→mm scaling (`calibration.py`).
 - Implement profile, quarter, smile, and hair analysis modules; merge into `cvReport` in `analyze_face.py`.
-- Persist photos via `LocalPublicPhotoStorage` under `public/uploads/assessments/{assessmentId}/` with MongoDB `photos` map.
+- Persist photos via `LocalPublicPhotoStorage` under `public/uploads/assessments/{assessmentId}/` with a database `photos` map.
 - Gate production migration with `docs/pre-prod-checklist.md` (S3/R2, signed URLs, GDPR deletion).
 
 ### Consequences
@@ -330,12 +330,12 @@ Date: 2026-07-12
 Status: accepted  
 
 ### Context
-Protocol action cards (`protocolData`) were generated and dual-written but unused in the Qoves UI/PDF. Closing text could be synthesized on the client from `aiNarrative` without persistence. File `protocol.json` could shadow richer Mongo fields. Generated report text needed a clear latest-only source of truth across executive narrative, protocol/feature copy, AI visual prompts, and Beauty Assistant chat.
+Protocol action cards (`protocolData`) were generated and dual-written but unused in the Qoves UI/PDF. Closing text could be synthesized on the client from `aiNarrative` without persistence. File `protocol.json` could shadow richer database fields. Generated report text needed a clear latest-only source of truth across executive narrative, protocol/feature copy, AI visual prompts, and Beauty Assistant chat.
 
 ### Decision
-- Remove `protocolData` from generation, Mongo writes, `protocol.json`, APIs, FE props, and the Beauty Assistant `get_protocol_cards` tool.
-- Treat Mongo `aiNarrative`, `protocolNarrative`, `featureNarratives`, and `aiVisuals` as latest-only SOT; `conversations` holds assistant messages linked by `assessmentId`.
-- `protocol.json` mirrors `{ protocolNarrative, featureNarratives }` only; Mongo wins when complete.
+- Remove `protocolData` from generation, database writes, `protocol.json`, APIs, FE props, and the Beauty Assistant `get_protocol_cards` tool.
+- Treat database `aiNarrative`, `protocolNarrative`, `featureNarratives`, and `aiVisuals` as latest-only SOT; `conversations` holds assistant messages linked by `assessmentId`.
+- `protocol.json` mirrors `{ protocolNarrative, featureNarratives }` only; database wins when complete.
 - Always persist `protocolNarrative.closing` (LLM or measured fallback); FE must not invent closing. Admin `aiNarrative` edits refresh stored closing.
 - Completeness helper: `backend/report_content.report_content_status`.
 
@@ -429,23 +429,23 @@ Interactive Features Analysis panels repeated the same CV `explanation` in multi
 ## ADR-023: PostgreSQL + JSONB (supersedes ADR-001 database engine)
 Date: 2026-07-13  
 Status: accepted  
-Supersedes: ADR-001 database choice (MongoDB Atlas / Motor)
+Supersedes: ADR-001 database choice (document store)
 
 ### Context
-MongoDB fit nested `cvReport` / landmarks well, but the team preferred SQL tooling, real foreign keys, and a greenfield schema without preserving Atlas ObjectId strings. Nested MediaPipe payloads must remain document-shaped.
+A document store fit nested `cvReport` / landmarks well, but the team preferred SQL tooling, real foreign keys, and a greenfield schema without preserving legacy string ObjectIds. Nested MediaPipe payloads must remain document-shaped.
 
 ### Decision
 - **PostgreSQL** via SQLAlchemy 2.0 async + asyncpg + Alembic.
 - **UUID** primary keys (`gen_random_uuid` / `uuid4`); API still exposes string `id`.
 - **JSONB** columns for nested assessment payloads (`analysis`, narratives, photos metadata, review_log, payment `raw`).
 - Normalize Beauty Assistant messages into `conversation_messages` (not JSONB arrays).
-- Env: `DATABASE_URL` (replaces `MONGODB_URI`). Gate: `is_db_configured()`.
-- No Atlas data import — empty DB / schema create on startup (`create_all`) + Alembic revision `20260713_0001`.
+- Env: `DATABASE_URL`. Gate: `is_db_configured()`.
+- No legacy data import — empty DB / schema create on startup (`create_all`) + Alembic revision `20260713_0001`.
 
 ### Consequences
 - Nested CV documents stay flexible without metric-table explosion.
 - Cascading deletes and partial unique `(user_id, scan_id)` are native SQL.
-- Operators need a Postgres instance; Motor/pymongo are removed from dependencies.
+- Operators need a Postgres instance; former document-store drivers are removed from dependencies.
 
 ---
 
@@ -696,7 +696,7 @@ Status: accepted
 ### Decision
 - **Shared opening.** All three variants start with `SHARED_VISUAL_OPENING` (identity lock + no medical/surgical imagery) in natural prose.
 - **Scope-fence first.** Each variant’s body opens with an explicit change-only / leave-unchanged sentence before creative instruction (aging uses “skin maturation only” plus the shared identity opening).
-- **Inline CV phrases.** `_cv_anchors` returns ready-to-insert phrases (`face_shape_phrase`, `hairline_phrase`, `hair_detail_suffix`, `skin_tone_phrase` from `skin.skinTone`) woven into sentences; missing/unknown values use grammatical fallbacks (`their face shape`, etc.), never the literal word `unknown`. Do not use `skin.tone` (evenness) for outfit color. No `Client:` / `Context:` appendix; `answers` / `metrics` unused in prompt text.
+- **Inline CV phrases.** `_cv_anchors` returns ready-to-insert phrases (`face_shape_phrase`, `hairline_phrase`, `hair_detail_suffix`, `skin_tone_phrase` from `skin.skinTone`) woven into sentences; missing/unknown values use grammatical fallbacks (`their face shape`, etc.), never the literal word `unknown`. Do not use `skin.tone` (evenness) for outfit color. No `Client:` / `Context:` appendix; `metrics` unused in prompt text. `answers` select preference-keyed style banks upstream (not injected as gender words in prompt prose).
 - **Three separate calls.** Keep `generate_visual_variants` calling `build_visual_prompt` once per selected type — no mega-prompt.
 
 ### Consequences
@@ -705,6 +705,7 @@ Status: accepted
 
 **Amendment (2026-07-20):** Aging scope-fence expanded from skin-only to skin + hair + soft tissue per tier (ADR-038); `hairColor` gates temple-graying language.
 
+**Amendment (2026-07-24):** Hair prompts omit CV hair color (`include_hair_color=False`); hard-lock color/texture from the reference image. Style banks are preference-keyed via `resolve_style_preference` (`genderPreference`, then `growBeard` soft proxy).
 ---
 
 ## ADR-036: Frontend i18n with next-intl (en/de path prefixes)
@@ -779,6 +780,10 @@ The existing AI visuals feature generated three previews (hair / outfit / aging)
 
 **Amendment (2026-07-22):** Source image is the assessment **front (BEFORE)** portrait for FE comparison and BE generation. Projected AFTER ready-checks before AI visuals are disabled/commented out; pipeline soft-skips only when front bytes are missing.
 
+**Amendment (2026-07-24):** Hair and outfit banks are preference-keyed (`masculine` / `feminine` / `no-preference`) via `resolve_style_preference`. Same 5 occasions for outfit; descriptors differ by preference. Face-shape hair banks remain 5 styles each per preference.
+
+**Amendment (2026-07-24, outfit baseline + media URLs):** When outfit variants are generated, one extra edit produces `outfitBaseline` (plain white crew-neck tee, shoulders visible) for outfit slider BEFORE only — outfit AFTER edits still use front. All new AI visual images (variants + baseline) are written to media storage at `assessments/{id}/ai-visuals/…` with `/api/media/…` refs in JSONB; legacy inline data URLs in existing rows remain valid until regen.
+
 ### Consequences
 - Users see grouped galleries with distinct prompt directions per card (hair styles differ by named style, not random sampling noise).
 - Prompt text becomes more deterministic and reviewable via the “View prompt” affordance in the UI.
@@ -802,3 +807,22 @@ The report overview dashboard shows three “Treatment Protocol” phase cards (
 - Existing assessments need protocol regen (`POST …/ai-protocol?force=true`) to populate `treatmentPhases`.
 - PDF, HTML protocol cover, and live overview share one resolver; no duplicate phase logic in each renderer.
 - Fallback copy is medical/third-person and references priority anatomical zones from CV, not casual “you look great” messaging.
+
+---
+
+## ADR-040: Dimorphism display clamped to preference side
+Date: 2026-07-24
+Status: accepted
+
+### Context
+Dimorphism scores are geometry-only (0 = feminine … 100 = masculine). Feminine-preferring users could see Jaw/overall labeled Masculine when landmarks read that way, which conflicted with aesthetic preference framing.
+
+### Decision
+- Keep raw metric formulas and numeric metric phrases (widths, angles, ratios) unchanged.
+- After scoring, clamp **display** `score` / `label` to Moderate or the preferred side using `resolve_style_preference` (`genderPreference`, then `growBeard` soft proxy; `no-preference` unclamped).
+- When raw score is opposite the preference, append a short “Room for improvement toward a … presentation” sentence on that feature (and overall when overall was opposite).
+- Apply in both `backend/cv_report.py` and `artifacts/myface/utils/cvReport.js`.
+
+### Consequences
+- UI badges/sliders never show the opposite gender band for an explicit masculine/feminine preference.
+- Measured geometry remains in explanations for clinical honesty.

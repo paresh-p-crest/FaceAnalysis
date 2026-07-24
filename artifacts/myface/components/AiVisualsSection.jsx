@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { ChevronRight, Image, Loader2, Sparkles, X } from 'lucide-react'
+import { Image, Loader2, Sparkles, X } from 'lucide-react'
 import { resolveStylePanelCopy } from '../utils/aiVisualStyleCopy'
+import { coercePhotoUrl } from '../utils/assessmentPhotos'
 
 /** Title-case each alphabetic run (Professional/Business, Smart-Casual). */
 function titleCaseLabel(value) {
@@ -49,7 +50,7 @@ function ImagePreviewModal({ src, title, onClose, closeLabel }) {
   )
 }
 
-function useImageAspectRatio(src, fallback = 3 / 4) {
+function useImageAspectRatio(src, fallback = 4 / 5) {
   const [ratio, setRatio] = useState(fallback)
 
   useEffect(() => {
@@ -76,6 +77,15 @@ function useImageAspectRatio(src, fallback = 3 / 4) {
 
   return ratio
 }
+
+/** Slightly shorter than natural portrait so hair/outfit/aging frames match and aren't overly tall. */
+function aiVisualFrameAspect(ratio) {
+  const base = Number(ratio)
+  const safe = Number.isFinite(base) && base > 0 ? base : 0.8
+  return Math.min(Math.max(safe, 0.78) * 1.08, 0.92)
+}
+
+const AI_VISUAL_IMG_FRAME = 'w-full max-w-[22rem] shrink-0'
 
 /** Drag slider: left reveals before, right reveals after. `position` = % width showing before. */
 function BeforeAfterSlider({ beforeSrc, afterSrc, beforeLabel, afterLabel, title, aspectRatio }) {
@@ -125,7 +135,7 @@ function BeforeAfterSlider({ beforeSrc, afterSrc, beforeLabel, afterLabel, title
     <div
       ref={containerRef}
       className="relative w-full cursor-ew-resize select-none overflow-hidden rounded-xl bg-surface-warm touch-none"
-      style={{ aspectRatio: String(aspectRatio || 0.75) }}
+      style={{ aspectRatio: String(aiVisualFrameAspect(aspectRatio)) }}
       onPointerDown={startDrag}
       onTouchStart={startDrag}
       role="img"
@@ -180,9 +190,47 @@ function variantKey(variant) {
   return `${variant.type}:${variant.styleId || variant.title}`
 }
 
-function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenImage }) {
+function RegenerateStyleButton({
+  styleId,
+  show,
+  canGenerate,
+  loading,
+  regeneratingStyleId,
+  onGenerateStyle,
+  t,
+}) {
+  if (!show || !styleId || !onGenerateStyle) return null
+  const busy = loading || !!regeneratingStyleId
+  const thisBusy = regeneratingStyleId === styleId
+  return (
+    <button
+      type="button"
+      onClick={() => onGenerateStyle(styleId)}
+      disabled={!canGenerate || busy}
+      className="report-shell-btn shrink-0 text-xs"
+      title={!canGenerate ? t('needsBackend') : t('regenerateStyleTitle')}
+    >
+      {thisBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+      {t('regenerateStyle')}
+    </button>
+  )
+}
+
+function StyleCompareHero({
+  type,
+  variants,
+  beforeSrc,
+  aspectRatio,
+  t,
+  onOpenImage,
+  showGenerate = false,
+  canGenerate = false,
+  loading = false,
+  regeneratingStyleId = null,
+  onGenerateStyle = null,
+}) {
   const recommendedKey = useMemo(() => {
-    const ready = variants.find((v) => v.imageSrc)
+    const ready = variants.find((v) => coercePhotoUrl(v.imageSrc))
     return variantKey(ready || variants[0] || { type, title: '' })
   }, [variants, type])
 
@@ -194,8 +242,10 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
 
   const selected = useMemo(() => {
     const found = variants.find((v) => variantKey(v) === selectedKey)
-    return found || variants.find((v) => v.imageSrc) || variants[0] || null
+    return found || variants.find((v) => coercePhotoUrl(v.imageSrc)) || variants[0] || null
   }, [variants, selectedKey])
+
+  const selectedAfterSrc = selected ? coercePhotoUrl(selected.imageSrc) : null
 
   const panel = useMemo(
     () => (selected ? resolveStylePanelCopy(type, selected) : null),
@@ -212,7 +262,7 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
     )
   }
 
-  const hasCompare = Boolean(beforeSrc && selected.imageSrc)
+  const hasCompare = Boolean(beforeSrc && selectedAfterSrc)
   const isQovesChoice = variantKey(selected) === recommendedKey
   const displayTitle = type === 'outfit' ? titleCaseLabel(selected.title) : selected.title
   const attrLabel = (key) => (t.has(`panel.attrs.${key}`) ? t(`panel.attrs.${key}`) : key)
@@ -221,11 +271,11 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
-        <div className="w-full max-w-sm shrink-0">
+        <div className={`${AI_VISUAL_IMG_FRAME}`}>
           {hasCompare ? (
             <BeforeAfterSlider
               beforeSrc={beforeSrc}
-              afterSrc={selected.imageSrc}
+              afterSrc={selectedAfterSrc}
               beforeLabel={t('compareBefore')}
               afterLabel={t('compareAfter')}
               title={displayTitle}
@@ -234,7 +284,7 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
           ) : (
             <div
               className="flex h-full w-full items-center justify-center rounded-xl border border-surface-border bg-surface-warm px-4 text-center dark:bg-surface-raised"
-              style={{ aspectRatio: String(aspectRatio || 0.75) }}
+              style={{ aspectRatio: String(aiVisualFrameAspect(aspectRatio)) }}
             >
               <div>
                 <Image className="mx-auto mb-2 h-7 w-7 text-brand" />
@@ -254,11 +304,22 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
             <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               {t('panel.recommended')}
             </p>
-            {isQovesChoice ? (
-              <span className="shrink-0 rounded-md border border-brand/25 bg-brand-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand">
-                {t('panel.qovesChoice')}
-              </span>
-            ) : null}
+            <div className="flex items-center gap-2 shrink-0">
+              {isQovesChoice ? (
+                <span className="rounded-md border border-brand/25 bg-brand-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand">
+                  {t('panel.qovesChoice')}
+                </span>
+              ) : null}
+              <RegenerateStyleButton
+                styleId={selected.styleId}
+                show={showGenerate}
+                canGenerate={canGenerate}
+                loading={loading}
+                regeneratingStyleId={regeneratingStyleId}
+                onGenerateStyle={onGenerateStyle}
+                t={t}
+              />
+            </div>
           </div>
           <h4 className="mb-4 font-sans text-base font-semibold text-ink leading-snug">
             {displayTitle}
@@ -292,11 +353,11 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
         </aside>
       </div>
 
-      <div className="w-full max-w-sm space-y-3">
+      <div className={`${AI_VISUAL_IMG_FRAME} space-y-3`}>
         {hasCompare ? (
           <button
             type="button"
-            onClick={() => onOpenImage(selected.imageSrc, displayTitle)}
+            onClick={() => onOpenImage(selectedAfterSrc, displayTitle)}
             className="w-full text-center text-[11px] font-medium text-brand hover:underline"
           >
             {t('openPreviewHint')}
@@ -307,7 +368,7 @@ function StyleCompareHero({ type, variants, beforeSrc, aspectRatio, t, onOpenIma
           {variants.map((variant) => {
             const key = variantKey(variant)
             const selectedThumb = key === variantKey(selected)
-            const thumbSrc = variant.imageSrc
+            const thumbSrc = coercePhotoUrl(variant.imageSrc)
             const thumbTitle = type === 'outfit' ? titleCaseLabel(variant.title) : variant.title
             return (
               <button
@@ -349,31 +410,95 @@ function agingYears(variant) {
   return null
 }
 
-function AgingProgressionGrid({ beforeSrc, variants, aspectRatio, t, onOpenImage }) {
+function parseVisualAge(value) {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null
+}
+
+function AgingStackRow({
+  imageSrc,
+  aspectRatio,
+  label,
+  ageNumber,
+  tag,
+  blurb,
+  footnote = null,
+  previewTitle,
+  onOpenImage,
+  t,
+  regen = null,
+}) {
+  const frameClass =
+    `relative ${AI_VISUAL_IMG_FRAME} overflow-hidden rounded-xl bg-surface-warm dark:bg-surface-raised`
+
+  return (
+    <article className="flex w-full flex-col overflow-hidden rounded-2xl border border-surface-border bg-white shadow-soft dark:bg-surface-card sm:flex-row sm:items-stretch">
+      {imageSrc ? (
+        <button
+          type="button"
+          onClick={() => onOpenImage(imageSrc, previewTitle)}
+          className={`group text-left ${frameClass}`}
+          style={{ aspectRatio: String(aiVisualFrameAspect(aspectRatio)) }}
+          aria-label={t('openPreview', { title: previewTitle })}
+        >
+          <img
+            src={imageSrc}
+            alt={previewTitle}
+            className="h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.02]"
+          />
+        </button>
+      ) : (
+        <div
+          className={`flex items-center justify-center border border-dashed border-surface-border ${frameClass}`}
+          style={{ aspectRatio: String(aiVisualFrameAspect(aspectRatio)) }}
+        >
+          <p className="px-4 text-center text-xs text-ink-muted">{t('imageUnavailable')}</p>
+        </div>
+      )}
+
+      <div className="relative flex min-h-[7rem] min-w-0 flex-1 flex-col items-center justify-center gap-1.5 px-5 py-5 text-center sm:min-h-0">
+        {regen}
+        <p className="text-xs font-medium text-ink-muted">{label}</p>
+        {ageNumber != null ? (
+          <p className="font-sans text-4xl font-semibold tracking-tight text-ink sm:text-5xl">{ageNumber}</p>
+        ) : null}
+        {tag ? (
+          <p className="text-sm font-semibold text-brand">{tag}</p>
+        ) : null}
+        {blurb ? (
+          <p className="max-w-[16rem] text-xs leading-relaxed text-ink-muted">{blurb}</p>
+        ) : null}
+        {footnote ? (
+          <p className="absolute bottom-2.5 right-3 max-w-[70%] text-right text-[9px] leading-snug text-ink-faint">
+            {footnote}
+          </p>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
+function AgingProgressionGrid({
+  beforeSrc,
+  variants,
+  aspectRatio,
+  visualAge = null,
+  t,
+  onOpenImage,
+  showGenerate = false,
+  canGenerate = false,
+  loading = false,
+  regeneratingStyleId = null,
+  onGenerateStyle = null,
+}) {
+  const baseAge = parseVisualAge(visualAge)
+
   const agedStages = useMemo(() => {
     return (variants || [])
       .map((v) => ({ ...v, years: agingYears(v) }))
       .filter((v) => v.years != null)
       .sort((a, b) => a.years - b.years)
   }, [variants])
-
-  const defaultKey = useMemo(() => {
-    const ready = agedStages.find((v) => v.imageSrc)
-    return ready ? (ready.styleId || `aging_${ready.years}`) : agedStages[0]
-      ? (agedStages[0].styleId || `aging_${agedStages[0].years}`)
-      : null
-  }, [agedStages])
-
-  const [selectedKey, setSelectedKey] = useState(defaultKey)
-
-  useEffect(() => {
-    setSelectedKey(defaultKey)
-  }, [defaultKey])
-
-  const selected = useMemo(() => {
-    const found = agedStages.find((v) => (v.styleId || `aging_${v.years}`) === selectedKey)
-    return found || agedStages.find((v) => v.imageSrc) || agedStages[0] || null
-  }, [agedStages, selectedKey])
 
   if (!beforeSrc && !agedStages.length) {
     return (
@@ -385,140 +510,102 @@ function AgingProgressionGrid({ beforeSrc, variants, aspectRatio, t, onOpenImage
     )
   }
 
-  const afterTitle = selected
-    ? selected.title || t('agePlusBadge', { years: selected.years })
-    : t('sections.aging')
-
   return (
-    <div className="flex justify-center">
-      <div
-        className={`inline-grid items-start justify-items-center gap-x-3 gap-y-3 sm:gap-x-5 ${
-          beforeSrc && selected
-            ? 'grid-cols-[minmax(0,24rem)_auto_minmax(0,24rem)]'
-            : 'grid-cols-1'
-        }`}
-      >
-        {beforeSrc ? (
-          <article className="col-start-1 row-start-1 flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-surface-border bg-white shadow-soft dark:bg-surface-card">
-            <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5">
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                {t('ageCurrentBadge')}
-              </span>
-              <span className="truncate text-[11px] font-medium text-slate-500">{t('ageCurrentMeta')}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => onOpenImage(beforeSrc, t('ageCurrentTitle'))}
-              className="group relative mx-2 mb-2 mt-2 w-[calc(100%-1rem)] overflow-hidden rounded-xl bg-surface-warm text-left"
-              style={{ aspectRatio: String(aspectRatio || 0.75) }}
-              aria-label={t('openPreview', { title: t('ageCurrentTitle') })}
-            >
-              <img
-                src={beforeSrc}
-                alt={t('ageCurrentTitle')}
-                className="h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.02]"
-              />
-            </button>
-          </article>
-        ) : null}
+    <div className="mx-auto w-full max-w-3xl space-y-3">
+      {beforeSrc ? (
+        <AgingStackRow
+          imageSrc={beforeSrc}
+          aspectRatio={aspectRatio}
+          label={t('ageCurrentBadge')}
+          ageNumber={baseAge}
+          tag={t('ageCurrentTag')}
+          blurb={
+            baseAge != null
+              ? t('ageCurrentBlurb', { age: baseAge })
+              : t('ageCurrentBlurbNoAge')
+          }
+          previewTitle={t('ageCurrentTitle')}
+          onOpenImage={onOpenImage}
+          t={t}
+        />
+      ) : null}
 
-        {beforeSrc && selected ? (
-          <div className="col-start-2 row-start-1 flex items-center self-center" aria-hidden>
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand/15 text-brand">
-              <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
-            </span>
-          </div>
-        ) : null}
-
-        {selected ? (
-          <article className={`${beforeSrc ? 'col-start-3' : 'col-start-1'} row-start-1 flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-surface-border bg-white shadow-soft dark:bg-surface-card`}>
-            <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5">
-              <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
-                {t('agePlusBadge', { years: selected.years })}
-              </span>
-              <span className="truncate text-[11px] font-medium text-sky-600">
-                {t('agePlusMeta', { years: selected.years })}
-              </span>
-            </div>
-            {selected.imageSrc ? (
-              <button
-                type="button"
-                onClick={() => onOpenImage(selected.imageSrc, afterTitle)}
-                className="group relative mx-2 mb-2 mt-2 w-[calc(100%-1rem)] overflow-hidden rounded-xl bg-surface-warm text-left"
-                style={{ aspectRatio: String(aspectRatio || 0.75) }}
-                aria-label={t('openPreview', { title: afterTitle })}
-              >
-                <img
-                  src={selected.imageSrc}
-                  alt={afterTitle}
-                  className="h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.02]"
+      {agedStages.map((stage) => {
+        const styleId = stage.styleId || `aging_${stage.years}`
+        const stageSrc = coercePhotoUrl(stage.imageSrc)
+        const projectedAge = baseAge != null ? baseAge + stage.years : null
+        const label = t('agePlusBadge', { years: stage.years })
+        const previewTitle = stage.title || label
+        const tagKey =
+          stage.years <= 3
+            ? 'agePlusTagNear'
+            : stage.years <= 5
+              ? 'agePlusTagMid'
+              : 'agePlusTagFar'
+        return (
+          <AgingStackRow
+            key={styleId}
+            imageSrc={stageSrc}
+            aspectRatio={aspectRatio}
+            label={label}
+            ageNumber={projectedAge}
+            tag={t(tagKey)}
+            blurb={
+              projectedAge != null
+                ? t('agePlusBlurb', { age: projectedAge, years: stage.years })
+                : t('agePlusBlurbNoAge', { years: stage.years })
+            }
+            footnote={t('ageEducationalNote')}
+            previewTitle={previewTitle}
+            onOpenImage={onOpenImage}
+            t={t}
+            regen={(
+              <div className="absolute right-3 top-3">
+                <RegenerateStyleButton
+                  styleId={styleId}
+                  show={showGenerate}
+                  canGenerate={canGenerate}
+                  loading={loading}
+                  regeneratingStyleId={regeneratingStyleId}
+                  onGenerateStyle={onGenerateStyle}
+                  t={t}
                 />
-              </button>
-            ) : (
-              <div
-                className="mx-2 mb-2 mt-2 flex w-[calc(100%-1rem)] items-center justify-center rounded-xl bg-surface-warm px-4 text-center"
-                style={{ aspectRatio: String(aspectRatio || 0.75) }}
-              >
-                <p className="text-xs text-ink-muted">{t('imageUnavailable')}</p>
               </div>
             )}
-          </article>
-        ) : null}
-
-        {selected ? (
-          <div
-            className={`${beforeSrc ? 'col-start-3' : 'col-start-1'} row-start-2 flex w-full max-w-sm flex-wrap items-center justify-center gap-3 px-1`}
-            role="listbox"
-            aria-label={t('sections.aging')}
-          >
-            {agedStages.map((stage) => {
-              const key = stage.styleId || `aging_${stage.years}`
-              const isSelected = key === (selected.styleId || `aging_${selected.years}`)
-              const label = t('agePlusMeta', { years: stage.years })
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  aria-label={t('agePlusBadge', { years: stage.years })}
-                  disabled={!stage.imageSrc}
-                  onClick={() => stage.imageSrc && setSelectedKey(key)}
-                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-40 ${
-                    isSelected
-                      ? 'border-brand bg-brand-50 text-brand ring-2 ring-brand/35'
-                      : 'border-surface-border bg-white text-ink-muted hover:border-brand/50 dark:bg-surface-card'
-                  }`}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-        ) : null}
-      </div>
+          />
+        )
+      })}
     </div>
   )
 }
 
 /**
  * @param {string|null} activeType — when set (hair|outfit|aging), show only that category
- * @param {string|null} beforeSrc — original front portrait URL for comparisons
+ * @param {string|null} beforeSrc — original front portrait URL for hair/aging comparisons
+ * @param {string|null} outfitBeforeSrc — white-tee baseline for outfit comparisons (falls back to beforeSrc)
+ * @param {number|null} visualAge — CV visual age for aging stack labels
  */
 export function AiVisualsSection({
   aiVisuals,
   loading,
   error,
   onGenerate,
+  onGenerateStyle = null,
+  regeneratingStyleId = null,
   canGenerate,
   activeType = null,
   showGenerate = false,
   beforeSrc = null,
+  outfitBeforeSrc = null,
+  visualAge = null,
 }) {
   const t = useTranslations('AiVisuals')
   const variants = aiVisuals?.variants || []
   const [preview, setPreview] = useState(null)
-  const aspectRatio = useImageAspectRatio(beforeSrc, 3 / 4)
+  const outfitCompareBefore = outfitBeforeSrc || beforeSrc
+  const compareBeforeSrc =
+    activeType === 'outfit' ? outfitCompareBefore : beforeSrc
+  const aspectRatio = useImageAspectRatio(compareBeforeSrc || beforeSrc, 4 / 5)
 
   const hairVariants = variants.filter((v) => v.type === 'hair')
   const outfitVariants = variants.filter((v) => v.type === 'outfit')
@@ -539,6 +626,14 @@ export function AiVisualsSection({
         : activeType === 'aging'
           ? agingVariants
           : null
+
+  const styleRegenProps = {
+    showGenerate,
+    canGenerate,
+    loading,
+    regeneratingStyleId,
+    onGenerateStyle,
+  }
 
   return (
     <div className={activeType ? 'space-y-4' : 'space-y-6'}>
@@ -563,7 +658,7 @@ export function AiVisualsSection({
             className="report-shell-btn-primary shrink-0"
             title={!canGenerate ? t('needsBackend') : t('generateTitle')}
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {loading && !regeneratingStyleId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {variants.length ? t('regenerate') : t('generate')}
           </button>
         )}
@@ -586,18 +681,21 @@ export function AiVisualsSection({
           beforeSrc={beforeSrc}
           variants={agingVariants}
           aspectRatio={aspectRatio}
+          visualAge={visualAge}
           t={t}
           onOpenImage={openPreview}
+          {...styleRegenProps}
         />
       ) : filtered ? (
         filtered.length > 0 ? (
           <StyleCompareHero
             type={activeType}
             variants={filtered}
-            beforeSrc={beforeSrc}
+            beforeSrc={activeType === 'outfit' ? outfitCompareBefore : beforeSrc}
             aspectRatio={aspectRatio}
             t={t}
             onOpenImage={openPreview}
+            {...styleRegenProps}
           />
         ) : (
           <div className="rounded-2xl border border-dashed border-surface-border bg-surface-warm dark:bg-surface-raised p-10 text-center">
@@ -617,6 +715,7 @@ export function AiVisualsSection({
               aspectRatio={aspectRatio}
               t={t}
               onOpenImage={openPreview}
+              {...styleRegenProps}
             />
           </section>
           <section className="space-y-3">
@@ -624,10 +723,11 @@ export function AiVisualsSection({
             <StyleCompareHero
               type="outfit"
               variants={outfitVariants}
-              beforeSrc={beforeSrc}
+              beforeSrc={outfitCompareBefore}
               aspectRatio={aspectRatio}
               t={t}
               onOpenImage={openPreview}
+              {...styleRegenProps}
             />
           </section>
           <section className="space-y-3">
@@ -636,8 +736,10 @@ export function AiVisualsSection({
               beforeSrc={beforeSrc}
               variants={agingVariants}
               aspectRatio={aspectRatio}
+              visualAge={visualAge}
               t={t}
               onOpenImage={openPreview}
+              {...styleRegenProps}
             />
           </section>
         </div>

@@ -1,7 +1,7 @@
 {
   "Metadata": {
     "title": "MyFace - KI-Gesichtsanalyse",
-    "description": "KI-gestützte Gesichtsanalyse für ästhetische Einblicke und personalisierte Empfehlungen."
+    "description": "KI-gestützte Gesichtsanalyse für ästhetische Einblicke und persönliche Empfehlungen."
   },
   "Nav": {
     "adminPanel": "Admin-Panel",
@@ -14,6 +14,8 @@
     "account": "Konto",
     "settings": "Einstellungen",
     "signOut": "Abmelden",
+    "signOutConfirmTitle": "Abmelden?",
+    "signOutConfirmMessage": "Du musst dich erneut anmelden, um fortzufahren.",
     "signIn": "Anmelden",
     "closeMenu": "Navigationsmenü schließen",
     "openMenu": "Navigationsmenü öffnen",
@@ -25,10 +27,10 @@
     "createAccount": "Konto erstellen",
     "signIn": "Anmelden",
     "signUp": "Registrieren",
-    "signInSubtitle": "Bitte melden Sie sich an, um auf Ihr MyFace-Konto zuzugreifen.",
-    "signUpSubtitle": "Erstellen Sie Ihr MyFace-Konto und starten Sie Ihre Gesichtsanalyse.",
+    "signInSubtitle": "Melde dich an, um auf dein MyFace-Konto zuzugreifen.",
+    "signUpSubtitle": "Erstell dein MyFace-Konto und starte deine Gesichtsanalyse.",
     "defaultRoleUser": "Standardrolle: Benutzer",
-    "continueWithAccount": "Mit Ihrem MyFace-Konto fortfahren",
+    "continueWithAccount": "Mit deinem MyFace-Konto fortfahren",
     "firstName": "Vorname",
     "lastName": "Nachname",
     "email": "E-Mail",
@@ -37,173 +39,173 @@
     "hidePassword": "Passwort verbergen",
     "forgotPassword": "Passwort vergessen?",
     "forgotPasswordTitle": "Passwort zurücksetzen",
-    "forgotPasswordDesc": "Geben Sie Ihre Konto-E-Mail ein und wählen Sie ein neues Passwort.",
+    "forgotPasswordDesc": "Gib die E-Mail deines Kontos ein und wähl ein neues Passwort.",
     "newPassword": "Neues Passwort",
     "confirmNewPassword": "Neues Passwort bestätigen",
     "resetPasswordCta": "Passwort aktualisieren",
     "passwordTooShort": "Passwort muss mindestens 8 Zeichen lang sein",
     "passwordMismatch": "Passwörter stimmen nicht überein",
     "resetFailed": "Passwort konnte nicht zurückgesetzt werden",
-    "resetSuccess": "Passwort aktualisiert. Sie können sich mit dem neuen Passwort anmelden.",
+    "resetSuccess": "Passwort aktualisiert. Du kannst dich mit dem neuen Passwort anmelden.",
     "backToSignIn": "Zurück zur Anmeldung",
     "closeDialog": "Schließen",
     "cancel": "Abbrechen",
     "working": "Wird bearbeitet",
-    "authFailed": "Authentifizierung fehlgeschlagen",
-    "sidebarBadge": "Wissenschaftsbasierte Ästhetik",
+    "authFailed": "Anmeldung fehlgeschlagen",
+    "sidebarBadge": "Wissenschaftlich fundierte Ästhetik",
     "sidebarTitleSignIn": "Willkommen zurück\nbei MyFace",
-    "sidebarTitleSignUp": "Starten Sie Ihre\nMyFace-Reise",
-    "sidebarDescriptionSignIn": "Öffnen Sie Ihr Dashboard, um Ihren personalisierten Ästhetikplan zu erkunden.",
-    "sidebarDescriptionSignUp": "Erstellen Sie ein Konto für Gesichtsanalyse, klinische Berichte und KI-Visuals.",
-    "switchToSignInHint": "Bereits ein Konto? Nutzen Sie Anmelden oben.",
-    "switchToSignUpHint": "Neu hier? Nutzen Sie Registrieren oben, um ein Konto zu erstellen."
+    "sidebarTitleSignUp": "Starte deine\nMyFace-Reise",
+    "sidebarDescriptionSignIn": "Öffne dein Dashboard, sieh dir deinen persönlichen Ästhetikplan an und geh den nächsten Schritt.",
+    "sidebarDescriptionSignUp": "Erstell ein Konto und schalt Gesichtsanalyse, klinische Berichte und KI-Visuals frei.",
+    "switchToSignInHint": "Schon ein Konto? Klick oben auf „Anmelden“.",
+    "switchToSignUpHint": "Neu hier? Klick oben auf „Registrieren“, um ein Konto zu erstellen."
   },
   "Home": {
-    "loadingReport": "Ihr Bericht wird geladen…",
-    "loadingDashboard": "Ihr Dashboard wird geladen…",
+    "loadingReport": "Dein Bericht wird geladen…",
+    "loadingDashboard": "Dein Dashboard wird geladen…",
     "retry": "Erneut versuchen",
     "billingEyebrow": "Zahlung erforderlich",
-    "billingTitle": "Schalten Sie Ihre Gesichtsanalyse frei",
-    "billingDesc": "Zahlen Sie sicher, um die Analyse Ihres Gesichts zu starten und Ihren Bericht zu erhalten.",
+    "billingTitle": "Schalt deine Gesichtsanalyse frei",
+    "billingDesc": "Bezahl sicher, starte die Analyse deines Gesichts und erhalte deinen Bericht.",
     "billingCta": "Sicher bezahlen",
     "checkoutBusy": "Stripe wird geöffnet…",
-    "checkoutFailed": "Checkout konnte nicht gestartet werden. Bitte erneut versuchen.",
-    "startTitle": "Starten Sie Ihre Gesichtsanalyse",
-    "startDesc": "Beantworten Sie einen kurzen Fragebogen und laden Sie Ihre Fotos hoch. Wir bereiten einen klinischen Bericht für Sie vor.",
+    "checkoutFailed": "Checkout konnte nicht gestartet werden. Versuch es bitte erneut.",
+    "startTitle": "Starte deine Gesichtsanalyse",
+    "startDesc": "Beantworte einen kurzen Fragebogen und lade deine Fotos hoch. Wir bereiten dann einen klinischen Bericht für dich vor.",
     "startCta": "Fragebogen starten",
     "continueTitle": "Gesichtsanalyse fortsetzen",
-    "continueDesc": "Sie haben mit dem Foto-Upload begonnen, aber noch nicht eingereicht. Machen Sie dort weiter, wo Sie aufgehört haben.",
+    "continueDesc": "Du hast mit dem Foto-Upload begonnen, aber noch nicht abgeschickt. Mach dort weiter, wo du aufgehört hast.",
     "continueCta": "Upload fortsetzen",
-    "openingReport": "Ihr Bericht wird geöffnet…",
-    "reportReadyHint": "Ihr neuester Bericht ist bereit. Nutzen Sie „Bericht“ in der Navigation, falls er nicht geöffnet ist."
+    "openingReport": "Dein Bericht wird geöffnet…",
+    "reportReadyHint": "Dein neuester Bericht ist fertig. Klick in der Navigation auf „Bericht“, falls er nicht geöffnet ist."
   },
   "Dashboard": {
-    "title": "Ihr Dashboard",
-    "subtitle": "Überprüfen Sie Bewertungen, verfolgen Sie Ergebnisse und öffnen Sie Ihren neuesten Gesichtsanalysebericht.",
-    "welcomeBack": "Willkommen zurück · {name}",
-    "heroTitle": "Ihr <harmony>Harmonie</harmony>-Bericht, verfeinert.",
-    "heroSubtitle": "Jede Bewertung wird anhand von 468+ Gesichtslandmarks von unserem klinischen Modell bewertet — und von einem zugelassenen Dermatologen geprüft, bevor sie Sie erreicht.",
+    "title": "Dein Dashboard",
+    "subtitle": "Prüf Analysen, verfolge Scores und öffne deinen neuesten Gesichtsanalyse-Bericht.",
+    "welcomeBack": "Willkommen · {name}",
+    "heroTitle": "Dein <harmony>Harmonie</harmony>-Bericht, verfeinert.",
+    "heroSubtitle": "Jede Analyse bewertet unser klinisches Modell anhand von über 468 Messpunkten. Danach prüft ein zugelassener Dermatologe den Bericht, bevor er bei dir ankommt.",
     "hipaaNotice": "HIPAA-konforme Speicherung",
     "startNewAnalysis": "Neue Analyse starten",
     "loadFailed": "Dashboard konnte nicht geladen werden",
     "backendRequiredTitle": "Backend-API erforderlich",
-    "backendRequiredText": "Setzen Sie NEXT_PUBLIC_API_URL, um Cloud-Berichte und Zahlungen zu laden.",
+    "backendRequiredText": "Setze NEXT_PUBLIC_API_URL, um Cloud-Berichte und Zahlungen zu laden.",
     "accountSummary": "Kontoübersicht",
     "kpiReports": "Berichte",
-    "kpiReportsDesc": "Gespeicherte Cloud-Bewertungen",
-    "kpiBestScore": "Beste Bewertung",
-    "kpiBestScoreDesc": "Höchste Harmonie / 100",
-    "kpiBestScoreEmpty": "Verfügbar nach Freigabe",
+    "kpiReportsDesc": "Gespeicherte Cloud-Analysen",
+    "kpiBestScore": "Bester Score",
+    "kpiBestScoreDesc": "Höchste Harmonie von 100",
+    "kpiBestScoreEmpty": "Nach Freigabe verfügbar",
     "kpiPayments": "Zahlungen",
     "kpiPaymentsDesc": "Abgeschlossene Zahlungen",
     "scientificAnalysis": "Wissenschaftliche Analyse",
-    "attractivenessTitle": "Attraktivität & Gesichtsharmonie",
-    "attractivenessDesc": "Gesicht anhand von 468+ Landmarks gescannt. Bewertungen spiegeln Symmetrie, Goldene-Schnitt-Proportionen und strukturelles Gleichgewicht wider. Öffnen Sie den Bericht für die vollständige Bewertung.",
+    "attractivenessTitle": "Attraktivität und Gesichtsharmonie",
+    "attractivenessDesc": "Dein Gesicht wird mit über 468 Messpunkten erfasst. Die Scores spiegeln Symmetrie, Goldener-Schnitt-Proportionen und strukturelle Balance wider. Im Bericht findest du die vollständige Bewertung.",
     "openLatestReport": "Neuesten Bericht öffnen",
     "opening": "Wird geöffnet…",
     "inPreparation": "In Vorbereitung",
     "ready": "Bereit",
     "approved": "Freigegeben",
-    "queued": "Warteschlange",
+    "queued": "In Warteschlange",
     "overall": "Gesamt",
     "facialAnalysis": "Gesichtsanalyse",
-    "beginAssessmentTitle": "Beginnen Sie Ihre Gesichtsbewertung",
-    "beginAssessmentDesc": "Füllen Sie den Fragebogen aus, laden Sie kalibrierte Fotos hoch und erhalten Sie einen strukturierten Bericht zu Symmetrie, Proportionen und Gesichtsstruktur.",
+    "beginAssessmentTitle": "Starte deine Gesichtsanalyse",
+    "beginAssessmentDesc": "Füll den Fragebogen aus, lade kalibrierte Fotos hoch und erhalte einen strukturierten Bericht zu Symmetrie, Proportionen und Gesichtsstruktur.",
     "stepQuestionnaire": "Fragebogen",
     "stepQuestionnaireDesc": "Klinische Aufnahme",
     "stepPhotoScan": "Foto-Scan",
-    "stepPhotoScanDesc": "468+ Landmarks",
+    "stepPhotoScanDesc": "Über 468 Messpunkte",
     "stepReport": "Bericht",
-    "stepReportDesc": "Harmoniemetriken",
-    "recentAssessments": "Neueste Bewertungen",
-    "recentAssessmentsDesc": "Status überprüfen und freigegebene Berichte öffnen.",
+    "stepReportDesc": "Harmonie-Metriken",
+    "recentAssessments": "Letzte Analysen",
+    "recentAssessmentsDesc": "Status prüfen und freigegebene Berichte öffnen.",
     "viewHistory": "Verlauf anzeigen",
-    "loadingAssessments": "Bewertungen werden geladen…",
-    "noAssessmentsTitle": "Noch keine Bewertungen",
-    "noAssessmentsText": "Führen Sie eine backend-verbundene Analyse aus, um diese Tabelle zu füllen.",
-    "tableAssessment": "Bewertung",
+    "loadingAssessments": "Analysen werden geladen…",
+    "noAssessmentsTitle": "Noch keine Analysen",
+    "noAssessmentsText": "Führe eine Analyse mit verbundenem Backend aus, damit diese Tabelle gefüllt wird.",
+    "tableAssessment": "Analyse",
     "tableDate": "Datum",
-    "tableScore": "Ergebnis",
+    "tableScore": "Score",
     "tableStatus": "Status",
     "tableAction": "Aktion",
     "openReport": "Bericht öffnen",
-    "assessmentLabel": "Bewertung {id}",
-    "scoreLabel": "Ergebnis",
-    "harmonyTitle": "Harmonie & Proportionen",
-    "awaitingReview": "Prüfung ausstehend",
-    "scoresHiddenTitle": "Ergebnisse bis zur Freigabe verborgen",
-    "awaitingReviewMessage": "Ihr Bericht wird angezeigt, sobald unser Team ihn geprüft hat. Der PDF-Download wird nach der Freigabe aktiviert.",
+    "assessmentLabel": "Analyse {id}",
+    "scoreLabel": "Score",
+    "harmonyTitle": "Harmonie und Proportionen",
+    "awaitingReview": "Wartet auf Prüfung",
+    "scoresHiddenTitle": "Scores bis zur Freigabe ausgeblendet",
+    "awaitingReviewMessage": "Dein Bericht erscheint, sobald unser Team ihn geprüft hat. Nach der Freigabe kannst du das PDF herunterladen.",
     "overallHarmony": "Gesamtharmonie",
-    "overallHarmonyDesc": "Zusammensetzung aus Symmetrie, Verhältnissen und Struktur",
+    "overallHarmonyDesc": "Kombination aus Symmetrie, Verhältnissen und Struktur",
     "metricSymmetry": "Gesichtssymmetrie",
-    "metricSymmetryDesc": "Horizontales und vertikales Gleichgewicht",
+    "metricSymmetryDesc": "Horizontale und vertikale Balance",
     "metricGoldenRatio": "Goldener-Schnitt-Harmonie",
     "metricGoldenRatioDesc": "Geometrische Gesichtsproportionen",
-    "metricSkin": "Hautgesundheit & -struktur",
+    "metricSkin": "Hautgesundheit und Struktur",
     "metricSkinDesc": "Ton, Textur und Oberflächenqualität",
-    "metricJawline": "Kieferlinie & Proportionen",
+    "metricJawline": "Kieferlinie und Proportionen",
     "metricJawlineDesc": "Unterkiefer- und Kinnkonturen",
-    "reviewPipeline": "Prüf-Pipeline",
+    "reviewPipeline": "Prüfungsablauf",
     "pendingReview": "Prüfung ausstehend",
-    "dermatologistApproved": "Derm. freigegeben",
+    "dermatologistApproved": "Dermatologisch freigegeben",
     "pipelineCaughtUp": "Alles erledigt",
-    "pipelineWaiting": "Wartet auf Dermatologen-Prüfung",
+    "pipelineWaiting": "Wartet auf dermatologische Prüfung",
     "pipelineSignedOff": "In diesem Quartal freigegeben",
     "payments": "Zahlungen",
-    "paymentsDesc": "Neueste Abrechnungsaktivität",
-    "assessmentCredit": "Bewertungs-Guthaben",
+    "paymentsDesc": "Letzte Zahlungen",
+    "assessmentCredit": "Analyse-Guthaben",
     "paymentPendingReview": "Prüfung ausstehend",
     "billing": "Abrechnung",
     "noPaymentsTitle": "Noch keine Zahlungen",
-    "noPaymentsText": "Zahlungserfassungen erscheinen hier.",
-    "billingRequiredEyebrow": "Erforderlicher erster Schritt",
-    "billingRequiredTitle": "Abrechnung abschließen, um MyFace freizuschalten",
-    "billingRequiredDesc": "Eine Zahlung ist erforderlich, bevor Sie eine Gesichtsanalyse starten, den Verlauf ansehen oder Berichte öffnen können. Schließen Sie den Checkout in der Abrechnung ab.",
+    "noPaymentsText": "Erfasste Zahlungen erscheinen hier.",
+    "billingRequiredEyebrow": "Erster Schritt",
+    "billingRequiredTitle": "Schließe die Abrechnung ab, um MyFace freizuschalten",
+    "billingRequiredDesc": "Vor der Gesichtsanalyse, dem Verlauf oder dem Öffnen von Berichten brauchst du eine Zahlung. Schließe den Checkout unter Abrechnung ab, um weiterzumachen.",
     "billingRequiredCta": "Zur Abrechnung",
     "billingRequiredPaymentsDesc": "Zahlung abschließen, um Analyse und Berichte freizuschalten"
   },
   "History": {
     "title": "Analyseverlauf",
     "savedResults": "{count, plural, one {# Bericht} other {# Berichte}}",
-    "deleteAll": "Alle löschen",
+    "deleteAll": "Alles löschen",
     "confirmDeleteAll": "Gesamten Analyseverlauf löschen?",
-    "adminToolsTitle": "Admin-Tools befinden sich im Dashboard",
-    "adminToolsDesc": "Verwalten Sie Benutzer, Kundenberichte, Prüfwarteschlange und Zahlungen über das Dashboard.",
+    "adminToolsTitle": "Admin-Tools findest du im Dashboard",
+    "adminToolsDesc": "Verwalte Nutzer, Kundenberichte, Prüfungswarteschlange und Zahlungen über das Dashboard.",
     "openDashboard": "Dashboard öffnen",
     "noAnalysesTitle": "Noch keine Berichte",
-    "noAnalysesDesc": "Verbinden Sie das Backend und schließen Sie eine Bewertung ab, um den Berichtverlauf hier zu sehen.",
+    "noAnalysesDesc": "Verbinde dich mit dem Backend und schließe eine Analyse ab, um den Berichtsverlauf hier zu sehen.",
     "cloudReport": "Cloud-Bericht",
     "facialAnalysis": "Gesichtsanalyse",
-    "cloudReportsTitle": "Berichtverlauf",
-    "cloudReportsDesc": "Unter Ihrem Konto gespeicherte Bewertungen",
+    "cloudReportsTitle": "Berichtsverlauf",
+    "cloudReportsDesc": "Analysen, die unter deinem Konto gespeichert sind",
     "refresh": "Aktualisieren",
     "loadFailed": "Berichte konnten nicht geladen werden",
     "loadingReports": "Berichte werden geladen...",
     "noCloudReportsTitle": "Noch keine Berichte",
-    "noCloudReportsDesc": "Schließen Sie eine Bewertung ab, um sie im Berichtverlauf zu sehen.",
-    "assessmentLabel": "Bewertung {id}",
-    "awaitingReview": "Prüfung ausstehend",
-    "awaitingReviewMessage": "Ihr Bericht wird angezeigt, sobald unser Team ihn geprüft hat. Der PDF-Download wird nach der Freigabe aktiviert.",
-    "approvedPdfAvailable": "Freigegeben — PDF-Download verfügbar",
-    "viewReport": "Bericht ansehen",
+    "noCloudReportsDesc": "Schließe eine Analyse ab, um sie in deinem Berichtsverlauf zu sehen.",
+    "assessmentLabel": "Analyse {id}",
+    "awaitingReview": "wartet auf Prüfung",
+    "awaitingReviewMessage": "Dein Bericht erscheint, sobald unser Team ihn geprüft hat. Nach der Freigabe kannst du das PDF herunterladen.",
+    "approvedPdfAvailable": "Freigegeben · PDF-Download verfügbar",
+    "viewReport": "Bericht anzeigen",
     "opening": "Wird geöffnet…",
     "inPreparation": "In Vorbereitung",
     "ready": "Bereit",
     "delete": "Löschen",
-    "confirmDeleteCloud": "Diesen Bericht aus dem Verlauf löschen?",
+    "confirmDeleteCloud": "Diesen Bericht aus deinem Verlauf löschen?",
     "deleteFailed": "Bericht konnte nicht gelöscht werden",
-    "scoreLine": " · Ergebnis {score}"
+    "scoreLine": " · Score {score}"
   },
   "Billing": {
     "title": "Abrechnung",
-    "subtitle": "Premium-Berichts-Zahlungserfassung",
+    "subtitle": "Zahlung für den Premium-Bericht",
     "refresh": "Aktualisieren",
     "loadFailed": "Abrechnung konnte nicht geladen werden",
     "backendRequiredTitle": "Backend-API erforderlich",
-    "backendRequiredText": "Setzen Sie `NEXT_PUBLIC_API_URL`, um die Zahlungserfassung zu nutzen.",
+    "backendRequiredText": "Setze `NEXT_PUBLIC_API_URL`, um Zahlungen zu nutzen.",
     "currentProduct": "Aktuelles Produkt",
     "defaultProductName": "MyFace Premium-Bericht",
-    "defaultProductDesc": "Voller Zugriff auf den Berichts-Workflow.",
+    "defaultProductDesc": "Voller Zugang zum Berichtsablauf.",
     "payWithStripe": "Mit Stripe bezahlen",
     "payWithPayPal": "Mit PayPal bezahlen",
     "providerNotConfigured": "{provider} ist in der Backend-Umgebung nicht konfiguriert",
@@ -211,25 +213,25 @@
     "paypalCheckoutFailed": "PayPal-Checkout fehlgeschlagen",
     "stripeLabel": "Stripe",
     "stripeConfigured": "konfiguriert",
-    "stripeMissingKeys": "fehlende Schlüssel",
+    "stripeMissingKeys": "Schlüssel fehlen",
     "paypalLabel": "PayPal",
     "paypalConfigured": "konfiguriert",
-    "paypalMissingKeys": "fehlende Schlüssel",
-    "recentPayments": "Neueste Zahlungen",
+    "paypalMissingKeys": "Schlüssel fehlen",
+    "recentPayments": "Letzte Zahlungen",
     "payments": "Zahlung",
-    "records": "{count} Datensätze",
+    "records": "{count} Einträge",
     "loadingPayments": "Zahlungen werden geladen...",
     "noPaymentsTitle": "Noch keine Zahlungen",
     "noPaymentsText": "Abgeschlossene Checkouts erscheinen hier.",
     "paymentSuccessTitle": "Zahlung erfolgreich",
-    "paymentSuccessDesc": "Ihr Zugriff auf den MyFace-Premium-Bericht ist bereit. Starten Sie Ihre Gesichtsanalyse, sobald Sie bereit sind.",
+    "paymentSuccessDesc": "Dein Zugang zum MyFace-Premium-Bericht ist bereit. Starte die Gesichtsanalyse, wann du möchtest.",
     "signInRequiredTitle": "Anmeldung erforderlich",
-    "signInRequiredDesc": "Melden Sie sich mit demselben Konto an, das Sie für den Checkout verwendet haben.",
+    "signInRequiredDesc": "Melde dich mit demselben Konto an, das du für den Checkout genutzt hast.",
     "confirmationPendingTitle": "Bestätigung ausstehend",
     "confirmFailed": "Zahlung konnte nicht bestätigt werden",
-    "processingMessage": "Die Zahlung wird noch verarbeitet. Warten Sie einen Moment und aktualisieren Sie dann den Status.",
+    "processingMessage": "Die Zahlung wird noch verarbeitet. Warte kurz und aktualisiere dann den Status.",
     "readyForAnalysisTitle": "Bereit für die Analyse",
-    "readyForAnalysisDesc": "Klicken Sie unten, um den Fragebogen und Foto-Upload zu starten.",
+    "readyForAnalysisDesc": "Klick unten, um Fragebogen und Foto-Upload zu starten.",
     "signIn": "Anmelden",
     "startFaceAnalysis": "Gesichtsanalyse starten",
     "billing": "Abrechnung",
@@ -245,11 +247,11 @@
       "billing": "Abrechnung"
     },
     "billingTitle": "Abrechnung",
-    "billingDesc": "Checkout und Zahlungshistorie für Ihr MyFace-Konto.",
+    "billingDesc": "Checkout und Zahlungsverlauf für dein MyFace-Konto.",
     "accountTitle": "Konto",
-    "accountDesc": "Name und E-Mail-Adresse aktualisieren.",
+    "accountDesc": "Aktualisiere deinen Namen und deine E-Mail-Adresse.",
     "passwordTitle": "Passwort",
-    "passwordDesc": "Anmelde-Passwort ändern.",
+    "passwordDesc": "Ändere dein Anmeldepasswort.",
     "currentPassword": "Aktuelles Passwort",
     "newPassword": "Neues Passwort",
     "confirmPassword": "Neues Passwort bestätigen",
@@ -259,7 +261,7 @@
     "profileSaveFailed": "Konto konnte nicht aktualisiert werden.",
     "passwordSaved": "Passwort aktualisiert.",
     "passwordSaveFailed": "Passwort konnte nicht aktualisiert werden.",
-    "passwordMismatch": "Neue Passwörter stimmen nicht überein."
+    "passwordMismatch": "Die neuen Passwörter stimmen nicht überein."
   },
   "Common": {
     "confirm": "Bestätigen",
@@ -270,16 +272,16 @@
   "Report": {
     "nav": {
       "report": "Bericht",
-      "tools": "Werkzeuge",
-      "introduction": "Einleitung",
+      "tools": "Tools",
+      "introduction": "Einführung",
       "facialAssessments": "Gesichtsbewertungen",
       "featuresAnalysis": "Merkmalsanalyse",
       "protocol": "Protokoll",
-      "intro": "Einleitung",
-      "overview": "Übersicht",
-      "disclaimer": "Haftungsausschluss",
+      "intro": "Einführung",
+      "overview": "Überblick",
+      "disclaimer": "Hinweis",
       "dimorphism": "Dimorphismus",
-      "averageness": "Prototypizität",
+      "averageness": "Prototypikalität",
       "proportions": "Proportionen",
       "symmetry": "Symmetrie",
       "faceShape": "Gesichtsform",
@@ -290,42 +292,42 @@
       "cheeks": "Wangen",
       "jaw": "Kiefer",
       "chin": "Kinn",
-      "hair": "Haar",
+      "hair": "Haare",
       "smile": "Lächeln",
       "neck": "Hals",
       "ears": "Ohren",
       "skin": "Haut",
-      "aiVisuals": "KI-Visualisierungen",
-      "beautyAssistant": "Beauty-Assistent",
-      "pastAssessments": "Frühere Assessments"
+      "aiVisuals": "KI-Visuals",
+      "beautyAssistant": "Beauty Assistant",
+      "pastAssessments": "Frühere Analysen"
     },
     "common": {
-      "summaryOfYour": "Zusammenfassung Ihrer",
-      "explanation": "Erläuterung",
-      "score": "Bewertung",
+      "summaryOfYour": "Zusammenfassung deiner",
+      "explanation": "Erklärung",
+      "score": "Score",
       "measurements": "Messungen",
-      "overallScore": "Gesamtbewertung",
-      "needsAttention": "Aufmerksamkeit nötig",
+      "overallScore": "Gesamt-Score",
+      "needsAttention": "Braucht Aufmerksamkeit",
       "optimal": "Optimal",
       "shape": "Form",
       "value": "Wert",
-      "landmarkBased": "Landmark-basiert",
-      "segmentationBased": "Segmentierung-basiert",
+      "landmarkBased": "Messpunktbasiert",
+      "segmentationBased": "Segmentierungsbasiert",
       "computed": "Berechnet",
       "previousDetail": "Vorheriges Detail",
       "nextDetail": "Nächstes Detail",
-      "goToDetail": "Gehe zu {lead} {accent}",
+      "goToDetail": "Zu {lead} {accent}",
       "client": "Kunde",
       "readFull": "VOLLSTÄNDIG LESEN",
-      "privacyPolicy": "Datenschutzrichtlinie",
-      "whatToExpect": "Was Sie erwartet",
+      "privacyPolicy": "Datenschutzerklärung",
+      "whatToExpect": "Was dich erwartet",
       "dataUsage": "Datennutzung:",
       "protocolId": "Protokoll-ID: {id}",
       "noPreviousSurgeries": "Keine früheren Operationen",
       "yearsYounger": "{count} Jahre jünger",
       "yearsOlder": "{count} Jahre älter",
       "sameAge": "Gleiches Alter",
-      "face": "GESICHT",
+      "face": "FACE",
       "bio": "BIO",
       "ok": "OK",
       "review": "PRÜFEN",
@@ -337,62 +339,62 @@
       "attention": "Aufmerksamkeit",
       "dark": "Dunkel",
       "bright": "Hell",
-      "needsCare": "Pflege nötig",
+      "needsCare": "Braucht Pflege",
       "clear": "Klar",
       "harmony": "Harmonie",
       "emotion": "Emotion"
     },
     "locked": {
       "title": "Abschnitt gesperrt",
-      "awaitingReview": "Ihr Bericht wird angezeigt, sobald unser Team ihn geprüft hat. Der PDF-Download wird nach der Freigabe aktiviert."
+      "awaitingReview": "Dein Bericht erscheint, sobald unser Team ihn geprüft hat. Nach der Freigabe kannst du das PDF herunterladen."
     },
     "protocolSideRail": {
-      "userProfile": "Benutzerprofil",
+      "userProfile": "Nutzerprofil",
       "nextSteps": "Nächste Schritte",
       "nonSurgicalProtocol": "Nicht-chirurgisches Protokoll",
-      "viewReport": "Bericht ansehen"
+      "viewReport": "Bericht anzeigen"
     },
     "intro": {
-      "title": "Jeder Glow-Up beginnt mit",
-      "accent": "dem Verstehen des Gesichts",
-      "subtitle": "Diese ästhetische Bewertung nutzt Technologie und Expertenanalyse, um Ihre Merkmale zu verstehen und nicht-chirurgische Verbesserungsmöglichkeiten zu erkunden.",
+      "title": "Jeder Glow-Up beginnt damit,",
+      "accent": "dein Gesicht zu verstehen",
+      "subtitle": "Diese ästhetische Analyse kombiniert Technologie und Expertenblick, damit du deine Merkmale verstehst und nicht-chirurgische Verbesserungen erkundest.",
       "expectComprehensiveTitle": "Umfassende Einblicke",
-      "expectComprehensiveBody": "Verstehen Sie Ihre Gesichtsmerkmale und deren Einfluss auf Ihr Gesamterscheinungsbild.",
+      "expectComprehensiveBody": "Versteh deine Gesichtsmerkmale und wie sie dein Gesamterscheinungsbild prägen.",
       "expectVisualisationTitle": "Visualisierung",
-      "expectVisualisationBody": "Sehen Sie, wie subtile, messungsgestützte Veränderungen Ihr Gesamterscheinungsbild beeinflussen könnten.",
-      "expectPersonalisedTitle": "So personalisiert wie möglich",
-      "expectPersonalisedBody": "Jede Bewertung berücksichtigt Ihre persönlichen demografischen Daten für die relevantesten Einblicke.",
-      "dataUsageBody": "Ihre Bilder werden nur zur Erstellung dieser Bewertung verwendet. Die Analyse ist vertraulich und sicher gespeichert. Bitte lesen Sie den Haftungsausschluss für die vollständigen Bedingungen.",
-      "journeyStart": "Wir möchten Sie mit vertrauenswürdigem Wissen stärken. Beginnen wir Ihre Reise.",
+      "expectVisualisationBody": "Sieh, wie dezente, messungsgeleitete Änderungen dein Gesamterscheinungsbild beeinflussen könnten.",
+      "expectPersonalisedTitle": "So persönlich wie möglich",
+      "expectPersonalisedBody": "Jede Analyse berücksichtigt deine demografischen Angaben für möglichst relevante Einblicke.",
+      "dataUsageBody": "Deine Bilder dienen nur dieser Analyse. Die Auswertung ist vertraulich und sicher gespeichert. Die vollständigen Bedingungen findest du im Abschnitt Hinweis.",
+      "journeyStart": "Wir wollen dir Wissen geben, dem du vertrauen kannst. Lass uns starten.",
       "paragraphs": {
-        "p1": "In diesem Bericht hat MyFace die beauftragte Gesichtsanalyse aus kephalometrischer Sicht durchgeführt, Weichteilmessungen vorgenommen und sie mit etablierten wissenschaftlichen Referenzbereichen für Gesichtsharmonie und -proportionen verglichen.",
-        "p2": "Dieser Ansatz macht die Ergebnisse des Berichts weniger subjektiv, wo Empfehlungen von Person zu Person variieren können."
+        "p1": "In diesem Bericht hat MyFace die beauftragte Gesichtsanalyse cephalometrisch angegangen: Weichteilmessungen werden mit etablierten wissenschaftlichen Referenzbereichen für Gesichtsharmonie und Proportionen verglichen.",
+        "p2": "So werden die Befunde weniger subjektiv, auch wenn Empfehlungen von Person zu Person unterschiedlich ausfallen können."
       }
     },
     "disclaimer": {
-      "title": "Haftungsausschluss",
+      "title": "Hinweis",
       "paragraphs": {
-        "p1": "Dieser Bericht dient ausschließlich allgemeinen Informations- und Bildungszwecken. Er behandelt Themen im Zusammenhang mit Gesichtsästhetik und Wohlbefinden. Er stellt keine medizinische, klinische oder professionelle Beratung, Diagnose oder Behandlung jeglicher Art dar.",
-        "p2": "Die Informationen in diesem MyFace-Bericht ersetzen keine Konsultation mit einem qualifizierten medizinischen Fachpersonal. Leser sollten stets entsprechend qualifizierte professionelle Beratung zu medizinischen Zuständen oder Behandlungsentscheidungen einholen.",
-        "p3": "MyFace gibt keine Garantien hinsichtlich der Genauigkeit oder Vollständigkeit dieses Berichts und lehnt Haftung für Schäden ab, die aus dem Vertrauen auf dessen Inhalte entstehen. Handlungen auf Basis dieses Berichts erfolgen auf eigenes Risiko.",
-        "p4": "Zweck dieses Berichts ist es, dem Leser zu helfen, Gesichtsmerkmale zu verstehen und wie nicht-chirurgische Empfehlungen das Erscheinungsbild potenziell beeinflussen könnten. Verweise auf Behandlungen dienen nur dem informativen Kontext."
+        "p1": "Dieser Bericht dient nur der allgemeinen Information und Bildung. Er behandelt Themen rund um Gesichtsästhetik und Wellness. Er ist keine medizinische, klinische oder fachliche Beratung, Diagnose oder Behandlung.",
+        "p2": "Die Informationen in diesem MyFace-Bericht ersetzen keine Beratung durch eine qualifizierte medizinische Fachkraft. Bei medizinischen Fragen oder Behandlungsentscheidungen solltest du immer eine entsprechend zugelassene Fachperson hinzuziehen.",
+        "p3": "MyFace übernimmt keine Garantie für Richtigkeit oder Vollständigkeit dieses Berichts und schließt Haftung aus, die aus dem Vertrauen auf seinen Inhalt entsteht. Alles, was du auf Basis dieses Berichts tust, geschieht auf eigenes Risiko.",
+        "p4": "Ziel dieses Berichts ist es, Gesichtsmerkmale verständlich zu machen und zu zeigen, wie nicht-chirurgische Empfehlungen das Erscheinungsbild beeinflussen könnten. Verweise auf Behandlungen dienen nur dem Informationskontext."
       },
       "privacy": {
-        "p1": "Die Gesichtsbilder und Fragebogenantworten des Probanden werden ausschließlich zur Erstellung dieses personalisierten Bewertungsberichts verarbeitet.",
-        "p2": "MyFace verkauft keine biometrischen Daten. Der Zugriff ist auf autorisierte Prüfer zur Qualitätssicherung vor der Freigabe des Berichts beschränkt.",
-        "p3": "Der Proband kann die Löschung der Bewertungsdaten durch Kontaktaufnahme mit dem Support beantragen.",
-        "p4": "Lesen Sie die vollständige Datenschutzrichtlinie unter myface.club."
+        "p1": "Die Gesichtsbilder und Fragebogenantworten der Person werden ausschließlich genutzt, um diesen personalisierten Analysebericht zu erstellen.",
+        "p2": "MyFace verkauft keine biometrischen Daten. Der Zugang ist auf autorisierte Prüfer für die Qualitätssicherung beschränkt, bevor der Bericht freigegeben wird.",
+        "p3": "Die Person kann die Löschung der Analysedaten beantragen, indem sie den Support kontaktiert.",
+        "p4": "Lies die vollständige Datenschutzerklärung unter myface.club."
       }
     },
     "protocolModel": {
-      "limitations": "Einschränkungen gelten: neutrale Kopfhaltung, Beleuchtung, Kameraqualität und das Fehlen radiografischer Bildgebung können Messungen beeinflussen. Dieser Bericht ist keine medizinische Diagnose. Empfehlungen sollten als empirische Leitlinien verstanden werden, die auf den Gesichtsmessungen des Probanden basieren.",
+      "limitations": "Einschränkungen: Neutrale Kopfhaltung, Licht, Kameraqualität und fehlende Röntgenaufnahmen können Messungen beeinflussen. Dieser Bericht ist keine medizinische Diagnose. Empfehlungen sind empirische Leitlinien auf Basis der Gesichtsmessungen der Person.",
       "understandingResults": {
-        "p1": "Diese Empfehlungen konzentrieren sich auf zentrale Marker für Gesichtsgesundheit und -harmonie. Ziel ist es nicht, das Einzigartige des Probanden zu verändern, sondern zu verstehen, was am besten zu seinen bestehenden Merkmalen passt.",
-        "p2": "MyFace bewertet keine Attraktivität. Die Bewertung hebt hervor, was für die Merkmale des Probanden am besten funktioniert, anhand objektiver kephalometrischer Messungen statt eines einzigen universellen Standards.",
-        "p3": "Das Protokoll umfasst eine Mischung aus grundlegenden und fortgeschritteneren Empfehlungen. Grundlagen wie SPF, Schlaf und Hydration unterstützen die Wirksamkeit gezielterer Hinweise.",
-        "p4": "Alle Empfehlungen dienen nur Informations- und ästhetischen Zwecken. Jede klinische Behandlung oder verschreibungspflichtiges Produkt sollte mit einem qualifizierten Mediziner besprochen werden."
+        "p1": "Diese Empfehlungen fokussieren auf zentrale Marker für Hautgesundheit und Gesichtsharmonie. Ziel ist nicht, das Einzigartige zu ändern, sondern zu verstehen, was zu den vorhandenen Merkmalen am besten passt.",
+        "p2": "MyFace bewertet keine Attraktivität. Die Analyse zeigt, was zu den Merkmalen der Person passt, anhand objektiver cephalometrischer Messungen statt eines einzigen Universalstandards.",
+        "p3": "Das Protokoll mischt grundlegende und fortgeschrittene Empfehlungen. Grundlagen wie SPF, Schlaf und Hydration unterstützen gezieltere Hinweise.",
+        "p4": "Alle Empfehlungen dienen nur der Information und Ästhetik. Jede Behandlung in der Praxis oder jedes verschreibungspflichtige Produkt solltest du mit einer qualifizierten medizinischen Fachkraft besprechen."
       },
-      "closingPending": "Abschließende Empfehlungen für dieses Protokoll werden aus den gespeicherten Messungen des Probanden vorbereitet. Öffnen Sie das Protokoll nach Abschluss der Generierung erneut oder kontaktieren Sie den Support, wenn diese Meldung bestehen bleibt.",
+      "closingPending": "Die abschließenden Empfehlungen für dieses Protokoll werden aus den gespeicherten Messungen vorbereitet. Öffne das Protokoll erneut, wenn die Erzeugung fertig ist, oder kontaktiere den Support, falls diese Meldung bestehen bleibt.",
       "contentsUnderstanding": "Ergebnisse verstehen",
       "contentsProtocol": "Protokoll von {name}",
       "contentsClosing": "Abschließende Empfehlungen"
@@ -402,26 +404,26 @@
       "protocolIdLine": "PROTOKOLL #{id}",
       "namePlateAssessed": "Bewertet am {date}",
       "namePlateOverallScore": "Gesamt {score}/100",
-      "namePlateViewReport": "Vollständiger Bericht",
+      "namePlateViewReport": "Vollständigen Bericht anzeigen",
       "pdfButton": "PDF",
       "shareButton": "TEILEN",
-      "shareTitle": "MyFace Protokoll",
-      "kpiOverallScore": "Gesamtscore",
-      "kpiEvaluated": "Bewertet",
+      "shareTitle": "MyFace-Protokoll",
+      "kpiOverallScore": "Gesamt-Score",
+      "kpiEvaluated": "Ausgewertet",
       "kpiEvaluatedValue": "{count} Punkte",
       "kpiAccuracy": "Genauigkeit",
       "kpiAnalysisTime": "Analysezeit",
       "kpiAnalysisTimeValue": "{days, plural, one {# Tag} other {# Tage}}",
-      "kpiAnalysisTimeFallback": "—",
-      "overviewHeading": "Übersicht",
-      "heroTitlePrefix": "Ihre",
+      "kpiAnalysisTimeFallback": "-",
+      "overviewHeading": "Überblick",
+      "heroTitlePrefix": "Deine",
       "heroTitleAccent": "Gesichtsanalyse",
-      "heroBody": "Wissenschaftliche Gesichtsanalyse und regionale Bewertung auf Basis gemessener Morphologie. Prüfen Sie das gestufte nicht-chirurgische Protokoll und priorisieren Sie Verfeinerungen entlang Ihres Harmonieprofils.",
-      "heroSummaryLabel": "Ihre Zusammenfassung",
+      "heroBody": "Wissenschaftliche Gesichtsanalyse und regionale Bewertung auf Basis gemessener Morphologie. Sieh dir das gestufte nicht-chirurgische Protokoll an und priorisiere Verfeinerungen, die zu deinem Harmonieprofil passen.",
+      "heroSummaryLabel": "Dein Zusammenfassungs-Score",
       "heroFeatures": {
         "0": {
           "title": "Gemessene Morphologie",
-          "detail": "CV-gestützte Regionalindizes"
+          "detail": "CV-basierte regionale Indizes"
         },
         "1": {
           "title": "Projiziertes Potenzial",
@@ -433,9 +435,9 @@
         }
       },
       "treatmentProtocol": "Behandlungsprotokoll",
-      "hinweis": "Hinweis: Empfehlungen sind informativ und nicht-invasiv. Konsultieren Sie einen qualifizierten Dermatologen vor jeder klinischen Behandlung.",
-      "footerModel": "MyFace – Modell v3.2",
-      "footerMetrics": "{points} Bewertungspunkte",
+      "hinweis": "Hinweis: Empfehlungen sind informativ und nicht-invasiv. Sprich vor jeder klinischen Behandlung mit einem qualifizierten Dermatologen.",
+      "footerModel": "MyFace · Modell v3.2",
+      "footerMetrics": "{points} Auswertungspunkte",
       "faceMap": {
         "forehead": "STIRN",
         "eyes": "AUGEN",
@@ -444,23 +446,29 @@
         "nose": "NASE",
         "cheeks": "WANGEN",
         "mouth": "MUND",
-        "jawline": "KIEFER"
+        "jawline": "KIEFERLINIE"
       },
       "priorityFeatures": "Prioritäre Merkmale zur Verbesserung",
       "miniCards": {
-        "skin": { "title": "Hautanalyse" },
-        "hair": { "title": "Haaranalyse" },
-        "eyes": { "title": "Augenanalyse" }
+        "skin": {
+          "title": "Hautanalyse"
+        },
+        "hair": {
+          "title": "Haaranalyse"
+        },
+        "eyes": {
+          "title": "Augenanalyse"
+        }
       },
       "phases": {
         "phase01": {
           "label": "PHASE 01",
-          "title": "Basis-Routine",
-          "duration": "Sofort · Wochen 1–12",
+          "title": "Basisroutine",
+          "duration": "Sofort · Wochen 1-12",
           "items": {
-            "0": "Retinoid 0,05 % (abends)",
-            "1": "Niacinamid 10 % Serum",
-            "2": "LSF 50+ täglich"
+            "0": "Retinoid 0,05% (abends)",
+            "1": "Niacinamid 10% Serum",
+            "2": "SPF 50+ täglich"
           }
         },
         "phase02": {
@@ -468,9 +476,9 @@
           "title": "Regeneration",
           "duration": "3 Monate · 3 Sitzungen",
           "items": {
-            "0": "Microneedling (betreut)",
-            "1": "AHA-Peeling 20 %",
-            "2": "LED Rotlicht 630 nm"
+            "0": "Microneedling (unter Aufsicht)",
+            "1": "AHA-Peeling 20%",
+            "2": "LED-Rotlicht 630 nm"
           }
         },
         "phase03": {
@@ -478,7 +486,7 @@
           "title": "Optimierung",
           "duration": "6+ Monate · langfristig",
           "items": {
-            "0": "Kieferlinie (nicht-invasiv)",
+            "0": "Kieferlinien-Konturierung (nicht-invasiv)",
             "1": "Radiofrequenz-Straffung",
             "2": "Hyaluronsäure-Hydration"
           }
@@ -486,37 +494,37 @@
         "fallback": {
           "zonesDefault": "prioritäre anatomische Zonen",
           "itemDetailDefault": "Gezieltes OTC-Topikum · Prioritätszone",
-          "summary": "Harmonieindizes zeigen eine strukturell günstige Ausgangslage mit lokalisierter Verfeinerung in {zones}. Phase eins priorisiert Photoprotektion, barrierestützende Topika und OTC-Wirkstoffe entlang der Prioritätsregionen; Folgephasen eskalieren zur überwachten Topika-Rotation und langfristigen Erhaltung ohne prozedurale Intervention.",
+          "summary": "Die Harmonieindizes zeigen eine strukturell günstige Basis mit lokalem Verfeinerungsbedarf in {zones}. Phase eins betont Lichtschutz, barrierestützende Topika und OTC-Wirkstoffe für die Prioritätsregionen. Spätere Phasen steigern beaufsichtigte Wirkstoffrotation und langfristige Pflege ohne Eingriff.",
           "phase01": {
-            "title": "Basis & Photoprotektion",
-            "duration": "Sofort · Wochen 1–12",
+            "title": "Basis und Lichtschutz",
+            "duration": "Sofort · Wochen 1-12",
             "items": {
               "0": {
-                "name": "Breitband-LSF 50+",
-                "detail": "Täglich · UV-Photoprotektion"
+                "name": "Breitband-SPF 50+",
+                "detail": "Täglich · UV-Lichtschutz"
               }
             }
           }
         }
       },
       "aestheticSummary": "Ästhetische Zusammenfassung",
-      "executiveDashboard": "Executive-Dashboard",
+      "executiveDashboard": "Executive Dashboard",
       "beforeOriginal": "Vorher · Original",
       "potentialProjected": "Potenzial · Projiziert",
-      "potentialLandmarks": "Potenzial · Landmarks",
+      "potentialLandmarks": "Potenzial · Messpunkte",
       "before": "Vorher",
       "potential": "Potenzial",
       "originalPhoto": "Originalfoto",
       "originalAlt": "Original",
       "projectedAlt": "Projiziertes Potenzial",
-      "landmarksAlt": "Landmark-Overlay",
+      "landmarksAlt": "Messpunkt-Overlay",
       "potentialScan": "Potenzial-Scan",
       "facialAge": "Gesichtsalter",
-      "facialAgeVsBio": "Gesichtsalter vs. biologischer Altersspanne",
+      "facialAgeVsBio": "Gesichtsalter vs. biologischer Altersbereich",
       "ageOutlier": "Ausreißer",
-      "harmonyProfile": "Harmonieprofil & Überblick",
+      "harmonyProfile": "Harmonieprofil und Überblick",
       "analyzingNarrative": "Harmonie-Narrativ wird analysiert...",
-      "fallbackNarrative": "Ihre Analyse zeigt ausgezeichnete Gesichtsbalance mit gezielten Verbesserungsvorschlägen. Symmetrie-Werte liegen in den oberen Perzentilen. Fokus empfohlen auf Nasenbreite und Kieferlinie.",
+      "fallbackNarrative": "Deine Analyse zeigt eine starke Gesichtsbalance mit gezielten Verbesserungsvorschlägen. Die Symmetrie-Scores liegen in den oberen Perzentilen. Fokus empfohlen auf Nasenbreite und Kieferlinien-Definition.",
       "featureEvaluation": "Merkmalsbewertung",
       "zone": "Zone",
       "finding": "Befund",
@@ -565,83 +573,85 @@
       "analysisFailedMessage": "Die Analyse konnte nicht abgeschlossen werden.",
       "tryAgain": "Erneut versuchen",
       "devBypass": "DEV: Admin-Freigabe umgangen",
+      "editGeneratedImages": "Generierte Bilder bearbeiten",
       "editPdfNarrative": "PDF-Narrativ bearbeiten",
       "narrative": "Narrativ",
-      "editAfterImage": "Nachher-Bild bearbeiten",
+      "editAfterImage": "AFTER-Bild bearbeiten",
+      "editAiVisuals": "KI-Visuals bearbeiten",
       "approve": "Freigeben",
       "pdf": "PDF",
-      "pdfAfterApproval": "PDF-Download ist nach Admin-Freigabe verfügbar",
+      "pdfAfterApproval": "PDF-Download nach Admin-Freigabe verfügbar",
       "downloadPdf": "PDF herunterladen",
       "closeReport": "Bericht schließen",
-      "closePastAssessments": "Frühere Assessments schließen",
+      "closePastAssessments": "Frühere Analysen schließen",
       "currentReport": "Aktuell",
-      "protocolWarnings": "Protokoll-Warnungen",
-      "reportUnderReview": "Bericht wird geprüft",
-      "analysisPreparing": "Ihre Analyse wird vorbereitet",
-      "analysisPreparingHint": "Wir senden Ihnen eine E-Mail, wenn sie fertig ist — Sie können diesen Tab sicher schließen.",
-      "buildingReport": "Strukturierter Bericht wird aus Landmarks erstellt…",
+      "protocolWarnings": "Protokollwarnungen",
+      "reportUnderReview": "Bericht in Prüfung",
+      "analysisPreparing": "Deine Analyse wird vorbereitet",
+      "analysisPreparingHint": "Wir mailen dir, wenn sie fertig ist. Du kannst diesen Tab ruhig schließen.",
+      "buildingReport": "Strukturierter Bericht wird aus Messpunkten erstellt…",
       "reportUnavailable": "Bericht nicht verfügbar",
-      "reportUnavailableMessage": "Es wurden keine Analysedaten zurückgegeben. Laden Sie alle 7 erforderlichen Fotos hoch und starten Sie die Analyse erneut.",
+      "reportUnavailableMessage": "Keine Analysedaten zurückgegeben. Lade alle 7 erforderlichen Fotos hoch und starte die Analyse erneut.",
       "approveTitle": "Bericht freigeben?",
-      "approveMessage": "Dies gibt dem Kunden Zugriff auf den vollständigen Bericht und PDF-Download. Diese Aktion kann nicht rückgängig gemacht werden.",
-      "pendingReview": "Ausstehende Prüfung",
+      "approveMessage": "Damit werden der vollständige Bericht und der PDF-Download für den Kunden freigegeben. Das lässt sich nicht rückgängig machen.",
+      "pendingReview": "Prüfung ausstehend",
       "approved": "Freigegeben",
-      "pdfFailed": "PDF-Erstellung fehlgeschlagen. Bitte erneut versuchen."
+      "pdfFailed": "PDF konnte nicht erzeugt werden. Versuch es bitte erneut."
     },
     "featureSection": {
-      "personalizedProtocol": "Personalisiertes Protokoll",
-      "protocolSubtitle": "KI-generierte Empfehlungen basierend auf Ihrer Analyse"
+      "personalizedProtocol": "Persönliches Protokoll",
+      "protocolSubtitle": "KI-generierte Empfehlungen auf Basis deiner Analyse"
     },
     "averageness": {
-      "unavailable": "Prototypizitätsdaten sind für diese Bewertung nicht verfügbar.",
-      "title": "Ein Überblick über Ihre",
-      "accent": "Prototypizität",
-      "subtitle": "Gesichtsprototypizität beschreibt, wie eng Ihre Merkmale mit typischen Merkmalen Ihrer demografischen Gruppe übereinstimmen.",
-      "prototypicality": "Prototypizität",
-      "prototypicalityRange": "Prototypizitätsbereich",
-      "distinctive": "Distinctiv",
+      "unavailable": "Prototypikalitätsdaten sind für diese Analyse nicht verfügbar.",
+      "title": "Ein Überblick über deine",
+      "accent": "Prototypikalität",
+      "subtitle": "Gesichtsprototypikalität beschreibt, wie nah deine Merkmale den typischen Merkmalen von Menschen in deiner demografischen Gruppe kommen.",
+      "prototypicality": "Prototypikalität",
+      "prototypicalityRange": "Prototypikalitätsbereich",
+      "distinctive": "Charakteristisch",
       "highlyTypical": "Sehr typisch"
     },
     "dimorphism": {
-      "title": "Ein Überblick über Ihre",
-      "accent": "Gesichtsmaskulinität",
-      "subtitle": "Wir untersuchen, wie jedes Ihrer Gesichtsmerkmale eher maskulin oder feminin wirkt.",
-      "dimorphismRange": "Dimorphismus-Bereich",
-      "perFeatureTitle": "Ihr Dimorphismus",
+      "title": "Ein Überblick über deine",
+      "accent": "Geschlechtsausdruck",
+      "subtitle": "Wir schauen, wie jedes deiner Gesichtsmerkmale eher maskulin oder feminin wirkt.",
+      "dimorphismRange": "Dimorphismusbereich",
+      "perFeatureTitle": "Dein Dimorphismus",
       "perFeatureAccent": "pro Merkmal",
-      "perFeatureSubtitle": "Diese Messungen heben am besten die Unterschiede zwischen Ihren maskulinen und femininen Merkmalen hervor.",
+      "perFeatureSubtitle": "Diese Messungen heben die Unterschiede zwischen deinen maskulinen und femininen Merkmalen am besten hervor.",
       "hyperFeminine": "Hyper feminin",
       "hyperMasculine": "Hyper maskulin",
       "portraitAlt": "Porträt"
     },
     "proportions": {
-      "title": "Ein Überblick über Ihre",
+      "title": "Ein Überblick über deine",
       "accent": "Proportionen",
-      "subtitle": "Gesichtsproportionen beziehen sich auf die Größe jedes Merkmals im Verhältnis zum restlichen Gesicht und spielen eine zentrale Rolle für die Harmonie.",
+      "subtitle": "Gesichtsproportionen beschreiben die Größe jedes Merkmals im Verhältnis zum restlichen Gesicht und prägen, wie harmonisch das Gesicht wirkt.",
       "harmonious": "harmonisch",
       "proportionality": "Proportionalität",
       "facialThirds": "Gesichtsdrittel",
       "lowerThird": "Unteres Drittel [C]",
       "middleThird": "Mittleres Drittel [B]",
       "upperThird": "Oberes Drittel [A]",
-      "perFeatureTitle": "Ihre Proportionen pro",
+      "perFeatureTitle": "Deine Proportionen pro",
       "perFeatureAccent": "Merkmal",
-      "perFeatureSubtitle": "Wir haben Ihre Gesichtsproportionalität mit datenspezifischen demografischen Referenzen verglichen.",
-      "yourProportion": "Ihre Proportion",
+      "perFeatureSubtitle": "Wir haben deine Gesichtsproportionalität mit Daten zu deiner demografischen Gruppe verglichen.",
+      "yourProportion": "Deine Proportion",
       "idealProportion": "Ideale Proportion",
       "facialProportionsAlt": "Gesichtsproportionen",
       "ratioTabs": {
         "nasoAural": {
           "label": "Ohr",
-          "ratioLabel": "NASO-AURAL-VERHÄLTNIS"
+          "ratioLabel": "NASO-AURALES VERHÄLTNIS"
         },
         "orbitoNasal": {
           "label": "Nase",
-          "ratioLabel": "ORBITO-NASAL-VERHÄLTNIS"
+          "ratioLabel": "ORBITO-NASALES VERHÄLTNIS"
         },
         "nasoOral": {
           "label": "Mund",
-          "ratioLabel": "NASO-ORAL-PROPORTION"
+          "ratioLabel": "NASO-ORALE PROPORTION"
         },
         "orbital": {
           "label": "Auge",
@@ -662,9 +672,9 @@
       }
     },
     "faceShape": {
-      "title": "Ein Überblick über Ihre",
+      "title": "Ein Überblick über deine",
       "accent": "Gesichtsform",
-      "subtitle": "Wir haben Ihre Gesichtsform als Ganzes bewertet und natürliche Variationen und Gesichtswinkel berücksichtigt.",
+      "subtitle": "Wir haben deine Gesichtsform als Ganzes bewertet und dabei natürliche Variationen und Gesichtswinkel berücksichtigt.",
       "midfaceWidth": "Mittelgesichtsbreite",
       "foreheadWidth": "Stirnbreite",
       "lowerThirdWidth": "Breite unteres Drittel",
@@ -673,138 +683,138 @@
       "widthHeightRatio": "B / H Verhältnis"
     },
     "symmetry": {
-      "title": "Ein Überblick über Ihre",
+      "title": "Ein Überblick über deine",
       "accent": "Symmetrie",
-      "subtitle": "Wir haben Ihre Gesichtssymmetrie als Ganzes bewertet und natürliche Abweichungen sowie Kopfhaltung berücksichtigt.",
+      "subtitle": "Wir haben deine Gesichtssymmetrie als Ganzes bewertet und natürliche Abweichungen sowie die Kopfhaltung berücksichtigt.",
       "symmetryScore": "Symmetrie-Score",
       "classification": "Klassifikation",
-      "symmetryRange": "Symmetrie-Bereich",
-      "regionalBalance": "Regionales Gleichgewicht",
-      "regionalNote": "Der Gesamtscore berücksichtigt bereits natürliche Haltung und links-rechts-Variation über diese Regionen."
+      "symmetryRange": "Symmetriebereich",
+      "regionalBalance": "Regionale Balance",
+      "regionalNote": "Der Gesamt-Score berücksichtigt bereits natürliche Pose und Links-Rechts-Variation in diesen Regionen."
     },
     "ears": {
       "title": "Ohrenanalyse",
-      "subtitle": "Ohrgröße, Symmetrie und Positionierung relativ zu Gesichts-Landmarks.",
-      "summaryTitle": "Zusammenfassung Ihrer Ohren",
-      "allMetrics": "Alle Ohren-Metriken",
-      "imageAlt": "Ohr im linken Profil",
-      "yourCheeksAlt": "Ihre Wangen",
-      "yourChinAlt": "Ihr Kinn",
-      "proportionsTitle": "Ohrenproportionen",
-      "positionTitle": "Ohrposition & -form",
+      "subtitle": "Ohrgröße, Symmetrie und Position relativ zu den Gesichtsmesspunkten.",
+      "summaryTitle": "Zusammenfassung deiner Ohren",
+      "allMetrics": "Alle Ohrenmetriken",
+      "imageAlt": "Linkes Profil Ohr",
+      "yourCheeksAlt": "Deine Wangen",
+      "yourChinAlt": "Dein Kinn",
+      "proportionsTitle": "Ohrproportionen",
+      "positionTitle": "Ohrposition und Form",
       "earSize": "Ohrgröße",
-      "earSizeTooltip": "Ohrgröße relativ zur interpupillaren Distanz. Proportionale Ohren rahmen das Gesicht ohne abzulenken.",
+      "earSizeTooltip": "Ohrgröße relativ zum Pupillenabstand. Proportionierte Ohren rahmen das Gesicht, ohne abzulenken.",
       "sizeClass": "Größenklasse",
-      "sizeClassTooltip": "Klassifikation der Ohrgröße. Ausgewogene Ohren tragen zu harmonischer Gesichtsrahmung bei.",
+      "sizeClassTooltip": "Klassifikation der Ohrgröße. Ausgewogene Ohren tragen zur harmonischen Gesichtsrahmung bei.",
       "symmetry": "Symmetrie",
       "symmetryTooltip": "Links-rechts-Balance der Ohrgröße. Symmetrische Ohren deuten auf ausgewogene Gesichtsentwicklung hin.",
       "sizeDifference": "Größenunterschied",
-      "sizeDifferenceTooltip": "Prozentualer Unterschied zwischen linker und rechter Ohrgröße. Unter 5 % gilt als symmetrisch.",
+      "sizeDifferenceTooltip": "Prozentualer Unterschied zwischen linker und rechter Ohrgröße. Unter 5% gilt als symmetrisch.",
       "protrusion": "Abstehen",
-      "protrusionTooltip": "Wie weit die Ohren vom Kopf abstehen. Moderates Abstehen erzeugt eine ausgewogene Silhouette.",
-      "protrusionDepth": "Absteh-Tiefe",
-      "protrusionDepthTooltip": "Z-Tiefenmessung des Ohrabstehens von der Gesichtsebene.",
+      "protrusionTooltip": "Wie weit die Ohren vom Kopf abstehen. Moderates Abstehen ergibt eine ausgewogene Silhouette.",
+      "protrusionDepth": "Abstehtiefe",
+      "protrusionDepthTooltip": "Z-Tiefenmessung des Ohrabstehens relativ zur Gesichtsebene.",
       "verticalPosition": "Vertikale Position",
-      "verticalPositionTooltip": "Vertikale Ausrichtung der Ohren relativ zu Gesichtsmerkmalen. Mittig gesetzte Ohren liegen zwischen Augenbraue und Nasenbasis."
+      "verticalPositionTooltip": "Vertikale Ausrichtung der Ohren relativ zu den Gesichtsmerkmalen. Mittelhohe Ohren liegen auf Höhe Braue bis Nasenbasis."
     },
     "featureReport": {
-      "subtitle": "Gesichts-Landmark-Balance aus Ihren Fotos"
+      "subtitle": "Messpunkt-Balance aus deinen Fotos"
     },
     "brow": {
-      "subtitle": "Augenbrauen sind eines der wichtigsten Gesichtsmerkmale und spielen eine zentrale Rolle beim Ausdruck von Emotion.",
-      "summaryTitle": "Zusammenfassung Ihrer Augenbrauen",
-      "allMetrics": "Alle Augenbrauen-Metriken",
-      "heroAlt": "Augen und Augenbrauen",
-      "position": "Augenbrauenposition",
-      "tilt": "Augenbrauenneigung",
-      "virility": "Augenbrauen-Virilität",
-      "shape": "Augenbrauenform",
+      "subtitle": "Augenbrauen gehören zu den wichtigsten Gesichtsmerkmalen und prägen den emotionalen Ausdruck stark.",
+      "summaryTitle": "Zusammenfassung deiner Augenbrauen",
+      "allMetrics": "Alle Brauenmetriken",
+      "heroAlt": "Augen und Brauen",
+      "position": "Brauenposition",
+      "tilt": "Brauenneigung",
+      "virility": "Brauenstärke",
+      "shape": "Brauenform",
       "slides": {
         "peak": {
-          "titleLead": "Augenbrauen-Peak",
-          "titleAccent": "Höhe",
-          "body": "Vertikaler Abstand vom Augenbrauen-Peak bis zum oberen Augenrand — misst, wie hoch die Augenbraue über dem Auge sitzt.",
-          "metricLabel": "Vertikale Peak-Höhe der Augenbraue"
+          "titleLead": "Brauenhöhe",
+          "titleAccent": "Peak",
+          "body": "Vertikaler Abstand vom Brauenpeak zum oberen Augenrand · misst, wie hoch die Braue über dem Auge sitzt.",
+          "metricLabel": "Vertikale Brauenpeak-Höhe"
         },
         "elevation": {
-          "titleLead": "Augenbrauen-Elevation",
+          "titleLead": "Brauenhebung",
           "titleAccent": "Verhältnis",
-          "body": "Vertikaler Abstand Augenbraue-Auge geteilt durch interpupillare Distanz. Höher = Augenbraue sitzt weiter über dem Auge.",
-          "metricLabel": "Augenbrauen-Elevationsverhältnis"
+          "body": "Vertikaler Brauen-Augen-Abstand geteilt durch den Pupillenabstand. Höher = Braue sitzt weiter über dem Auge.",
+          "metricLabel": "Brauenhebungs-Verhältnis"
         },
         "apex": {
-          "titleLead": "Augenbrauen-Apex",
+          "titleLead": "Brauenapex",
           "titleAccent": "Winkel",
-          "body": "Winkel am Augenbrauen-Peak zwischen inneren und äußeren Augenbrauenvektoren. Kleinerer Winkel = schärferer, definierterer Bogen.",
-          "metricLabel": "Augenbrauen-Apex-Winkel"
+          "body": "Winkel am Brauenpeak zwischen inneren und äußeren Brauenvektoren. Kleinerer Winkel = schärferer, klarerer Bogen.",
+          "metricLabel": "Brauenapex-Winkel"
         }
       },
       "metrics": {
-        "rightPeakHeight": "Rechte Augenbrauen-Peak-Höhe",
-        "rightElevation": "Rechtes Augenbrauen-Elevationsverhältnis",
-        "rightApex": "Rechter Augenbrauen-Apex-Winkel",
-        "avgPeakHeight": "Durchschn. Augenbrauen-Peak-Höhe",
-        "avgApex": "Durchschn. Apex-Winkel",
+        "rightPeakHeight": "Rechte Brauenpeak-Höhe",
+        "rightElevation": "Rechtes Brauenhebungs-Verhältnis",
+        "rightApex": "Rechter Brauenapex-Winkel",
+        "avgPeakHeight": "Ø Brauenpeak-Höhe",
+        "avgApex": "Ø Apex-Winkel",
         "tiltClass": "Neigungs-Klassifikation",
-        "virilityClass": "Virilitäts-Klassifikation",
-        "leftPeakHeight": "Linke Augenbrauen-Peak-Höhe",
-        "leftElevation": "Linkes Augenbrauen-Elevationsverhältnis",
-        "leftApex": "Linker Augenbrauen-Apex-Winkel",
-        "avgElevation": "Durchschn. Elevationsverhältnis",
+        "virilityClass": "Stärke-Klassifikation",
+        "leftPeakHeight": "Linke Brauenpeak-Höhe",
+        "leftElevation": "Linkes Brauenhebungs-Verhältnis",
+        "leftApex": "Linker Brauenapex-Winkel",
+        "avgElevation": "Ø Hebungs-Verhältnis",
         "positionClass": "Positions-Klassifikation",
         "shapeClass": "Form-Klassifikation"
       }
     },
     "eye": {
-      "subtitle": "Die Augen sind ein Brennpunkt der Gesichtsharmonie und spielen eine zentrale Rolle beim Ausdruck von Emotion.",
-      "summaryTitle": "Zusammenfassung Ihrer Augen",
-      "allMetrics": "Alle Augen-Metriken",
+      "subtitle": "Die Augen sind ein Fokuspunkt der Gesichtsharmonie und prägen den emotionalen Ausdruck stark.",
+      "summaryTitle": "Zusammenfassung deiner Augen",
+      "allMetrics": "Alle Augenmetriken",
       "heroAlt": "Augen",
       "tilt": "Augenneigung",
       "eyelidExposure": "Lidexposition",
-      "scleraColor": "Sklerenfarbe",
-      "underEyeHealth": "Unter-Augen-Gesundheit",
+      "scleraColor": "Sklerafarbe",
+      "underEyeHealth": "Unteraugen-Gesundheit",
       "slides": {
         "curvature": {
-          "titleLead": "Unteres Augenlid",
+          "titleLead": "Unterlid",
           "titleAccent": "Krümmung",
-          "body": "Sagitta/Sehnen-Verhältnis der Krümmung des unteren Augenlidkonturs. Höherer Wert = runderer Kontur.",
-          "metricLabel": "Krümmung unteres Augenlid",
-          "sourceSagitta": "Sagitta / Sehnen-Verhältnis",
+          "body": "Sagitta/Chord-Verhältnis für die Krümmung der Unterlidkontur. Höherer Wert = rundere Kontur.",
+          "metricLabel": "Unterlid-Krümmung",
+          "sourceSagitta": "Sagitta / Chord-Verhältnis",
           "flat": "0,0 flach",
           "curved": "0,25 gekrümmt",
           "ratioSuffix": "Verhältnis"
         },
         "ear": {
-          "titleLead": "Augen-Seitenverhältnis",
+          "titleLead": "Eye Aspect Ratio",
           "titleAccent": "(Mandelform)",
-          "body": "EAR = vertikale Öffnung / horizontale Breite. Höher = offeneres, mandelförmiges Auge.",
-          "metricLabel": "Augen-Seitenverhältnis (EAR)",
+          "body": "EAR = vertikale Öffnung / horizontale Breite. Höher = offeneres, mandelförmigeres Auge.",
+          "metricLabel": "Eye Aspect Ratio (EAR)",
           "sourceBoth": "Durchschnitt beider Augen"
         },
         "spacing": {
           "titleLead": "Augenabstand",
           "titleAccent": "Verhältnis",
-          "body": "Interpupillare Distanz geteilt durch Gesichtsbreite. Näher an 0,5 = Augen im Abstand der halben Gesichtsbreite (klassisches ästhetisches Ideal).",
-          "metricLabel": "Augenabstandsverhältnis (IPD / Gesichtsbreite)"
+          "body": "Pupillenabstand geteilt durch Gesichtsbreite. Näher an 0,5 = Augen auf halber Gesichtsbreite (klassisches Ideal).",
+          "metricLabel": "Augenabstands-Verhältnis (IPD / Gesichtsbreite)"
         }
       },
       "metrics": {
-        "rightEar": "Rechtes Augen-Seitenverhältnis (EAR)",
-        "avgEar": "Durchschn. EAR",
-        "rightCurvature": "Rechte Krümmung unteres Augenlid",
-        "avgCurvature": "Durchschn. Krümmung unteres Augenlid",
+        "rightEar": "Rechtes Eye Aspect Ratio (EAR)",
+        "avgEar": "Ø EAR",
+        "rightCurvature": "Rechte Unterlid-Krümmung",
+        "avgCurvature": "Ø Unterlid-Krümmung",
         "eyelidExposureClass": "Lidexpositions-Klassifikation",
-        "leftEar": "Linkes Augen-Seitenverhältnis (EAR)",
-        "spacingRatio": "Augenabstandsverhältnis (IPD/Breite)",
-        "leftCurvature": "Linke Krümmung unteres Augenlid",
+        "leftEar": "Linkes Eye Aspect Ratio (EAR)",
+        "spacingRatio": "Augenabstands-Verhältnis (IPD/Breite)",
+        "leftCurvature": "Linke Unterlid-Krümmung",
         "tiltClass": "Augenneigungs-Klassifikation"
       }
     },
     "jaw": {
-      "subtitle": "Die Kieferlinie rahmt das Untergesicht und trägt zur Gesamtharmonie bei.",
-      "summaryTitle": "Zusammenfassung Ihres Kiefers",
-      "allMetrics": "Alle Kiefer-Metriken",
+      "subtitle": "Die Kieferlinie rahmt das untere Gesicht und trägt zur Gesamtharmonie bei.",
+      "summaryTitle": "Zusammenfassung deines Kiefers",
+      "allMetrics": "Alle Kiefermetriken",
       "heroAlt": "Kiefer",
       "definition": "Kieferdefinition",
       "width": "Kieferbreite",
@@ -812,39 +822,39 @@
       "angle": "Kieferwinkel",
       "slides": {
         "rise": {
-          "titleLead": "Frontaler Kiefer",
-          "titleAccent": "Fall",
-          "body": "Vertikaler Abfall vom Gonion (Kieferwinkel) zum Menton (Kinntip). Höher = definiertere, kantigere Kieferlinie.",
-          "metricLabel": "Frontaler Kieferfall"
+          "titleLead": "Frontale Kiefer-",
+          "titleAccent": "Höhe",
+          "body": "Vertikaler Abfall vom Gonion (Kieferwinkel) zum Menton (Kinnspitze). Höher = klarere, eckigere Kieferlinie.",
+          "metricLabel": "Frontale Kieferhöhe"
         },
         "width": {
           "titleLead": "Kieferbreite",
           "titleAccent": "(mm)",
-          "body": "Bigonale Breite — horizontaler Abstand zwischen beiden Kieferwinkel-Landmarks.",
+          "body": "Bi-goniale Breite · horizontaler Abstand zwischen beiden Kieferwinkel-Messpunkten.",
           "metricLabel": "Kieferbreite"
         },
         "angle": {
           "titleLead": "Kieferneigung",
           "titleAccent": "Winkel",
-          "body": "Durchschnittlicher Kieferneigungswinkel. Kleiner = schärfere V/U-Form. Größer = eckigerer Kiefer.",
+          "body": "Durchschnittlicher Kieferneigungswinkel. Kleiner = schärfere V-/U-Form. Größer = eher quadratischer Kiefer.",
           "metricLabel": "Kieferneigung"
         }
       },
       "metrics": {
-        "frontalRise": "Frontaler Kieferfall",
+        "frontalRise": "Frontale Kieferhöhe",
         "rightInclination": "Rechte Kieferneigung",
         "definitionClass": "Definitions-Klassifikation",
         "shapeClass": "Form-Klassifikation",
         "leftInclination": "Linke Kieferneigung",
         "faceWidth": "Gesichtsbreite",
         "widthClass": "Breiten-Klassifikation",
-        "avgAngleClass": "Durchschn.-Winkel-Klassifikation"
+        "avgAngleClass": "Ø Winkel-Klassifikation"
       }
     },
     "chin": {
-      "subtitle": "Kinnbreite, -projektion und -tiefe balancieren das Untergesicht und unterstützen die Gesamtharmonie.",
-      "summaryTitle": "Zusammenfassung Ihres Kinns",
-      "allMetrics": "Alle Kinn-Metriken",
+      "subtitle": "Kinnbreite, Projektion und Tiefe balancieren das untere Gesicht und stützen die Gesamtharmonie.",
+      "summaryTitle": "Zusammenfassung deines Kinns",
+      "allMetrics": "Alle Kinnmetriken",
       "heroAlt": "Kinn",
       "width": "Kinnbreite",
       "projection": "Kinnprojektion",
@@ -854,35 +864,35 @@
         "width": {
           "titleLead": "Kinnbreite",
           "titleAccent": "(mm)",
-          "body": "Horizontaler Abstand zwischen lateralen Kinnpunkten. Typischer Bereich 37–47 mm.",
+          "body": "Horizontaler Abstand zwischen den seitlichen Kinnpunkten. Typischer Bereich 37-47 mm.",
           "metricLabel": "Kinnbreite"
         },
         "height": {
-          "titleLead": "Kinnvertikale",
+          "titleLead": "Kinn vertikale",
           "titleAccent": "Höhe",
-          "body": "Abstand von der Unterlippe bis zum Kinntip. Typischer Bereich 12–22 mm.",
+          "body": "Abstand von der Unterlippenbasis zur Kinnspitze. Typischer Bereich 12-22 mm.",
           "metricLabel": "Vertikale Kinnhöhe"
         },
         "dev": {
           "titleLead": "Mittellinie",
           "titleAccent": "Abweichung",
-          "body": "Abweichung des Kinntips von der Nasion-Nasenspitzen-Mittellinie. Ideal ≈ 0 mm.",
-          "metricLabel": "Mittellinienabweichung"
+          "body": "Wie weit die Kinnspitze von der vertikalen Achse Nasion-Nasenspitze abweicht. Ideal ≈ 0 mm.",
+          "metricLabel": "Mittellinien-Abweichung"
         }
       },
       "metrics": {
         "verticalHeight": "Vertikale Kinnhöhe",
         "widthClass": "Breiten-Klassifikation",
         "shapeClass": "Form-Klassifikation",
-        "midlineDeviation": "Mittellinienabweichung",
+        "midlineDeviation": "Mittellinien-Abweichung",
         "projectionClass": "Projektions-Klassifikation",
         "depthClass": "Tiefen-Klassifikation"
       }
     },
     "smile": {
-      "subtitle": "Mundbreite und Lächelbogen-Krümmung prägen Ausdruck und Untergesichtsharmonie.",
-      "summaryTitle": "Zusammenfassung Ihres Lächelns",
-      "allMetrics": "Alle Lächeln-Metriken",
+      "subtitle": "Mundbreite und Lächelbogen prägen Ausdruck und Harmonie im unteren Gesicht.",
+      "summaryTitle": "Zusammenfassung deines Lächelns",
+      "allMetrics": "Alle Lächelmetriken",
       "heroAlt": "Lächeln",
       "mouthWidth": "Mundbreite (lächelnd)",
       "smileShape": "Lächelform",
@@ -892,33 +902,33 @@
         "upper": {
           "titleLead": "Oberer Lächelbogen",
           "titleAccent": "Krümmung",
-          "body": "Sagitta/Sehnen-Verhältnis des oberen Lächelbogens. Höher = stärker nach oben gebogene Oberlippe.",
+          "body": "Sagitta/Chord-Verhältnis des oberen Lächelbogens. Höher = stärker nach oben gebogene Oberlippenkurve.",
           "metricLabel": "Oberer Lächelbogen"
         },
         "lower": {
           "titleLead": "Unterer Lächelbogen",
           "titleAccent": "Krümmung",
-          "body": "Sagitta/Sehnen-Verhältnis des unteren Lächelbogens (Unterlippe). Zeigt, wie gekrümmt das untere Lächeln wirkt.",
+          "body": "Sagitta/Chord-Verhältnis für den unteren Lächelbogen (Unterlippe). Zeigt, wie gekrümmt das untere Lächeln wirkt.",
           "metricLabel": "Unterer Lächelbogen"
         },
         "width": {
           "titleLead": "Lächelbreite",
           "titleAccent": "(mm)",
-          "body": "Mundwinkel-zu-Mundwinkel-Breite in Ruhe. Typischer Bereich 40–60 mm.",
+          "body": "Mundwinkel-zu-Mundwinkel-Breite in Ruhe. Typischer Bereich 40-60 mm.",
           "metricLabel": "Lächelbreite"
         }
       },
       "metrics": {
         "upperArc": "Krümmung oberer Lächelbogen",
         "lowerArc": "Krümmung unterer Lächelbogen",
-        "mouthWidthClass": "Mundbreiten-Klasse",
+        "mouthWidthClass": "Mundbreitenklasse",
         "smileWidth": "Lächelbreite"
       }
     },
     "neck": {
-      "subtitle": "Halsbreite und ihr Verhältnis zum Kiefer unterstützen die Untergesichtsrahmung und Gesamtharmonie.",
-      "summaryTitle": "Zusammenfassung Ihres Halses",
-      "allMetrics": "Alle Hals-Metriken",
+      "subtitle": "Halsbreite und ihr Verhältnis zum Kiefer stützen die Rahmung des unteren Gesichts und die Gesamtharmonie.",
+      "summaryTitle": "Zusammenfassung deines Halses",
+      "allMetrics": "Alle Halsmetriken",
       "heroAlt": "Hals",
       "width": "Halsbreite",
       "definition": "Halsdefinition",
@@ -928,28 +938,28 @@
         "width": {
           "titleLead": "Halsbreite",
           "titleAccent": "(mm)",
-          "body": "Horizontale Spanne der Halsregion aus der Segmentierungsmaske. Typischer Bereich 80–100 mm.",
+          "body": "Horizontale Spannweite der Halsregion aus der Segmentierungsmaske. Typischer Bereich 80-100 mm.",
           "metricLabel": "Halsbreite"
         },
         "ratio": {
           "titleLead": "Hals / Kieferbreite",
           "titleAccent": "Verhältnis",
-          "body": "Verhältnis von Halsbreite zu Kieferbreite. Näher an 0,7–0,8 gilt typischerweise als proportional.",
-          "metricLabel": "Hals / Kieferbreite Verhältnis"
+          "body": "Verhältnis von Halsbreite zu Kieferbreite. Näher an 0,7-0,8 gilt typischerweise als proportional.",
+          "metricLabel": "Hals-/Kieferbreiten-Verhältnis"
         }
       },
       "metrics": {
         "widthClass": "Breiten-Klassifikation",
         "definitionLabel": "Definition",
-        "neckJawRatio": "Hals / Kieferbreite Verhältnis",
+        "neckJawRatio": "Hals-/Kieferbreiten-Verhältnis",
         "lengthLabel": "Länge",
         "agingLabel": "Alterung"
       }
     },
     "nose": {
-      "subtitle": "Die Nase ist ein zentrales Element der Gesichtsästhetik und spielt eine wichtige Rolle für die Gesamtharmonie.",
-      "summaryTitle": "Zusammenfassung Ihrer Nase",
-      "allMetrics": "Alle Nasen-Metriken",
+      "subtitle": "Die Nase ist eine zentrale Säule der Gesichtsästhetik und prägt die Gesamtharmonie stark.",
+      "summaryTitle": "Zusammenfassung deiner Nase",
+      "allMetrics": "Alle Nasenmetriken",
       "heroAlt": "Nase",
       "shape": "Nasenform",
       "height": "Nasenhöhe",
@@ -957,488 +967,93 @@
       "width": "Nasenbreite"
     },
     "lips": {
-      "subtitle": "Die Lippen rahmen Ausdruck und Proportion im Untergesicht und tragen zur Gesamtharmonie bei.",
-      "summaryTitle": "Zusammenfassung Ihrer Lippen",
-      "allMetrics": "Alle Lippen-Metriken",
+      "subtitle": "Die Lippen rahmen Ausdruck und Proportionen im unteren Gesicht und tragen zur Gesamtharmonie bei.",
+      "summaryTitle": "Zusammenfassung deiner Lippen",
+      "allMetrics": "Alle Lippenmetriken",
       "heroAlt": "Lippen",
       "fullness": "Lippenfülle",
       "width": "Lippenbreite",
       "proportions": "Lippenproportionen",
-      "health": "Lippengesundheit"
+      "health": "Lippensundheit"
     },
     "hair": {
-      "subtitle": "Haarlinie und Stirngeometrie rahmen das obere Gesicht und tragen zur Gesamtharmonie bei.",
-      "summaryTitle": "Zusammenfassung Ihrer Haare",
-      "allMetrics": "Alle Haar-Metriken",
+      "subtitle": "Haaransatz und Stirngeometrie rahmen das obere Gesicht und tragen zur Gesamtharmonie bei.",
+      "summaryTitle": "Zusammenfassung deiner Haare",
+      "allMetrics": "Alle Haarmetriken",
       "heroAlt": "Haare",
       "templeWidth": "Schläfenbreite",
       "density": "Haardichte",
-      "hairline": "Haarlinie",
+      "hairline": "Haaransatz",
       "foreheadExposure": "Stirnexposition"
     },
     "cheek": {
       "subtitle": "Wangenknochen rahmen Mittelgesichtsbreite und -höhe und tragen zur Gesamtharmonie bei.",
-      "summaryTitle": "Zusammenfassung Ihrer Wangen",
-      "allMetrics": "Alle Wangen-Metriken",
+      "summaryTitle": "Zusammenfassung deiner Wangen",
+      "allMetrics": "Alle Wangenmetriken",
       "heroAlt": "Wangen",
       "width": "Wangenbreite",
-      "position": "Wangenknochenposition",
+      "position": "Wangenknochen-Position",
       "fullness": "Wangenfülle",
-      "height": "Wangenknochenhöhe"
+      "height": "Wangenknochen-Höhe"
     },
     "skin": {
-      "subtitle": "Hautton, Textur und Gleichmäßigkeit werden mit LAB-Farbwissenschaft und Laplacian-Frequenzanalyse ausgewertet.",
-      "summaryTitle": "Zusammenfassung Ihrer Haut",
-      "allMetrics": "Alle Haut-Metriken",
-      "heroAlt": "Gesichtshautregion",
-      "undertone": "Haut-Unterton",
+      "subtitle": "Hautton, Textur und Gleichmäßigkeit werden mit LAB-Farbwissenschaft und Laplace-Frequenzanalyse ausgewertet.",
+      "summaryTitle": "Zusammenfassung deiner Haut",
+      "allMetrics": "Alle Hautmetriken",
+      "heroAlt": "Hautregion Gesicht",
+      "undertone": "Hautunterton",
       "blemishing": "Hautunreinheiten",
       "evenness": "Hautgleichmäßigkeit",
       "texture": "Hauttextur",
-      "oiliness": "Hautöligkeit",
+      "oiliness": "Hautfettigkeit",
       "darkCircles": "Augenringe",
       "roughnessRin": "Rauheit (RIN)",
       "homogeneityRin": "Homogenität (RIN)",
-      "oilinessSkew": "Öligkeits-Schiefe",
+      "oilinessSkew": "Fettigkeits-Schiefe",
       "blemishCount": "Anzahl Unreinheiten",
-      "meanRednessA": "Mittlere Rötung (a*)",
-      "faceLuminance": "Gesichtsleuchtdichte (L*)",
-      "underEyeLuminance": "Unter-Augen-Leuchtdichte (L*)",
+      "meanRednessA": "Mittlere Röte (a*)",
+      "faceLuminance": "Gesichtshelligkeit (L*)",
+      "underEyeLuminance": "Unteraugen-Helligkeit (L*)",
       "slides": {
         "roughness": {
-          "titleLead": "Gesamte Haut",
+          "titleLead": "Gesamte Haut-",
           "titleAccent": "Rauheit",
-          "body": "Die Hautrauheit wird aus der Laplacian-Varianz der Hautpixel geschätzt. Höheres RIN bedeutet feinere Texturkörnung aus der Nähe.",
+          "body": "Deine Hautrauheit wird aus der Laplace-Varianz der Hautpixel geschätzt. Höheres RIN bedeutet mehr feine Texturkörnung aus der Nähe.",
           "metricLabel": "Gesamte Hautrauheit",
-          "sourceLabel": "Laplacian-Varianz"
+          "sourceLabel": "Laplace-Varianz"
         },
         "homogeneity": {
-          "titleLead": "Haut",
+          "titleLead": "Haut-",
           "titleAccent": "Gleichmäßigkeit",
           "body": "Farbhomogenität aus der Standardabweichung über LAB-Kanäle. Niedrigeres RIN = gleichmäßigerer Ton.",
           "metricLabel": "Hauthomogenität",
           "sourceLabel": "LAB-Std → RIN"
         },
         "oiliness": {
-          "titleLead": "Haut",
-          "titleAccent": "Öligkeit",
-          "body": "Leuchtdichte-Schiefe erkennt Spiegelhighlights durch Talg. Positive Schiefe → glänzend/ölig; negativ → matt/trocken.",
-          "metricLabel": "Leuchtdichte-Schiefe",
+          "titleLead": "Haut-",
+          "titleAccent": "Fettigkeit",
+          "body": "Helligkeits-Schiefe erkennt Spiegelungen durch Sebum. Positive Schiefe → glänzend/fettig; negativ → matt/trocken.",
+          "metricLabel": "Helligkeits-Schiefe",
           "sourceLabel": "L*-Kanal"
         },
         "underEye": {
-          "titleLead": "Unter-Augen",
-          "titleAccent": "Leuchtdichte",
-          "body": "Vergleicht die Unter-Augen-Helligkeit mit der durchschnittlichen Gesichtsleuchtdichte. Ein niedrigeres Verhältnis deutet auf Augenringe hin.",
-          "metricLabel": "Unter-Augen vs Gesicht L*",
-          "sourceLabel": "LAB L-Kanal",
+          "titleLead": "Unteraugen-",
+          "titleAccent": "Helligkeit",
+          "body": "Vergleicht Unteraugen-Helligkeit mit der mittleren Gesichtshelligkeit. Ein niedrigeres Verhältnis deutet auf Augenringe hin.",
+          "metricLabel": "Unterauge vs. Gesicht L*",
+          "sourceLabel": "LAB-L-Kanal",
           "darker": "Dunkler",
           "brighter": "Heller"
         }
       }
     }
   },
-  "Shared": {
-    "scoreScale": {
-      "heading": "Bewertung",
-      "outOf": "/ {max}"
-    },
-    "scoreRing": {
-      "outOf": "/ {max}"
-    }
-  },
-  "Errors": {
-    "title": "Etwas ist schiefgelaufen",
-    "description": "Ein unerwarteter Fehler ist aufgetreten. Sie können es erneut versuchen oder zu Ihrem Dashboard zurückkehren.",
-    "notFoundTitle": "Seite nicht gefunden",
-    "notFoundDescription": "Die gesuchte Seite existiert nicht oder wurde verschoben.",
-    "tryAgain": "Erneut versuchen",
-    "home": "Startseite",
-    "goHome": "Zur Startseite",
-    "unknown": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
-    "assessmentLimitReached": "Sie haben das Analyse-Limit Ihres Pakets erreicht.",
-    "createDraftFailed": "Analyse-Entwurf konnte nicht erstellt werden",
-    "uploadPhotoFailed": "Foto konnte nicht hochgeladen werden",
-    "removePhotoFailed": "Foto konnte nicht entfernt werden",
-    "submitAssessmentFailed": "Analyse konnte nicht eingereicht werden",
-    "retryPipelineFailed": "Pipeline konnte nicht erneut gestartet werden",
-    "loadAssessmentFailed": "Bewertung konnte nicht geladen werden",
-    "loadMyAssessmentsFailed": "Ihre Bewertungen konnten nicht geladen werden",
-    "loadAssessmentsFailed": "Bewertungen konnten nicht geladen werden",
-    "updateStatusFailed": "Berichtsstatus konnte nicht aktualisiert werden",
-    "saveAdminReviewFailed": "Admin-Review konnte nicht gespeichert werden",
-    "deleteAssessmentFailed": "Bewertung konnte nicht gelöscht werden",
-    "clearAssessmentsFailed": "Bewertungen konnten nicht gelöscht werden",
-    "clearPaymentsFailed": "Zahlungen konnten nicht gelöscht werden",
-    "generateNarrativeFailed": "KI-Narrativ konnte nicht generiert werden",
-    "loadProtocolFailed": "Protokoll konnte nicht geladen werden",
-    "generateProtocolFailed": "KI-Protokoll konnte nicht generiert werden",
-    "generateProtocolSectionFailed": "Protokollabschnitt konnte nicht generiert werden",
-    "generateProjectedAfterFailed": "Projiziertes NACHHER-Bild konnte nicht generiert werden",
-    "generateVisualsFailed": "KI-Visuals konnten nicht generiert werden",
-    "loadAssistantFailed": "Assistenten-Konversation konnte nicht geladen werden",
-    "assistantUnavailable": "Beauty Assistant funktioniert gerade nicht. Bitte später erneut versuchen.",
-    "downloadPdfFailed": "PDF-Bericht konnte nicht heruntergeladen werden",
-    "loadPaymentConfigFailed": "Zahlungskonfiguration konnte nicht geladen werden",
-    "loadPaymentsFailed": "Zahlungen konnten nicht geladen werden",
-    "loadUsersFailed": "Benutzer konnten nicht geladen werden",
-    "stripeCheckoutFailed": "Stripe-Checkout konnte nicht gestartet werden",
-    "stripeConfirmFailed": "Stripe-Checkout konnte nicht bestätigt werden",
-    "paypalCheckoutFailed": "PayPal-Checkout konnte nicht gestartet werden",
-    "paypalCaptureFailed": "PayPal-Bestellung konnte nicht erfasst werden",
-    "loadPricingFailed": "Preise konnten nicht geladen werden",
-    "updatePricingFailed": "Preise konnten nicht aktualisiert werden",
-    "deleteUserFailed": "Benutzer konnte nicht gelöscht werden"
-  },
-  "Admin": {
-    "common": {
-      "confirm": "Bestätigen"
-    },
-    "protocolSections": {
-      "overview": "Protokoll-Überblick",
-      "closing": "Abschlussempfehlungen",
-      "hair": "Haar",
-      "eyes": "Augen",
-      "nose": "Nase",
-      "cheeks": "Wangen",
-      "jaw": "Kiefer",
-      "lips": "Lippen",
-      "chin": "Kinn",
-      "skin": "Haut",
-      "neck": "Hals",
-      "ears": "Ohren",
-      "smile": "Lächeln"
-    },
-    "pipeline": {
-      "title": "Pipeline-Status (Admin)",
-      "notStarted": "Pipeline nicht gestartet — dieser Entwurf wurde noch nicht eingereicht.",
-      "failedHint": "Fehlgeschlagen — erneut versuchen.",
-      "percentComplete": "{percent} % abgeschlossen",
-      "retry": "Pipeline erneut starten",
-      "stageDone": "Fertig",
-      "stageInProgress": "In Bearbeitung",
-      "stageFailed": "Fehlgeschlagen",
-      "stagePending": "Ausstehend",
-      "stages": {
-        "cv": "Gesichtsdatenverarbeitung",
-        "parsing": "Ästhetische Bewertung",
-        "narratives": "Protokollvorbereitung",
-        "pendingReview": "Care-Team-Review",
-        "approved": "Berichtsfertigstellung"
-      }
-    },
-    "reviewPanel": {
-      "closePanel": "Admin-Panel schließen",
-      "close": "Schließen",
-      "titleAfter": "Projiziertes NACHHER-Bild — {id}",
-      "titleNarrative": "PDF-Narrativ — {id}",
-      "subtitleAfter": "Generieren oder aktualisieren Sie das vollständige projizierte NACHHER für Protokoll und PDF.",
-      "subtitleNarrative": "Ganzes oder abschnittsweises Protokoll generieren, Unterabschnitte bearbeiten, dann speichern.",
-      "statusApproved": "Freigegeben",
-      "statusPendingReview": "Review ausstehend",
-      "generateWhole": "KI-Narrativ für gesamtes PDF generieren",
-      "protocolSectionLabel": "Protokollabschnitt",
-      "generateSection": "Abschnitt generieren",
-      "adminNotes": "Admin-Notizen",
-      "adminNotesPlaceholder": "Interne Review-Notizen (nicht für Kunden sichtbar)",
-      "editSection": "Abschnitt bearbeiten — {section}",
-      "editSectionHint": "Änderungen gelten nach Speichern im PDF.",
-      "overviewSummary": "Überblick-Zusammenfassung",
-      "overviewSummaryPlaceholder": "Protokoll-Überblickstext im PDF",
-      "closingParagraphs": "Abschlussabsätze",
-      "closingPlaceholder": "Ein Absatz pro Leerzeile",
-      "featureSummary": "Merkmal-Zusammenfassung",
-      "featureSummaryPlaceholder": "Kurze Abschnittszusammenfassung",
-      "subsectionBodyPlaceholder": "{title} Text",
-      "regenerateAfter": "NACHHER-Bild neu generieren",
-      "generateAfter": "NACHHER-Bild generieren",
-      "afterPreviewAlt": "Vorschau projiziertes NACHHER",
-      "afterReady": "Projiziertes NACHHER bereit",
-      "noAfterYet": "Noch kein projiziertes NACHHER. Generieren Sie eines für alle Protokoll-/PDF-NACHHER-Plätze.",
-      "approveRelease": "Freigeben & an Kunden senden",
-      "saveEdits": "Änderungen speichern",
-      "approveConfirmTitle": "Bericht freigeben?",
-      "approveConfirmMessage": "Der vollständige Bericht und PDF-Download werden für den Kunden freigegeben. Dies kann nicht rückgängig gemacht werden.",
-      "approveConfirmLabel": "Freigeben"
-    },
-    "panel": {
-      "title": "Admin-Panel",
-      "subtitle": "Benutzer, Berichte prüfen und Zahlungen",
-      "eyebrow": "Administration",
-      "refresh": "Aktualisieren",
-      "unknownUser": "Unbekannter Benutzer",
-      "unlinkedReport": "Nicht verknüpfter Bericht",
-      "reportMeta": "ID …{id} · {date} · Bewertung {score}",
-      "scoreLabel": "Bewertung {score}",
-      "loadingWorkspace": "Admin-Arbeitsbereich wird geladen...",
-      "reviewReports": "Berichte prüfen",
-      "recentClients": "Neueste Kunden",
-      "latestReports": "Neueste Berichte",
-      "reportCount": "{count} Berichte",
-      "pendingBanner": "{count} Bericht(e) warten auf Review",
-      "processingBanner": "{count} Bericht(e) werden verarbeitet",
-      "pipelineRunning": "läuft · {stage}",
-      "tabs": {
-        "overview": "Dashboard",
-        "users": "Benutzer",
-        "review": "Berichte prüfen",
-        "payments": "Zahlungen"
-      },
-      "empty": {
-        "backendRequiredTitle": "Backend-API erforderlich",
-        "backendRequiredText": "Setzen Sie NEXT_PUBLIC_API_URL, um das Admin-Panel zu nutzen.",
-        "adminRequiredTitle": "Admin-Zugang erforderlich",
-        "adminRequiredText": "Melden Sie sich mit einem Admin-Konto an, um Kunden und Berichte zu verwalten."
-      },
-      "stats": {
-        "users": "Benutzer",
-        "reports": "Berichte",
-        "pendingReview": "Review ausstehend",
-        "approved": "Freigegeben",
-        "payments": "Zahlungen"
-      },
-      "filters": {
-        "all": "Alle"
-      },
-      "status": {
-        "pendingReview": "Review ausstehend",
-        "approved": "freigegeben",
-        "draft": "Entwurf",
-        "paid": "bezahlt",
-        "completed": "abgeschlossen",
-        "pending": "ausstehend",
-        "created": "erstellt"
-      },
-      "pipelineStatus": {
-        "queued": "warteschlange",
-        "running": "läuft",
-        "ready": "bereit",
-        "failed": "fehlgeschlagen"
-      },
-      "actions": {
-        "approve": "Freigeben",
-        "open": "Öffnen",
-        "opening": "Wird geöffnet…",
-        "delete": "Löschen",
-        "pipelineRunning": "Pipeline läuft…"
-      },
-      "errors": {
-        "cannotDeleteSelf": "Sie können Ihr eigenes Admin-Konto nicht löschen."
-      },
-      "confirm": {
-        "deleteReportTitle": "Bericht löschen?",
-        "deleteReportMessage": "Dieser Bericht und die Assistenten-Konversation werden dauerhaft aus MongoDB entfernt.",
-        "deleteReportLabel": "Bericht löschen",
-        "deleteUserTitle": "Benutzerkonto löschen?",
-        "deleteUserMessage": "{name} ({email}) und alle verknüpften Berichte, Konversationen und Zahlungen löschen? Dies kann nicht rückgängig gemacht werden.",
-        "deleteUserLabel": "Benutzer löschen",
-        "approveTitle": "Bericht freigeben?",
-        "approveMessage": "Der vollständige Bericht und PDF-Download werden für den Kunden freigegeben. Dies kann nicht rückgängig gemacht werden.",
-        "approveLabel": "Freigeben"
-      },
-      "users": {
-        "title": "Registrierte Benutzer",
-        "subtitle": "{count} Konten in MongoDB `myface.users`",
-        "emptyTitle": "Noch keine Benutzer",
-        "emptyText": "Kundenregistrierungen erscheinen hier.",
-        "roleAdmin": "Admin",
-        "roleUser": "Benutzer",
-        "columns": {
-          "name": "Name",
-          "email": "E-Mail",
-          "role": "Rolle",
-          "reports": "Berichte",
-          "joined": "Beigetreten",
-          "actions": "Aktionen"
-        }
-      },
-      "review": {
-        "title": "Berichte prüfen",
-        "subtitle": "Öffnen, KI-Narrativ bearbeiten, speichern, dann für den Kunden freigeben.",
-        "emptyTitle": "Keine Berichte",
-        "emptyText": "Keine Bewertungen entsprechen diesem Filter."
-      },
-      "payments": {
-        "title": "Zahlungsdatensätze",
-        "subtitle": "Stripe- und PayPal-Checkout-Verlauf",
-        "emptyTitle": "Noch keine Zahlungen",
-        "emptyText": "Abgeschlossene Checkouts erscheinen hier.",
-        "columns": {
-          "client": "Kunde",
-          "provider": "Anbieter",
-          "amount": "Betrag",
-          "status": "Status",
-          "date": "Datum"
-        }
-      }
-    }
-  },
-  "Pdf": {
-    "missingData": "Foto und Analysedaten für PDF-Export erforderlich",
-    "footerConfidential": "MyFace · Vertrauliche Gesichtsanalyse",
-    "pageNumber": "Seite {page}",
-    "pageHeader": "SEITE / {page}",
-    "brandHeader": "MYFACE",
-    "pagePrefix": "SEITE  /",
-    "coverAesthetic": "Ästhetisches",
-    "coverProtocol": "Protokoll",
-    "preparedFor": "ERSTELLT FÜR",
-    "edition": "AUSGABE",
-    "siteUrl": "MYFACE.CLUB",
-    "coverFooter": "VERTRAULICHES ÄSTHETISCHES PROTOKOLL",
-    "disclaimer": "Haftungsausschluss",
-    "policy": "Richtlinie",
-    "disclaimerPolicy": "Haftungsausschluss",
-    "privacyPolicy": "Datenschutz",
-    "readPrivacyPrefix": "Vollständige Datenschutzrichtlinie lesen ",
-    "privacyLink": "hier (myface.club)",
-    "companyName": "MyFace Inc",
-    "commissionedFor": "Dieser Bericht wurde in Auftrag gegeben für",
-    "commissionedOn": "{name} am {month}.",
-    "projectedImagePending": "Projiziertes Bild ausstehend",
-    "recommendationTier": "Empfehlungsstufe",
-    "evidenceLifestyle": "Routine / Topisch",
-    "evidenceOtc": "Nicht-invasiv / OTC",
-    "evidenceReferClinician": "Arzt konsultieren",
-    "dashProtocol": "PROTOKOLL",
-    "dashBefore": "VORHER",
-    "dashPotential": "POTENZIAL",
-    "dashKpiOverall": "Gesamtscore",
-    "dashKpiEvaluated": "Bewertet",
-    "dashKpiEvaluatedValue": "{count} Punkte",
-    "dashKpiAccuracy": "Genauigkeit",
-    "dashKpiAnalysisTime": "Analysezeit",
-    "dashKpiAnalysisTimeFallback": "—",
-    "dashFacialAge": "Gesichtsalter",
-    "dashFacialAgeLabel": "CV-SCHÄTZUNG",
-    "dashFacialAgeVsBio": "Gesichtsalter vs. biologischer Altersspanne",
-    "dashAgeOutlier": "Ausreißer",
-    "dashFace": "GESICHT",
-    "dashBio": "BIO",
-    "dashYearsYounger": "{count} Jahre jünger",
-    "dashYearsOlder": "{count} Jahre älter",
-    "dashSameAge": "Gleiches Alter",
-    "dashOverview": "Übersicht",
-    "dashHarmonyProfile": "Harmonie-Profil",
-    "dashFeatureEvaluation": "Merkmalsbewertung",
-    "dashZone": "Zone",
-    "dashFinding": "Befund",
-    "dashReference": "Referenz",
-    "dashStatus": "Status",
-    "dashOk": "OK",
-    "dashReview": "PRÜFEN",
-    "dashTreatmentProtocol": "Behandlungsprotokoll",
-    "dashHinweis": "Hinweis: Empfehlungen sind informativ und nicht-invasiv. Konsultieren Sie einen Dermatologen vor jeder klinischen Behandlung.",
-    "dashFooterModel": "MyFace – Modell v3.2",
-    "dashFooterMetrics": "{points} Bewertungspunkte",
-    "dashFaceMapForehead": "STIRN",
-    "dashFaceMapEyes": "AUGEN",
-    "dashFaceMapEyeL": "AUGE L",
-    "dashFaceMapEyeR": "AUGE R",
-    "dashFaceMapNose": "NASE",
-    "dashFaceMapCheeks": "WANGEN",
-    "dashFaceMapMouth": "MUND",
-    "dashFaceMapJawline": "KIEFER",
-    "dashPhase01Label": "PHASE 01",
-    "dashPhase01Title": "Basis-Routine",
-    "dashPhase01Duration": "Sofort · Wochen 1–12",
-    "dashPhase02Label": "PHASE 02",
-    "dashPhase02Title": "Regeneration",
-    "dashPhase02Duration": "3 Monate · 3 Sitzungen",
-    "dashPhase03Label": "PHASE 03",
-    "dashPhase03Title": "Optimierung",
-    "dashPhase03Duration": "6+ Monate · langfristig"
-  },
-  "CvReport": {
-    "labels": {
-      "harmonious": "Harmonisch",
-      "balanced": "Ausgewogen",
-      "distinctive": "Distinctiv",
-      "strong": "Kräftig",
-      "defined": "Definiert",
-      "soft": "Weich",
-      "wellProportioned": "Gut proportioniert",
-      "expressive": "Ausdrucksstark",
-      "subtle": "Dezent",
-      "elegant": "Elegant",
-      "compact": "Kompakt",
-      "proportioned": "Proportioniert",
-      "clear": "Klar",
-      "goodCondition": "Guter Zustand",
-      "needsAttention": "Bedarf Aufmerksamkeit",
-      "natural": "Natürlich",
-      "healthy": "Gesund",
-      "monitor": "Beobachten",
-      "exceptional": "Außergewöhnlich",
-      "aboveAverage": "Überdurchschnittlich",
-      "average": "Durchschnittlich",
-      "belowAverage": "Unterdurchschnittlich",
-      "needsImprovement": "Verbesserungsbedarf",
-      "highlySymmetric": "Hoch symmetrisch",
-      "quiteSymmetric": "Ziemlich symmetrisch",
-      "noticeableAsymmetry": "Merkbare Asymmetrie",
-      "wellBalanced": "Gut ausbalanciert",
-      "goodBalance": "Gute Balance",
-      "slightVariation": "Leichte Abweichung",
-      "asymmetric": "Asymmetrisch",
-      "symmetric": "Symmetrisch",
-      "imbalanced": "Unausgewogen",
-      "idealBalance": "Ideale Balance",
-      "hyperFeminine": "Hyper feminin",
-      "hyperMasculine": "Hyper maskulin",
-      "veryMasculine": "Sehr maskulin",
-      "masculine": "Maskulin",
-      "moderate": "Moderat",
-      "feminine": "Feminin",
-      "veryFeminine": "Sehr feminin",
-      "narrow": "Schmal",
-      "wide": "Breit",
-      "oval": "Oval",
-      "square": "Quadratisch",
-      "round": "Rund",
-      "heart": "Herz",
-      "oblong": "Lang",
-      "long": "Lang",
-      "short": "Kurz",
-      "normal": "Normal",
-      "regionForehead": "Stirn",
-      "regionLeftCheek": "Linke Wange",
-      "regionRightCheek": "Rechte Wange",
-      "regionNoseBridge": "Nasenrücken",
-      "regionChin": "Kinn",
-      "regionJawLine": "Kieferlinie",
-      "regionEyes": "Augen",
-      "regionBrows": "Augenbrauen",
-      "regionMouth": "Mund",
-      "regionJaw": "Kiefer",
-      "ratioNasoAural": "NASO-AURAL-VERHÄLTNIS",
-      "ratioOrbitoNasal": "ORBITO-NASALES VERHÄLTNIS",
-      "ratioNasoOral": "NASO-ORALE PROPORTION",
-      "ratioOrbital": "ORBITALE PROPORTION",
-      "earGreaterNose": "Ohr > Nase",
-      "earLessNose": "Ohr < Nase",
-      "earApproxNose": "Ohr ≈ Nase",
-      "noseGreaterEye": "Nase > Auge",
-      "noseLessEye": "Nase < Auge",
-      "noseApproxEye": "Nase ≈ Auge",
-      "mouthGreaterNose": "Mund > Nase",
-      "mouthLessNose": "Mund < Nase",
-      "mouthApproxNose": "Mund ≈ Nase",
-      "spacingGreaterEye": "Abstand > Auge",
-      "spacingLessEye": "Abstand < Auge",
-      "spacingEqualEye": "Abstand = Auge",
-      "idealEarNose": "Ohr = Nase",
-      "idealNoseEye": "Nase = Auge",
-      "idealMouthNose": "Mund > Nase",
-      "idealSpacingEye": "Abstand = Auge"
-    }
-  },
   "Onboarding": {
     "steps": {
       "welcome": "Willkommen",
-      "goals": "Ihre Ziele",
-      "concerns": "Hautprobleme",
-      "profile": "Über Sie",
+      "goals": "Deine Ziele",
+      "concerns": "Hautthemen",
+      "profile": "Über dich",
       "lifestyle": "Lebensstil",
       "skincare": "Hautpflege",
       "uploadPhoto": "Foto hochladen"
@@ -1450,7 +1065,7 @@
     },
     "trust": {
       "clinical": "Klinisch fundierte Analyse",
-      "photosNeverStored": "Ihre Fotos werden niemals gespeichert",
+      "photosNeverStored": "Deine Fotos werden nie gespeichert",
       "aiPowered": "KI-gestützt, dermatologisch geprüft"
     },
     "options": {
@@ -1465,7 +1080,7 @@
         },
         "antiAging": {
           "label": "Anti-Aging",
-          "description": "Feine Linien, Falten und Altersmerkmale"
+          "description": "Feine Linien, Falten und Alterszeichen"
         },
         "structure": {
           "label": "Gesichtsstruktur",
@@ -1477,7 +1092,7 @@
         },
         "track": {
           "label": "Fortschritt verfolgen",
-          "description": "Veränderungen im Zeitverlauf überwachen"
+          "description": "Veränderungen über die Zeit beobachten"
         }
       },
       "skinConcerns": {
@@ -1494,13 +1109,13 @@
           "label": "Augenringe"
         },
         "redness": {
-          "label": "Rötung"
+          "label": "Rötungen"
         },
         "scars": {
           "label": "Narben"
         },
         "unevenTone": {
-          "label": "Ungleichmäßiger Hautton"
+          "label": "Ungleichmäßiger Teint"
         },
         "none": {
           "label": "Keine"
@@ -1508,16 +1123,16 @@
       },
       "age": {
         "18-24": {
-          "label": "18–24"
+          "label": "18-24"
         },
         "25-34": {
-          "label": "25–34"
+          "label": "25-34"
         },
         "35-44": {
-          "label": "35–44"
+          "label": "35-44"
         },
         "45-54": {
-          "label": "45–54"
+          "label": "45-54"
         },
         "55+": {
           "label": "55+"
@@ -1557,15 +1172,15 @@
       "sleep": {
         "excellent": {
           "label": "Ausgezeichnet",
-          "description": "7–9 Stunden, konsistent"
+          "description": "7-9 Stunden, regelmäßig"
         },
         "good": {
           "label": "Gut",
-          "description": "6–7 Stunden, meist konsistent"
+          "description": "6-7 Stunden, meist regelmäßig"
         },
         "fair": {
-          "label": "Mittel",
-          "description": "5–6 Stunden, unregelmäßig"
+          "label": "Mittelmäßig",
+          "description": "5-6 Stunden, unregelmäßig"
         },
         "poor": {
           "label": "Schlecht",
@@ -1578,15 +1193,15 @@
           "description": "Gut hydriert"
         },
         "moderate": {
-          "label": "5–7 Gläser",
+          "label": "5-7 Gläser",
           "description": "Ausreichend hydriert"
         },
         "low": {
-          "label": "2–4 Gläser",
-          "description": "Könnte mehr trinken"
+          "label": "2-4 Gläser",
+          "description": "Etwas mehr trinken wäre gut"
         },
         "minimal": {
-          "label": "0–1 Gläser",
+          "label": "0-1 Gläser",
           "description": "Dehydriert"
         }
       },
@@ -1596,30 +1211,30 @@
           "description": "Meist drinnen"
         },
         "moderate": {
-          "label": "Moderat",
-          "description": "Etwas Zeit im Freien"
+          "label": "Mittel",
+          "description": "Etwas Zeit draußen"
         },
         "high": {
           "label": "Hoch",
-          "description": "Häufige Sonneneinstrahlung"
+          "description": "Häufige Sonnenexposition"
         },
         "veryHigh": {
           "label": "Sehr hoch",
-          "description": "Anhaltende tägliche Einstrahlung"
+          "description": "Täglich lange Exposition"
         }
       },
       "severity": {
         "mild": {
           "label": "Leicht",
-          "description": "Gelegentlich, geringe Auswirkung"
+          "description": "Gelegentlich, geringer Einfluss"
         },
         "moderate": {
-          "label": "Moderat",
-          "description": "Häufig, merkliche Auswirkung"
+          "label": "Mittel",
+          "description": "Häufig, spürbarer Einfluss"
         },
         "severe": {
           "label": "Stark",
-          "description": "Anhaltend, erhebliches Anliegen"
+          "description": "Anhaltend, deutliche Belastung"
         }
       },
       "ethnicity": {
@@ -1642,10 +1257,10 @@
           "label": "Weiß / Europäisch"
         },
         "hispanic": {
-          "label": "Hispanisch / Lateinamerikanisch"
+          "label": "Hispanisch / Latino"
         },
         "mixed": {
-          "label": "Gemischt / Andere"
+          "label": "Gemischt / Sonstiges"
         }
       },
       "skinType": {
@@ -1655,7 +1270,7 @@
         },
         "dry": {
           "label": "Trocken",
-          "description": "Straff, schuppig, rau"
+          "description": "Gespannt, schuppig, rau"
         },
         "combination": {
           "label": "Mischhaut",
@@ -1663,29 +1278,29 @@
         },
         "normal": {
           "label": "Normal",
-          "description": "Ausgewogen, wenige Probleme"
+          "description": "Ausgeglichen, wenig Probleme"
         },
         "sensitive": {
-          "label": "Empfindlich",
+          "label": "Sensibel",
           "description": "Leicht gereizt, reaktiv"
         }
       },
       "skincare": {
         "none": {
           "label": "Keine Routine",
-          "description": "Ich verwende selten Produkte"
+          "description": "Ich nutze selten Produkte"
         },
         "minimal": {
-          "label": "Grundlegend",
+          "label": "Basis",
           "description": "Reiniger + Feuchtigkeitscreme"
         },
         "moderate": {
-          "label": "Moderat",
-          "description": "4–5 Produkte, einige Wirkstoffe"
+          "label": "Mittel",
+          "description": "4-5 Produkte, einige Wirkstoffe"
         },
         "extensive": {
           "label": "Umfangreich",
-          "description": "6+ Produkte, regelmäßige Wirkstoffe"
+          "description": "6+ Produkte, regelmäßig Wirkstoffe"
         }
       },
       "drinking": {
@@ -1707,10 +1322,10 @@
       },
       "genderPreference": {
         "masculine": {
-          "label": "Maskulin"
+          "label": "Männlich"
         },
         "feminine": {
-          "label": "Feminin"
+          "label": "Weiblich"
         },
         "noPreference": {
           "label": "Keine Präferenz"
@@ -1718,45 +1333,45 @@
       },
       "treatmentComfort": {
         "injectables": {
-          "label": "Injektionen (minimal-invasiv)",
-          "description": "Botox, Dermale Filler, Fettauflösende Injektionen"
+          "label": "Injektionen (minimalinvasiv)",
+          "description": "Botox, Dermal Filler, Fett-auflösende Injektionen"
         },
         "nonInvasive": {
           "label": "Nicht-invasive Behandlungen",
-          "description": "Laser, IPL/LED, Ultraschall, Radiofrequenzbehandlungen"
+          "description": "Laser, IPL/LED, Ultraschall, Radiofrequenz"
         },
         "invasive": {
           "label": "Invasive Behandlungen",
-          "description": "Microneedling, Endo-Lift, Kollagen-stimulierende Verfahren"
+          "description": "Microneedling, Endo-Lift, kollagenstimulierende Verfahren"
         },
         "semiPermanent": {
-          "label": "Semi-permanente Verbesserungen",
-          "description": "Microblading, Lip Blush, Tattoo-basierte Behandlungen"
+          "label": "Semipermanente Verfeinerungen",
+          "description": "Microblading, Lip Blush, tattoo-basierte Behandlungen"
         }
       },
       "goalAesthetic": {
         "refine": {
-          "label": "Meine Gesichtsästhetik verfeinern und verbessern"
+          "label": "Meine Gesichtsästhetik verfeinern und betonen"
         },
         "transform": {
           "label": "Meine Gesichtsästhetik deutlich verändern"
         },
         "undecided": {
-          "label": "Unentschlossen"
+          "label": "Unentschieden"
         }
       },
       "aestheticDistress": {
         "noDistress": {
-          "label": "Überhaupt kein Leidensdruck"
+          "label": "Überhaupt keine Belastung"
         },
         "minor": {
-          "label": "Geringer Leidensdruck"
+          "label": "Leichte Belastung"
         },
         "moderate": {
-          "label": "Mäßiger Leidensdruck"
+          "label": "Mittlere Belastung"
         },
         "extreme": {
-          "label": "Extremer Leidensdruck, beeinflusst meinen Alltag"
+          "label": "Starke Belastung, die meinen Alltag beeinflusst"
         }
       },
       "appearanceFrequency": {
@@ -1764,42 +1379,42 @@
           "label": "Selten (ein paar Mal pro Woche oder weniger)"
         },
         "occasionally": {
-          "label": "Gelegentlich (einmal täglich)"
+          "label": "Gelegentlich (einmal am Tag)"
         },
         "frequently": {
-          "label": "Häufig (mehrmals täglich)"
+          "label": "Häufig (mehrmals am Tag)"
         },
         "veryOften": {
-          "label": "Sehr oft (den größten Teil des Tages)"
+          "label": "Sehr oft (den Großteil des Tages)"
         },
         "constantly": {
-          "label": "Ständig (es geht mir nie aus dem Kopf)"
+          "label": "Ständig (geht mir nicht aus dem Kopf)"
         }
       }
     },
     "summary": {
       "notSpecified": "nicht angegeben",
-      "noneSelected": "keine ausgewählt",
+      "noneSelected": "nichts ausgewählt",
       "none": "keine",
-      "noneReported": "keine gemeldet",
+      "noneReported": "keine angegeben",
       "outdoor": "Draußen",
-      "mixedEnvironment": "Gemischt drinnen/draußen",
+      "mixedEnvironment": "Drinnen und draußen gemischt",
       "indoor": "Drinnen"
     }
   },
   "Questionnaire": {
     "welcome": {
       "backToDashboard": "← Zurück zum Dashboard",
-      "title": "Ihre personalisierte Gesichtsanalyse beginnt hier",
-      "description": "Beantworten Sie ein paar kurze Fragen, damit wir Ihren Bericht auf Ihre Ziele, Hautprobleme und demografischen Daten zuschneiden können. Laden Sie dann ein Foto für die KI-gestützte Analyse hoch.",
-      "statsLandmarks": "Gesichts-Landmarks",
-      "statsDuration": "Vollständige Bewertung",
+      "title": "Deine persönliche Gesichtsanalyse beginnt hier",
+      "description": "Beantworte ein paar kurze Fragen, damit wir deinen Bericht an deine Ziele, Hautthemen und demografischen Angaben anpassen können. Danach lädst du ein Foto für die KI-Analyse hoch.",
+      "statsLandmarks": "Gesichtsmesspunkte",
+      "statsDuration": "Vollständige Analyse",
       "statsPersonalized": "Personalisiert",
       "getStarted": "Loslegen",
       "durationHint": "Dauert etwa 5 Minuten",
       "sidebarBadge": "Fragebogen ausfüllen",
-      "sidebarTitle": "Einführungs-\nfragen",
-      "sidebarDescription": "Bitte beantworten Sie die folgenden Fragen, damit wir Ihre MyFace-Reise anpassen können."
+      "sidebarTitle": "Onboarding-\nFragen",
+      "sidebarDescription": "Beantworte die folgenden Fragen, damit wir deine MyFace-Reise an dich anpassen können."
     },
     "common": {
       "back": "← Zurück",
@@ -1811,49 +1426,49 @@
       "pleaseProvideDetails": "Bitte Details angeben…"
     },
     "questions": {
-      "occupation": "Was ist Ihr Beruf?",
-      "smoking": "Wie oft rauchen Sie?",
-      "drinking": "Wie oft trinken Sie Alkohol?",
-      "genderPreference": "Möchten Sie eher maskulin oder eher feminin wirken?",
-      "hadNonSurgical": "Hatten Sie bereits nicht-chirurgische ästhetische Behandlungen?",
-      "hadSurgery": "Wir sind strikt nicht-chirurgisch, aber für die Genauigkeit: Hatten Sie jemals eine chirurgische Gesichtsoperation?",
-      "comfortableTreatments": "Bitte wählen Sie alle Behandlungsarten aus, mit denen Sie sich wohlfühlen:",
-      "medicalConditions": "Haben Sie gesundheitliche Beschwerden (z. B. Autoimmunerkrankungen, Diabetes)?",
-      "medications": "Nehmen Sie derzeit Medikamente (verschreibungspflichtig oder rezeptfrei)?",
-      "usedRetinoids": "Haben Sie in den letzten 6–12 Monaten Retinoide (z. B. Isotretinoin / Accutane) verwendet?",
-      "allergies": "Haben Sie Allergien (insbesondere gegen Hautpflegeinhaltsstoffe, Lidocain, Latex, Farbstoffe)?",
-      "activeInfections": "Haben Sie aktive Infektionen, Lippenherpes oder Hauterkrankungen (z. B. Rosacea, Ekzem, Psoriasis)?",
-      "proneToHyperpigmentation": "Neigen Sie zu Hyperpigmentierung?",
-      "featureLike": "Welches Gesichtsmerkmal mögen Sie am meisten an sich?",
-      "featureDislike": "Welches Gesichtsmerkmal mögen Sie am wenigsten an sich?",
-      "celebrityMatch": "Gibt es Prominente, deren Gesichtsästhetik Sie gerne hätten?",
-      "comfortableWeightLoss": "Sind Sie mit Empfehlungen zur Gewichtsabnahme einverstanden?",
-      "goalAesthetic": "Was ist Ihr Ziel?",
-      "growBeard": "Können Sie einen vollen Bart wachsen lassen?",
-      "aestheticDistress": "Wie viel Leidensdruck verursacht Ihre aktuelle Gesichtsästhetik bei Ihnen?",
-      "appearanceFrequency": "Wie oft denken Sie über Ihr Aussehen nach?",
-      "motivation": "Was hat Sie motiviert, sich bei MyFace anzumelden?",
-      "additionalNotes": "Gibt es sonst noch etwas, das wir wissen sollten?"
+      "occupation": "Was ist dein Beruf?",
+      "smoking": "Wie oft rauchst du?",
+      "drinking": "Wie oft trinkst du Alkohol?",
+      "genderPreference": "Möchtest du eher männlicher oder eher weiblicher wirken?",
+      "hadNonSurgical": "Hast du schon nicht-chirurgische ästhetische Behandlungen gemacht?",
+      "hadSurgery": "Wir arbeiten streng nicht-chirurgisch. Für die Genauigkeit: Hattest du schon einmal eine kosmetische Gesichtsoperation?",
+      "comfortableTreatments": "Wähl alle Behandlungsarten aus, mit denen du dich wohlfühlst:",
+      "medicalConditions": "Hast du medizinische Erkrankungen (z. B. Autoimmunerkrankungen, Diabetes)?",
+      "medications": "Nimmst du Medikamente ein (verschreibungspflichtig oder rezeptfrei)?",
+      "usedRetinoids": "Hast du in den letzten 6-12 Monaten Retinoide genutzt (z. B. Isotretinoin / Accutane)?",
+      "allergies": "Hast du Allergien (besonders gegen Hautpflege-Inhaltsstoffe, Lidocain, Latex, Farbstoffe)?",
+      "activeInfections": "Aktive Infektionen, Fieberblasen oder Hauterkrankungen (z. B. Rosacea, Ekzem, Psoriasis)?",
+      "proneToHyperpigmentation": "Neigst du zu Hyperpigmentierung?",
+      "featureLike": "Welches Merkmal an deinem Gesicht magst du am meisten?",
+      "featureDislike": "Welches Merkmal an deinem Gesicht magst du am wenigsten?",
+      "celebrityMatch": "Gibt es Gesichtsästhetik von Prominenten, der du ähnlich sehen möchtest?",
+      "comfortableWeightLoss": "Bist du mit Empfehlungen zur Gewichtsabnahme einverstanden?",
+      "goalAesthetic": "Was ist dein Ziel?",
+      "growBeard": "Kannst du einen vollen Bart wachsen lassen?",
+      "aestheticDistress": "Wie stark belastet dich deine aktuelle Gesichtsästhetik?",
+      "appearanceFrequency": "Wie oft denkst du an dein Aussehen?",
+      "motivation": "Was hat dich motiviert, dich bei MyFace anzumelden?",
+      "additionalNotes": "Gibt es noch etwas, das wir wissen sollten?"
     }
   },
   "Photo": {
     "protocol": {
       "title": "Foto-Anforderungen",
-      "description": "Bestätigen Sie jede Richtlinie, damit Ihre Analyse dem Standardprotokoll entspricht.",
-      "checklistTitle": "Checkliste für Foto-Richtlinien",
-      "selectAll": "Alle auswählen",
-      "deselectAll": "Alle abwählen",
-      "warning": "Kreuzen Sie alle Punkte an, um fortzufahren. Ein Upload ohne Einhaltung des Protokolls (z. B. mit Brille) verringert die Genauigkeit.",
+      "description": "Bestätige jede Richtlinie, damit deine Analyse dem Standardprotokoll entspricht.",
+      "checklistTitle": "Checkliste Foto-Richtlinien",
+      "selectAll": "Alles auswählen",
+      "deselectAll": "Alles abwählen",
+      "warning": "Markier alle Punkte, um weiterzumachen. Ohne Protokoll (z. B. mit Brille) sinkt die Genauigkeit.",
       "back": "Zurück",
       "continueToUpload": "Weiter zum Upload",
       "items": {
-        "glasses": "Nehmen Sie Brille und Kopfbedeckung ab",
-        "lighting": "Verwenden Sie natürliches, gleichmäßiges Licht auf Ihrem Gesicht",
-        "background": "Verwenden Sie einen schlichten, neutralen Hintergrund",
-        "hair": "Binden Sie langes Haar zurück — Gesicht, Hals und Ohren sichtbar",
-        "makeup": "Entfernen Sie starkes Make-up (leichtes Make-up ist in Ordnung)",
-        "clothing": "Vermeiden Sie halsbedeckende Kleidung (z. B. Rollkragenpullover)",
-        "filters": "Verwenden Sie keine Filter auf dem Foto"
+        "glasses": "Brille und Hut abnehmen",
+        "lighting": "Natürliches, gleichmäßiges Licht auf dein Gesicht",
+        "background": "Einfacher, neutraler Hintergrund",
+        "hair": "Langes Haar zurückbinden · Gesicht, Hals und Ohren sichtbar",
+        "makeup": "Starkes Make-up entfernen (leichtes Make-up ist ok)",
+        "clothing": "Keine den Hals verdeckende Kleidung (z. B. Rollkragen)",
+        "filters": "Keine Filter auf dem Foto"
       }
     },
     "upload": {
@@ -1861,76 +1476,76 @@
       "backToRequirements": "Zurück zu den Anforderungen",
       "requirementsLabel": "Foto-Anforderungen",
       "confirmationTitle": "Bestätigung",
-      "confirmationDescription": "Bitte überprüfen und bestätigen Sie die folgenden Foto-Richtlinien, um genaue Ergebnisse zu gewährleisten.",
+      "confirmationDescription": "Prüf und bestätige die folgenden Foto-Richtlinien für möglichst genaue Ergebnisse.",
       "requirementsHeading": "Anforderungen",
-      "checklistTitle": "Checkliste für Foto-Richtlinien",
+      "checklistTitle": "Checkliste Foto-Richtlinien",
       "next": "Weiter",
-      "uploadTitle": "Laden Sie Ihre Bilder hoch",
-      "uploadDescription": "Sie sind fast fertig! Jedes Foto wird geprüft und beim Hinzufügen sicher gespeichert.",
-      "useDemoPhotos": "Demo-Fotos verwenden",
+      "uploadTitle": "Lade deine Bilder hoch",
+      "uploadDescription": "Du bist fast fertig! Jedes Foto wird beim Hinzufügen geprüft und sicher gespeichert.",
+      "useDemoPhotos": "Demo-Fotos nutzen",
       "loadingDemoPhotos": "Demo-Fotos werden geladen…",
-      "posesUploaded": "Hochgeladene Posen ({uploaded}/{total})",
-      "uploadActivePose": "Hochladen — {pose}",
+      "posesUploaded": "Posen hochgeladen ({uploaded}/{total})",
+      "uploadActivePose": "Upload · {pose}",
       "required": "Erforderlich",
       "checking": "Wird geprüft…",
       "continue": "Weiter",
       "activePose": "Aktive Pose",
       "tapToUpload": "Tippen, um Foto hochzuladen",
       "fileTypesShort": "JPG, PNG, WEBP",
-      "dragDropOrChoose": "Ziehen & Ablegen oder Datei-Upload auswählen",
-      "fileTypesLong": "Unterstützt JPG-, PNG-, WEBP-Dateien",
+      "dragDropOrChoose": "Ziehen und ablegen oder Datei auswählen",
+      "fileTypesLong": "Unterstützt JPG, PNG, WEBP",
       "changePhoto": "Foto ändern",
       "deletePhoto": "Foto löschen",
       "previewAlt": "Vorschau",
       "uploadPreviewAlt": "Upload-Vorschau",
-      "validating": "Wird validiert…",
+      "validating": "Wird geprüft…",
       "uploading": "Wird hochgeladen…",
       "uploaded": "Hochgeladen",
-      "checkPhotoReupload": "Foto prüfen & erneut hochladen",
-      "qualityCheckFailed": "Dieses Foto hat die Qualitätsprüfungen nicht bestanden.",
-      "uploadFailed": "Upload fehlgeschlagen. Erneut hochladen, um es noch einmal zu versuchen.",
+      "checkPhotoReupload": "Foto prüfen und erneut hochladen",
+      "qualityCheckFailed": "Dieses Foto hat die Qualitätsprüfung nicht bestanden.",
+      "uploadFailed": "Upload fehlgeschlagen. Lade erneut hoch, um es nochmal zu versuchen.",
       "demoLoadFailed": "Demo-Fotos konnten nicht geladen werden",
       "demoImage": "Demo-Bild",
       "statusUploaded": "Hochgeladen",
       "statusUploading": "Wird hochgeladen…",
       "statusChecking": "Wird geprüft…",
-      "statusNeedsAttention": "Aufmerksamkeit nötig",
+      "statusNeedsAttention": "Braucht Aufmerksamkeit",
       "statusPending": "Ausstehend",
-      "uploadAllRequired": "* Laden Sie alle {count} erforderlichen Fotos hoch, um fortzufahren ({uploaded}/{count})",
+      "uploadAllRequired": "* Lade alle {count} erforderlichen Fotos hoch, um weiterzumachen ({uploaded}/{count})",
       "finishingUpload": "* Upload wird abgeschlossen…",
       "guidelines": {
-        "lookStraight": "Schauen Sie direkt in die Kamera",
-        "neutralExpression": "Behalten Sie einen neutralen Gesichtsausdruck bei",
-        "clearObstructions": "Entfernen Sie Haare und Hindernisse aus dem Gesicht",
-        "armsLength": "Foto aus einer Armlänge Entfernung aufgenommen",
-        "oneHead": "Nur ein Kopf sollte im Bild sichtbar sein",
+        "lookStraight": "Schau gerade in die Kamera",
+        "neutralExpression": "Halte einen neutralen Gesichtsausdruck",
+        "clearObstructions": "Haar und Verdeckungen vom Gesicht nehmen",
+        "armsLength": "Foto aus Armlänge aufgenommen",
+        "oneHead": "Nur ein Kopf soll im Bild sichtbar sein",
         "notCropped": "Kopf und Hals sind nicht abgeschnitten",
-        "notBlurry": "Halten Sie die Kamera fokussiert und nicht verwackelt",
-        "evenLighting": "Sorgen Sie für konsistentes, gleichmäßiges Licht",
-        "plainBackground": "Sorgen Sie für einen schlichten, klaren Hintergrund"
+        "notBlurry": "Kamera scharf halten, nicht unscharf",
+        "evenLighting": "Gleichmäßiges, gleichbleibendes Licht",
+        "plainBackground": "Einfacher, klarer Hintergrund"
       },
       "checklist": {
-        "glassesHat": "Nehmen Sie Brille und Kopfbedeckung ab",
-        "lighting": "Verwenden Sie natürliches, gleichmäßiges Licht, das Ihr Gesicht direkt beleuchtet",
-        "background": "Verwenden Sie einen schlichten & weißen Hintergrund",
-        "hair": "Binden Sie langes Haar zurück, um Gesicht, Hals und Ohren freizulegen",
-        "makeup": "Entfernen Sie jegliches Make-up",
-        "clothing": "Vermeiden Sie halsbedeckende Kleidung",
-        "filters": "Verwenden Sie keine Filter auf den Bildern"
+        "glassesHat": "Brille und Hut abnehmen",
+        "lighting": "Natürliches, gleichmäßiges Licht, das dein Gesicht direkt ausleuchtet",
+        "background": "Einfacher, weißer Hintergrund",
+        "hair": "Langes Haar zurückbinden, damit Gesicht, Hals und Ohren frei sind",
+        "makeup": "Make-up entfernen",
+        "clothing": "Keine den Hals verdeckende Kleidung",
+        "filters": "Keine Filter auf den Bildern"
       }
     },
     "poses": {
       "front": {
-        "label": "Vorderansicht",
-        "hint": "Gesamtes Gesicht frontal mit neutralem Ausdruck"
+        "label": "Frontal",
+        "hint": "Ganzes Gesicht frontal mit neutralem Ausdruck"
       },
       "leftProfile": {
         "label": "Linkes Profil",
-        "hint": "Linkes Seitenprofil — gesamtes Gesicht von links"
+        "hint": "Linkes Seitenprofil · ganzes Gesicht von links"
       },
       "rightProfile": {
         "label": "Rechtes Profil",
-        "hint": "Rechtes Seitenprofil — gesamtes Gesicht von rechts"
+        "hint": "Rechtes Seitenprofil · ganzes Gesicht von rechts"
       },
       "left45": {
         "label": "Links 45°",
@@ -1942,23 +1557,23 @@
       },
       "smile": {
         "label": "Lächeln",
-        "hint": "Natürlich lächeln, Zähne zeigend — für Lächelform- & Zahnanalyse"
+        "hint": "Natürlich lächeln und Zähne zeigen · für Lächelform und Zahnanalyse"
       },
       "topHead": {
-        "label": "Oberkopf",
-        "hint": "Kopf nach unten neigen, Oberkopf & Haaransatz zeigend — für Haardichteanalyse"
+        "label": "Kopfoberseite",
+        "hint": "Kopf nach unten neigen, Oberseite und Haaransatz zeigen · für Haardichte-Analyse"
       }
     },
     "validation": {
       "faceDetected": {
-        "none": "Kein Gesicht erkannt — schauen Sie direkt in die Kamera",
-        "multiple": "{count} Gesichter erkannt — nur eine Person erlaubt",
+        "none": "Kein Gesicht erkannt · schau direkt in die Kamera",
+        "multiple": "{count} Gesichter erkannt · nur eine Person erlaubt",
         "ok": "Gesicht erkannt",
-        "limitedAngle": "Gesichtserkennung für diesen Winkel eingeschränkt — wird fortgesetzt"
+        "limitedAngle": "Gesichtserkennung für diesen Winkel eingeschränkt · wird fortgesetzt"
       },
       "correctPose": {
-        "inconclusive": "Posenprüfung nicht eindeutig",
-        "wrong": "Gesicht ist {detected} — erwartet {expected}",
+        "inconclusive": "Posenprüfung unklar",
+        "wrong": "Gesicht ist {detected} · erwartet: {expected}",
         "ok": "Pose: {pose}"
       },
       "detectedPose": {
@@ -1972,187 +1587,607 @@
         "rightProfile": "rechtes Profil",
         "left45": "links 45°",
         "right45": "rechts 45°",
-        "smile": "frontal (lächelnd)",
-        "topHead": "Draufsicht-Winkel"
+        "smile": "frontal (Lächeln)",
+        "topHead": "Winkel von oben"
       },
       "neutralExpression": {
-        "inconclusive": "Ausdrucksprüfung nicht eindeutig",
-        "mouthOpen": "Mund scheint geöffnet — bitte neutralen Ausdruck verwenden",
-        "nonNeutral": "Ausdruck scheint nicht neutral — bitte entspannen Sie Ihr Gesicht",
+        "inconclusive": "Ausdrucksprüfung unklar",
+        "mouthOpen": "Mund scheint offen · bitte neutralen Ausdruck",
+        "nonNeutral": "Ausdruck scheint nicht neutral · entspann dein Gesicht",
         "ok": "Ausdruck neutral",
-        "smileExpected": "Lächeln-Ausdruck erwartet"
+        "smileExpected": "Lächeln erwartet"
       },
       "eyesOpen": {
-        "closed": "Augen scheinen geschlossen — bitte Augen offen halten",
-        "squinting": "Augen wirken zusammengekniffen — versuchen Sie, sie vollständig zu öffnen",
+        "closed": "Augen scheinen geschlossen · bitte Augen offen halten",
+        "squinting": "Augen könnten zusammengekniffen sein · versuch sie ganz zu öffnen",
         "ok": "Augen offen",
         "limitedAngle": "Augenprüfung für diesen Winkel eingeschränkt"
       },
       "noGlasses": {
-        "detected": "Brille erkannt — bitte für beste Ergebnisse abnehmen",
-        "possible": "Mögliche Brille erkannt — wenn möglich abnehmen",
+        "detected": "Brille erkannt · bitte für beste Ergebnisse abnehmen",
+        "possible": "Möglicherweise Brille erkannt · wenn möglich abnehmen",
         "ok": "Keine Brille erkannt"
       },
       "hairClear": {
-        "inconclusive": "Haarprüfung nicht eindeutig",
-        "covering": "Haare bedecken möglicherweise die Stirn — bitte Haare aus dem Gesicht entfernen",
-        "partial": "Haare könnten Ihr Gesicht teilweise bedecken — Haare wenn möglich zurückschieben",
-        "foreheadCovered": "Stirn scheint teilweise bedeckt — stellen Sie sicher, dass die Haare vom Gesicht entfernt sind",
-        "ok": "Haare frei",
-        "skippedTopHead": "Haarprüfung für Oberkopf-Foto übersprungen"
+        "inconclusive": "Haarprüfung unklar",
+        "covering": "Haar könnte die Stirn verdecken · bitte Haar vom Gesicht nehmen",
+        "partial": "Haar könnte dein Gesicht teilweise verdecken · wenn möglich zurückschieben",
+        "foreheadCovered": "Stirn scheint teilweise verdeckt · Haar vom Gesicht nehmen",
+        "ok": "Haar freigelegt",
+        "skippedTopHead": "Haarprüfung für Foto der Kopfoberseite übersprungen"
       },
       "faceCentered": {
-        "offCenter": "Gesicht ist {direction} — zentrieren Sie Ihr Gesicht im Bild",
+        "offCenter": "Gesicht ist {direction} · zentrier dein Gesicht im Bild",
         "left": "links",
         "right": "rechts",
         "tooHigh": "zu hoch",
-        "tooLow": "zu niedrig",
+        "tooLow": "zu tief",
         "ok": "Gesicht zentriert"
       },
       "faceSize": {
-        "tooSmall": "Gesicht ist zu klein — kommen Sie näher an die Kamera",
-        "small": "Gesicht ist klein — versuchen Sie, für bessere Genauigkeit näher zu kommen",
-        "ok": "Gesichtsgröße OK"
+        "tooSmall": "Gesicht zu klein · näher an die Kamera",
+        "small": "Gesicht klein · näher heran für bessere Genauigkeit",
+        "ok": "Gesichtsgröße ok"
       },
       "brightness": {
-        "veryDark": "Bild ist sehr dunkel — verwenden Sie besseres Licht",
-        "dark": "Bild ist dunkel — verbessern Sie die Beleuchtung",
-        "overexposed": "Bild ist überbelichtet — reduzieren Sie die Helligkeit",
-        "bright": "Bild ist leicht hell",
-        "ok": "Helligkeit OK"
+        "veryDark": "Bild sehr dunkel · besseres Licht nutzen",
+        "dark": "Bild dunkel · Beleuchtung verbessern",
+        "overexposed": "Bild überbelichtet · Helligkeit reduzieren",
+        "bright": "Bild etwas hell",
+        "ok": "Helligkeit ok"
       },
       "sharpness": {
-        "veryBlurry": "Bild ist sehr verschwommen",
-        "blurry": "Bild wirkt leicht unscharf",
-        "ok": "Schärfe OK"
+        "veryBlurry": "Bild sehr unscharf",
+        "blurry": "Bild wirkt etwas unscharf",
+        "ok": "Schärfe ok"
       },
       "resolution": {
-        "tooSmall": "Zu klein ({width}×{height}) — verwenden Sie {minPx}px+",
-        "ok": "Auflösung OK"
+        "tooSmall": "Zu klein ({width}×{height}) · mind. {minPx}px nutzen",
+        "ok": "Auflösung ok"
       },
       "mediaPipe": {
         "unavailableAngle": "Erweiterte Prüfungen für diesen Winkel nicht verfügbar",
-        "error": "Erweiterte Prüfungen nicht verfügbar — MediaPipe-Fehler"
+        "error": "Erweiterte Prüfungen nicht verfügbar · MediaPipe-Fehler"
       }
     }
   },
   "Analysis": {
     "preparing": {
-      "title": "Ihre Analyse wird <highlight>vorbereitet</highlight>",
+      "title": "Deine Analyse wird <highlight>vorbereitet</highlight>",
       "titleHighlight": "vorbereitet",
-      "description": "Wir senden Ihnen eine E-Mail, wenn sie fertig ist — Sie können diesen Tab sicher schließen.",
+      "description": "Wir mailen dir, wenn sie fertig ist. Du kannst diesen Tab ruhig schließen.",
       "timeline": {
         "cv": "Gesichtsdatenverarbeitung",
         "assessment": "Ästhetische Bewertung",
         "protocol": "Protokollvorbereitung",
-        "review": "Care-Team-Review",
-        "finalise": "Berichtsfertigstellung"
+        "review": "Prüfung durch das Care-Team",
+        "finalise": "Berichtsabschluss"
       },
       "days": "{count} Tage",
       "daysLeft": "Noch {count} Tage",
-      "expressTitle": "Brauchen Sie es früher?",
-      "expressDescription": "Upgraden Sie auf Express-Lieferung und erhalten Sie Ihre Gesichtsanalyse in 24–48 Stunden.",
+      "expressTitle": "Schneller nötig?",
+      "expressDescription": "Upgrade auf Express und erhalte deine Gesichtsanalyse in 24-48 Stunden.",
       "expressButton": "Auf Express-Lieferung upgraden",
-      "comingSoon": "Demnächst verfügbar",
+      "comingSoon": "Demnächst",
       "goToDashboard": "Zum Dashboard",
       "goHome": "Zur Startseite",
-      "homeDescription": "Ihre Gesichtsanalyse ist bei unserem Care-Team. Die Restzeit basiert auf Ihrem Einreichungsdatum.",
+      "homeDescription": "Deine Gesichtsanalyse liegt beim Care-Team. Die Restzeit richtet sich nach deinem Einreichungsdatum.",
       "submittedOn": "Eingereicht am {date}",
       "stageDone": "Erledigt",
       "stageActive": "In Bearbeitung",
-      "almostReady": "Fast fertig",
+      "almostReady": "Gleich fertig",
       "refreshStatus": "Status aktualisieren"
     }
   },
+  "Shared": {
+    "scoreScale": {
+      "heading": "Score",
+      "outOf": "/ {max}"
+    },
+    "scoreRing": {
+      "outOf": "/ {max}"
+    }
+  },
+  "Errors": {
+    "title": "Etwas ist schiefgelaufen",
+    "description": "Es ist ein unerwarteter Fehler aufgetreten. Versuch es erneut oder geh zurück zu deinem Dashboard.",
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundDescription": "Die gesuchte Seite existiert nicht oder wurde verschoben.",
+    "tryAgain": "Erneut versuchen",
+    "home": "Startseite",
+    "goHome": "Zur Startseite",
+    "unknown": "Etwas ist schiefgelaufen. Versuch es bitte erneut.",
+    "assessmentLimitReached": "Du hast das Analyselimit deines Plans erreicht.",
+    "createDraftFailed": "Analyse-Entwurf konnte nicht erstellt werden",
+    "uploadPhotoFailed": "Foto konnte nicht hochgeladen werden",
+    "removePhotoFailed": "Foto konnte nicht entfernt werden",
+    "submitAssessmentFailed": "Analyse konnte nicht eingereicht werden",
+    "retryPipelineFailed": "Pipeline-Wiederholung fehlgeschlagen",
+    "loadAssessmentFailed": "Analyse konnte nicht geladen werden",
+    "loadMyAssessmentsFailed": "Deine Analysen konnten nicht geladen werden",
+    "loadAssessmentsFailed": "Analysen konnten nicht geladen werden",
+    "updateStatusFailed": "Berichtsstatus konnte nicht aktualisiert werden",
+    "saveAdminReviewFailed": "Admin-Prüfung konnte nicht gespeichert werden",
+    "deleteAssessmentFailed": "Analyse konnte nicht gelöscht werden",
+    "clearAssessmentsFailed": "Analysen konnten nicht gelöscht werden",
+    "clearPaymentsFailed": "Zahlungen konnten nicht gelöscht werden",
+    "generateNarrativeFailed": "KI-Narrativ konnte nicht erzeugt werden",
+    "loadProtocolFailed": "Protokoll konnte nicht geladen werden",
+    "generateProtocolFailed": "KI-Protokoll konnte nicht erzeugt werden",
+    "generateProtocolSectionFailed": "Protokollabschnitt konnte nicht erzeugt werden",
+    "generateProjectedAfterFailed": "Projiziertes AFTER-Bild konnte nicht erzeugt werden",
+    "generateVisualsFailed": "KI-Visuals konnten nicht erzeugt werden",
+    "loadAssistantFailed": "Assistenten-Gespräch konnte nicht geladen werden",
+    "assistantUnavailable": "Beauty Assistant funktioniert gerade nicht. Versuch es später erneut.",
+    "downloadPdfFailed": "Berichts-PDF konnte nicht heruntergeladen werden",
+    "loadPaymentConfigFailed": "Zahlungskonfiguration konnte nicht geladen werden",
+    "loadPaymentsFailed": "Zahlungen konnten nicht geladen werden",
+    "loadUsersFailed": "Nutzer konnten nicht geladen werden",
+    "stripeCheckoutFailed": "Stripe-Checkout konnte nicht gestartet werden",
+    "stripeConfirmFailed": "Stripe-Checkout konnte nicht bestätigt werden",
+    "paypalCheckoutFailed": "PayPal-Checkout konnte nicht gestartet werden",
+    "paypalCaptureFailed": "PayPal-Bestellung konnte nicht erfasst werden",
+    "loadPricingFailed": "Preise konnten nicht geladen werden",
+    "updatePricingFailed": "Preise konnten nicht aktualisiert werden",
+    "deleteUserFailed": "Nutzer konnte nicht gelöscht werden"
+  },
+  "Admin": {
+    "common": {
+      "confirm": "Bestätigen"
+    },
+    "protocolSections": {
+      "overview": "Protokollübersicht",
+      "closing": "Abschließende Empfehlungen",
+      "hair": "Haare",
+      "eyes": "Augen",
+      "nose": "Nase",
+      "cheeks": "Wangen",
+      "jaw": "Kiefer",
+      "lips": "Lippen",
+      "chin": "Kinn",
+      "skin": "Haut",
+      "neck": "Hals",
+      "ears": "Ohren",
+      "smile": "Lächeln"
+    },
+    "pipeline": {
+      "title": "Pipeline-Status (Admin)",
+      "notStarted": "Pipeline nicht gestartet · dieser Entwurf wurde noch nicht eingereicht.",
+      "failedHint": "Fehlgeschlagen · erneut versuchen, um wieder einzureihen.",
+      "percentComplete": "{percent}% abgeschlossen",
+      "retry": "Pipeline erneut starten",
+      "stageDone": "Erledigt",
+      "stageInProgress": "In Bearbeitung",
+      "stageFailed": "Fehlgeschlagen",
+      "stagePending": "Ausstehend",
+      "stages": {
+        "cv": "Gesichtsdatenverarbeitung",
+        "parsing": "Ästhetische Bewertung",
+        "narratives": "Protokollvorbereitung",
+        "pendingReview": "Prüfung durch das Care-Team",
+        "approved": "Berichtsabschluss"
+      }
+    },
+    "reviewPanel": {
+      "closePanel": "Admin-Panel schließen",
+      "close": "Schließen",
+      "titleImages": "Generierte Bilder · {id}",
+      "titleAfter": "Projiziertes AFTER-Bild · {id}",
+      "titleNarrative": "PDF-Narrativ · {id}",
+      "titleVisuals": "KI-Visuals · {id}",
+      "subtitleImages": "Erzeuge das projizierte AFTER und einzelne Frisur-, Outfit- oder Altersvorschauen neu.",
+      "subtitleAfter": "Erzeuge oder aktualisiere das projizierte AFTER-Gesichtsbild für Protokoll und PDF.",
+      "subtitleNarrative": "Erzeuge den Protokolltext ganz oder abschnittsweise, bearbeite Unterabschnitte und speichere.",
+      "subtitleVisuals": "Erzeuge die gesamte Galerie neu oder einzelne Frisur-, Outfit- oder Altersvorschauen.",
+      "sectionAfter": "Projiziertes AFTER",
+      "sectionVisuals": "KI-Visuals",
+      "statusApproved": "Freigegeben",
+      "statusPendingReview": "Prüfung ausstehend",
+      "generateWhole": "KI-Narrativ für gesamtes PDF erzeugen",
+      "protocolSectionLabel": "Protokollabschnitt",
+      "generateSection": "Abschnitt erzeugen",
+      "adminNotes": "Admin-Notizen",
+      "adminNotesPlaceholder": "Interne Prüfungsnotizen (nicht für den Kunden sichtbar)",
+      "editSection": "Abschnitt bearbeiten · {section}",
+      "editSectionHint": "Änderungen gelten nach dem Speichern für das PDF.",
+      "overviewSummary": "Übersichtszusammenfassung",
+      "overviewSummaryPlaceholder": "Protokollübersichtstext im PDF",
+      "closingParagraphs": "Abschließende Absätze",
+      "closingPlaceholder": "Ein Absatz pro Leerzeile",
+      "featureSummary": "Merkmalszusammenfassung",
+      "featureSummaryPlaceholder": "Kurze Abschnittszusammenfassung",
+      "subsectionBodyPlaceholder": "Text zu {title}",
+      "regenerateAfter": "AFTER-Bild neu erzeugen",
+      "generateAfter": "AFTER-Bild erzeugen",
+      "afterPreviewAlt": "Vorschau projiziertes AFTER",
+      "openPreview": "Vorschau öffnen: {title}",
+      "openPreviewHint": "Klicken zum Vergrößern",
+      "closePreview": "Vorschau schließen",
+      "afterReady": "Projiziertes AFTER bereit",
+      "noAfterYet": "Noch kein projiziertes AFTER. Erzeuge eines, damit es in allen Protokoll-/PDF-AFTER-Slots genutzt wird.",
+      "generateAllVisuals": "Alle KI-Visuals erzeugen",
+      "regenerateAllVisuals": "Alle KI-Visuals neu erzeugen",
+      "regenerateVisual": "Neu erzeugen",
+      "noVisualsYet": "Noch keine KI-Visuals. Erzeuge die Galerie, danach kannst du einzelne Stile neu erzeugen.",
+      "visualType": {
+        "hair": "Frisur",
+        "outfit": "Outfit",
+        "aging": "Gesundes Altern"
+      },
+      "approveRelease": "Freigeben und an Kunden senden",
+      "saveEdits": "Änderungen speichern",
+      "approveConfirmTitle": "Bericht freigeben?",
+      "approveConfirmMessage": "Damit werden der vollständige Bericht und der PDF-Download für den Kunden freigegeben. Das lässt sich nicht rückgängig machen.",
+      "approveConfirmLabel": "Freigeben"
+    },
+    "panel": {
+      "title": "Admin-Panel",
+      "subtitle": "Nutzer, Berichte prüfen und Zahlungen",
+      "eyebrow": "Administration",
+      "refresh": "Aktualisieren",
+      "unknownUser": "Unbekannter Nutzer",
+      "unlinkedReport": "Nicht verknüpfter Bericht",
+      "reportMeta": "ID …{id} · {date} · Score {score}",
+      "scoreLabel": "Score {score}",
+      "loadingWorkspace": "Admin-Bereich wird geladen...",
+      "reviewReports": "Berichte prüfen",
+      "recentClients": "Letzte Kunden",
+      "latestReports": "Neueste Berichte",
+      "reportCount": "{count} Berichte",
+      "pendingBanner": "{count} Bericht(e) warten auf Prüfung",
+      "processingBanner": "{count} Bericht(e) werden verarbeitet",
+      "pipelineRunning": "läuft · {stage}",
+      "tabs": {
+        "overview": "Dashboard",
+        "users": "Nutzer",
+        "review": "Berichte prüfen",
+        "payments": "Zahlungen"
+      },
+      "empty": {
+        "backendRequiredTitle": "Backend-API erforderlich",
+        "backendRequiredText": "Setze NEXT_PUBLIC_API_URL, um das Admin-Panel zu nutzen.",
+        "adminRequiredTitle": "Admin-Zugang erforderlich",
+        "adminRequiredText": "Melde dich mit einem Admin-Konto an, um Kunden und Berichte zu verwalten."
+      },
+      "stats": {
+        "users": "Nutzer",
+        "reports": "Berichte",
+        "pendingReview": "Prüfung ausstehend",
+        "approved": "Freigegeben",
+        "payments": "Zahlungen"
+      },
+      "filters": {
+        "all": "Alle"
+      },
+      "status": {
+        "pendingReview": "Prüfung ausstehend",
+        "approved": "freigegeben",
+        "draft": "Entwurf",
+        "paid": "bezahlt",
+        "completed": "abgeschlossen",
+        "pending": "ausstehend",
+        "created": "erstellt"
+      },
+      "pipelineStatus": {
+        "queued": "in Warteschlange",
+        "running": "läuft",
+        "ready": "bereit",
+        "failed": "fehlgeschlagen"
+      },
+      "actions": {
+        "approve": "Freigeben",
+        "open": "Öffnen",
+        "opening": "Wird geöffnet…",
+        "delete": "Löschen",
+        "pipelineRunning": "Verarbeitung…"
+      },
+      "errors": {
+        "cannotDeleteSelf": "Du kannst dein eigenes Admin-Konto nicht löschen."
+      },
+      "confirm": {
+        "deleteReportTitle": "Bericht löschen?",
+        "deleteReportMessage": "Dieser Bericht und das Assistenten-Gespräch werden dauerhaft entfernt.",
+        "deleteReportLabel": "Bericht löschen",
+        "deleteUserTitle": "Nutzerkonto löschen?",
+        "deleteUserMessage": "{name} ({email}) und alle verknüpften Berichte, Gespräche und Zahlungen löschen? Das lässt sich nicht rückgängig machen.",
+        "deleteUserLabel": "Nutzer löschen",
+        "approveTitle": "Bericht freigeben?",
+        "approveMessage": "Damit werden der vollständige Bericht und der PDF-Download für den Kunden freigegeben. Das lässt sich nicht rückgängig machen.",
+        "approveLabel": "Freigeben"
+      },
+      "users": {
+        "title": "Registrierte Nutzer",
+        "emptyTitle": "Noch keine Nutzer",
+        "emptyText": "Kundenregistrierungen erscheinen hier.",
+        "roleAdmin": "admin",
+        "roleUser": "user",
+        "columns": {
+          "name": "Name",
+          "email": "E-Mail",
+          "role": "Rolle",
+          "reports": "Berichte",
+          "joined": "Beigetreten",
+          "actions": "Aktionen"
+        }
+      },
+      "review": {
+        "title": "Berichte prüfen",
+        "subtitle": "Klick auf Öffnen, um das KI-Narrativ zu bearbeiten, zu speichern und für den Kunden freizugeben.",
+        "emptyTitle": "Keine Berichte",
+        "emptyText": "Keine Analysen passen zu diesem Filter."
+      },
+      "payments": {
+        "title": "Zahlungseinträge",
+        "subtitle": "Checkout-Verlauf von Stripe und PayPal",
+        "emptyTitle": "Noch keine Zahlungen",
+        "emptyText": "Abgeschlossene Checkouts erscheinen hier.",
+        "columns": {
+          "client": "Kunde",
+          "provider": "Anbieter",
+          "amount": "Betrag",
+          "status": "Status",
+          "date": "Datum"
+        }
+      }
+    }
+  },
+  "Pdf": {
+    "missingData": "Foto- und Analysedaten für den PDF-Export erforderlich",
+    "brandHeader": "MYFACE",
+    "pagePrefix": "SEITE  /",
+    "coverAesthetic": "Ästhetik",
+    "coverProtocol": "Protokoll",
+    "preparedFor": "ERSTELLT FÜR",
+    "edition": "AUSGABE",
+    "siteUrl": "MYFACE.CLUB",
+    "coverFooter": "VERTRAULICHES ÄSTHETIKPROTOKOLL",
+    "disclaimer": "Hinweis",
+    "policy": "Richtlinie",
+    "disclaimerPolicy": "Hinweisrichtlinie",
+    "privacyPolicy": "Datenschutzerklärung",
+    "readPrivacyPrefix": "Lies die vollständige Datenschutzerklärung ",
+    "privacyLink": "hier (myface.club)",
+    "companyName": "MyFace Inc",
+    "commissionedFor": "Der folgende Bericht wurde erstellt für",
+    "commissionedOn": "{name} im {month}.",
+    "projectedImagePending": "Projiziertes Bild ausstehend",
+    "recommendationTier": "Empfehlungsstufe",
+    "evidenceLifestyle": "Routine / Topisch",
+    "evidenceOtc": "Nicht-invasiv / OTC",
+    "evidenceReferClinician": "Arzt aufsuchen",
+    "dashProtocol": "PROTOKOLL",
+    "dashBefore": "VORHER",
+    "dashPotential": "POTENZIAL",
+    "dashKpiOverall": "Gesamt-Score",
+    "dashKpiEvaluated": "Ausgewertet",
+    "dashKpiEvaluatedValue": "{count} Punkte",
+    "dashKpiAccuracy": "Genauigkeit",
+    "dashKpiAnalysisTime": "Analysezeit",
+    "dashKpiAnalysisTimeFallback": "-",
+    "dashFacialAge": "Gesichtsalter",
+    "dashFacialAgeLabel": "CV-SCHÄTZUNG",
+    "dashFacialAgeVsBio": "Gesichtsalter vs. biologischer Altersbereich",
+    "dashAgeOutlier": "Ausreißer",
+    "dashFace": "FACE",
+    "dashBio": "BIO",
+    "dashYearsYounger": "{count} Jahre jünger",
+    "dashYearsOlder": "{count} Jahre älter",
+    "dashSameAge": "Gleiches Alter",
+    "dashOverview": "Überblick",
+    "dashHarmonyProfile": "Harmonieprofil",
+    "dashFeatureEvaluation": "Merkmalsbewertung",
+    "dashZone": "Zone",
+    "dashFinding": "Befund",
+    "dashReference": "Referenz",
+    "dashStatus": "Status",
+    "dashOk": "OK",
+    "dashReview": "PRÜFEN",
+    "dashTreatmentProtocol": "Behandlungsprotokoll",
+    "dashHinweis": "Hinweis: Empfehlungen sind informativ und nicht-invasiv. Sprich vor jeder klinischen Behandlung mit einem qualifizierten Dermatologen.",
+    "dashFooterModel": "MyFace · Modell v3.2",
+    "dashFooterMetrics": "{points} Auswertungspunkte",
+    "dashFaceMapForehead": "STIRN",
+    "dashFaceMapEyes": "AUGEN",
+    "dashFaceMapEyeL": "AUGE L",
+    "dashFaceMapEyeR": "AUGE R",
+    "dashFaceMapNose": "NASE",
+    "dashFaceMapCheeks": "WANGEN",
+    "dashFaceMapMouth": "MUND",
+    "dashFaceMapJawline": "KIEFERLINIE",
+    "dashPhase01Label": "PHASE 01",
+    "dashPhase01Title": "Basisroutine",
+    "dashPhase01Duration": "Sofort · Wochen 1-12",
+    "dashPhase02Label": "PHASE 02",
+    "dashPhase02Title": "Regeneration",
+    "dashPhase02Duration": "3 Monate · 3 Sitzungen",
+    "dashPhase03Label": "PHASE 03",
+    "dashPhase03Title": "Optimierung",
+    "dashPhase03Duration": "6+ Monate · langfristig"
+  },
+  "CvReport": {
+    "labels": {
+      "harmonious": "Harmonisch",
+      "balanced": "Ausgewogen",
+      "distinctive": "Charakteristisch",
+      "strong": "Kräftig",
+      "defined": "Definiert",
+      "soft": "Weich",
+      "wellProportioned": "Gut proportioniert",
+      "expressive": "Ausdrucksstark",
+      "subtle": "Dezent",
+      "elegant": "Elegant",
+      "compact": "Kompakt",
+      "proportioned": "Proportioniert",
+      "clear": "Klar",
+      "goodCondition": "Guter Zustand",
+      "needsAttention": "Braucht Aufmerksamkeit",
+      "natural": "Natürlich",
+      "healthy": "Gesund",
+      "monitor": "Beobachten",
+      "exceptional": "Außergewöhnlich",
+      "aboveAverage": "Überdurchschnittlich",
+      "average": "Durchschnittlich",
+      "belowAverage": "Unterdurchschnittlich",
+      "needsImprovement": "Verbesserungswürdig",
+      "highlySymmetric": "Hochgradig symmetrisch",
+      "quiteSymmetric": "Ziemlich symmetrisch",
+      "noticeableAsymmetry": "Spürbare Asymmetrie",
+      "wellBalanced": "Gut ausgewogen",
+      "goodBalance": "Gute Balance",
+      "slightVariation": "Leichte Abweichung",
+      "asymmetric": "Asymmetrisch",
+      "symmetric": "Symmetrisch",
+      "imbalanced": "Unausgewogen",
+      "idealBalance": "Ideale Balance",
+      "hyperFeminine": "Hyper feminin",
+      "hyperMasculine": "Hyper maskulin",
+      "veryMasculine": "Sehr maskulin",
+      "masculine": "Maskulin",
+      "moderate": "Mittel",
+      "feminine": "Feminin",
+      "veryFeminine": "Sehr feminin",
+      "narrow": "Schmal",
+      "wide": "Breit",
+      "oval": "Oval",
+      "square": "Quadratisch",
+      "round": "Rund",
+      "heart": "Herzförmig",
+      "oblong": "Länglich",
+      "long": "Lang",
+      "short": "Kurz",
+      "normal": "Normal",
+      "regionForehead": "Stirn",
+      "regionLeftCheek": "Linke Wange",
+      "regionRightCheek": "Rechte Wange",
+      "regionNoseBridge": "Nasenrücken",
+      "regionChin": "Kinn",
+      "regionJawLine": "Kieferlinie",
+      "regionEyes": "Augen",
+      "regionBrows": "Brauen",
+      "regionMouth": "Mund",
+      "regionJaw": "Kiefer",
+      "ratioNasoAural": "NASO-AURALES VERHÄLTNIS",
+      "ratioOrbitoNasal": "ORBITO-NASALES VERHÄLTNIS",
+      "ratioNasoOral": "NASO-ORALE PROPORTION",
+      "ratioOrbital": "ORBITALE PROPORTION",
+      "earGreaterNose": "Ohr > Nase",
+      "earLessNose": "Ohr < Nase",
+      "earApproxNose": "Ohr ≈ Nase",
+      "noseGreaterEye": "Nase > Auge",
+      "noseLessEye": "Nase < Auge",
+      "noseApproxEye": "Nase ≈ Auge",
+      "mouthGreaterNose": "Mund > Nase",
+      "mouthLessNose": "Mund < Nase",
+      "mouthApproxNose": "Mund ≈ Nase",
+      "spacingGreaterEye": "Abstand > Auge",
+      "spacingLessEye": "Abstand < Auge",
+      "spacingEqualEye": "Abstand = Auge",
+      "idealEarNose": "Ohr = Nase",
+      "idealNoseEye": "Nase = Auge",
+      "idealMouthNose": "Mund > Nase",
+      "idealSpacingEye": "Abstand = Auge"
+    }
+  },
   "Assistant": {
-    "title": "Beauty-Assistent",
-    "groundedBadge": "Basierend auf Ihren Daten",
-    "needsBackend": "Der Beauty-Assistent benötigt eine im Backend gespeicherte Bewertung, um geladen zu werden.",
-    "needsReport": "Schließen Sie zuerst eine Gesichtsanalyse ab, um über Ihren neuesten Bericht zu chatten.",
+    "title": "Beauty Assistant",
+    "groundedBadge": "Basierend auf deinen Daten",
+    "needsBackend": "Beauty Assistant braucht eine im Backend gespeicherte Analyse zum Laden.",
+    "needsReport": "Schließe zuerst eine Gesichtsanalyse ab, um über deinen neuesten Bericht zu chatten.",
     "loadFailed": "Assistent konnte nicht geladen werden",
     "unavailable": "Assistent nicht verfügbar",
     "loading": "Assistent wird geladen...",
-    "emptyTitle": "Stellen Sie Ihre erste Frage",
-    "emptySubtitle": "Beginnen Sie mit einem dieser berichtsbasierten Vorschläge.",
-    "placeholder": "Fragen Sie zu Ihrem Bericht...",
-    "placeholderShort": "Fragen Sie etwas",
-    "placeholderSending": "Geben Sie Ihre nächste Frage ein…",
-    "inputAria": "Nachricht an Beauty-Assistent",
+    "emptyTitle": "Stell deine erste Frage",
+    "emptySubtitle": "Starte mit einem dieser berichtsbezogenen Vorschläge.",
+    "placeholder": "Frag zu deinem Bericht...",
+    "placeholderShort": "Frag irgendetwas",
+    "placeholderSending": "Schreib deine nächste Frage…",
+    "inputAria": "Nachricht an Beauty Assistant",
     "sending": "Wird gesendet",
     "send": "Senden",
     "suggestions": {
       "priorities": "Was sind meine wichtigsten Verbesserungsprioritäten?",
       "skin": "Worauf sollte ich bei der Hautqualität achten?",
-      "hairstyle": "Welche Frisurenrichtung passt zu meiner Gesichtsform?",
+      "hairstyle": "Welche Frisurrichtung passt zu meiner Gesichtsform?",
       "progress": "Wie sollte ich den Fortschritt über 30 Tage verfolgen?"
     }
   },
   "AnalysisLimit": {
-    "eyebrow": "Ihr Paket",
-    "title": "Analyse-Limit erreicht",
-    "description": "Ihr Paket umfasst {limit} Gesichtsanalysen. Sie haben bereits {count} abgeschlossen. Weitere Analysen sind derzeit nicht verfügbar.",
-    "reportCta": "Bericht ansehen",
+    "eyebrow": "Dein Plan",
+    "title": "Analyselimit erreicht",
+    "description": "Dein Plan umfasst {limit} Gesichtsanalysen. Du hast bereits {count} abgeschlossen. Weitere Analysen sind gerade nicht verfügbar.",
+    "reportCta": "Deinen Bericht anzeigen",
     "dashboardCta": "Zurück zum Dashboard"
   },
   "AiVisuals": {
-    "title": "KI-Visualisierungsvorschauen",
+    "title": "KI-Visual-Vorschauen",
     "navTitle": "KI-Visuals",
     "navGroup": "Vorschauen",
     "loading": "KI-Visuals werden geladen…",
-    "description": "Haar-, Outfit- und Healthy-Aging-Vorschauen werden aus Ihrem originalen Frontporträt generiert. Sie ändern nicht Ihren gemessenen CV-Bericht.",
-    "needsReport": "Schließen Sie zuerst eine Gesichtsanalyse ab, um KI-Visuals für Ihren neuesten Bericht zu generieren.",
-    "needsAfter": "Frontporträt muss verfügbar sein, bevor KI-Visuals generiert werden können.",
+    "description": "Vorschauen zu Frisur, Outfit und gesundem Altern entstehen aus deinem originalen Frontporträt. Dein gemessener CV-Bericht bleibt unverändert.",
+    "needsReport": "Schließe zuerst eine Gesichtsanalyse ab, um KI-Visual-Vorschauen für deinen neuesten Bericht zu erzeugen.",
+    "needsAfter": "Das Frontporträt muss verfügbar sein, bevor KI-Visuals erzeugt werden.",
     "sections": {
-      "hair": "Frisuren-Vorschauen",
+      "hair": "Frisur-Vorschauen",
       "outfit": "Outfit-Stile",
-      "aging": "Healthy aging"
+      "aging": "Gesundes Altern"
     },
     "needsBackend": "Verfügbar für im Backend gespeicherte Berichte",
-    "generateTitle": "KI-Visuals generieren",
-    "regenerate": "Neu generieren",
-    "generate": "Visuals generieren",
-    "emptyTitle": "Noch keine KI-Visuals generiert",
-    "emptyDescription": "Visuals erscheinen automatisch nach KI-Generierung, oder nutzen Sie Generieren, sobald das Frontporträt bereit ist.",
-    "generationBlocked": "Generierung blockiert",
+    "generateTitle": "KI-Visuals erzeugen",
+    "regenerate": "Neu erzeugen",
+    "regenerateStyle": "Diesen Stil neu erzeugen",
+    "regenerateStyleTitle": "Nur die ausgewählte Stilvorschau neu erzeugen",
+    "generate": "Visuals erzeugen",
+    "emptyTitle": "Noch keine KI-Visuals erzeugt",
+    "emptyDescription": "Visuals erscheinen automatisch, wenn die KI-Erzeugung fertig ist. Oder nutze „Erzeugen“, sobald dein Frontporträt bereit ist.",
+    "generationBlocked": "Erzeugung blockiert",
     "promptReady": "Prompt bereit",
-    "imageUnavailable": "OpenAI-Bildgenerierung ist für diese Vorschau nicht verfügbar.",
-    "viewPrompt": "Prompt ansehen",
+    "imageUnavailable": "OpenAI-Bilderzeugung ist für diese Vorschau nicht verfügbar.",
+    "viewPrompt": "Prompt anzeigen",
     "openPreview": "Vorschau öffnen: {title}",
-    "openPreviewHint": "Zum Vergrößern klicken",
+    "openPreviewHint": "Klicken zum Vergrößern",
     "closePreview": "Vorschau schließen",
     "compareBefore": "Vorher",
     "compareAfter": "Nachher",
     "beforeUnavailable": "Originalporträt für den Vergleich nicht verfügbar.",
-    "ageCurrentBadge": "Jetzt",
-    "ageCurrentMeta": "Basis",
-    "ageCurrentTitle": "Original-Basis",
-    "ageCurrentBullet1": "Ihr originales Frontporträt",
-    "ageCurrentBullet2": "Ausgangspunkt für Aging-Vorschauen",
-    "ageCurrentBullet3": "Vergleich mit KI-Aging-Vorschauen",
+    "ageCurrentBadge": "Aktuell",
+    "ageCurrentMeta": "Basislinie",
+    "ageCurrentTitle": "Aktuelles Aussehen",
+    "ageCurrentTag": "Referenz",
+    "ageCurrentBlurb": "Dein Porträt etwa im Alter von {age}. Dies ist der Ausgangspunkt für die Vorschau.",
+    "ageCurrentBlurbNoAge": "Dein aktuelles Porträt. Dies ist der Ausgangspunkt für die Vorschau.",
+    "ageCurrentBullet1": "Dein originales Frontporträt",
+    "ageCurrentBullet2": "Ausgangspunkt für Altersvorschauen",
+    "ageCurrentBullet3": "Verglichen mit KI-Altersvorschauen",
     "agePlusBadge": "+{years} Jahre",
     "agePlusMeta": "+{years}",
-    "agePlusBullet1": "Projizierter Look in etwa {years} Jahren",
-    "agePlusBullet2": "Sanfte Healthy-Aging-Visualisierung",
-    "agePlusBullet3": "Nur zur Bildungsvorschau",
+    "agePlusTagNear": "Nahbereich",
+    "agePlusTagMid": "Mittelfristig",
+    "agePlusTagFar": "Längerfristig",
+    "agePlusBlurb": "Illustrative Vorschau etwa im Alter von {age} (+{years} Jahre).",
+    "agePlusBlurbNoAge": "Illustrative Vorschau etwa +{years} Jahre voraus.",
+    "ageEducationalNote": "* Nur zu Bildungszwecken, keine Prognose.",
+    "agePlusBullet1": "Projiziertes Aussehen in etwa {years} Jahren",
+    "agePlusBullet2": "Sanfte Visualisierung gesunden Alterns",
+    "agePlusBullet3": "Nur zur Information",
     "types": {
-      "hair": "Frisurenempfehlungen basierend auf Gesichtsform, Haaransatz und Gesamtgesichtsbalance.",
-      "outfit": "Farb- und Stylingkonzepte vom Schulterbereich aufwärts für eine gepflegte Porträtpräsentation.",
-      "aging": "Sanfte Healthy-Aging-Vorschau, nur für Bildungs- und Visualisierungszwecke gedacht.",
-      "default": "KI-Visualisierungskonzept."
+      "hair": "Frisurempfehlungen basierend auf Gesichtsform, Haaransatz und Gesamtbalance.",
+      "outfit": "Farb- und Stylingkonzepte von den Schultern aufwärts für ein poliertes Porträt.",
+      "aging": "Sanfte Vorschau gesunden Alterns, nur zur Information.",
+      "default": "KI-Visual-Konzept."
     },
     "panel": {
       "recommended": "Empfohlen",
       "qovesChoice": "Qoves Choice",
       "explanation": "Erklärung",
-      "selectStyle": "Stil wählen: {title}",
+      "selectStyle": "Stil auswählen: {title}",
       "attrs": {
         "maintenance": "Pflegeaufwand",
-        "layers": "Schichten",
+        "layers": "Stufen",
         "parting": "Scheitel",
-        "vibe": "Vibe",
+        "vibe": "Ausstrahlung",
         "occasion": "Anlass",
         "formality": "Formalität",
-        "palette": "Palette"
+        "palette": "Farbpalette"
       },
       "values": {
         "low": "Niedrig",
@@ -2164,19 +2199,19 @@
         "noPart": "Kein Scheitel",
         "side": "Seitlich",
         "center": "Mittig",
-        "masculine": "Männlich",
-        "soft": "Sanft",
-        "bold": "Mutig",
+        "masculine": "Maskulin",
+        "soft": "Weich",
+        "bold": "Deutlich",
         "modern": "Modern",
-        "polished": "Gepflegt",
+        "polished": "Poliert",
         "balanced": "Ausgewogen",
         "business": "Business",
-        "smartCasual": "Smart Casual",
+        "smartCasual": "Business-leger",
         "everyday": "Alltag",
-        "layered": "Lagen",
+        "layered": "Gestuft",
         "formal": "Formell",
         "smart": "Smart",
-        "casual": "Casual",
+        "casual": "Lässig",
         "neutral": "Neutral",
         "mixed": "Gemischt",
         "monochrome": "Monochrom",

@@ -1,6 +1,6 @@
 # Fixtures
 
-Local anonymized snapshots for debugging PDF/report logic without hitting Mongo.
+Local anonymized snapshots for debugging PDF/report logic without hitting the database.
 
 | File | Purpose |
 |------|---------|

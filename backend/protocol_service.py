@@ -105,7 +105,7 @@ async def enrich_assessment_nl_content(assessment: dict) -> dict:
 
 def _bundle_from_assessment(assessment: dict) -> Optional[dict]:
     if not _protocol_fields_present(assessment):
-        # Allow partial Mongo loads when any narrative fields exist
+        # Allow partial DB loads when any narrative fields exist
         pn = assessment.get("protocolNarrative")
         features = assessment.get("featureNarratives")
         if not pn and not features:
@@ -136,10 +136,10 @@ def _bundle_complete(bundle: Optional[dict]) -> bool:
 
 
 def load_protocol_bundle(assessment_id: str, assessment: Optional[dict] = None) -> Optional[dict]:
-    """Load protocol — Mongo wins when complete; else file; else partial Mongo."""
-    mongo_bundle = _bundle_from_assessment(assessment) if assessment else None
-    if mongo_bundle and _bundle_complete(mongo_bundle):
-        return mongo_bundle
+    """Load protocol — DB wins when complete; else file; else partial DB."""
+    db_bundle = _bundle_from_assessment(assessment) if assessment else None
+    if db_bundle and _bundle_complete(db_bundle):
+        return db_bundle
 
     storage = get_protocol_storage()
     stored = storage.load_protocol(assessment_id)
@@ -151,10 +151,10 @@ def load_protocol_bundle(assessment_id: str, assessment: Optional[dict] = None) 
             "storedAt": stored.get("storedAt"),
             "source": "storage",
         }
-        if _bundle_complete(file_bundle) or not mongo_bundle:
+        if _bundle_complete(file_bundle) or not db_bundle:
             return file_bundle
 
-    return mongo_bundle
+    return db_bundle
 
 
 async def persist_protocol_bundle(

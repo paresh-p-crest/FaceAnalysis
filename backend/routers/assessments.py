@@ -16,7 +16,6 @@ from ..media_storage import assessment_key, get_media_storage, media_key_from_re
 from ..photo_validation import validate_required_poses
 from ..ai_access import require_paid_ai_access
 from ..protocol_service import (
-    delete_stored_protocol,
     enrich_assessment_nl_content,
     ensure_ai_narrative,
     generate_and_store_protocol,
@@ -27,6 +26,7 @@ from ..protocol_service import (
 )
 from ..assessment_limits import require_assessment_slot
 from ..repositories.assessment_repository import (
+    count_submitted_assessments_for_user,
     create_assessment,
     delete_all_assessment_data,
     delete_assessment,
@@ -70,7 +70,13 @@ from ..report_status import (
     serialize_assessment,
     serialize_assessments,
 )
-from ..visual_generation import generate_visual_variants, load_pose_bytes
+from ..visual_generation import (
+    VARIANT_TYPES,
+    find_style_by_id,
+    generate_visual_variants,
+    load_pose_bytes,
+    merge_ai_visuals,
+)
 from ..answer_summary import format_answers_summary
 
 # Keep analyze_face out of module import — MediaPipe/matplotlib cold-start is minutes on Replit.
@@ -118,6 +124,7 @@ class AssessmentAdminReviewRequest(BaseModel):
 
 class AssessmentVisualsRequest(BaseModel):
     variants: list[str] = ["hair", "outfit", "aging"]
+    styleId: Optional[str] = None
 
 
 class ProtocolSectionRequest(BaseModel):
@@ -648,7 +655,20 @@ async def get_my_assessments(limit: int = 20, current_user: dict = Depends(get_c
     if not is_db_configured():
         raise HTTPException(status_code=503, detail="Database not configured.")
     limit = min(max(1, limit), 100)
-    return {"items": serialize_assessments(await list_assessments_for_user(current_user["id"], limit=limit), summary=True)}
+    items = serialize_assessments(
+        await list_assessments_for_user(current_user["id"], limit=limit),
+        summary=True,
+    )
+    submitted_count = await count_submitted_assessments_for_user(current_user["id"])
+    lifetime_submitted_count = await count_submitted_assessments_for_user(
+        current_user["id"],
+        include_deleted=True,
+    )
+    return {
+        "items": items,
+        "submittedCount": submitted_count,
+        "lifetimeSubmittedCount": lifetime_submitted_count,
+    }
 
 
 @router.delete("/assessments")
@@ -673,7 +693,6 @@ async def delete_assessment_by_id(
     deleted = await delete_assessment(assessment_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Assessment not found")
-    await delete_stored_protocol(assessment_id)
     return {"deleted": True, "assessmentId": assessment_id}
 
 
@@ -876,17 +895,60 @@ async def post_assessment_ai_visuals(
         )
 
     try:
-        ai_visuals = await generate_visual_variants(
-            answers=existing.get("answers") or {},
-            cv_report=cv_report,
-            metrics=analysis.get("metrics"),
-            variant_types=req.variants,
-            assessment_id=assessment_id,
-            assessment_photos=existing.get("photos"),
-            # projected_after=projected,
-            # require_projected_after=True,
-            require_projected_after=False,
-        )
+        if req.styleId:
+            existing_ai = existing.get("aiVisuals") or {}
+            existing_variants = existing_ai.get("variants") if isinstance(existing_ai, dict) else None
+            try:
+                variant_type, _ = find_style_by_id(
+                    req.styleId,
+                    cv_report,
+                    existing_variants=existing_variants if isinstance(existing_variants, list) else None,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            regenerated = await generate_visual_variants(
+                answers=existing.get("answers") or {},
+                cv_report=cv_report,
+                metrics=analysis.get("metrics"),
+                variant_types=[variant_type],
+                style_ids=[req.styleId],
+                assessment_id=assessment_id,
+                assessment_photos=existing.get("photos"),
+                require_projected_after=False,
+                existing_ai_visuals=existing_ai if isinstance(existing_ai, dict) else None,
+            )
+            ai_visuals = merge_ai_visuals(
+                existing_ai if isinstance(existing_ai, dict) else {},
+                regenerated,
+                style_id=req.styleId,
+            )
+        else:
+            selected = [v for v in (req.variants or []) if v in VARIANT_TYPES]
+            if not selected:
+                selected = list(VARIANT_TYPES)
+            existing_ai = existing.get("aiVisuals") or {}
+            regenerated = await generate_visual_variants(
+                answers=existing.get("answers") or {},
+                cv_report=cv_report,
+                metrics=analysis.get("metrics"),
+                variant_types=selected,
+                assessment_id=assessment_id,
+                assessment_photos=existing.get("photos"),
+                # projected_after=projected,
+                # require_projected_after=True,
+                require_projected_after=False,
+                existing_ai_visuals=existing_ai if isinstance(existing_ai, dict) else None,
+            )
+            if set(selected) >= set(VARIANT_TYPES):
+                ai_visuals = regenerated
+            else:
+                ai_visuals = merge_ai_visuals(
+                    existing_ai if isinstance(existing_ai, dict) else {},
+                    regenerated,
+                    replaced_types=selected,
+                )
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=400,

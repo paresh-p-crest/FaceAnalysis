@@ -97,7 +97,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
   const tErrors = useTranslations('Errors')
   const tCommon = useTranslations('Admin.common')
   const router = useRouter()
-  const { adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace } = useApp()
+  const { adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace, afterAssessmentDeleted } = useApp()
   const { assessments, payments, users, loading: resourceLoading, error: workspaceError } = adminWorkspace
   const [deletingId, setDeletingId] = useState('')
   const [updatingId, setUpdatingId] = useState('')
@@ -217,6 +217,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
           patchAdminWorkspace({
             assessments: assessments.filter((item) => item.id !== assessmentId),
           })
+          await afterAssessmentDeleted?.(assessmentId)
         } catch (err) {
           setError(translateApiError(err, tErrors))
         } finally {
@@ -477,7 +478,6 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
                 <div className="px-5 py-4 sm:px-6 border-b border-landing-divider flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-ink tracking-tight">{t('users.title')}</h2>
-                    <p className="text-xs text-ink-muted mt-0.5">{t('users.subtitle', { count: users.length })}</p>
                   </div>
                 </div>
                 {users.length === 0 ? (

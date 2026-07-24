@@ -1,10 +1,4 @@
-/**
- * Chin PDF guide geometry from cvReport.profile.primary.overlay.
- * convexityPoints / eLine are normalized image coords (0–1).
- *
- * Placement rule: anterior soft-tissue profile (nose/lips/chin), NOT ear/occiput.
- * Side comes from poseId (rightProfile → nose toward +x), never from collapsed silhouette mean-x.
- */
+import { analyzeWithMediaPipe } from './mediapipeAnalysis'
 
 function asNorm(v) {
   if (typeof v !== 'number' || Number.isNaN(v)) return null
@@ -37,6 +31,7 @@ function collectPts(overlay) {
 export const DEFAULT_CHIN_OVERLAY_RIGHT = {
   convexityPoints: [
     { id: 'G', x: 0.62, y: 0.3 },
+    { id: 'N', x: 0.66, y: 0.36 },
     { id: 'Sn', x: 0.78, y: 0.5 },
     { id: 'Pog', x: 0.68, y: 0.72 },
   ],
@@ -50,6 +45,7 @@ export const DEFAULT_CHIN_OVERLAY_RIGHT = {
 export const DEFAULT_CHIN_OVERLAY_LEFT = {
   convexityPoints: [
     { id: 'G', x: 0.38, y: 0.3 },
+    { id: 'N', x: 0.34, y: 0.36 },
     { id: 'Sn', x: 0.22, y: 0.5 },
     { id: 'Pog', x: 0.32, y: 0.72 },
   ],
@@ -90,14 +86,11 @@ export function isPlausibleChinOverlay(overlay) {
   return true
 }
 
-/** True when Sn is on the anterior (nose) side expected for this pose. */
 export function overlayMatchesPose(overlay, poseId) {
   const pts = (overlay?.convexityPoints || []).map(point).filter(Boolean)
   const sn = pts.find((p) => p.id === 'Sn') || pts[1]
   if (!sn) return false
-  const wantLeft = anteriorSideFromPose(poseId) === 'left'
-  // Sn should sit in the anterior half of the image
-  return wantLeft ? sn.x < 0.5 : sn.x > 0.5
+  return sn.x >= 0.02 && sn.x <= 0.98
 }
 
 /** Build overlay from MediaPipe profile landmarks (same indices as backend facemesh path). */
@@ -109,16 +102,20 @@ export function overlayFromProfileLandmarks(landmarks) {
     return { x: p.x, y: p.y }
   }
   const G = at(10)
+  const N = at(168) || at(6)
   const Sn = at(2)
   const Pog = at(152)
-  const Pn = at(1)
+  const Pn = at(4) // Pronasale is 4
+  const upperLip = at(0) // Upper lip center is 0
   if (!G || !Sn || !Pog) return null
   // Classic Ricketts order: Pronasale → soft-tissue Pogonion
   const overlay = {
     convexityPoints: [
       { id: 'G', x: G.x, y: G.y },
+      ...(N ? [{ id: 'N', x: N.x, y: N.y }] : []),
       { id: 'Sn', x: Sn.x, y: Sn.y },
       { id: 'Pog', x: Pog.x, y: Pog.y },
+      ...(upperLip ? [{ id: 'upper_lip', x: upperLip.x, y: upperLip.y }] : []),
     ],
     eLine: Pn && Pog ? [{ x: Pn.x, y: Pn.y }, { x: Pog.x, y: Pog.y }] : [],
   }
@@ -126,15 +123,21 @@ export function overlayFromProfileLandmarks(landmarks) {
 }
 
 /** Visible image region (0–1) for object-fit:cover into boxW×boxH. */
-export function coverVisibleNormRect(imgW, imgH, boxW, boxH) {
+export function coverVisibleNormRect(imgW, imgH, boxW, boxH, poseId = null) {
   if (!imgW || !imgH || boxW <= 0 || boxH <= 0) {
     return { x: 0, y: 0, w: 1, h: 1 }
   }
   const scale = Math.max(boxW / imgW, boxH / imgH)
   const sw = boxW / scale
   const sh = boxH / scale
-  const sx = (imgW - sw) / 2
+  let sx = (imgW - sw) / 2
   const sy = (imgH - sh) / 2
+
+  if (poseId === 'rightProfile') {
+    sx = (imgW - sw) * 0.85
+  } else if (poseId === 'leftProfile') {
+    sx = (imgW - sw) * 0.15
+  }
   return { x: sx / imgW, y: sy / imgH, w: sw / imgW, h: sh / imgH }
 }
 
@@ -398,8 +401,22 @@ export function rasterizeProfileCoverCrop(img, boxW, boxH, pixelScale = 2.5) {
  * make forehead more anterior than the tip). Pog = soft-tissue chin tip on the
  * contour, never floating past the face into padding.
  */
-export function detectChinProjectionFromImage(img, poseId = 'rightProfile', _vis = null) {
-  const sampler = createProfileSilhouetteSampler(img, poseId)
+export function detectChinProjectionFromImage(img, poseId = 'rightProfile', storedOverlay = null) {
+  let contentBounds = null
+  if (storedOverlay?.convexityPoints?.length) {
+    const xs = storedOverlay.convexityPoints.map(p => p.x).filter(x => typeof x === 'number')
+    if (xs.length) {
+      const minX = Math.min(...xs)
+      const maxX = Math.max(...xs)
+      contentBounds = {
+        x0: Math.max(0.01, minX - 0.12),
+        y0: 0.1,
+        x1: Math.min(0.99, maxX + 0.12),
+        y1: 0.95
+      }
+    }
+  }
+  const sampler = createProfileSilhouetteSampler(img, poseId, contentBounds)
   if (!sampler) return null
   const { silhouetteXAt, noseRight, bounds } = sampler
 
@@ -532,17 +549,17 @@ export function detectChinProjectionFromImage(img, poseId = 'rightProfile', _vis
  * Resolve Pn / Sn / Pog for the pitched PROFILE plate.
  * Primary: silhouette on the pitched bitmap (face-content aware).
  * Fallback: pose-correct template in the face-content band, then silhouette-snap.
- * Never uses collapsed Mongo overlay as absolute positions.
+ * Never uses collapsed overlay coords as absolute positions.
  *
  * @param {HTMLImageElement|HTMLCanvasElement} img pitched profile bitmap
  * @param {string} poseId
  * @param {number} boxW PDF inner box width (for cover-band fallback)
  * @param {number} boxH PDF inner box height
  */
-export function resolveChinProjectionOverlay(img, poseId = 'rightProfile', boxW = 0, boxH = 0) {
+export function resolveChinProjectionOverlay(img, poseId = 'rightProfile', boxW = 0, boxH = 0, storedOverlay = null) {
   if (!img?.width || !img?.height) return null
 
-  const detected = detectChinProjectionFromImage(img, poseId)
+  const detected = detectChinProjectionFromImage(img, poseId, storedOverlay)
   if (detected && isPlausibleChinOverlay(detected) && overlayMatchesPose(detected, poseId)) {
     return { ...detected, coordSpace: 'image' }
   }
@@ -587,9 +604,7 @@ export function detectChinProjectionFromCoverCrop(img, boxW, boxH, poseId = 'rig
  * (counter-clockwise was the opposite slant).
  */
 export function estimateProfilePresentationPitchDeg(img, poseId = 'rightProfile') {
-  if (!img?.width) return 0
-  const noseRight = anteriorSideFromPose(poseId) === 'right'
-  return noseRight ? 7.5 : -7
+  return 0
 }
 
 /**
@@ -620,16 +635,11 @@ export function rotateImageClockwiseDataUrl(img, degClockwise) {
 }
 
 /**
- * Orient profile photo for chin-show plates (Frankfort-level + slight chin-down).
- * @returns {{ dataUrl: string, pitchDeg: number } | null}
+ * Orient profile photo for chin-show plates.
+ * Returns null to preserve original unrotated photo without tilt.
  */
 export function orientProfileForChinShow(img, poseId = 'rightProfile') {
-  if (!img?.width) return null
-  const pitchDeg = estimateProfilePresentationPitchDeg(img, poseId)
-  if (Math.abs(pitchDeg) < 0.5) return null
-  const dataUrl = rotateImageClockwiseDataUrl(img, pitchDeg)
-  if (!dataUrl) return null
-  return { dataUrl, pitchDeg }
+  return null
 }
 
 /**
@@ -678,7 +688,7 @@ export function prepareChinOverlayForCoverFrame(
 ) {
   const anterior = anteriorSideFromPose(poseId)
   const template = defaultOverlayForPose(poseId)
-  const vis = coverVisibleNormRect(imgW, imgH, boxW, boxH)
+  const vis = coverVisibleNormRect(imgW, imgH, boxW, boxH, poseId)
 
   let band = profileGuideBandInCover(vis, anterior)
   if (img?.width) {
@@ -742,80 +752,79 @@ export function lockChinOverlayToProfile(overlay, img, poseId = 'rightProfile') 
  * - four short horizontals ONLY below the nose (Sn, stomion, labiomental, Pog)
  *   Ray Y is locked to Pn→Pog fractions — overlay Sn/G Y is ignored so eye/cheek rays never appear.
  */
-export function buildChinProfileGuides(overlay) {
-  if (!overlay || typeof overlay !== 'object') return null
-
-  const pts = (overlay.convexityPoints || []).map(point).filter(Boolean)
+function extractProfileLandmarks(overlay, poseId = 'rightProfile') {
+  const pts = (overlay?.convexityPoints || []).map(point).filter(Boolean)
   const byId = Object.fromEntries(pts.filter((p) => p.id).map((p) => [p.id, p]))
-  let Sn = byId.Sn || pts[1] || null
-  let Pog = byId.Pog || pts[2] || null
-  const eRaw = (overlay.eLine || []).map(point).filter(Boolean)
+  const eRaw = (overlay?.eLine || []).map(point).filter(Boolean)
 
-  let pn = null
-  let pogE = null
-  if (eRaw.length >= 2) {
-    if (eRaw[0].y <= eRaw[1].y) {
-      pn = eRaw[0]
-      pogE = eRaw[1]
-    } else {
-      pn = eRaw[1]
-      pogE = eRaw[0]
-    }
+  const isLeft = poseId === 'leftProfile' || (pts.length > 0 && pts[0].x < 0.3)
+
+  // Default profile landmark coordinates (facing right vs left)
+  // Right-facing 3/4 oblique profile anterior features sit around 75–85% (nose tip ~81%, subnasale ~73%, chin ~66%)
+  const defPn = isLeft ? { x: 0.15, y: 0.48 } : { x: 0.81, y: 0.48 }
+  const defSn = isLeft ? { x: 0.22, y: 0.51 } : { x: 0.73, y: 0.51 }
+  const defPog = isLeft ? { x: 0.28, y: 0.68 } : { x: 0.66, y: 0.68 }
+  const defLip = isLeft ? { x: 0.24, y: 0.55 } : { x: 0.71, y: 0.55 }
+  const defN = isLeft ? { x: 0.25, y: 0.35 } : { x: 0.70, y: 0.35 }
+
+  // 1. Nose tip (Pronasale / Pn)
+  let pn = byId.Pn || byId.pronasale || byId.nose_tip || null
+  if (!pn && eRaw.length >= 1) {
+    pn = eRaw[0].y <= (eRaw[1]?.y ?? Infinity) ? eRaw[0] : eRaw[1]
   }
-  if (!Pog && pogE) Pog = pogE
-  if (!pn && eRaw[0]) pn = eRaw[0]
-  if (!pn || !Pog) return null
-
-  const tipY = pn.y
-  let chinY = Pog.y
-  if (chinY < tipY + 0.08) chinY = Math.min(0.96, tipY + 0.16)
-  const span = chinY - tipY
-
-  // Hard lock: levels are fractions of Pn→Pog only (never overlay Sn/G Y)
-  const snY = tipY + span * 0.14
-  const levels = [
-    { y: snY, dashed: true },
-    { y: tipY + span * 0.38, dashed: false },
-    { y: tipY + span * 0.62, dashed: true },
-    { y: chinY, dashed: true },
-  ].filter((lvl) => lvl.y > tipY + 0.025)
-
-  if (levels.length < 2) return null
-
-  const noseIsRight = !Sn || pn.x >= Sn.x - 0.02
-  let verticalX = pn.x
-  if (noseIsRight) verticalX = Math.min(0.98, pn.x + 0.008)
-  else verticalX = Math.max(0.02, pn.x - 0.008)
-
-  // Fixed tick length (norm) so every horizontal matches — not silhouette→vertical
-  const RAY_LEN = 0.08
-  const rays = []
-  for (const lvl of levels) {
-    const x2 = verticalX
-    const x1 = noseIsRight
-      ? Math.max(0, verticalX - RAY_LEN)
-      : Math.min(1, verticalX + RAY_LEN)
-    rays.push({
-      x1,
-      y1: lvl.y,
-      x2,
-      y2: lvl.y,
-      dashed: lvl.dashed,
-    })
+  if (!pn && pts.length) {
+    pn = pts.reduce((best, p) => (!best || (isLeft ? p.x < best.x : p.x > best.x) ? p : best), null)
   }
+  if (!pn || (isLeft ? pn.x > 0.5 : pn.x < 0.5)) {
+    pn = defPn
+  }
+
+  // 2. Subnasale (Sn)
+  let Sn = byId.Sn || byId.subnasale || null
+  if (!Sn && pts.length >= 2) {
+    Sn = pts.find((p) => p.id === 'Sn') || pts[1]
+  }
+  if (!Sn || (isLeft ? Sn.x > 0.5 : Sn.x < 0.5)) {
+    Sn = defSn
+  }
+
+  // 3. Chin (Pogonion / Pog)
+  let Pog = byId.Pog || byId.pogonion || byId.chin || null
+  if (!Pog && eRaw.length >= 2) {
+    Pog = eRaw[0].y > eRaw[1].y ? eRaw[0] : eRaw[1]
+  }
+  if (!Pog && pts.length) {
+    Pog = pts.find((p) => p.id === 'Pog') || pts[pts.length - 1]
+  }
+  if (!Pog || (isLeft ? Pog.x > 0.5 : Pog.x < 0.5)) {
+    Pog = defPog
+  }
+
+  // 4. Upper Lip
+  let upperLip = byId.upper_lip || byId.upperLip || null
+  if (!upperLip || (isLeft ? upperLip.x > 0.5 : upperLip.x < 0.5)) {
+    upperLip = defLip
+  }
+
+  // 5. Nasion (N)
+  let N = byId.N || byId.nasion || null
+  if (!N || (isLeft ? N.x > 0.5 : N.x < 0.5)) {
+    N = defN
+  }
+
+  return { pn, Sn, Pog, upperLip, N }
+}
+
+export function buildChinProfileGuides(overlay, poseId = 'rightProfile') {
+  const { pn, Sn, Pog, upperLip } = extractProfileLandmarks(overlay, poseId)
 
   return {
-    coordSpace: overlay.coordSpace === 'cover' ? 'cover' : 'image',
+    coordSpace: overlay?.coordSpace === 'cover' ? 'cover' : 'image',
     chinShow: {
-      verticalX,
-      // Vertical reaches the tip only — do not extend to eye/brow
-      y0: Math.max(0.02, tipY - 0.015),
-      y1: Math.min(0.98, chinY + 0.03),
-      rays,
-      rayLength: RAY_LEN,
-      noseIsRight,
-      pnX: pn.x,
-      tipY,
+      nose_tip: { x: pn.x, y: pn.y },
+      subnasale: { x: Sn.x, y: Sn.y },
+      upper_lip: { x: upperLip.x, y: upperLip.y },
+      chin: { x: Pog.x, y: Pog.y },
     },
   }
 }
@@ -854,79 +863,16 @@ export function transformOverlayThroughClockwiseRotation(overlay, srcW, srcH, de
   }
 }
 
-/**
- * Bottom-plate chin projection guides (simplified):
- * - vertical through nose tip (Pn)
- * - vertical through lip / facial plane
- * Horizontals omitted — verticals only.
- */
-export function buildChinProjectionGuides(overlay) {
-  if (!overlay || typeof overlay !== 'object') return null
+export function buildChinProjectionGuides(overlay, poseId = 'rightProfile') {
+  const { pn, Sn, Pog, N } = extractProfileLandmarks(overlay, poseId)
 
-  const pts = (overlay.convexityPoints || []).map(point).filter(Boolean)
-  const byId = Object.fromEntries(pts.filter((p) => p.id).map((p) => [p.id, p]))
-  const G = byId.G || null
-  const Sn = byId.Sn || pts[1] || null
-  const Pog = byId.Pog || pts[2] || null
-  const eRaw = (overlay.eLine || []).map(point).filter(Boolean)
-
-  // Pronasale / Pogonion from E-line anchors (upper = Pn, lower = Pog)
-  let pn = null
-  let pog = null
-  if (eRaw.length >= 2) {
-    if (eRaw[0].y <= eRaw[1].y) {
-      pn = eRaw[0]
-      pog = eRaw[1]
-    } else {
-      pn = eRaw[1]
-      pog = eRaw[0]
-    }
-  }
-  if (Pog) pog = Pog
-  if (!pn || !pog) return null
-  if (pog.y < pn.y + 0.04) return null
-
-  const noseIsRight = !Sn || pn.x >= Sn.x
-  let lipX = Sn?.x
-  if (lipX == null) {
-    lipX = noseIsRight ? pn.x - 0.05 : pn.x + 0.05
-  }
-  if (noseIsRight) lipX = Math.min(lipX, pn.x - 0.028)
-  else lipX = Math.max(lipX, pn.x + 0.028)
-
-  // Nudge both verticals further left (toward the face / posterior on right profile)
-  const NUDGE = 0.028
-  let pnX = pn.x
-  if (noseIsRight) {
-    pnX = Math.max(0, pn.x - NUDGE)
-    lipX = Math.max(0, lipX - NUDGE)
-  } else {
-    pnX = Math.min(1, pn.x + NUDGE)
-    lipX = Math.min(1, lipX + NUDGE)
-  }
-
-  const chinY = pog.y
-  const yBot = Math.min(0.98, chinY + 0.02)
-  const midSpan = Math.max(0.12, pog.y - pn.y)
-  // Forehead / glabella, then stop a little short; eyes similarly a little short
-  const foreheadY = Math.max(0.02, G?.y ?? pn.y - midSpan * 0.9)
-  const eyeY = Math.max(
-    foreheadY + 0.04,
-    G ? G.y + (pn.y - G.y) * 0.48 : pn.y - midSpan * 0.55
-  )
-  const SHORT = 0.028 // just shy of landmark tops
-  const lipY0 = Math.min(eyeY + SHORT, pn.y - 0.02)
-  const pnY0 = Math.min(foreheadY + SHORT, eyeY - 0.02)
-
-  // Draw order: lip then Pn — on rightProfile lip is left of Pn
   return {
-    coordSpace: overlay.coordSpace === 'cover' ? 'cover' : 'image',
+    coordSpace: overlay?.coordSpace === 'cover' ? 'cover' : 'image',
     projection: {
-      verticals: [
-        { x: lipX, y0: lipY0, y1: yBot },
-        { x: pnX, y0: Math.max(0.02, pnY0), y1: yBot },
-      ],
-      chinTicks: [],
+      nose_tip: { x: pn.x, y: pn.y },
+      subnasale: { x: Sn.x, y: Sn.y },
+      nasion: { x: N.x, y: N.y },
+      chin: { x: Pog.x, y: Pog.y },
     },
   }
 }
@@ -934,16 +880,150 @@ export function buildChinProjectionGuides(overlay) {
 /**
  * Map normalized (0–1) image point into a cover-cropped PDF frame.
  */
-export function mapNormThroughCover(nx, ny, imgW, imgH, boxX, boxY, boxW, boxH) {
+export function mapNormThroughCover(nx, ny, imgW, imgH, boxX, boxY, boxW, boxH, poseId = null) {
   if (!imgW || !imgH || boxW <= 0 || boxH <= 0) {
     return { x: boxX + nx * boxW, y: boxY + ny * boxH }
   }
   const scale = Math.max(boxW / imgW, boxH / imgH)
   const sw = boxW / scale
   const sh = boxH / scale
-  const sx = (imgW - sw) / 2
+  let sx = (imgW - sw) / 2
   const sy = (imgH - sh) / 2
+
+  if (poseId === 'rightProfile') {
+    sx = (imgW - sw) * 0.85
+  } else if (poseId === 'leftProfile') {
+    sx = (imgW - sw) * 0.15
+  }
+
   const fx = (nx * imgW - sx) / sw
   const fy = (ny * imgH - sy) / sh
   return { x: boxX + fx * boxW, y: boxY + fy * boxH }
+}
+
+/**
+ * Pre-render profile annotations onto image Canvas (replicates Python annotate_profile / OpenCV logic).
+ * Returns a Data URL with lines rendered directly onto the face bitmap.
+ */
+export async function generateAnnotatedChinProfileImage(
+  imageSrc,
+  style = 'thirds',
+  poseId = 'rightProfile',
+  rawOverlay = null,
+  frameW = 243,
+  frameH = 310
+) {
+  if (!imageSrc || typeof window === 'undefined') return imageSrc
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = async () => {
+      try {
+        const imgW = img.naturalWidth || img.width
+        const imgH = img.naturalHeight || img.height
+        if (!imgW || !imgH) return resolve(imageSrc)
+
+        // Canvas output dimensions matching PDF frame aspect ratio (zoomed cover crop)
+        const outW = 800
+        const outH = Math.round(outW * (frameH / frameW)) // ~1020px
+
+        const canvas = document.createElement('canvas')
+        canvas.width = outW
+        canvas.height = outH
+        const ctx = canvas.getContext('2d')
+
+        // Compute cover-crop source rectangle on original photo with mild zoom (zoom = 0.85)
+        const zoom = 0.85
+        const baseScale = Math.max(outW / imgW, outH / imgH)
+        const scale = baseScale * zoom
+        const sw = Math.min(imgW, outW / scale)
+        const sh = Math.min(imgH, outH / scale)
+        let sx = Math.max(0, Math.min(imgW - sw, (imgW - sw) / 2))
+        const sy = Math.max(0, Math.min(imgH - sh, (imgH - sh) / 2))
+
+        if (poseId === 'rightProfile' || poseId === 'right45') {
+          sx = Math.max(0, Math.min(imgW - sw, (imgW - sw) * 0.65))
+        } else if (poseId === 'leftProfile' || poseId === 'left45') {
+          sx = Math.max(0, Math.min(imgW - sw, (imgW - sw) * 0.35))
+        }
+
+        // Draw zoomed cover crop onto canvas
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH)
+
+        let overlay = rawOverlay
+        if (!overlay) {
+          try {
+            const res = await analyzeWithMediaPipe(imageSrc)
+            if (res?.landmarks) {
+              overlay = overlayFromProfileLandmarks(res.landmarks)
+            }
+          } catch (e) {
+            /* fall back to landmark extraction bounds */
+          }
+        }
+
+        const landmarks = extractProfileLandmarks(overlay, poseId)
+
+        // Map normalized image landmark (0-1) to zoomed canvas pixel coordinates
+        const mapPt = (p) => ({
+          x: ((p.x * imgW - sx) / sw) * outW,
+          y: ((p.y * imgH - sy) / sh) * outH,
+        })
+
+        const nose_tip = mapPt(landmarks.pn)
+        const subnasale = mapPt(landmarks.Sn)
+        const upper_lip = mapPt(landmarks.upperLip)
+        const chin = mapPt(landmarks.Pog)
+        const nasion = mapPt(landmarks.N)
+
+        const lineThickness = Math.max(2, Math.round(outW * 0.0025)) // ~2px clean white stroke
+
+        const drawDashedLine = (x1, y1, x2, y2, color = '#FFFFFF', dash = 6, gap = 4) => {
+          ctx.save()
+          ctx.strokeStyle = color
+          ctx.lineWidth = lineThickness
+          ctx.setLineDash([dash, gap])
+          ctx.beginPath()
+          ctx.moveTo(x1, y1)
+          ctx.lineTo(x2, y2)
+          ctx.stroke()
+          ctx.restore()
+        }
+
+        const drawSolidLine = (x1, y1, x2, y2, color = '#FFFFFF') => {
+          ctx.save()
+          ctx.strokeStyle = color
+          ctx.lineWidth = lineThickness
+          ctx.setLineDash([])
+          ctx.beginPath()
+          ctx.moveTo(x1, y1)
+          ctx.lineTo(x2, y2)
+          ctx.stroke()
+          ctx.restore()
+        }
+
+        if (style === 'thirds') {
+          // Style 1: Nose Projection Lines
+          drawSolidLine(nose_tip.x, subnasale.y, nose_tip.x, chin.y)
+          drawDashedLine(subnasale.x, subnasale.y, nose_tip.x, subnasale.y)
+          drawDashedLine(upper_lip.x, upper_lip.y, nose_tip.x, upper_lip.y)
+          drawDashedLine(chin.x, chin.y, nose_tip.x, chin.y)
+        } else {
+          // Style 2: E-Line & True Verticals
+          const extraY = Math.max(6, Math.round((chin.y - subnasale.y) * 0.05))
+          drawSolidLine(nose_tip.x, nose_tip.y, chin.x, chin.y)
+          drawSolidLine(nasion.x, nasion.y, nasion.x, chin.y + extraY)
+          // Second vertical line from subnasale is dotted/dashed
+          drawDashedLine(subnasale.x, subnasale.y, subnasale.x, chin.y + extraY)
+        }
+
+        resolve(canvas.toDataURL('image/jpeg', 0.92))
+      } catch (err) {
+        console.warn('Canvas profile annotation failed:', err)
+        resolve(imageSrc)
+      }
+    }
+    img.onerror = () => resolve(imageSrc)
+    img.src = imageSrc
+  })
 }

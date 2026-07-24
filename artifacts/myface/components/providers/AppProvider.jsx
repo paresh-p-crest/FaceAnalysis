@@ -17,7 +17,7 @@ import {
   isReportModalHostPath,
 } from '../../utils/routes'
 import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser, saveSession } from '../../utils/authClient'
-import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMyAssessments, isFullCloudAssessment, submitAssessment } from '../../utils/apiClient'
+import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMyAssessments, fetchMyAssessmentsWithQuota, isFullCloudAssessment, submitAssessment } from '../../utils/apiClient'
 import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
@@ -25,13 +25,15 @@ import { dedupeAssessments } from '../../utils/assessmentDedupe'
 import { createHistoryId } from '../../utils/historyStorage'
 import { userHasAnalysisAccess } from '../../utils/paymentAccess'
 import { isAssessmentProcessing, isAssessmentSubmitted, userReportReady } from '../../utils/reportWorkflow'
-import {
-  canStartNewAssessment,
-  countSubmittedAssessments,
-  isAnalysisLimitReached,
-} from '../../utils/assessmentEligibility'
+import { canStartNewAssessment } from '../../utils/assessmentEligibility'
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../../utils/withTimeout'
 import { DEV_SAMPLE_QUESTIONNAIRE_ANSWERS } from '../../utils/devSampleAnswers'
+import {
+  answersHaveProgress,
+  clearAnalysisDraft,
+  loadAnalysisDraft,
+  saveAnalysisDraft,
+} from '../../utils/analysisDraftStorage'
 
 const EMPTY_PHOTOS = {
   front: null,
@@ -81,6 +83,8 @@ export function AppProvider({ children }) {
   const [openingReportId, setOpeningReportId] = useState(null)
   /** Full GET assessment used to open the report — reused by Report (no re-fetch). */
   const [cloudAssessment, setCloudAssessment] = useState(null)
+  /** Bumped after soft-delete so chat / AI visuals remount loaders pick the new latest. */
+  const [latestAssessmentEpoch, setLatestAssessmentEpoch] = useState(0)
   const [adminWorkspace, setAdminWorkspace] = useState({
     assessments: [],
     payments: [],
@@ -96,6 +100,8 @@ export function AppProvider({ children }) {
   const userRef = useRef(user)
   const adminCacheRef = useRef({ assessments: null, payments: null, users: null })
   const adminInflightRef = useRef(new Set())
+  /** Prevents re-applying local draft while already on /analysis. Reset when leaving the route. */
+  const draftRestoreAttemptedRef = useRef(false)
 
   const resetAdminWorkspace = useCallback(() => {
     adminCacheRef.current = { assessments: null, payments: null, users: null }
@@ -530,6 +536,58 @@ export function AppProvider({ children }) {
     }
   }, [pathname, analysisStep, resetAnalysisFlow])
 
+  /** Persist in-progress questionnaire/confirm draft while on /analysis. */
+  useEffect(() => {
+    if (!user?.id || pathname !== ROUTES.analysis) return
+    if (!answersHaveProgress(answers, INITIAL_ANSWERS)) return
+    const step = analysisStep
+    const persistable =
+      step === ANALYSIS_STEPS.QUESTIONNAIRE
+      || step === ANALYSIS_STEPS.CONFIRM
+      || step === ANALYSIS_STEPS.UPLOAD
+    if (!persistable) return
+    const storedStep =
+      step === ANALYSIS_STEPS.UPLOAD ? ANALYSIS_STEPS.CONFIRM : step
+    saveAnalysisDraft(user.id, {
+      answers,
+      analysisStep: storedStep,
+      scanId: activeScanIdRef.current || scanId,
+    })
+  }, [user?.id, pathname, answers, analysisStep, scanId])
+
+  /** Restore local questionnaire draft when entering /analysis. */
+  useEffect(() => {
+    if (!authReady || !user?.id) return
+    if (pathname !== ROUTES.analysis) {
+      draftRestoreAttemptedRef.current = false
+      return
+    }
+    if (draftRestoreAttemptedRef.current) return
+    draftRestoreAttemptedRef.current = true
+
+    const draft = loadAnalysisDraft(user.id)
+    if (!draft || !answersHaveProgress(draft.answers, INITIAL_ANSWERS)) return
+
+    let step = draft.analysisStep
+    if (
+      step === ANALYSIS_STEPS.UPLOAD
+      || step === ANALYSIS_STEPS.PREPARING
+      || step === ANALYSIS_STEPS.SCANNING
+    ) {
+      step = ANALYSIS_STEPS.CONFIRM
+    }
+    if (step !== ANALYSIS_STEPS.QUESTIONNAIRE && step !== ANALYSIS_STEPS.CONFIRM) {
+      step = ANALYSIS_STEPS.QUESTIONNAIRE
+    }
+
+    setAnswers(draft.answers)
+    if (draft.scanId) {
+      activeScanIdRef.current = draft.scanId
+      setScanId(draft.scanId)
+    }
+    setAnalysisStep(step)
+  }, [authReady, user?.id, pathname])
+
   useEffect(() => {
     if (!bootstrappedRef.current || !authReady) return
     if (pathname !== ROUTES.home) return
@@ -605,13 +663,18 @@ export function AppProvider({ children }) {
     if (!user || user.role === 'admin') return
     if (isBackendApiEnabled()) {
       try {
-        const list = await fetchMyAssessments(20)
-        const submittedCount = countSubmittedAssessments(list)
-        if (!canStartNewAssessment({ user, submittedCount })) return
+        const { submittedCount } = await fetchMyAssessmentsWithQuota(20)
+        if (!canStartNewAssessment({ user, submittedCount })) {
+          goTo(ROUTES.analysis)
+          return
+        }
       } catch {
+        goTo(ROUTES.analysis)
         return
       }
     }
+    clearAnalysisDraft(user.id)
+    draftRestoreAttemptedRef.current = true
     setAnswers(draft.answers || INITIAL_ANSWERS)
     setPhotos(hydratePhotosFromAssessment(draft))
     setDraftAssessmentId(draft.id)
@@ -648,19 +711,17 @@ export function AppProvider({ children }) {
         goTo(ROUTES.dashboard)
         return
       }
-      if (isBackendApiEnabled()) {
-        const list = await fetchMyAssessments(20)
-        const submittedCount = countSubmittedAssessments(list)
-        if (isAnalysisLimitReached({ user, submittedCount })) {
-          goTo(ROUTES.report)
-          return
-        }
-      }
+      // Package limit is enforced on /analysis (AnalysisEligibilityGate + backend 403).
+      // Do not send limit-reached users to /report — there may be no active report to open.
       setBillingMessage('')
+      clearAnalysisDraft(user.id)
+      draftRestoreAttemptedRef.current = true
       setAnswers(INITIAL_ANSWERS)
       setPhotos(EMPTY_PHOTOS)
       setAnalysis(null)
+      setCloudAssessment(null)
       setHistoryId(null)
+      if (reportModalOpen) closeReportModal()
       const sid = createHistoryId()
       activeScanIdRef.current = sid
       setScanId(sid)
@@ -675,7 +736,7 @@ export function AppProvider({ children }) {
       setBillingMessage('We could not verify payment access. Please check billing before starting analysis.')
       goTo(ROUTES.dashboard)
     }
-  }, [user, goTo])
+  }, [user, goTo, reportModalOpen, closeReportModal])
 
   const startAnalysisAfterPayment = useCallback(() => {
     if (!user) {
@@ -697,6 +758,7 @@ export function AppProvider({ children }) {
     try {
       if (!draftId) draftId = await ensureDraft()
       const result = await submitAssessment(draftId, { answers, provider: 'local' })
+      if (user?.id) clearAnalysisDraft(user.id)
       setPreparingAssessmentId(draftId)
       setAnalysis({ ...result, assessmentId: draftId, processing: true, savedToDb: true })
       goToPreparing()
@@ -707,7 +769,7 @@ export function AppProvider({ children }) {
     } catch (err) {
       setSubmitError(err?.message || 'Could not submit your analysis. Please try again.')
     }
-  }, [draftAssessmentId, ensureDraft, answers, goToPreparing])
+  }, [draftAssessmentId, ensureDraft, answers, goToPreparing, user?.id])
 
   const handlePreparingReady = useCallback((assessment) => {
     hydrateFromCloudAssessment(assessment)
@@ -729,6 +791,7 @@ export function AppProvider({ children }) {
   }, [resetAnalysisFlow, goTo])
 
   const logout = useCallback(() => {
+    if (user?.id) clearAnalysisDraft(user.id)
     clearSession()
     setUser(null)
     setHasAnalysisAccess(false)
@@ -742,7 +805,7 @@ export function AppProvider({ children }) {
     closeReportModal()
     resetAnalysisFlow()
     goTo(ROUTES.auth, { replace: true })
-  }, [goTo, closeReportModal, resetAnalysisFlow, resetAdminWorkspace])
+  }, [goTo, closeReportModal, resetAnalysisFlow, resetAdminWorkspace, user?.id])
 
   const handleAuthenticated = useCallback(async (nextUser) => {
     setUser(nextUser)
@@ -803,21 +866,87 @@ export function AppProvider({ children }) {
       hydrateFromCloudAssessment(full)
       setCloudAssessment(full)
       openReportModalOnRoute()
-    } catch (err) {
-      if (pathnameRef.current === originPath) {
-        alert(err?.message || 'Could not load report')
+    } catch {
+      if (pathnameRef.current !== originPath) return
+      setCloudAssessment(null)
+      setHistoryId(null)
+      setAnalysis((prev) => (
+        prev?.assessmentId && String(prev.assessmentId) === String(assessment.id) ? null : prev
+      ))
+      setLatestAssessmentEpoch((n) => n + 1)
+      closeReportModal()
+      if (pathnameRef.current !== ROUTES.dashboard) {
+        goTo(ROUTES.dashboard)
       }
     } finally {
       setOpeningReportId(null)
     }
-  }, [hydrateFromCloudAssessment, openReportModalOnRoute, cloudAssessment])
+  }, [hydrateFromCloudAssessment, openReportModalOnRoute, cloudAssessment, closeReportModal, goTo])
+
+  /** After soft-delete: drop stale binding and rebind report modal to the next active report if needed. */
+  const afterAssessmentDeleted = useCallback(async (deletedId) => {
+    if (!deletedId) return
+    setLatestAssessmentEpoch((n) => n + 1)
+
+    const boundCloud = cloudAssessment?.id && String(cloudAssessment.id) === String(deletedId)
+    const boundAnalysis = analysis?.assessmentId && String(analysis.assessmentId) === String(deletedId)
+    const wasModalOpen = reportModalOpen
+    const sectionId = reportSectionId || 'intro'
+
+    if (boundCloud) {
+      setCloudAssessment(null)
+      setHistoryId(null)
+    }
+    if (boundAnalysis) setAnalysis(null)
+
+    // Unbound delete: epoch refresh is enough for dashboard/report gates.
+    if (!boundCloud && !boundAnalysis) return
+    if (!wasModalOpen) return
+
+    try {
+      if (!isBackendApiEnabled()) {
+        closeReportModal()
+        return
+      }
+      const items = await fetchMyAssessments(20)
+      const submitted = (Array.isArray(items) ? items : []).filter(isAssessmentSubmitted)
+      const next = submitted.find((item) => userReportReady(item)) || null
+      if (next?.id) {
+        await viewCloudAssessment(next, sectionId)
+        return
+      }
+      closeReportModal()
+    } catch {
+      closeReportModal()
+    }
+  }, [
+    cloudAssessment,
+    analysis,
+    reportModalOpen,
+    reportSectionId,
+    closeReportModal,
+    viewCloudAssessment,
+  ])
 
   /** Navbar: open latest ready cloud report at a report section (overview / aiVisuals / beautyAssistant). */
   const openReportSection = useCallback(async (sectionId = 'intro') => {
     const originPath = pathnameRef.current
     setReportSectionId(sectionId)
-    if (reportModalOpen && (cloudAssessment || analysis)) {
-      return
+    const boundId = cloudAssessment?.id || analysis?.assessmentId
+    if (reportModalOpen && boundId) {
+      try {
+        if (isBackendApiEnabled()) {
+          await fetchAssessment(boundId)
+        }
+        return
+      } catch {
+        setCloudAssessment(null)
+        setHistoryId(null)
+        if (analysis?.assessmentId && String(analysis.assessmentId) === String(boundId)) {
+          setAnalysis(null)
+        }
+        // Bound assessment soft-deleted or missing — fall through to latest.
+      }
     }
     if (!user || user.role === 'admin') {
       if (pathnameRef.current !== originPath) return
@@ -838,12 +967,12 @@ export function AppProvider({ children }) {
       const items = await fetchMyAssessments(20)
       if (pathnameRef.current !== originPath) return
       const submitted = (Array.isArray(items) ? items : []).filter(isAssessmentSubmitted)
-      const latest = submitted[0]
-      if (!latest || !userReportReady(latest)) {
+      const next = submitted.find((item) => userReportReady(item)) || null
+      if (!next) {
         goTo(ROUTES.dashboard)
         return
       }
-      await viewCloudAssessment(latest, sectionId)
+      await viewCloudAssessment(next, sectionId)
     } catch (err) {
       if (pathnameRef.current !== originPath) return
       alert(err?.message || 'Could not open report')
@@ -914,6 +1043,8 @@ export function AppProvider({ children }) {
     openingReportId,
     cloudAssessment,
     setCloudAssessment,
+    latestAssessmentEpoch,
+    afterAssessmentDeleted,
     primaryPhoto,
     pathname,
     goTo,
@@ -958,9 +1089,9 @@ export function AppProvider({ children }) {
     answers, photos, analysis, historyId, dismissPaymentReturn, clearPaymentSession, grantPaidAccess, returnPath,
     billingMessage, paymentReturn, logoutConfirmOpen, scanId,
     adminWorkspace,
-    questionnaireStartAtEnd, analysisStep, reportModalOpen, reportSectionId, reportToolbar, openingReportId, cloudAssessment, primaryPhoto, pathname,
+    questionnaireStartAtEnd, analysisStep, reportModalOpen, reportSectionId, reportToolbar, openingReportId, cloudAssessment, latestAssessmentEpoch, primaryPhoto, pathname,
     preparingAssessmentId, draftAssessmentId, submitError,
-    goTo, goToStage, openDashboard, openHistory, openBilling, startStripeCheckout, openAuth, openReportSection, startNewAnalysis, resumeDraftAnalysis,
+    goTo, goToStage, openDashboard, openHistory, openBilling, startStripeCheckout, openAuth, openReportSection, afterAssessmentDeleted, startNewAnalysis, resumeDraftAnalysis,
     startAnalysisAfterPayment, logout,
     handleAuthenticated, updateSessionUser, viewHistoryItem, viewCloudAssessment,
     adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace,

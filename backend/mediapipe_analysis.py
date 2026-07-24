@@ -15,11 +15,21 @@ import mediapipe as mp
 
 
 _detector = None
+_detector_low_conf = None
 
 
-def _get_detector():
+def _get_detector(low_confidence: bool = False):
     """Lazy-init the MediaPipe FaceMesh detector."""
-    global _detector
+    global _detector, _detector_low_conf
+    if low_confidence:
+        if _detector_low_conf is None:
+            _detector_low_conf = mp.solutions.face_mesh.FaceMesh(
+                static_image_mode=True,
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.2,
+            )
+        return _detector_low_conf
     if _detector is None:
         _detector = mp.solutions.face_mesh.FaceMesh(
             static_image_mode=True,
@@ -49,8 +59,13 @@ def analyze_with_mediapipe(image_bytes: bytes) -> dict:
         raise ValueError("Could not decode image")
 
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    detector = _get_detector()
+    detector = _get_detector(low_confidence=False)
     results = detector.process(rgb)
+
+    if not results.multi_face_landmarks:
+        # Retry with low confidence detector for side profiles / non-front poses
+        detector_low = _get_detector(low_confidence=True)
+        results = detector_low.process(rgb)
 
     if not results.multi_face_landmarks:
         raise ValueError("No face detected by MediaPipe")

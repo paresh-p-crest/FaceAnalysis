@@ -1,0 +1,127 @@
+===== CELL 0 (markdown) =====
+# Side Profile Aesthetic Lines
+This notebook analyzes a side profile image and draws aesthetic reference lines as requested.
+
+===== CELL 1 (code) =====
+!pip install -q mediapipe opencv-python matplotlib numpy
+
+===== CELL 2 (code) =====
+import cv2
+import mediapipe as mp
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Function to draw dashed lines
+def draw_dashed_line(img, pt1, pt2, color, thickness=2, dash_length=5):
+    dist = np.linalg.norm(np.array(pt1) - np.array(pt2))
+    if dist == 0: return
+    dashes = int(dist / dash_length)
+    for i in range(dashes):
+        start = [int(pt1[0] + (pt2[0] - pt1[0]) * i / dashes), int(pt1[1] + (pt2[1] - pt1[1]) * i / dashes)]
+        end = [int(pt1[0] + (pt2[0] - pt1[0]) * (i + 0.5) / dashes), int(pt1[1] + (pt2[1] - pt1[1]) * (i + 0.5) / dashes)]
+        cv2.line(img, tuple(start), tuple(end), color, thickness)
+
+===== CELL 3 (markdown) =====
+## 1. Load the Image
+Run this cell to open a pop-up window and select your side profile image.
+
+===== CELL 4 (code) =====
+import tkinter as tk
+from tkinter import filedialog
+
+# Hide the main tkinter window
+root = tk.Tk()
+root.withdraw()
+root.attributes('-topmost', True) # Bring to front
+
+# Open file dialog to upload image
+print("Opening file dialog... Please select an image.")
+IMAGE_PATH = filedialog.askopenfilename(
+    title="Select Side Profile Image",
+    filetypes=[("Image files", "*.jpg *.jpeg *.png")]
+)
+root.destroy()
+
+if not IMAGE_PATH:
+    print("No image selected.")
+    image = None
+else:
+    print(f"Selected image: {IMAGE_PATH}")
+    image = cv2.imread(IMAGE_PATH)
+    if image is None:
+        print(f"Error: Could not load image at {IMAGE_PATH}. Please check the path.")
+    else:
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        plt.figure(figsize=(6, 6))
+        plt.imshow(image_rgb)
+        plt.axis('off')
+        plt.title("Original Image")
+        plt.show()
+
+===== CELL 5 (markdown) =====
+## 2. Generate Analysis
+
+===== CELL 6 (code) =====
+if image is not None:
+    mp_face_mesh = mp.solutions.face_mesh
+    with mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.2) as face_mesh:
+        results = face_mesh.process(image_rgb)
+
+        if results.multi_face_landmarks:
+            landmarks = results.multi_face_landmarks[0].landmark
+            h, w, _ = image.shape
+
+            def get_pt(idx):
+                return (int(landmarks[idx].x * w), int(landmarks[idx].y * h))
+
+            # Extracting required landmarks
+            nose_tip = get_pt(4)       # Pronasale
+            subnasale = get_pt(2)      # Base of nose
+            nasion = get_pt(168)       # Bridge of nose
+            upper_lip = get_pt(0)      # Upper lip center
+            chin = get_pt(152)         # Pogonion / Menton
+
+            # Prepare images for top and bottom analysis styles
+            img_top = image_rgb.copy()
+            img_bottom = image_rgb.copy()
+            
+            line_color = (255, 255, 255)
+            thickness = 2
+            
+            # --- Style 1: Nose Projection Lines (Top Image) ---
+            # Vertical line at nose tip's X coordinate, spanning from subnasale's Y to chin's Y
+            cv2.line(img_top, (nose_tip[0], subnasale[1]), (nose_tip[0], chin[1]), line_color, thickness)
+            # Horizontal dashed lines to the nose tip vertical line
+            draw_dashed_line(img_top, subnasale, (nose_tip[0], subnasale[1]), line_color, thickness)
+            draw_dashed_line(img_top, upper_lip, (nose_tip[0], upper_lip[1]), line_color, thickness)
+            draw_dashed_line(img_top, chin, (nose_tip[0], chin[1]), line_color, thickness)
+
+            # --- Style 2: E-line and True Verticals (Bottom Image) ---
+            # Ricketts' E-line (Nose tip to Chin)
+            cv2.line(img_bottom, nose_tip, chin, line_color, thickness)
+            # Zero Meridian (Vertical from Nasion)
+            cv2.line(img_bottom, nasion, (nasion[0], chin[1] + 20), line_color, thickness)
+            # Subnasale Perpendicular (Vertical from Subnasale)
+            cv2.line(img_bottom, subnasale, (subnasale[0], chin[1] + 20), line_color, thickness)
+
+            # Display side-by-side
+            fig, axs = plt.subplots(1, 2, figsize=(16, 8))
+            axs[0].imshow(img_top)
+            axs[0].axis('off')
+            axs[0].set_title('Nose Projection Proportions (Top Image Style)')
+
+            axs[1].imshow(img_bottom)
+            axs[1].axis('off')
+            axs[1].set_title('E-Line & True Verticals (Bottom Image Style)')
+
+            plt.tight_layout()
+            plt.show()
+            
+            # Save results
+            cv2.imwrite('analysis_top_style.jpg', cv2.cvtColor(img_top, cv2.COLOR_RGB2BGR))
+            cv2.imwrite('analysis_bottom_style.jpg', cv2.cvtColor(img_bottom, cv2.COLOR_RGB2BGR))
+            print("Saved output images to 'analysis_top_style.jpg' and 'analysis_bottom_style.jpg'")
+        else:
+            print("No face detected. Please ensure the side profile image is clear.")
+
+

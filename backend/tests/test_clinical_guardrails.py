@@ -255,7 +255,7 @@ def test_hair_json_schema_per_title_body_limits():
     by_title = {p["properties"]["title"]["enum"][0]: p["properties"]["body"]["maxLength"] for p in prefixes}
     assert by_title["Hair Style"] == 2000
     assert by_title["Hair Loss"] == 1500
-    assert by_title["Hair Health"] == 1000
+    assert by_title["Hair Health"] == 450
     assert schema["properties"]["subsections"]["items"]["properties"]["body"]["maxLength"] == 2000
 
 

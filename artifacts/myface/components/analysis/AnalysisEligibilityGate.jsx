@@ -4,15 +4,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { CreditCard, Loader2, Upload } from 'lucide-react'
 import { Link, useRouter } from '../../i18n/navigation'
-import { fetchMyAssessmentDraft, fetchMyAssessments, isBackendApiEnabled } from '../../utils/apiClient'
+import { fetchMyAssessmentDraft, fetchMyAssessmentsWithQuota, isBackendApiEnabled } from '../../utils/apiClient'
 import {
   canStartNewAssessment,
-  countSubmittedAssessments,
   isAnalysisLimitReached,
   MAX_SUBMITTED_ASSESSMENTS_PER_PACKAGE,
 } from '../../utils/assessmentEligibility'
-import { adminTabToPath } from '../../utils/adminPanel'
 import { isAssessmentSubmitted } from '../../utils/reportWorkflow'
+import { adminTabToPath } from '../../utils/adminPanel'
 import { ROUTES } from '../../utils/routes'
 import { translateApiError } from '../../utils/translateApiError'
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../../utils/withTimeout'
@@ -31,6 +30,7 @@ export function AnalysisEligibilityGate({
   const tLimit = useTranslations('AnalysisLimit')
   const tErrors = useTranslations('Errors')
   const [submittedCount, setSubmittedCount] = useState(0)
+  const [hasActiveReport, setHasActiveReport] = useState(false)
   const [draftItem, setDraftItem] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -51,6 +51,7 @@ export function AnalysisEligibilityGate({
     if (!user || user.role === 'admin' || !isBackendApiEnabled()) {
       if (!cancelled()) {
         setSubmittedCount(0)
+        setHasActiveReport(false)
         setDraftItem(null)
         setLoading(false)
       }
@@ -61,19 +62,20 @@ export function AnalysisEligibilityGate({
       setError('')
     }
     try {
-      const [list, draft] = await withTimeout(
-        Promise.all([fetchMyAssessments(20), fetchMyAssessmentDraft()]),
+      const [page, draft] = await withTimeout(
+        Promise.all([fetchMyAssessmentsWithQuota(20), fetchMyAssessmentDraft()]),
         DEFAULT_FETCH_TIMEOUT_MS,
         'Analysis eligibility load timed out',
       )
       if (cancelled()) return
-      const submitted = (Array.isArray(list) ? list : []).filter(isAssessmentSubmitted)
-      setSubmittedCount(countSubmittedAssessments(submitted))
+      setSubmittedCount(page.submittedCount)
+      setHasActiveReport((page.items || []).some(isAssessmentSubmitted))
       setDraftItem(draft)
     } catch (err) {
       if (cancelled()) return
       setError(translateApiError(err, tErrors))
       setSubmittedCount(0)
+      setHasActiveReport(false)
       setDraftItem(null)
     } finally {
       if (!cancelled()) setLoading(false)
@@ -181,12 +183,18 @@ export function AnalysisEligibilityGate({
             })}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href={ROUTES.report} className="btn-primary w-full sm:w-auto">
-              {tLimit('reportCta')}
-            </Link>
+            {hasActiveReport ? (
+              <Link href={ROUTES.report} className="btn-primary w-full sm:w-auto">
+                {tLimit('reportCta')}
+              </Link>
+            ) : null}
             <Link
               href={ROUTES.dashboard}
-              className="text-sm font-medium text-ink-muted hover:text-brand transition-colors"
+              className={
+                hasActiveReport
+                  ? 'text-sm font-medium text-ink-muted hover:text-brand transition-colors'
+                  : 'btn-primary w-full sm:w-auto'
+              }
             >
               {tLimit('dashboardCta')}
             </Link>

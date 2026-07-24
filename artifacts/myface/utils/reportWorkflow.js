@@ -71,8 +71,9 @@ export function clientAwaitingReviewMessage() {
   return 'Your report will be displayed once our team has reviewed it. PDF download will be enabled after approval.'
 }
 
-export function canDownloadReportPdf(status, requiresApproval = true) {
+export function canDownloadReportPdf(status, requiresApproval = true, isAdmin = false) {
   if (isDevAutoApproveEnabled) return true
+  if (isAdmin) return true
   if (!requiresApproval) return true
   return isReportApproved(status)
 }
