@@ -56,5 +56,8 @@ CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 CORS_ORIGIN_REGEX = 'https://.*\.(replit\.dev|repl\.co)'
 MEDIA_STORAGE_BACKEND = "replit"
 
+[userenv.development]
+PUBLIC_APP_URL = "https://3eb6e6db-88cf-4911-b87e-0ae0fd50ce81-00-ah0mxmpdefkb.pike.replit.dev"
+
 [objectStorage]
 defaultBucketID = "replit-objstore-88176689-d2b8-439d-bb1a-b81fab8693ef"
