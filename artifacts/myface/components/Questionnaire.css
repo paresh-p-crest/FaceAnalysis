@@ -55,8 +55,12 @@
   }
 
   .questionnaire-welcome__content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
     margin: 0;
-    padding: 56px 0 24px;
+    padding: 24px 0 32px;
     max-width: none;
   }
 
