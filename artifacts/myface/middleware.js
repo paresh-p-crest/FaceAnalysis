@@ -59,6 +59,14 @@ export default function middleware(request) {
   if (pathname === '/' && request.method === 'GET' && isExplicitHealthProbe(request)) {
     return NextResponse.json({ ok: true }, { status: 200 })
   }
+
+  // German is the product default. An explicitly selected NEXT_LOCALE cookie
+  // still wins, but the browser's Accept-Language must not change the first
+  // visit to English.
+  if (!request.cookies.get('NEXT_LOCALE')?.value) {
+    request.cookies.set('NEXT_LOCALE', routing.defaultLocale)
+  }
+
   return handleI18n(request)
 }
 
