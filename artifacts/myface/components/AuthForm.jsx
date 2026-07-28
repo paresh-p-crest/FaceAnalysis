@@ -233,7 +233,7 @@ export default function AuthForm({ onAuthenticated }) {
           <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight whitespace-pre-line">
             {isRegister ? t('sidebarTitleSignUp') : t('sidebarTitleSignIn')}
           </h1>
-          <p className="text-sm text-slate-300 leading-relaxed max-w-md">
+          <p className="text-sm text-slate-300 leading-relaxed max-w-xl">
             {isRegister ? t('sidebarDescriptionSignUp') : t('sidebarDescriptionSignIn')}
           </p>
         </div>
