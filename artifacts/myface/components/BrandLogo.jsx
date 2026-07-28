@@ -1,5 +1,5 @@
 /** Exact brand wordmark asset — use instead of styled “MyFace” text. */
-export const BRAND_WORDMARK_SRC = '/brand/myface-wordmark.png'
+export const BRAND_WORDMARK_SRC = '/brand/myface-wordmark.svg'
 
 const SIZES = {
   sm: { height: 22 },
