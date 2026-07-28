@@ -241,12 +241,13 @@ export default function AuthForm({ onAuthenticated }) {
 
       {/* Right: form panel */}
       <div className="relative z-10 w-full lg:w-[40%] flex flex-col justify-between p-5 sm:p-12 lg:p-16 bg-transparent lg:bg-surface-card dark:bg-surface border-l-0 lg:border-l border-surface-border">
-        <div className="absolute top-4 right-4 z-20 sm:top-6 sm:right-6">
+        <div className="hidden lg:block absolute top-4 right-4 z-20 sm:top-6 sm:right-6">
           <LocaleSwitcher />
         </div>
 
-        <div className="lg:hidden mb-6 px-1">
+        <div className="lg:hidden mb-6 flex items-center justify-between border-b border-[#d9e5e1] px-1 pb-4">
           <BrandLogo size="md" />
+          <LocaleSwitcher />
         </div>
 
         <form
