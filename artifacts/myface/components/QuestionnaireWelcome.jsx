@@ -9,8 +9,8 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
 
   const STATS = [
     { icon: Fingerprint, value: '170+', label: t('statsLandmarks') },
-    { icon: Clock, value: '5 min', label: t('statsDuration') },
-    { icon: Scan, value: '100%', label: t('statsPersonalized') },
+    { icon: Clock, value: '20+', label: t('statsDuration') },
+    { icon: Scan, value: '100 %', label: t('statsPersonalized') },
   ]
 
   return (
