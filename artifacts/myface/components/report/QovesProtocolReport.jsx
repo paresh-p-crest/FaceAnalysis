@@ -935,7 +935,7 @@ export default function QovesProtocolReport({
       </div>
       {!aiNarrative?.content && !protocolNarrative?.closing?.length && (
         <p className="text-[10px] text-amber-700 mt-3 font-sans">
-          Configure OpenAI for richer per-feature narrative, or use admin AI narrative for closing copy.
+          Configure the narrative provider for richer per-feature copy, or use the admin narrative for closing copy.
         </p>
       )}
     </SectionBlock>

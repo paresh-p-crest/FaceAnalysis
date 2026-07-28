@@ -18,10 +18,10 @@ export async function generateMetadata({ params }) {
   const meta = messages.Metadata || {}
 
   return {
-    title: meta.title || 'MyFace - AI Facial Analysis',
+    title: meta.title || 'MyFace - Facial Analysis',
     description:
       meta.description ||
-      'AI-powered facial analysis for aesthetic insights and personalized recommendations.',
+      'Precise facial analysis for aesthetic insights and personalized recommendations.',
     icons: {
       icon: [{ url: '/favicon.png', type: 'image/png' }],
       shortcut: '/favicon.png',

@@ -1,7 +1,7 @@
 {
   "Metadata": {
-    "title": "MyFace - AI Facial Analysis",
-    "description": "AI-powered facial analysis for aesthetic insights and personalized recommendations."
+    "title": "MyFace - Facial Analysis",
+    "description": "Precise facial analysis for aesthetic insights and personalized recommendations."
   },
   "Nav": {
     "adminPanel": "Admin Panel",
@@ -9,7 +9,7 @@
     "analysisHistory": "Analysis History",
     "billing": "Billing",
     "report": "Report",
-    "aiVisuals": "AI Visuals",
+    "aiVisuals": "Visuals",
     "chatAssistant": "Chat Assistant",
     "account": "Account",
     "settings": "Settings",
@@ -57,7 +57,7 @@
     "sidebarTitleSignIn": "Welcome back\nto MyFace",
     "sidebarTitleSignUp": "Start your\nMyFace journey",
     "sidebarDescriptionSignIn": "Access your dashboard to explore your personalized aesthetic plan and take the next step.",
-    "sidebarDescriptionSignUp": "Create an account to unlock facial analysis, clinical reports, and AI visual previews.",
+    "sidebarDescriptionSignUp": "Create an account to unlock facial analysis, clinical reports, and visual previews.",
     "switchToSignInHint": "Already have an account? Use Sign in above.",
     "switchToSignUpHint": "New here? Use Sign up above to create an account."
   },
@@ -298,7 +298,7 @@
       "neck": "Neck",
       "ears": "Ears",
       "skin": "Skin",
-      "aiVisuals": "AI Visuals",
+      "aiVisuals": "Visuals",
       "beautyAssistant": "Beauty Assistant",
       "pastAssessments": "Past Assessments"
     },
@@ -572,7 +572,7 @@
       "editPdfNarrative": "Edit PDF narrative",
       "narrative": "Narrative",
       "editAfterImage": "Edit After Image",
-      "editAiVisuals": "Edit AI Visuals",
+      "editAiVisuals": "Edit Visuals",
       "approve": "Approve",
       "pdf": "PDF",
       "pdfAfterApproval": "PDF download is available after admin approval",
@@ -595,7 +595,7 @@
     },
     "featureSection": {
       "personalizedProtocol": "Personalized Protocol",
-      "protocolSubtitle": "AI-generated recommendations based on your analysis"
+      "protocolSubtitle": "Personalized recommendations based on your analysis"
     },
     "averageness": {
       "unavailable": "Prototypicality data is not available for this assessment.",
@@ -1061,7 +1061,7 @@
     "trust": {
       "clinical": "Clinically-informed analysis",
       "photosNeverStored": "Your photos are never stored",
-      "aiPowered": "AI-powered, dermatologist-reviewed"
+      "aiPowered": "Precisely analyzed, dermatologist-reviewed"
     },
     "options": {
       "goals": {
@@ -1401,7 +1401,7 @@
     "welcome": {
       "backToDashboard": "← Back to Dashboard",
       "title": "Your personalized facial analysis starts here",
-      "description": "Answer a few quick questions so we can tailor your report to your goals, skin concerns, and demographics. Then upload a photo for AI-powered analysis.",
+      "description": "Answer a few quick questions so we can tailor your report to your goals, skin concerns, and demographics. Then upload a photo for analysis.",
       "statsLandmarks": "Facial landmarks",
       "statsDuration": "Full assessment",
       "statsPersonalized": "Personalized",
@@ -1706,12 +1706,12 @@
     "deleteAssessmentFailed": "Failed to delete assessment",
     "clearAssessmentsFailed": "Failed to clear assessments",
     "clearPaymentsFailed": "Failed to clear payments",
-    "generateNarrativeFailed": "Failed to generate AI narrative",
+    "generateNarrativeFailed": "Failed to generate narrative",
     "loadProtocolFailed": "Failed to load protocol",
-    "generateProtocolFailed": "Failed to generate AI protocol",
+    "generateProtocolFailed": "Failed to generate protocol",
     "generateProtocolSectionFailed": "Failed to generate protocol section",
     "generateProjectedAfterFailed": "Failed to generate projected AFTER image",
-    "generateVisualsFailed": "Failed to generate AI visuals",
+    "generateVisualsFailed": "Failed to generate visuals",
     "loadAssistantFailed": "Failed to load assistant conversation",
     "assistantUnavailable": "Beauty Assistant is not working right now. Please try again later.",
     "downloadPdfFailed": "Failed to download report PDF",
@@ -1769,16 +1769,16 @@
       "titleImages": "Generated images — {id}",
       "titleAfter": "Projected AFTER image — {id}",
       "titleNarrative": "PDF narrative — {id}",
-      "titleVisuals": "AI visuals — {id}",
-      "subtitleImages": "Regenerate the projected AFTER and any hair, outfit, or aging AI visual.",
+      "titleVisuals": "Visuals — {id}",
+      "subtitleImages": "Regenerate the projected AFTER and any hair, outfit, or aging visual.",
       "subtitleAfter": "Generate or refresh the full-face projected AFTER used in the protocol and PDF.",
       "subtitleNarrative": "Generate whole or per-section protocol text, edit subsections, then save.",
       "subtitleVisuals": "Regenerate the full gallery or any single hair, outfit, or aging preview.",
       "sectionAfter": "Projected AFTER",
-      "sectionVisuals": "AI visuals",
+      "sectionVisuals": "Visuals",
       "statusApproved": "Approved",
       "statusPendingReview": "Pending review",
-      "generateWhole": "Generate AI narrative for whole PDF",
+      "generateWhole": "Generate narrative for whole PDF",
       "protocolSectionLabel": "Protocol section",
       "generateSection": "Generate section",
       "adminNotes": "Admin notes",
@@ -1800,10 +1800,10 @@
       "closePreview": "Close preview",
       "afterReady": "Projected AFTER ready",
       "noAfterYet": "No projected AFTER yet. Generate one to use it on all protocol/PDF AFTER slots.",
-      "generateAllVisuals": "Generate all AI visuals",
-      "regenerateAllVisuals": "Regenerate all AI visuals",
+      "generateAllVisuals": "Generate all visuals",
+      "regenerateAllVisuals": "Regenerate all visuals",
       "regenerateVisual": "Regenerate",
-      "noVisualsYet": "No AI visuals yet. Generate the gallery, then regenerate any individual style.",
+      "noVisualsYet": "No visuals yet. Generate the gallery, then regenerate any individual style.",
       "visualType": {
         "hair": "Hairstyle",
         "outfit": "Outfit",
@@ -1907,7 +1907,7 @@
       },
       "review": {
         "title": "Review reports",
-        "subtitle": "Click Open to edit AI narrative, save, then approve for the client.",
+        "subtitle": "Click Open to edit the narrative, save, then approve for the client.",
         "emptyTitle": "No reports",
         "emptyText": "No assessments match this filter."
       },
@@ -2114,29 +2114,29 @@
     "dashboardCta": "Back to dashboard"
   },
   "AiVisuals": {
-    "title": "AI Visual Previews",
-    "navTitle": "AI Visuals",
+    "title": "Visual Previews",
+    "navTitle": "Visuals",
     "navGroup": "Previews",
-    "loading": "Loading AI visuals…",
+    "loading": "Loading visuals…",
     "description": "Hair, outfit, and healthy-aging previews are generated from your original front portrait. They do not change your measured CV report.",
-    "needsReport": "Complete a facial analysis first to generate AI visual previews for your latest report.",
-    "needsAfter": "Front portrait must be available before generating AI visuals.",
+    "needsReport": "Complete a facial analysis first to generate visual previews for your latest report.",
+    "needsAfter": "Front portrait must be available before generating visuals.",
     "sections": {
       "hair": "Hairstyle previews",
       "outfit": "Outfit styles",
       "aging": "Healthy aging"
     },
     "needsBackend": "Available for backend-saved reports",
-    "generateTitle": "Generate AI visuals",
+    "generateTitle": "Generate visuals",
     "regenerate": "Regenerate",
     "regenerateStyle": "Regenerate this style",
     "regenerateStyleTitle": "Regenerate only the selected style preview",
     "generate": "Generate Visuals",
-    "emptyTitle": "No AI visuals generated yet",
-    "emptyDescription": "Visuals appear automatically after AI generation completes, or use Generate when your front portrait is ready.",
+    "emptyTitle": "No visuals generated yet",
+    "emptyDescription": "Visuals appear automatically after generation completes, or use Generate when your front portrait is ready.",
     "generationBlocked": "Generation blocked",
     "promptReady": "Prompt ready",
-    "imageUnavailable": "OpenAI image generation is unavailable for this preview.",
+    "imageUnavailable": "Image generation is unavailable for this preview.",
     "viewPrompt": "View prompt",
     "openPreview": "Open preview: {title}",
     "openPreviewHint": "Click to enlarge",
@@ -2152,7 +2152,7 @@
     "ageCurrentBlurbNoAge": "Your current portrait. This is the starting reference point for the preview.",
     "ageCurrentBullet1": "Your original front portrait",
     "ageCurrentBullet2": "Starting point for aging previews",
-    "ageCurrentBullet3": "Compared against AI aging previews",
+    "ageCurrentBullet3": "Compared against aging previews",
     "agePlusBadge": "+{years} years",
     "agePlusMeta": "+{years}",
     "agePlusTagNear": "Near term",
@@ -2168,7 +2168,7 @@
       "hair": "Hairstyle recommendations based on face shape, hairline, and overall facial balance.",
       "outfit": "Shoulder-up color and styling concepts for a polished portrait presentation.",
       "aging": "Gentle healthy-aging preview, intended for educational visualization only.",
-      "default": "AI visual concept."
+      "default": "Visual concept."
     },
     "panel": {
       "recommended": "Recommended",

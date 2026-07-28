@@ -1,7 +1,7 @@
 {
   "Metadata": {
-    "title": "MyFace - KI-Gesichtsanalyse",
-    "description": "KI-gestützte Gesichtsanalyse für ästhetische Einblicke und persönliche Empfehlungen."
+    "title": "MyFace - Gesichtsanalyse",
+    "description": "Präzise Gesichtsanalyse für ästhetische Einblicke und persönliche Empfehlungen."
   },
   "Nav": {
     "adminPanel": "Admin-Panel",
@@ -9,7 +9,7 @@
     "analysisHistory": "Analyseverlauf",
     "billing": "Abrechnung",
     "report": "Bericht",
-    "aiVisuals": "KI-Visuals",
+    "aiVisuals": "Visuals",
     "chatAssistant": "Chat-Assistent",
     "account": "Konto",
     "settings": "Einstellungen",
@@ -56,7 +56,7 @@
     "sidebarTitleSignIn": "Deine Analyse.\nDein persönlicher Plan.",
     "sidebarTitleSignUp": "Starte deine\nMyFace-Reise",
     "sidebarDescriptionSignIn": "Willkommen zurück bei MyFace. Entdecke deine individuelle Gesichtsanalyse und erfahre, wie du dein Aussehen gezielt und nachhaltig verbessern kannst.",
-    "sidebarDescriptionSignUp": "Erstell ein Konto und schalt Gesichtsanalyse, klinische Berichte und KI-Visuals frei.",
+    "sidebarDescriptionSignUp": "Erstell ein Konto und schalt Gesichtsanalyse, klinische Berichte und Visuals frei.",
     "switchToSignInHint": "Schon ein Konto? Klick oben auf „Anmelden“.",
     "switchToSignUpHint": "Noch kein Konto? Jetzt registrieren",
     "signInCta": "Bei MyFace anmelden"
@@ -298,7 +298,7 @@
       "neck": "Hals",
       "ears": "Ohren",
       "skin": "Haut",
-      "aiVisuals": "KI-Visuals",
+      "aiVisuals": "Visuals",
       "beautyAssistant": "Beauty Assistant",
       "pastAssessments": "Frühere Analysen"
     },
@@ -578,7 +578,7 @@
       "editPdfNarrative": "PDF-Narrativ bearbeiten",
       "narrative": "Narrativ",
       "editAfterImage": "AFTER-Bild bearbeiten",
-      "editAiVisuals": "KI-Visuals bearbeiten",
+      "editAiVisuals": "Visuals bearbeiten",
       "approve": "Freigeben",
       "pdf": "PDF",
       "pdfAfterApproval": "PDF-Download nach Admin-Freigabe verfügbar",
@@ -601,7 +601,7 @@
     },
     "featureSection": {
       "personalizedProtocol": "Persönliches Protokoll",
-      "protocolSubtitle": "KI-generierte Empfehlungen auf Basis deiner Analyse"
+      "protocolSubtitle": "Personalisierte Empfehlungen auf Basis deiner Analyse"
     },
     "averageness": {
       "unavailable": "Prototypikalitätsdaten sind für diese Analyse nicht verfügbar.",
@@ -1067,7 +1067,7 @@
     "trust": {
       "clinical": "Klinisch fundierte Analyse",
       "photosNeverStored": "Deine Fotos werden nie gespeichert",
-      "aiPowered": "KI-gestützt, dermatologisch geprüft"
+      "aiPowered": "Präzise analysiert, dermatologisch geprüft"
     },
     "options": {
       "goals": {
@@ -1407,7 +1407,7 @@
     "welcome": {
       "backToDashboard": "← Zurück zum Dashboard",
       "title": "Deine persönliche Gesichtsanalyse beginnt hier",
-      "description": "Beantworte ein paar kurze Fragen, damit wir deinen Bericht an deine Ziele, Hautthemen und demografischen Angaben anpassen können. Danach lädst du ein Foto für die KI-Analyse hoch.",
+      "description": "Beantworte ein paar kurze Fragen, damit wir deinen Bericht an deine Ziele, Hautthemen und demografischen Angaben anpassen können. Danach lädst du ein Foto für die Analyse hoch.",
       "statsLandmarks": "Messpunkte",
       "statsDuration": "Vollständige Analyse",
       "statsPersonalized": "Personalisiert",
@@ -1712,12 +1712,12 @@
     "deleteAssessmentFailed": "Analyse konnte nicht gelöscht werden",
     "clearAssessmentsFailed": "Analysen konnten nicht gelöscht werden",
     "clearPaymentsFailed": "Zahlungen konnten nicht gelöscht werden",
-    "generateNarrativeFailed": "KI-Narrativ konnte nicht erzeugt werden",
+    "generateNarrativeFailed": "Narrativ konnte nicht erzeugt werden",
     "loadProtocolFailed": "Protokoll konnte nicht geladen werden",
-    "generateProtocolFailed": "KI-Protokoll konnte nicht erzeugt werden",
+    "generateProtocolFailed": "Protokoll konnte nicht erzeugt werden",
     "generateProtocolSectionFailed": "Protokollabschnitt konnte nicht erzeugt werden",
     "generateProjectedAfterFailed": "Projiziertes AFTER-Bild konnte nicht erzeugt werden",
-    "generateVisualsFailed": "KI-Visuals konnten nicht erzeugt werden",
+    "generateVisualsFailed": "Visuals konnten nicht erzeugt werden",
     "loadAssistantFailed": "Assistenten-Gespräch konnte nicht geladen werden",
     "assistantUnavailable": "Beauty Assistant funktioniert gerade nicht. Versuch es später erneut.",
     "downloadPdfFailed": "Berichts-PDF konnte nicht heruntergeladen werden",
@@ -1775,16 +1775,16 @@
       "titleImages": "Generierte Bilder · {id}",
       "titleAfter": "Projiziertes AFTER-Bild · {id}",
       "titleNarrative": "PDF-Narrativ · {id}",
-      "titleVisuals": "KI-Visuals · {id}",
+      "titleVisuals": "Visuals · {id}",
       "subtitleImages": "Erzeuge das projizierte AFTER und einzelne Frisur-, Outfit- oder Altersvorschauen neu.",
       "subtitleAfter": "Erzeuge oder aktualisiere das projizierte AFTER-Gesichtsbild für Protokoll und PDF.",
       "subtitleNarrative": "Erzeuge den Protokolltext ganz oder abschnittsweise, bearbeite Unterabschnitte und speichere.",
       "subtitleVisuals": "Erzeuge die gesamte Galerie neu oder einzelne Frisur-, Outfit- oder Altersvorschauen.",
       "sectionAfter": "Projiziertes AFTER",
-      "sectionVisuals": "KI-Visuals",
+      "sectionVisuals": "Visuals",
       "statusApproved": "Freigegeben",
       "statusPendingReview": "Prüfung ausstehend",
-      "generateWhole": "KI-Narrativ für gesamtes PDF erzeugen",
+      "generateWhole": "Narrativ für gesamtes PDF erzeugen",
       "protocolSectionLabel": "Protokollabschnitt",
       "generateSection": "Abschnitt erzeugen",
       "adminNotes": "Admin-Notizen",
@@ -1806,10 +1806,10 @@
       "closePreview": "Vorschau schließen",
       "afterReady": "Projiziertes AFTER bereit",
       "noAfterYet": "Noch kein projiziertes AFTER. Erzeuge eines, damit es in allen Protokoll-/PDF-AFTER-Slots genutzt wird.",
-      "generateAllVisuals": "Alle KI-Visuals erzeugen",
-      "regenerateAllVisuals": "Alle KI-Visuals neu erzeugen",
+      "generateAllVisuals": "Alle Visuals erzeugen",
+      "regenerateAllVisuals": "Alle Visuals neu erzeugen",
       "regenerateVisual": "Neu erzeugen",
-      "noVisualsYet": "Noch keine KI-Visuals. Erzeuge die Galerie, danach kannst du einzelne Stile neu erzeugen.",
+      "noVisualsYet": "Noch keine Visuals. Erzeuge die Galerie, danach kannst du einzelne Stile neu erzeugen.",
       "visualType": {
         "hair": "Frisur",
         "outfit": "Outfit",
@@ -1913,7 +1913,7 @@
       },
       "review": {
         "title": "Berichte prüfen",
-        "subtitle": "Klick auf Öffnen, um das KI-Narrativ zu bearbeiten, zu speichern und für den Kunden freizugeben.",
+        "subtitle": "Klick auf Öffnen, um das Narrativ zu bearbeiten, zu speichern und für den Kunden freizugeben.",
         "emptyTitle": "Keine Berichte",
         "emptyText": "Keine Analysen passen zu diesem Filter."
       },
@@ -2120,29 +2120,29 @@
     "dashboardCta": "Zurück zum Dashboard"
   },
   "AiVisuals": {
-    "title": "KI-Visual-Vorschauen",
-    "navTitle": "KI-Visuals",
+    "title": "Visual-Vorschauen",
+    "navTitle": "Visuals",
     "navGroup": "Vorschauen",
-    "loading": "KI-Visuals werden geladen…",
+    "loading": "Visuals werden geladen…",
     "description": "Vorschauen zu Frisur, Outfit und gesundem Altern entstehen aus deinem originalen Frontporträt. Dein gemessener CV-Bericht bleibt unverändert.",
-    "needsReport": "Schließe zuerst eine Gesichtsanalyse ab, um KI-Visual-Vorschauen für deinen neuesten Bericht zu erzeugen.",
-    "needsAfter": "Das Frontporträt muss verfügbar sein, bevor KI-Visuals erzeugt werden.",
+    "needsReport": "Schließe zuerst eine Gesichtsanalyse ab, um Visual-Vorschauen für deinen neuesten Bericht zu erzeugen.",
+    "needsAfter": "Das Frontporträt muss verfügbar sein, bevor Visuals erzeugt werden.",
     "sections": {
       "hair": "Frisur-Vorschauen",
       "outfit": "Outfit-Stile",
       "aging": "Gesundes Altern"
     },
     "needsBackend": "Verfügbar für im Backend gespeicherte Berichte",
-    "generateTitle": "KI-Visuals erzeugen",
+    "generateTitle": "Visuals erzeugen",
     "regenerate": "Neu erzeugen",
     "regenerateStyle": "Diesen Stil neu erzeugen",
     "regenerateStyleTitle": "Nur die ausgewählte Stilvorschau neu erzeugen",
     "generate": "Visuals erzeugen",
-    "emptyTitle": "Noch keine KI-Visuals erzeugt",
-    "emptyDescription": "Visuals erscheinen automatisch, wenn die KI-Erzeugung fertig ist. Oder nutze „Erzeugen“, sobald dein Frontporträt bereit ist.",
+    "emptyTitle": "Noch keine Visuals erzeugt",
+    "emptyDescription": "Visuals erscheinen automatisch, sobald die Erstellung fertig ist. Oder nutze „Erzeugen“, sobald dein Frontporträt bereit ist.",
     "generationBlocked": "Erzeugung blockiert",
     "promptReady": "Prompt bereit",
-    "imageUnavailable": "OpenAI-Bilderzeugung ist für diese Vorschau nicht verfügbar.",
+    "imageUnavailable": "Bilderzeugung ist für diese Vorschau nicht verfügbar.",
     "viewPrompt": "Prompt anzeigen",
     "openPreview": "Vorschau öffnen: {title}",
     "openPreviewHint": "Klicken zum Vergrößern",
@@ -2158,7 +2158,7 @@
     "ageCurrentBlurbNoAge": "Dein aktuelles Porträt. Dies ist der Ausgangspunkt für die Vorschau.",
     "ageCurrentBullet1": "Dein originales Frontporträt",
     "ageCurrentBullet2": "Ausgangspunkt für Altersvorschauen",
-    "ageCurrentBullet3": "Verglichen mit KI-Altersvorschauen",
+      "ageCurrentBullet3": "Verglichen mit Altersvorschauen",
     "agePlusBadge": "+{years} Jahre",
     "agePlusMeta": "+{years}",
     "agePlusTagNear": "Nahbereich",
@@ -2174,7 +2174,7 @@
       "hair": "Frisurempfehlungen basierend auf Gesichtsform, Haaransatz und Gesamtbalance.",
       "outfit": "Farb- und Stylingkonzepte von den Schultern aufwärts für ein poliertes Porträt.",
       "aging": "Sanfte Vorschau gesunden Alterns, nur zur Information.",
-      "default": "KI-Visual-Konzept."
+      "default": "Visual-Konzept."
     },
     "panel": {
       "recommended": "Empfohlen",

@@ -488,7 +488,7 @@ export default function Report({
         }
       } catch (err) {
         if (!cancelled && needsNarrative) {
-          setAiNarrativeError(err.message || 'AI narrative unavailable')
+          setAiNarrativeError(err.message || 'Narrative unavailable')
         }
       } finally {
         if (!cancelled) {
