@@ -8,21 +8,22 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
   const t = useTranslations('Questionnaire.welcome')
 
   const STATS = [
-    { icon: Fingerprint, value: '468+', label: t('statsLandmarks') },
+    { icon: Fingerprint, value: '170+', label: t('statsLandmarks') },
     { icon: Clock, value: '5 min', label: t('statsDuration') },
     { icon: Scan, value: '100%', label: t('statsPersonalized') },
   ]
 
   return (
-    <div className="min-h-screen flex bg-surface-card dark:bg-surface animate-fade-up">
+    <div className="questionnaire-welcome min-h-screen flex bg-surface-card dark:bg-surface animate-fade-up">
       {/* Left Column: Welcome */}
-      <div className="w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-surface-card dark:bg-surface border-r border-surface-border">
-        <div className="flex items-center justify-between">
+      <div className="questionnaire-welcome__main w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-surface-card dark:bg-surface border-r border-surface-border">
+        <div className="questionnaire-welcome__header flex items-center justify-between">
+          <BrandLogo size="lg" className="questionnaire-welcome__mobile-logo" />
           {onBackToDashboard ? (
             <button
               type="button"
               onClick={onBackToDashboard}
-              className="flex items-center gap-1 text-xs font-semibold text-ink-muted hover:text-ink transition-colors uppercase tracking-wider"
+              className="questionnaire-welcome__back flex items-center gap-1 text-xs font-semibold text-ink-muted hover:text-ink transition-colors uppercase tracking-wider"
             >
               {t('backToDashboard')}
             </button>
@@ -32,8 +33,17 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
         </div>
 
         {/* Content */}
-        <div className="my-auto py-12 max-w-lg space-y-8">
+        <div className="questionnaire-welcome__content my-auto py-12 max-w-lg space-y-8">
           <div>
+            {onBackToDashboard && (
+              <button
+                type="button"
+                onClick={onBackToDashboard}
+                className="questionnaire-welcome__mobile-back mb-7 flex items-center gap-1 text-[10px] font-semibold text-ink-muted hover:text-ink transition-colors uppercase tracking-[0.09em]"
+              >
+                {t('backToDashboard')}
+              </button>
+            )}
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-ink leading-tight tracking-tight">
               {t('title')}
             </h1>
@@ -42,19 +52,19 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="questionnaire-welcome__stats grid grid-cols-3 gap-3">
             {STATS.map((stat) => (
-              <div key={stat.label} className="p-4 rounded-xl border border-surface-border bg-surface-warm/50 dark:bg-surface-raised/50 text-center">
+              <div key={stat.label} className="questionnaire-welcome__stat p-4 rounded-xl border border-surface-border bg-surface-warm/50 dark:bg-surface-raised/50 text-center">
                 <stat.icon className="w-5 h-5 text-brand mx-auto mb-2" />
                 <div className="text-xl font-bold text-ink">{stat.value}</div>
-                <div className="text-[10px] text-ink-muted mt-1 uppercase font-medium tracking-wider">{stat.label}</div>
+                <div className="questionnaire-welcome__stat-label text-[10px] text-ink-muted mt-1 uppercase font-medium tracking-wider">{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
 
         {/* Start Button */}
-        <div>
+        <div className="questionnaire-welcome__action">
           <button onClick={onBegin} className="btn-primary w-full flex items-center px-6 py-4 text-sm">
             <span className="flex-1 text-left">{t('getStarted')}</span>
             <span className="text-white/40 mr-4">|</span>

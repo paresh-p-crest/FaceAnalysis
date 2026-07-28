@@ -1,5 +1,129 @@
 /* ── Questionnaire Split-screen Styles ── */
 
+.questionnaire-welcome {
+  background:
+    radial-gradient(circle at 88% 4%, rgba(177, 218, 204, 0.25), transparent 28rem),
+    var(--color-surface-card);
+}
+
+.questionnaire-welcome__mobile-logo {
+  display: none;
+}
+
+.questionnaire-welcome__mobile-back {
+  display: none;
+}
+
+.questionnaire-welcome__back {
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .questionnaire-welcome {
+    min-height: 100svh;
+    display: block;
+    background:
+      radial-gradient(circle at 100% 0%, rgba(180, 220, 207, 0.32), transparent 17rem),
+      linear-gradient(180deg, #f4faf8 0%, var(--color-surface-card) 44%, #f8fbfa 100%);
+  }
+
+  .questionnaire-welcome__main {
+    min-height: 100svh;
+    padding: 0 20px 18px;
+    border-right: 0;
+    background: transparent;
+  }
+
+  .questionnaire-welcome__header {
+    min-height: 72px;
+    margin: 0 -20px;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(205, 222, 216, 0.72);
+  }
+
+  .questionnaire-welcome__mobile-logo {
+    display: block;
+    height: 30px !important;
+  }
+
+  .questionnaire-welcome__back {
+    display: none;
+  }
+
+  .questionnaire-welcome__mobile-back {
+    display: flex;
+  }
+
+  .questionnaire-welcome__content {
+    margin: 0;
+    padding: 56px 0 24px;
+    max-width: none;
+  }
+
+  .questionnaire-welcome__content h1 {
+    max-width: 340px;
+    font-size: 30px;
+    line-height: 1.12;
+    letter-spacing: -0.045em;
+  }
+
+  .questionnaire-welcome__content p {
+    max-width: 350px;
+    margin-top: 16px;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .questionnaire-welcome__stats {
+    gap: 8px;
+    margin-top: 28px;
+  }
+
+  .questionnaire-welcome__stat {
+    min-width: 0;
+    min-height: 112px;
+    padding: 14px 7px 12px;
+    border-color: rgba(177, 207, 198, 0.72);
+    background: rgba(255, 255, 255, 0.42);
+    box-shadow: 0 8px 24px rgba(74, 119, 105, 0.045);
+  }
+
+  .questionnaire-welcome__stat svg {
+    width: 18px;
+    height: 18px;
+    margin-bottom: 8px;
+  }
+
+  .questionnaire-welcome__stat > div:nth-child(2) {
+    font-size: 19px;
+    line-height: 1.15;
+  }
+
+  .questionnaire-welcome__stat-label {
+    min-height: 25px;
+    margin-top: 6px;
+    font-size: 8px;
+    line-height: 1.35;
+    letter-spacing: 0.08em;
+    overflow-wrap: anywhere;
+  }
+
+  .questionnaire-welcome__action {
+    padding-top: 8px;
+  }
+
+  .questionnaire-welcome__action .btn-primary {
+    min-height: 52px;
+    padding: 0 21px;
+    box-shadow: 0 10px 22px rgba(78, 153, 132, 0.26);
+  }
+
+  .questionnaire-welcome__action p {
+    margin-top: 10px;
+    font-size: 10px;
+  }
+}
+
 .fluid-gradient-mesh {
   position: relative;
   background-color: #0d1e1f; /* Base QOVES-like deep dark slate/teal */
