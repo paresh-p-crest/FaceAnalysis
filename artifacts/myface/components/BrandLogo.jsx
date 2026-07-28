@@ -5,7 +5,9 @@ const SIZES = {
   sm: { height: 22 },
   md: { height: 32 },
   lg: { height: 40 },
-  xl: { height: 52 },
+  // Keep the desktop sidebar mark compact while using the higher-resolution
+  // source asset for crisp rendering on retina displays.
+  xl: { height: 36 },
 }
 
 /**
