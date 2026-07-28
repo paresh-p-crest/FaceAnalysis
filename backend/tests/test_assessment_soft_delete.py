@@ -23,7 +23,7 @@ _MUTATORS = (
     repo.update_assessment_feature_parsing,
     repo.update_assessment_projected_after,
     repo.update_assessment_projected_analysis,
-    repo.requeue_failed_pipeline,
+    repo.requeue_pipeline,
 )
 
 

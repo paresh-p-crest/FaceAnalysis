@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useCvLabel } from '../../utils/cvReportLocale'
 
-/** Shared Qoves-style UI used by Lips/Nose/Eyes — keep panels visually identical. */
+/** Shared report-style UI used by Lips/Nose/Eyes — keep panels visually identical. */
 
 export function markerPct(value, min, max) {
   if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || max === min) {
@@ -14,10 +15,12 @@ export function markerPct(value, min, max) {
 }
 
 export function SummaryLabelCard({ label, value }) {
+  const cvLabel = useCvLabel()
+  const display = value != null && value !== '' ? cvLabel(value) : '—'
   return (
     <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4 sm:p-5 shadow-sm min-w-0">
-      <p className="qoves-report-mono-label mb-2">{label}</p>
-      <p className="text-base sm:text-lg font-display font-bold text-ink">{value ?? '—'}</p>
+      <p className="report-view-mono-label mb-2">{label}</p>
+      <p className="text-base sm:text-lg font-display font-bold text-ink">{display}</p>
     </div>
   )
 }
@@ -39,8 +42,8 @@ export function RangeMeter({
   return (
     <div className="mt-4 space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="qoves-report-mono-label">{metricLabel}</p>
-        {sourceLabel && <p className="qoves-report-mono-label">{sourceLabel}</p>}
+        <p className="report-view-mono-label">{metricLabel}</p>
+        {sourceLabel && <p className="report-view-mono-label">{sourceLabel}</p>}
       </div>
       {valueText && (
         <p className="text-2xl sm:text-3xl font-display font-bold text-ink tabular-nums">{valueText}</p>
@@ -123,13 +126,14 @@ export function DetailCarousel({ slides }) {
 }
 
 export function MetricsColumn({ rows }) {
+  const cvLabel = useCvLabel()
   return (
     <dl className="space-y-3">
       {rows.map((row) => (
         <div key={row.label} className="flex items-baseline justify-between gap-4">
           <dt className="text-sm text-brand font-medium">{row.label}</dt>
           <dd className="text-sm font-display font-bold text-ink tabular-nums text-right shrink-0">
-            {row.value ?? '—'}
+            {row.value != null && row.value !== '' ? cvLabel(row.value) : '—'}
           </dd>
         </div>
       ))}

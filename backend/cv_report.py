@@ -24,6 +24,7 @@ from .face_crop import (
 from .eye_analysis import crop_normalized, sample_region_stats, analyze_brows_crop
 from .skin_texture import analyze_skin_lab
 from .opencv_metrics import analyze_image_stats
+from . import cv_report_explanations_de as expl_de
 from .pose_analysis import (
     analyze_with_pose,
     pose_point,
@@ -104,6 +105,13 @@ def nose_metrics(landmarks: list) -> dict:
             f"a {'harmonious' if score >= 80 else ('well-proportioned' if score >= 70 else 'distinctive')} "
             f"nasal structure relative to the subject's facial dimensions."
         ),
+        "explanationDe": (
+            f"Deine Nase zeigt eine {expl_de.label_de(width_class)} Flügelbasis mit einem "
+            f"Nase-zu-Gesicht-Verhältnis von {nose_ratio:.2f}. Das Breiten-zu-Längen-Verhältnis "
+            f"von {width_length_ratio:.2f} deutet auf eine "
+            f"{'harmonische' if score >= 80 else ('gut proportionierte' if score >= 70 else 'charakteristische')} "
+            f"Nasenstruktur relativ zu deinen Gesichtsmaßen hin."
+        ),
     }
 
 
@@ -173,6 +181,13 @@ def lip_metrics(landmarks: list) -> dict:
             f"The upper-to-lower lip proportion is "
             f"{philtrum_class.lower()}, contributing to a "
             f"{'harmonious' if score >= 82 else 'balanced'} perioral appearance."
+        ),
+        "explanationDe": (
+            f"Deine Lippen zeigen {expl_de.label_de(fullness)} Volumen mit einem "
+            f"Philtrum-zu-Lippen-Verhältnis von {philtrum_to_lip_ratio:.2f} und "
+            f"{expl_de.label_de(cupids_bow)} Amor-Bogen-Definition. "
+            f"Das Ober-zu-Unterlippen-Verhältnis ist {expl_de.label_de(philtrum_class)} und trägt zu einem "
+            f"{'harmonischen' if score >= 82 else 'ausgewogenen'} perioralen Erscheinungsbild bei."
         ),
     }
 
@@ -247,6 +262,12 @@ def jaw_chin_metrics(landmarks: list) -> dict:
             f"ratio of {face_ratio:.2f}. The chin appears {chin_type.lower()} with a jaw angle "
             f"of {avg_jaw_angle:.1f}° — "
             f"{'contributing to a strong, defined lower facial frame' if score >= 80 else 'creating a softer lower facial contour'}."
+        ),
+        "explanationDe": (
+            f"Dein Kiefer zeigt eine {expl_de.label_de(jaw_shape)} Kontur mit einem "
+            f"Gesichtsbreiten-zu-Höhen-Verhältnis von {face_ratio:.2f}. Das Kinn wirkt "
+            f"{expl_de.label_de(chin_type)} mit einem Kieferwinkel von {avg_jaw_angle:.1f}° — "
+            f"{'und trägt zu einem starken, definierten unteren Gesichtsrand bei' if score >= 80 else 'und erzeugt eine weichere untere Gesichtskontur'}."
         ),
     }
 
@@ -336,6 +357,13 @@ def jaw_metrics(landmarks: list) -> dict:
             f"{contour_smooth.lower()} contour smoothness and {jawline_def_label.lower()} definition. "
             f"Jaw length is {jaw_length_class.lower()} at {avg_jaw_length:.1f}% of face height."
         ),
+        "explanationDe": (
+            f"Dein Kiefer spannt {jaw_width_pct:.1f}% der Gesichtsbreite ({expl_de.label_de(jaw_width_class)}) "
+            f"mit einem {expl_de.label_de(mandibular_def)}en Unterkieferwinkel von {avg_angle:.1f}°. "
+            f"Die Kieferlinie zeigt {expl_de.label_de(contour_smooth)}e Konturglätte und "
+            f"{expl_de.label_de(jawline_def_label)} Definition. "
+            f"Die Kieferlänge ist {expl_de.label_de(jaw_length_class)} bei {avg_jaw_length:.1f}% der Gesichtshöhe."
+        ),
     }
 
 
@@ -408,6 +436,13 @@ def chin_metrics(landmarks: list) -> dict:
             f"({chin_width:.1f}% of face width) with a {chin_shape.lower()} shape. The labiomental "
             f"fold shows a {labiomental_class.lower()} angle of {labiomental_angle:.1f}°, contributing "
             f"to lower facial balance."
+        ),
+        "explanationDe": (
+            f"Dein Kinn ist {expl_de.label_de(chin_height_class)} ({chin_height_pct:.1f}% der Gesichtshöhe) "
+            f"mit {expl_de.label_de(projection)}er Projektion. Das Kinn ist {expl_de.label_de(chin_width_class)} "
+            f"({chin_width:.1f}% der Gesichtsbreite) mit einer {expl_de.label_de(chin_shape)}en Form. "
+            f"Die labiomentale Falte zeigt einen {expl_de.label_de(labiomental_class)}en Winkel von "
+            f"{labiomental_angle:.1f}° und trägt zur unteren Gesichtsharmonie bei."
         ),
     }
 
@@ -482,6 +517,14 @@ def smile_metrics(landmarks: list) -> dict:
             f"{smile_width_class.lower()} relative to nose width ({smile_width_ratio:.2f}×). "
             f"Upper-to-lower lip ratio is {ul_ratio:.2f} ({lip_balance}). "
             f"Nasolabial folds show {fold_prominence.lower()} prominence."
+        ),
+        "explanationDe": (
+            f"Dein Lächeln spannt {mouth_width_ratio:.2f}× den Pupillenabstand ({expl_de.label_de(mouth_width_class)}) "
+            f"mit einer {expl_de.label_de(curvature)}en Krümmung von {curvature_pct:.1f}%. "
+            f"Die Lächelbreite ist {expl_de.label_de(smile_width_class)} relativ zur Nasenbreite "
+            f"({smile_width_ratio:.2f}×). Das Ober-zu-Unterlippen-Verhältnis liegt bei {ul_ratio:.2f} "
+            f"({expl_de.label_de(lip_balance)}). Nasolabialfalten zeigen "
+            f"{expl_de.label_de(fold_prominence)}e Prominenz."
         ),
     }
 
@@ -618,6 +661,15 @@ def neck_metrics(landmarks: list, pose: Optional[dict] = None) -> dict:
             f"Head posture appears {posture.lower()}"
             f"{f' ({posture_angle_deg}° from vertical)' if posture_angle_deg is not None else ''}."
         ),
+        "explanationDe": (
+            f"Deine Halsproportionen zeigen {expl_de.label_de(neck_width_class)}e Breite "
+            f"({neck_width_pct:.1f}% des IPD) und {expl_de.label_de(neck_length_class)}e Länge "
+            f"({neck_length_pct:.1f}% der Gesichtshöhe"
+            f"{' von Kiefer- bis Schulterlinie' if data_source == 'measured' else ''}). "
+            f"Der Übergang Kiefer–Hals ist {expl_de.label_de(jaw_neck_angle)} bei {avg_angle:.1f}°. "
+            f"Die Kopfhaltung wirkt {expl_de.label_de(posture)}"
+            f"{f' ({posture_angle_deg}° von der Vertikalen)' if posture_angle_deg is not None else ''}."
+        ),
     }
     if limitation:
         result["limitation"] = limitation
@@ -692,6 +744,12 @@ def ear_metrics(landmarks: list) -> dict:
             f"with {ear_vert_pos.lower()} positioning. "
             f"{'Ear proportions contribute to harmonious facial framing.' if ear_size_class == 'Balanced' else 'Ear prominence affects the overall silhouette.'}"
         ),
+        "explanationDe": (
+            f"Deine Ohren sind {expl_de.label_de(ear_size_class)} ({avg_ear_size:.2f}× IPD) und "
+            f"{expl_de.label_de(ear_symmetry)} (Diff.: {size_diff:.1f}%). Die Protrusion ist "
+            f"{expl_de.label_de(protrusion)} mit {expl_de.label_de(ear_vert_pos)}er Position. "
+            f"{'Die Ohrproportionen tragen zu einer harmonischen Gesichtsrahmung bei.' if ear_size_class == 'Balanced' else 'Die Ohrprominenz beeinflusst die Gesamtsilhouette.'}"
+        ),
     }
 
 
@@ -700,7 +758,7 @@ def ear_metrics(landmarks: list) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def skin_quality_metrics(landmarks: list, image_bytes: bytes, metrics: Optional[dict] = None) -> dict:
-    """LAB + skin-mask Qoves metrics (notebook-aligned)."""
+    """LAB + skin-mask calibrated metrics (notebook-aligned)."""
     analysis = analyze_skin_lab(image_bytes, landmarks)
 
     undertone = analysis.get("undertone") or "Neutral"
@@ -783,6 +841,13 @@ def skin_quality_metrics(landmarks: list, image_bytes: bytes, metrics: Optional[
             f"blemishing {blemishing} ({blemish_count} spots); "
             f"oiliness {oiliness} (skew {oiliness_skew:.2f}). "
             f"Dark circles: {dark_circles}."
+        ),
+        "explanationDe": (
+            f"Unterton {undertone}; Textur {texture} ({roughness_rin:.2f} RIN); "
+            f"Ebenmäßigkeit {evenness} ({homogeneity_rin:.2f} RIN); "
+            f"Unreinheiten {blemishing} ({blemish_count} Stellen); "
+            f"Öligkeit {oiliness} (Skew {oiliness_skew:.2f}). "
+            f"Augenringe: {dark_circles}."
         ),
     }
 
@@ -959,6 +1024,16 @@ def dimorphism_metrics(
         else (", flatter midface depth" if cheek_prominence < -0.01 else "")
     )
     ear_note = ", with more lateral protrusion" if ear_protrusion > 0.06 else ""
+    brow_set_de = (
+        "tief angesetzt" if brow_eye_gap < 0.1
+        else ("höher angesetzt" if brow_eye_gap > 0.16 else "mäßig angesetzt")
+    )
+    brow_form_de = "gerader" if abs(brow_arch) < 0.005 else "stärker gewölbt"
+    cheek_note_de = (
+        ", stärker projizierte Wangenknochen" if cheek_prominence > 0.02
+        else (", flachere Mittelgesichtstiefe" if cheek_prominence < -0.01 else "")
+    )
+    ear_note_de = ", mit stärkerer lateraler Protrusion" if ear_protrusion > 0.06 else ""
 
     eyebrows_d, eyebrows_l, eyebrows_opp = display_for(eyebrows_s)
     eyes_d, eyes_l, eyes_opp = display_for(eyes_s)
@@ -978,6 +1053,11 @@ def dimorphism_metrics(
                 f"{brow_set}, {brow_form}, relative thickness {brow_thickness * 100:.1f}% of face height."
                 + improve_note("Eyebrows", eyebrows_opp)
             ),
+            "explanationDe": expl_de.dimorphism_feature_explanation_de(
+                "Eyebrows", eyebrows_d, eyebrows_l,
+                f"{brow_set_de}, {brow_form_de}, relative Dicke {brow_thickness * 100:.1f}% der Gesichtshöhe",
+                eyebrows_opp, preference,
+            ),
         },
         {
             "name": "Eyes", "score": eyes_d, "label": eyes_l,
@@ -985,6 +1065,11 @@ def dimorphism_metrics(
                 f"Your eyes score {eyes_d} ({eyes_l.lower()}): "
                 f"aperture {eye_open_ratio * 100:.1f}% of IPD, span {eye_span * 100:.1f}% of face width."
                 + improve_note("Eyes", eyes_opp)
+            ),
+            "explanationDe": expl_de.dimorphism_feature_explanation_de(
+                "Eyes", eyes_d, eyes_l,
+                f"Apertur {eye_open_ratio * 100:.1f}% des IPD, Spannweite {eye_span * 100:.1f}% der Gesichtsbreite",
+                eyes_opp, preference,
             ),
         },
         {
@@ -994,6 +1079,11 @@ def dimorphism_metrics(
                 f"alar width {nose_face_ratio * 100:.1f}% of IPD, width-to-length {nose_ratio:.2f}."
                 + improve_note("Nose", nose_opp)
             ),
+            "explanationDe": expl_de.dimorphism_feature_explanation_de(
+                "Nose", nose_d, nose_l,
+                f"Flügelbreite {nose_face_ratio * 100:.1f}% des IPD, Breite-zu-Länge {nose_ratio:.2f}",
+                nose_opp, preference,
+            ),
         },
         {
             "name": "Cheeks", "score": cheeks_d, "label": cheeks_l,
@@ -1001,6 +1091,11 @@ def dimorphism_metrics(
                 f"Your cheeks score {cheeks_d} ({cheeks_l.lower()}): "
                 f"cheek width {cheek_width_ratio * 100:.1f}% of face width{cheek_note}."
                 + improve_note("Cheeks", cheeks_opp)
+            ),
+            "explanationDe": expl_de.dimorphism_feature_explanation_de(
+                "Cheeks", cheeks_d, cheeks_l,
+                f"Wangenbreite {cheek_width_ratio * 100:.1f}% der Gesichtsbreite{cheek_note_de}",
+                cheeks_opp, preference,
             ),
         },
         {
@@ -1010,6 +1105,11 @@ def dimorphism_metrics(
                 f"fullness {lip_fullness_ratio * 100:.1f}% of IPD, philtrum-to-lip {philtrum_ratio:.2f}."
                 + improve_note("Lips", lips_opp)
             ),
+            "explanationDe": expl_de.dimorphism_feature_explanation_de(
+                "Lips", lips_d, lips_l,
+                f"Fülle {lip_fullness_ratio * 100:.1f}% des IPD, Philtrum-zu-Lippe {philtrum_ratio:.2f}",
+                lips_opp, preference,
+            ),
         },
         {
             "name": "Jaw", "score": jaw_d, "label": jaw_l_label,
@@ -1017,6 +1117,11 @@ def dimorphism_metrics(
                 f"Your jaw scores {jaw_d} ({jaw_l_label.lower()}): "
                 f"width {jaw_width_ratio * 100:.1f}% of face width, mean mandibular angle {jaw_angle:.0f}°."
                 + improve_note("Jaw", jaw_opp)
+            ),
+            "explanationDe": expl_de.dimorphism_feature_explanation_de(
+                "Jaw", jaw_d, jaw_l_label,
+                f"Breite {jaw_width_ratio * 100:.1f}% der Gesichtsbreite, mittlerer Unterkieferwinkel {jaw_angle:.0f}°",
+                jaw_opp, preference,
             ),
         },
         {
@@ -1027,6 +1132,12 @@ def dimorphism_metrics(
                 f"height {chin_height_ratio * 100:.1f}% of face height."
                 + improve_note("Chin", chin_opp)
             ),
+            "explanationDe": expl_de.dimorphism_feature_explanation_de(
+                "Chin", chin_d, chin_feature_l,
+                f"Breite {chin_width_ratio * 100:.1f}% der Gesichtsbreite, "
+                f"Höhe {chin_height_ratio * 100:.1f}% der Gesichtshöhe",
+                chin_opp, preference,
+            ),
         },
         {
             "name": "Neck", "score": neck_d, "label": neck_l,
@@ -1035,6 +1146,11 @@ def dimorphism_metrics(
                 f"breadth {neck_width_ratio:.2f}× IPD from the jaw landmarks."
                 + improve_note("Neck", neck_opp)
             ),
+            "explanationDe": expl_de.dimorphism_feature_explanation_de(
+                "Neck", neck_d, neck_l,
+                f"Breite {neck_width_ratio:.2f}× IPD aus den Kiefer-Landmarken",
+                neck_opp, preference,
+            ),
         },
         {
             "name": "Ears", "score": ears_d, "label": ears_l,
@@ -1042,6 +1158,11 @@ def dimorphism_metrics(
                 f"Your ears score {ears_d} ({ears_l.lower()}): "
                 f"relative size {ear_size:.2f}× IPD{ear_note}."
                 + improve_note("Ears", ears_opp)
+            ),
+            "explanationDe": expl_de.dimorphism_feature_explanation_de(
+                "Ears", ears_d, ears_l,
+                f"relative Größe {ear_size:.2f}× IPD{ear_note_de}",
+                ears_opp, preference,
             ),
         },
     ]
@@ -1066,6 +1187,9 @@ def dimorphism_metrics(
         "scaleLeft": "Hyper Feminine",
         "scaleRight": "Hyper Masculine",
         "explanation": overall_explanation,
+        "explanationDe": expl_de.dimorphism_overall_explanation_de(
+            overall_label, overall_score, top_drivers, overall_opp, preference
+        ),
         "features": features,
     }
 
@@ -1111,7 +1235,7 @@ def _score_from_avg_dev(avg_dev: float) -> int:
 
 
 def symmetry_score(landmarks: list, metrics: Optional[dict] = None) -> int:
-    """Qoves-calibrated left–right balance (typical faces ~76–86, not inflated 90+)."""
+    """calibrated left–right balance (typical faces ~76–86, not inflated 90+)."""
     if not landmarks:
         return 70
 
@@ -1189,6 +1313,13 @@ def symmetry_explanation(score: int, label: str, regions: Optional[list] = None)
     )
 
 
+def symmetry_explanation_pair(score: int, label: str, regions: Optional[list] = None) -> tuple[str, str]:
+    return (
+        symmetry_explanation(score, label, regions),
+        expl_de.symmetry_explanation_de(score, label, regions),
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Proportions
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1203,6 +1334,7 @@ def proportions_from_landmarks(landmarks: list, metrics: Optional[dict] = None) 
             "lowerThird": None,
             "label": None,
             "explanation": "Facial thirds could not be measured from landmarks.",
+            "explanationDe": expl_de.PROPORTIONS_THIRDS_UNAVAILABLE_DE,
         }
 
     forehead = lm(landmarks, 10)
@@ -1218,6 +1350,7 @@ def proportions_from_landmarks(landmarks: list, metrics: Optional[dict] = None) 
             "lowerThird": None,
             "label": None,
             "explanation": "Facial thirds could not be measured from landmarks.",
+            "explanationDe": expl_de.PROPORTIONS_THIRDS_UNAVAILABLE_DE,
         }
 
     upper = (brow_y - forehead["y"]) / face_h
@@ -1265,6 +1398,7 @@ def proportions_from_landmarks(landmarks: list, metrics: Optional[dict] = None) 
         "lowerThird": f"{lower:.2f}",
         "label": "Well balanced" if score >= 80 else ("Good balance" if score >= 70 else "Slight variation"),
         "explanation": thirds_explanation,
+        "explanationDe": expl_de.proportions_thirds_explanation_de(upper, middle, lower),
     }
 
 
@@ -1308,6 +1442,7 @@ def face_shape_from_landmarks(
             "midfaceWidth": "Normal",
             "lowerThirdWidth": "Normal",
             "explanation": "Face shape could not be measured from landmarks.",
+            "explanationDe": expl_de.FACE_SHAPE_UNAVAILABLE_DE,
             "overlay": None,
             "overlaySpace": "image",
         }
@@ -1441,6 +1576,9 @@ def face_shape_from_landmarks(
         "lengthToMidfaceRatio": f"{ratio:.2f}",
         "widthHeightRatio": f"{wh_ratio:.2f}",
         "explanation": explanation,
+        "explanationDe": expl_de.face_shape_explanation_de(
+            shape, length, forehead, midface, lower_third, ratio
+        ),
         "overlay": overlay,
         "overlaySpace": "image",
         "_ptsPx": [[float(p[0]), float(p[1])] for p in pts_px],
@@ -1563,7 +1701,7 @@ def proportion_ratios(landmarks: list) -> dict:
     naso_aural_your = ear_height / (nose_height or 0.001)
     orbito_nasal_your = nose_width / (inner_eye_spacing or 0.001)
     naso_oral_your = mouth_width / (nose_width or 0.001)
-    # Qoves orbital: inter-eye spacing vs single eye width (ideal ≈ 1.00)
+    # orbital: inter-eye spacing vs single eye width (ideal ≈ 1.00)
     orbital_your = inner_eye_spacing / (eye_width or 0.001)
 
     return {
@@ -1578,6 +1716,7 @@ def proportion_ratios(landmarks: list) -> dict:
                 "Upload a side-profile photo for an accurate naso-aural measurement. "
                 "Front-facing estimates are not clinically meaningful for this ratio."
             ),
+            "explanationDe": expl_de.NASO_AURAL_PROFILE_DE,
             "dataSource": "front_estimate",
             "requiresProfile": True,
         },
@@ -1598,6 +1737,7 @@ def proportion_ratios(landmarks: list) -> dict:
                     else "Nose width aligns closely with inner-eye spacing."
                 )
             ),
+            "explanationDe": expl_de.orbito_nasal_explanation_de(orbito_nasal_your),
         },
         "nasoOral": {
             "ratioLabel": "NASO-ORAL PROPORTION",
@@ -1617,6 +1757,7 @@ def proportion_ratios(landmarks: list) -> dict:
                     else "Mouth width sits near the expected range relative to the nasal base."
                 )
             ),
+            "explanationDe": expl_de.naso_oral_explanation_de(naso_oral_your),
         },
         "orbital": {
             "ratioLabel": "ORBITAL PROPORTION",
@@ -1636,6 +1777,7 @@ def proportion_ratios(landmarks: list) -> dict:
                     else "somewhat wide-set."
                 )
             ),
+            "explanationDe": expl_de.orbital_explanation_de(orbital_your),
         },
     }
 
@@ -1733,6 +1875,14 @@ def eyebrow_metrics(landmarks: list) -> dict:
             f"{tail_length_label.lower()} tail length contributes to a balanced periorbital frame. "
             f"Inner brows are {inner_angle_label.lower()} with a {tail_angle_label.lower()}."
         ),
+        "explanationDe": (
+            f"Deine Brauen sitzen in einer {expl_de.label_de(position)}en Position mit einer "
+            f"{expl_de.label_de(shape)}en Form und {expl_de.label_de(tilt_label)}em Neigungswinkel. "
+            f"Die {expl_de.label_de(thickness_label)}e Brauenstruktur mit "
+            f"{expl_de.label_de(tail_length_label)}er Schwanzlänge trägt zu einem ausgewogenen "
+            f"periorbitalen Rahmen bei. Innere Brauen sind {expl_de.label_de(inner_angle_label)} "
+            f"mit einem {expl_de.label_de(tail_angle_label)}."
+        ),
     }
 
 
@@ -1811,6 +1961,14 @@ def cheek_metrics(landmarks: list) -> dict:
             f"({midface_length:.1f}% of face height). Cheek symmetry is {sym_label.lower()} "
             f"(asymmetry: {asymmetry:.2f}%)."
         ),
+        "explanationDe": (
+            f"Deine Wangen zeigen {expl_de.label_de(cheek_width_class)}e Breite mit "
+            f"{expl_de.label_de(cheekbone_h_class)}er Wangenknochenplatzierung. Die Wangenknochen wirken "
+            f"{expl_de.label_de(prominence)} mit einem {expl_de.label_de(jaw_cheek_class)}en "
+            f"Kiefer-zu-Wangen-Übergang. Das Mittelgesicht ist {expl_de.label_de(midface_class)} "
+            f"({midface_length:.1f}% der Gesichtshöhe). Die Wangensymmetrie ist {expl_de.label_de(sym_label)} "
+            f"(Asymmetrie: {asymmetry:.2f}%)."
+        ),
     }
 
 
@@ -1871,6 +2029,7 @@ def hair_pixel_analysis(landmarks: list, top_head_src: Optional[bytes] = None) -
         "hairColorHex": "#2a1a0a", "textureType": "Unknown",
         "thinningArea": "None detected", "crownVisibility": "N/A",
         "explanation": "Upload a top-of-head photo for real hair density & coverage analysis.",
+        "explanationDe": expl_de.HAIR_UPLOAD_DE,
     }
     if not top_head_src:
         return fallback
@@ -1970,6 +2129,12 @@ def hair_pixel_analysis(landmarks: list, top_head_src: Optional[bytes] = None) -
                 f"{forehead_exposure.lower()} forehead exposure. "
                 f"{'No significant thinning detected at the crown.' if thinning_area == 'None detected' else thinning_area + '.'}"
             ),
+            "explanationDe": (
+                f"Haaranalyse vom Scheitel: {expl_de.label_de(density_estimate)}es Haar mit "
+                f"{coverage_estimate.lower()}. Die Haarlinie ist {expl_de.label_de(hairline)} mit "
+                f"{expl_de.label_de(forehead_exposure)}er Stirnexposition. "
+                f"{'Keine nennenswerte Ausdünnung am Scheitel erkannt.' if thinning_area == 'None detected' else thinning_area + '.'}"
+            ),
         }
     except Exception:
         return fallback
@@ -1984,6 +2149,7 @@ def smile_pixel_analysis(landmarks: list, smile_src: Optional[bytes] = None) -> 
         "teethVisibility": "N/A", "smileArc": "N/A", "gumExposure": "N/A",
         "teethWhiteness": "N/A", "smileWidthPx": "N/A",
         "explanation": "Upload a smile photo for enhanced teeth & smile analysis.",
+        "explanationDe": expl_de.SMILE_UPLOAD_DE,
     }
     if not smile_src:
         return fallback
@@ -2064,6 +2230,10 @@ def smile_pixel_analysis(landmarks: list, smile_src: Optional[bytes] = None) -> 
             "explanation": (
                 f"Smile analysis: {teeth_visibility.lower()} teeth visibility with {smile_arc.lower()}. "
                 f"Gum exposure is {gum_exposure.lower()}. Teeth appear {teeth_whiteness.lower()}."
+            ),
+            "explanationDe": (
+                f"Lächelanalyse: {teeth_visibility.lower()} Zahnvisibilität mit {smile_arc.lower()}. "
+                f"Zahnfleischsichtbarkeit ist {gum_exposure.lower()}. Zähne wirken {teeth_whiteness.lower()}."
             ),
         }
     except Exception:
@@ -2189,6 +2359,7 @@ def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict]
             "scaleLeft": "Asymmetric", "scaleRight": "Symmetric",
             "scaleMarkerPct": sym,
             "explanation": symmetry_explanation(sym, sym_label, sym_regions),
+            "explanationDe": expl_de.symmetry_explanation_de(sym, sym_label, sym_regions),
             "imageSrc": face_crop,
             "symmetryDots": symmetry_dots,
             "symmetryMidline": symmetry_midline,
@@ -2204,6 +2375,10 @@ def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict]
             "explanation": prop.get("explanation") or (
                 f"Your facial thirds measure upper {prop['upperThird']}, middle {prop['middleThird']}, "
                 f"and lower {prop['lowerThird']}."
+            ),
+            "explanationDe": prop.get("explanationDe") or (
+                f"Deine Gesichtsdrittel messen oben {prop['upperThird']}, Mitte {prop['middleThird']} "
+                f"und unten {prop['lowerThird']}."
             ),
             "imageSrc": face_crop,
             "proportionLines": proportion_lines,

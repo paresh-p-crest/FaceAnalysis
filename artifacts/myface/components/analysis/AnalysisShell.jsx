@@ -15,11 +15,15 @@ export function AnalysisShell({ children }) {
     analysisStep === ANALYSIS_STEPS.WELCOME || analysisStep === ANALYSIS_STEPS.QUESTIONNAIRE
   )
 
+  const showFixedLocale = analysisStep === ANALYSIS_STEPS.PREPARING
+
   return (
     <div className="relative min-h-screen overflow-x-hidden font-sans">
-      <div className="fixed top-3 right-3 lg:top-[3.75rem] lg:right-16 z-40">
-        <LocaleSwitcher />
-      </div>
+      {showFixedLocale && (
+        <div className="fixed top-3 right-3 z-40">
+          <LocaleSwitcher />
+        </div>
+      )}
       {showDevShortcuts && (
         <DevShortcuts onSkipQuestionnaire={skipQuestionnaireWithSampleData} />
       )}

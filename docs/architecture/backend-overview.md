@@ -52,7 +52,7 @@ If the backend API is disabled, the FE can run a browser-local MediaPipe path (`
 
 ### Stage 1b — Background worker (`pipeline_worker.py`)
 
-1. Claim queued row (`claim_next_queued_assessment`, `FOR UPDATE SKIP LOCKED`)  
+1. Claim next job (`claim_next_pipeline_job`, `FOR UPDATE SKIP LOCKED`) — running orphans first, then queued FIFO; resumes from preserved `pipeline.stage` (not always `cv`)  
 2. **cv** — `pipeline_stages.run_cv_stage` → `analyze_face.run_face_analysis` in thread  
 3. **narratives** — `enrich_assessment_nl_content`  
 4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (torch/torchvision/transformers are core deps installed from `requirements.txt`; the stage disables gracefully via `face_parsing_enabled()` only if they are somehow absent or `FACE_PARSING_ENABLED=false`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
@@ -167,7 +167,7 @@ Prompt-side rules also live in `text_ai_service` (`STRICT_NON_SURGICAL_RULES`, `
 
 | Path | How |
 |------|-----|
-| **Interactive report** | `Report.jsx` + `CvReportView` / `QovesProtocolReport` / `ExecutiveSummary` — opens from one `GET /api/assessments/{id}` (admin/dashboard); Report reuses that payload for admin tools + NL hydrate (load only; no regenerate on open) |
+| **Interactive report** | `Report.jsx` + `CvReportView` / `ProtocolReport` / `ExecutiveSummary` — opens from one `GET /api/assessments/{id}` (admin/dashboard); Report reuses that payload for admin tools + NL hydrate (load only; no regenerate on open) |
 | **Branded PDF (primary)** | Browser `utils/reportPdf.js` (jsPDF) using `cvReport` + protocol narratives + front photo. Chin PROFILE plates stay center-cover; convexity/E-line guides snap to the profile silhouette edge. Cheek ANALYSIS overlays use DB MediaPipe landmarks via `utils/cheekGuides.js` (notebook midface construction). Reference fixtures under `fixtures/`. |
 | **Backend PDF (fallback)** | `GET /api/assessments/{id}/pdf` → ReportLab (`report_pdf.py`) from markdown — used when the UI has no front photo |
 | **PDF gate** | `report_status.is_pdf_allowed_status` — only `approved` / `published` (or always if dev auto-approve) |
@@ -241,7 +241,7 @@ POST /api/assessments  (assessments.py)
        │
        ▼
 [Report.jsx]
-       ├─ CvReportView / QovesProtocolReport
+       ├─ CvReportView / ProtocolReport
        ├─ downloadMyFacePdf (jsPDF)     [primary PDF]
        ├─ GET .../pdf (ReportLab)       [fallback]
        ├─ POST .../ai-visuals           [optional]
@@ -352,14 +352,14 @@ This is the core of the product: photos in → structured `cvReport` out.
 | `assistant_agent.py` | ReAct-style Beauty Assistant that calls report tools. |
 | `assistant_tools.py` | Tools that read sections of the stored assessment. |
 | `image_client.py` | Provider-agnostic image edit (OpenAI Images Edits / OpenRouter chat image modalities); provider via `IMAGE_PROVIDER`→`LLM_PROVIDER`→key. |
-| `visual_generation.py` | AI image edits (hair / outfit / aging) via `image_client`: independent single-call prompts with shared natural-language opening, scope-fence first, inline CV phrase anchors (ADR-035). New gens persist bytes to `assessments/{id}/ai-visuals/…` and store media URLs in JSONB; outfit category also generates `outfitBaseline` (white-tee UI BEFORE). |
+| `visual_generation.py` | AI image edits (hair / outfit / aging) via `image_client`: independent single-call prompts with shared natural-language opening, scope-fence first, inline CV phrase anchors (ADR-035). New gens persist bytes to `assessments/{id}/ai-visuals/…` and store media URLs in JSONB. White-tee `outfitBaseline` generation is temporarily commented out (outfit UI after-only; restore by uncommenting). |
 | `projected_after_ai.py` | Generative projected AFTER face via `image_client` (fixed `PROJECTED_AFTER_PROMPT` best-groomed makeover); owns `projected_after_enabled` flag. |
 
 ---
 
 ## Reports, PDF, protocol
 
-**Important:** The branded ~16-page Qoves protocol PDF users download is built **in the browser** (`utils/reportPdf.js` + jsPDF), not by `report_pdf.py`. The backend builds/stores the **protocol text bundle** (narratives + structured data); the FE turns that into the visual PDF when a front photo is present.
+**Important:** The branded ~16-page protocol PDF users download is built **in the browser** (`utils/reportPdf.js` + jsPDF), not by `report_pdf.py`. The backend builds/stores the **protocol text bundle** (narratives + structured data); the FE turns that into the visual PDF when a front photo is present.
 
 | File | What it does | Used on FE PDF download? |
 |------|----------------|---------------------------|

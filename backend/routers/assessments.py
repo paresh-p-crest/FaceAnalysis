@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
+import logging
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
@@ -22,8 +23,10 @@ from ..protocol_service import (
     load_protocol_bundle,
     persist_protocol_bundle,
     refresh_protocol_closing_for_assessment,
+    regenerate_narrative_translations,
     regenerate_protocol_section,
 )
+from ..narrative_translation import ensure_narrative_translations
 from ..assessment_limits import require_assessment_slot
 from ..repositories.assessment_repository import (
     count_submitted_assessments_for_user,
@@ -37,7 +40,7 @@ from ..repositories.assessment_repository import (
     list_assessments_for_user,
     list_assessments,
     remove_assessment_photo,
-    requeue_failed_pipeline,
+    requeue_pipeline,
     upsert_assessment_photo,
     update_assessment_status,
     update_assessment_admin_review,
@@ -59,6 +62,7 @@ from ..photo_storage import (
 )
 from ..repositories.payment_repository import user_has_completed_payment
 from ..repositories.user_repository import get_user_by_id
+from ..email_service import public_app_url, send_email
 from ..serialization import to_json_safe
 from ..dev_config import dev_auto_approve_reports
 from ..image_utils import decode_image, decode_photo_dict
@@ -88,6 +92,42 @@ def _normalize_cv_provider(provider: str) -> str:
     return provider
 
 router = APIRouter(prefix="/api", tags=["assessments"])
+logger = logging.getLogger(__name__)
+
+
+def _is_report_ready_status(status: Optional[str]) -> bool:
+    value = str(status or "").strip().lower()
+    return value in ("approved", "published")
+
+
+async def _notify_report_ready(assessment_doc: dict) -> None:
+    user_id = assessment_doc.get("userId")
+    if not user_id:
+        return
+    user = await get_user_by_id(user_id)
+    if not user or not user.get("email"):
+        return
+    await send_email(
+        to=user["email"],
+        template="report_ready",
+        data={
+            "firstName": user.get("firstName") or "",
+            "reportUrl": f"{public_app_url()}/report?assessmentId={assessment_doc['id']}",
+            "assessmentId": assessment_doc["id"],
+        },
+        user_id=user_id,
+    )
+
+
+async def _notify_report_ready_safe(assessment_doc: dict) -> None:
+    try:
+        await _notify_report_ready(assessment_doc)
+    except Exception as exc:
+        logger.warning("Report ready email task failed for %s: %s", assessment_doc.get("id"), exc)
+
+
+def _schedule_report_ready_email(assessment_doc: dict) -> None:
+    asyncio.create_task(_notify_report_ready_safe(assessment_doc))
 
 
 class AssessmentCreateRequest(BaseModel):
@@ -120,6 +160,7 @@ class AssessmentAdminReviewRequest(BaseModel):
     aiNarrative: Optional[dict] = None
     protocolNarrative: Optional[dict] = None
     featureNarratives: Optional[dict] = None
+    narrativeLocale: Optional[str] = None
 
 
 class AssessmentVisualsRequest(BaseModel):
@@ -129,6 +170,10 @@ class AssessmentVisualsRequest(BaseModel):
 
 class ProtocolSectionRequest(BaseModel):
     sectionId: str
+
+
+class NarrativeTranslationsRequest(BaseModel):
+    locale: str = "de"
 
 
 def _parse_status_or_400(status: str) -> str:
@@ -175,13 +220,17 @@ def _score_line(label: str, data: Optional[dict]) -> Optional[str]:
     return f"- {label}: {score}/100{suffix}"
 
 
-def _assessment_pdf_markdown(existing: dict) -> str:
+def _assessment_pdf_markdown(existing: dict, *, locale: str = "en") -> str:
     analysis = existing.get("analysis") or {}
     cv_report = analysis.get("cvReport") or {}
     metrics = analysis.get("metrics") or {}
     answers = existing.get("answers") or {}
     narrative = existing.get("aiNarrative") or analysis.get("aiNarrative") or {}
     narrative_content = narrative.get("content") if isinstance(narrative, dict) else None
+    if locale == "de" and isinstance(narrative, dict):
+        de_content = narrative.get("contentDe")
+        if isinstance(de_content, dict) and de_content.get("summary"):
+            narrative_content = de_content
 
     overall = cv_report.get("overall") or {}
     face_shape = cv_report.get("faceShape") or {}
@@ -292,7 +341,7 @@ def _assessment_pdf_markdown(existing: dict) -> str:
             "",
             "## Protocol PDF",
             "",
-            "The branded Qoves-style protocol PDF is generated from the stored protocol bundle "
+            "The branded report-style protocol PDF is generated from the stored protocol bundle "
             "(featureNarratives, protocolNarrative). "
             "Use the in-app Protocol viewer or client download when a front photo is available.",
         ]
@@ -572,6 +621,7 @@ async def post_assessment_submit(
 @router.get("/assessments/{assessment_id}/pdf")
 async def get_assessment_pdf(
     assessment_id: str,
+    locale: str = "en",
     current_user: dict = Depends(get_current_user),
 ):
     if not is_db_configured():
@@ -594,7 +644,7 @@ async def get_assessment_pdf(
 
     pdf_bytes = await asyncio.to_thread(
         generate_pdf_bytes,
-        _assessment_pdf_markdown(existing),
+        _assessment_pdf_markdown(existing, locale=(locale or "en").strip().lower()),
         cv_report,
     )
     return Response(
@@ -718,6 +768,12 @@ async def patch_assessment_status(
     if not is_admin:
         raise HTTPException(status_code=403, detail="Only admins can update report status")
     doc = await update_assessment_status(assessment_id, canonical_status)
+    if (
+        doc
+        and not _is_report_ready_status(existing.get("status"))
+        and _is_report_ready_status(canonical_status)
+    ):
+        _schedule_report_ready_email(doc)
     return serialize_assessment(doc)
 
 
@@ -750,6 +806,7 @@ async def patch_assessment_admin_review(
         _reject_narrative_edit_if_approved(existing)
 
     ai_narrative = req.aiNarrative
+    narrative_locale = (req.narrativeLocale or "en").strip().lower()
     if ai_narrative is not None:
         content = ai_narrative.get("content") if isinstance(ai_narrative, dict) else None
         if content is None:
@@ -757,12 +814,17 @@ async def patch_assessment_admin_review(
                 "source": "admin",
                 "model": None,
                 "content": ai_narrative,
+                "contentOrigin": "admin",
             }
         else:
             ai_narrative = {
                 **ai_narrative,
                 "source": "admin",
             }
+            if narrative_locale == "de" and ai_narrative.get("contentDe"):
+                ai_narrative["contentDeOrigin"] = "admin"
+            elif narrative_locale != "de":
+                ai_narrative["contentOrigin"] = ai_narrative.get("contentOrigin") or "admin"
 
     reviewer = {
         "id": current_user.get("id"),
@@ -779,23 +841,47 @@ async def patch_assessment_admin_review(
 
     if req.protocolNarrative is not None or req.featureNarratives is not None:
         try:
+            proto = (
+                req.protocolNarrative
+                if req.protocolNarrative is not None
+                else (updated or existing).get("protocolNarrative")
+            )
+            feats = (
+                req.featureNarratives
+                if req.featureNarratives is not None
+                else (updated or existing).get("featureNarratives")
+            )
+            if narrative_locale == "de":
+                if isinstance(proto, dict) and proto.get("de"):
+                    de = dict(proto["de"])
+                    de["origin"] = "admin"
+                    proto = {**proto, "de": de}
+                if isinstance(feats, dict):
+                    feats = dict(feats)
+                    for fid, fn in feats.items():
+                        if isinstance(fn, dict) and isinstance(fn.get("de"), dict):
+                            fn = dict(fn)
+                            fn["de"] = {**fn["de"], "origin": "admin"}
+                            feats[fid] = fn
             persisted = await persist_protocol_bundle(
                 assessment_id,
-                protocol_narrative=(
-                    req.protocolNarrative
-                    if req.protocolNarrative is not None
-                    else (updated or existing).get("protocolNarrative")
-                ),
-                feature_narratives=(
-                    req.featureNarratives
-                    if req.featureNarratives is not None
-                    else (updated or existing).get("featureNarratives")
-                ),
+                protocol_narrative=proto,
+                feature_narratives=feats,
             )
             if persisted.get("assessment"):
                 updated = persisted["assessment"]
             else:
                 updated = await get_assessment_by_id(assessment_id) or updated
+            if narrative_locale != "de" and updated:
+                merged = dict(updated)
+                await ensure_narrative_translations(merged, force=True)
+                persisted = await persist_protocol_bundle(
+                    assessment_id,
+                    protocol_narrative=merged.get("protocolNarrative"),
+                    feature_narratives=merged.get("featureNarratives"),
+                )
+                if persisted.get("assessment"):
+                    updated = persisted["assessment"]
         except Exception as exc:
             raise HTTPException(
                 status_code=400,
@@ -812,6 +898,12 @@ async def patch_assessment_admin_review(
         except Exception:
             # Admin narrative save succeeded; closing refresh is best-effort
             pass
+    if updated and canonical_status is not None:
+        if (
+            not _is_report_ready_status(existing.get("status"))
+            and _is_report_ready_status(canonical_status)
+        ):
+            _schedule_report_ready_email(updated)
     return serialize_assessment(updated)
 
 
@@ -1064,6 +1156,45 @@ async def post_assessment_ai_protocol_section(
     return serialize_assessment(updated)
 
 
+@router.post("/assessments/{assessment_id}/narrative-translations")
+async def post_assessment_narrative_translations(
+    assessment_id: str,
+    req: NarrativeTranslationsRequest,
+    current_user: dict = Depends(require_admin),
+):
+    """Admin: force re-translate EN narratives into ``locale`` (currently ``de`` only).
+
+    Does not regenerate English protocol text. English is the source language.
+    """
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured.")
+
+    await require_paid_ai_access(current_user)
+
+    existing = await get_assessment_by_id(assessment_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    analysis = existing.get("analysis") or {}
+    if not analysis.get("cvReport"):
+        raise HTTPException(status_code=400, detail="Stored cvReport is required for translation.")
+
+    _reject_narrative_edit_if_approved(existing)
+
+    try:
+        bundle = await regenerate_narrative_translations(existing, locale=req.locale)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Narrative translation failed: {exc}",
+        ) from exc
+
+    updated = bundle.get("assessment") or await get_assessment_by_id(assessment_id) or existing
+    return serialize_assessment(updated)
+
+
 @router.post("/assessments/{assessment_id}/projected-after")
 async def post_assessment_projected_after(
     assessment_id: str,
@@ -1096,12 +1227,17 @@ async def post_assessment_projected_after(
     return serialize_assessment(updated)
 
 
+class RetryPipelineBody(BaseModel):
+    mode: Literal["resume", "full"] = "resume"
+
+
 @router.post("/assessments/{assessment_id}/retry-pipeline")
 async def post_retry_pipeline(
     assessment_id: str,
+    body: Optional[RetryPipelineBody] = None,
     current_user: dict = Depends(get_current_user),
 ):
-    """Re-enqueue a failed pipeline job (admin or owner)."""
+    """Re-enqueue a pipeline job (admin or owner). mode=resume (default) or full."""
     if not is_db_configured():
         raise HTTPException(status_code=503, detail="Database not configured.")
 
@@ -1112,14 +1248,15 @@ async def post_retry_pipeline(
         raise HTTPException(status_code=403, detail="You do not have access to this assessment")
 
     pipeline = existing.get("pipeline") or {}
-    if pipeline.get("status") in ("queued", "running"):
-        return serialize_assessment(existing)
     if pipeline.get("status") == "ready":
         raise HTTPException(status_code=400, detail="Pipeline already completed")
-    if pipeline.get("status") != "failed" and pipeline.get("status") is not None:
-        raise HTTPException(status_code=400, detail="Pipeline is not in a failed state")
 
-    updated = await requeue_failed_pipeline(assessment_id)
+    mode = (body.mode if body else "resume")
+    if mode not in ("resume", "full"):
+        raise HTTPException(status_code=400, detail="mode must be 'resume' or 'full'")
+
+    updated = await requeue_pipeline(assessment_id, mode=mode)
     if not updated:
         raise HTTPException(status_code=404, detail="Assessment not found")
     return serialize_assessment(updated)
+

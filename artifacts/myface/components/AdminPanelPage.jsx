@@ -24,7 +24,7 @@ import {
 import { ADMIN_TABS, adminTabToPath, persistAdminTab } from '../utils/adminPanel'
 import { isAdminResourceLoading, resourcesForAdminTab } from '../utils/adminWorkspace'
 import { formatHistoryDate } from '../utils/historyStorage'
-import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/qovesProtocolModel'
+import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/reportProtocolModel'
 import { isAssessmentProcessing, normalizeReportStatus, REPORT_WORKFLOW_STATUSES } from '../utils/reportWorkflow'
 import { translateApiError } from '../utils/translateApiError'
 import ConfirmDialog from './ConfirmDialog'
@@ -92,16 +92,31 @@ function EmptyState({ title, text }) {
   )
 }
 
+/** Stable icon slot — avoid swapping lucide roots mid-commit (insertBefore NotFoundError). */
+function BusyIcon({ busy, IdleIcon }) {
+  return (
+    <span className="relative inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+      <Loader2
+        className={`absolute h-3.5 w-3.5 animate-spin ${busy ? 'opacity-100' : 'opacity-0'}`}
+        aria-hidden={!busy}
+      />
+      <IdleIcon
+        className={`absolute h-3.5 w-3.5 ${busy ? 'opacity-0' : 'opacity-100'}`}
+        aria-hidden={busy}
+      />
+    </span>
+  )
+}
+
 export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
   const t = useTranslations('Admin.panel')
   const tErrors = useTranslations('Errors')
   const tCommon = useTranslations('Admin.common')
   const router = useRouter()
-  const { adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace, afterAssessmentDeleted } = useApp()
+  const { adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace, afterAssessmentDeleted, openingReportId, viewCloudAssessment } = useApp()
   const { assessments, payments, users, loading: resourceLoading, error: workspaceError } = adminWorkspace
   const [deletingId, setDeletingId] = useState('')
   const [updatingId, setUpdatingId] = useState('')
-  const [openingId, setOpeningId] = useState('')
   const [error, setError] = useState('')
   const [reportFilter, setReportFilter] = useState('all')
   const [confirmState, setConfirmState] = useState(null)
@@ -284,15 +299,12 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
   }
 
   const handleOpenAssessment = async (assessment) => {
-    setOpeningId(assessment.id)
     setError('')
     try {
       const full = await fetchAssessment(assessment.id)
       onViewCloudItem?.(full)
     } catch (err) {
       setError(translateApiError(err, tErrors))
-    } finally {
-      setOpeningId('')
     }
   }
 
@@ -301,6 +313,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     const normalizedStatus = normalizeReportStatus(assessment.status)
     const refLabel = formatAssessmentRef(assessment)
     const processing = isAssessmentProcessing(assessment)
+    const isDraft = normalizedStatus === 'draft'
     return (
       <div key={assessment.id} className="rounded-xl border border-landing-divider bg-white p-4 transition-colors hover:border-brand/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -314,12 +327,16 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
               #{refLabel} · {formatHistoryDate(assessment.createdAt)} · {t('scoreLabel', { score })}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0 lg:justify-end">
+          <div className="flex flex-wrap gap-2 shrink-0 lg:justify-end lg:max-w-xs lg:text-right">
             {processing ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-ink-muted">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" aria-hidden />
                 {t('actions.pipelineRunning')}
               </span>
+            ) : isDraft ? (
+              <p className="px-1 py-2 text-xs leading-relaxed text-ink-muted">
+                {t('draftNotSubmitted')}
+              </p>
             ) : (
               <>
                 {normalizedStatus === 'pending_review' && (
@@ -333,17 +350,17 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
                 )}
                 <button
                   onClick={() => handleOpenAssessment(assessment)}
-                  disabled={openingId === assessment.id}
+                  disabled={openingReportId === assessment.id}
                   className="px-3 py-2 rounded-xl bg-white dark:bg-surface-card border border-surface-border text-xs font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
                 >
-                  {openingId === assessment.id ? t('actions.opening') : t('actions.open')}
+                  {openingReportId === assessment.id ? t('actions.opening') : t('actions.open')}
                 </button>
                 <button
                   onClick={() => handleDeleteAssessment(assessment.id)}
                   disabled={deletingId === assessment.id}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
                 >
-                  {deletingId === assessment.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  <BusyIcon busy={deletingId === assessment.id} IdleIcon={Trash2} />
                   {t('actions.delete')}
                 </button>
               </>
@@ -390,7 +407,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
             disabled={loading || !canLoad}
             className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-white/70 bg-white/60 px-4 py-2.5 text-xs font-semibold text-ink-secondary backdrop-blur-md transition-colors hover:bg-white/90 hover:text-brand disabled:opacity-50"
           >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            <BusyIcon busy={loading} IdleIcon={RefreshCw} />
             {t('refresh')}
           </button>
         </div>
@@ -518,7 +535,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
                                   disabled={deletingId === item.id}
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
                                 >
-                                  {deletingId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                  <BusyIcon busy={deletingId === item.id} IdleIcon={Trash2} />
                                   {t('actions.delete')}
                                 </button>
                               )}

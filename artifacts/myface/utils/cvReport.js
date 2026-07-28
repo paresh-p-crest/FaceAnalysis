@@ -1373,7 +1373,7 @@ function proportionsFromLandmarks(landmarks, metrics) {
 }
 
 /**
- * Compute Qoves-style per-feature proportion ratios from landmarks.
+ * Compute report-style per-feature proportion ratios from landmarks.
  * Returns 4 tab ratios: naso-aural (ear), orbito-nasal (nose),
  * naso-oral (mouth), orbital (eye).
  */

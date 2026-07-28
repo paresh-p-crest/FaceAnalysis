@@ -1,52 +1,116 @@
-"""SMTP email helper for transactional notifications."""
+"""Transactional email facade — sole public API for sending emails."""
 
 from __future__ import annotations
 
+import logging
 import os
-import smtplib
-from email.message import EmailMessage
-from typing import Optional
+import uuid
+
+from .email.providers.resend_provider import ResendProvider, _resend_configured
+from .email.providers.smtp_provider import SmtpProvider, smtp_configured
+from .email.templates import EmailTemplate, render_template
+from .repositories.email_send_log_repository import create_email_send_log
+
+logger = logging.getLogger(__name__)
+
+_PROVIDERS = {
+    "resend": ResendProvider,
+    "smtp": SmtpProvider,
+}
 
 
 def email_config() -> dict:
-    host = os.environ.get("SMTP_HOST", "").strip()
-    username = os.environ.get("SMTP_USERNAME", "").strip()
-    password = os.environ.get("SMTP_PASSWORD", "").strip()
-    from_email = os.environ.get("SMTP_FROM_EMAIL", "").strip()
+    """Return provider configuration status for admin diagnostics."""
+    default = os.environ.get("EMAIL_DEFAULT_PROVIDER", "resend").strip().lower() or "resend"
+    from_address = os.environ.get("EMAIL_FROM_ADDRESS", "").strip() or os.environ.get(
+        "SMTP_FROM_EMAIL", ""
+    ).strip()
+    from_name = os.environ.get("EMAIL_FROM_NAME", "").strip() or os.environ.get("SMTP_FROM_NAME", "MyFace")
     return {
-        "configured": bool(host and from_email and (username or password)),
-        "host": host,
-        "port": int(os.environ.get("SMTP_PORT", "587") or 587),
-        "fromEmail": from_email,
-        "fromName": os.environ.get("SMTP_FROM_NAME", "MyFace"),
+        "defaultProvider": default,
+        "configured": _resend_configured() if default == "resend" else smtp_configured(),
+        "resendConfigured": _resend_configured(),
+        "smtpConfigured": smtp_configured(),
+        "fromEmail": from_address,
+        "fromName": from_name,
     }
 
 
-def send_email(*, to_email: str, subject: str, text: str, html: Optional[str] = None) -> dict:
-    cfg = email_config()
-    if not cfg["configured"]:
-        return {"sent": False, "error": "SMTP email is not configured."}
+def _resolve_provider(name: str | None) -> str:
+    provider = (name or os.environ.get("EMAIL_DEFAULT_PROVIDER", "resend")).strip().lower() or "resend"
+    if provider not in _PROVIDERS:
+        raise ValueError(f"Unknown email provider: {provider}")
+    return provider
 
-    msg = EmailMessage()
-    from_name = cfg["fromName"]
-    msg["From"] = f"{from_name} <{cfg['fromEmail']}>"
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.set_content(text)
-    if html:
-        msg.add_alternative(html, subtype="html")
 
-    username = os.environ.get("SMTP_USERNAME", "").strip()
-    password = os.environ.get("SMTP_PASSWORD", "").strip()
-    use_tls = os.environ.get("SMTP_USE_TLS", "true").lower() != "false"
+def _get_provider_adapter(provider: str):
+    return _PROVIDERS[provider]()
+
+
+async def send_email(
+    *,
+    to: str,
+    template: EmailTemplate,
+    data: dict,
+    provider: str | None = None,
+    user_id: str | None = None,
+) -> dict:
+    """Send a templated email and log the attempt. Returns normalized result dict."""
+    provider_name = _resolve_provider(provider)
+    subject, html, text = render_template(template, data)
+    log_id = uuid.uuid4()
+    uid = None
+    if user_id:
+        try:
+            uid = uuid.UUID(str(user_id))
+        except (ValueError, TypeError, AttributeError):
+            uid = None
 
     try:
-        with smtplib.SMTP(cfg["host"], cfg["port"], timeout=20) as smtp:
-            if use_tls:
-                smtp.starttls()
-            if username or password:
-                smtp.login(username, password)
-            smtp.send_message(msg)
-        return {"sent": True, "error": None}
+        adapter = _get_provider_adapter(provider_name)
+        result = await adapter.send(to=to, subject=subject, html=html, text=text)
+        row = await create_email_send_log(
+            log_id=log_id,
+            recipient=to,
+            template=template,
+            provider=provider_name,
+            status="sent",
+            provider_message_id=result.provider_message_id,
+            error_message=None,
+            user_id=uid,
+            raw=result.raw,
+        )
+        return {
+            "id": row["id"],
+            "status": "sent",
+            "provider": provider_name,
+            "providerMessageId": result.provider_message_id,
+        }
     except Exception as exc:
-        return {"sent": False, "error": str(exc) or "Email send failed."}
+        error_message = str(exc) or "Email send failed."
+        logger.warning("Email send failed (%s → %s): %s", template, to, error_message)
+        try:
+            row = await create_email_send_log(
+                log_id=log_id,
+                recipient=to,
+                template=template,
+                provider=provider_name,
+                status="failed",
+                provider_message_id=None,
+                error_message=error_message,
+                user_id=uid,
+                raw={"error": error_message},
+            )
+            log_id_str = row["id"]
+        except Exception:
+            log_id_str = str(log_id)
+        return {
+            "id": log_id_str,
+            "status": "failed",
+            "provider": provider_name,
+            "error": error_message,
+        }
+
+
+def public_app_url() -> str:
+    return os.environ.get("PUBLIC_APP_URL", "http://localhost:3000").rstrip("/")

@@ -378,36 +378,14 @@ def chat_json_completion(
             "duration_s": duration_s,
         }
     except Exception as json_mode_error:
-        try:
-            response, usage, duration_s = _chat_create(
-                client,
-                source=source,
-                op=op,
-                label=(f"{label}/plain" if label else "plain"),
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            raw = response.choices[0].message.content
-            content = _extract_json_object(raw)
-            return {
-                "content": content,
-                "source": source,
-                "model": model,
-                "error": None,
-                "usage": usage,
-                "duration_s": duration_s,
-            }
-        except Exception as fallback_error:
-            detail = str(fallback_error) or str(json_mode_error)
-            return {
-                "content": None,
-                "source": None,
-                "model": model,
-                "error": detail or "LLM narrative generation failed.",
-                "usage": None,
-            }
+        # No unstructured /plain fallback — callers retry or fail closed.
+        return {
+            "content": None,
+            "source": source,
+            "model": model,
+            "error": str(json_mode_error) or "LLM JSON completion failed.",
+            "usage": None,
+        }
 
 
 def chat_text_completion(

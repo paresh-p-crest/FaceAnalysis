@@ -75,6 +75,20 @@ def test_build_visual_prompt_hair_is_identity_preserving():
     assert "Client:" not in prompt
     assert "Context:" not in prompt
     assert "surgical" in prompt.lower()
+    assert "Keep the same head-and-shoulders crop" in prompt
+    assert "don't zoom out to show full length" in prompt
+
+
+def test_build_visual_prompt_hair_long_face_framing_descriptor():
+    style = HairStyleSpec(
+        style_id="long_face_framing_layers",
+        display_name="Long Face-Framing Layers",
+        descriptor="face-framing layers with soft movement that skim the cheeks and jaw",
+    )
+    prompt = build_visual_prompt("hair", style, {"genderPreference": "feminine"}, _CV, None)
+    assert "Long Face-Framing Layers" in prompt
+    assert ": face-framing layers with soft movement" in prompt
+    assert "long face-framing layers with soft movement" not in prompt.lower()
 
 
 def test_build_visual_prompt_hair_omits_cv_hair_color():
@@ -317,12 +331,10 @@ def test_generate_visual_variants_all_thirteen(monkeypatch):
         for v in variants
         if v.get("imageSrc")
     )
-    assert result.get("outfitBaseline") is not None
-    assert "white crew-neck t-shirt" in result["outfitBaseline"]["prompt"]
-    baseline_src = result["outfitBaseline"].get("imageSrc")
-    assert baseline_src and str(baseline_src).startswith("/api/media/")
+    # White-tee outfitBaseline generation temporarily disabled (outfit UI is after-only).
+    assert "outfitBaseline" not in result
     baseline_key = assessment_key(assessment_id, "ai-visuals", "outfit-baseline.jpg")
-    assert get_media_storage().get_bytes(baseline_key) is not None
+    assert get_media_storage().get_bytes(baseline_key) is None
 
 
 def test_generate_visual_variants_blocks_without_front(monkeypatch):

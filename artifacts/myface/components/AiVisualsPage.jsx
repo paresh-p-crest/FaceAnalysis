@@ -7,10 +7,7 @@ import {
   generateAssessmentVisuals,
   isBackendApiEnabled,
 } from '../utils/apiClient'
-import {
-  coercePhotoUrl,
-  resolveAssessmentAiVisualsBaseline,
-} from '../utils/assessmentPhotos'
+import { resolveAssessmentAiVisualsBaseline } from '../utils/assessmentPhotos'
 import { fetchLatestSubmittedAssessment } from '../utils/latestAssessment'
 import { translateApiError } from '../utils/translateApiError'
 import { AiVisualsSection } from './AiVisualsSection'
@@ -18,16 +15,6 @@ import { StandalonePageShell } from './StandalonePageShell'
 import { ReportDocumentLayout } from './report/ReportDocumentLayout'
 import { AI_VISUAL_NAV_GROUPS } from './report/reportNavConfig'
 import { useApp } from './providers/AppProvider'
-
-/** Outfit BEFORE: white-tee baseline when present, else front (legacy assessments). */
-function resolveOutfitBeforeSrc(assessment) {
-  const baseline = assessment?.aiVisuals?.outfitBaseline
-  const fromBaseline = coercePhotoUrl(
-    baseline && typeof baseline === 'object' ? baseline.imageSrc : baseline,
-  )
-  if (fromBaseline) return fromBaseline
-  return resolveAssessmentAiVisualsBaseline(assessment)
-}
 
 /** Standalone `/ai-visuals` — independent of the report modal. */
 export default function AiVisualsPage({ onStartAssessment, user = null }) {
@@ -106,7 +93,7 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
   if (loading) {
     return (
       <StandalonePageShell>
-        <div className="tool-page-shell__body flex items-center justify-center qoves-report-layout">
+        <div className="tool-page-shell__body flex items-center justify-center report-view-layout">
           <div className="text-center py-16">
             <Loader2 className="w-7 h-7 text-brand animate-spin mx-auto mb-3" />
             <p className="text-sm text-ink-muted">{t('loading')}</p>
@@ -163,7 +150,7 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
           tNamespace="AiVisuals"
           titleKey="navTitle"
           defaultOpenGroupId="visuals"
-          canvasClassName="qoves-report-canvas--tools"
+          canvasClassName="report-view-canvas--tools"
         >
           <AiVisualsSection
             aiVisuals={aiVisuals}
@@ -176,7 +163,6 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
             activeType={activeType}
             showGenerate={isAdmin}
             beforeSrc={resolveAssessmentAiVisualsBaseline(assessment)}
-            outfitBeforeSrc={resolveOutfitBeforeSrc(assessment)}
             visualAge={
               assessment?.analysis?.metrics?.visualAge
               ?? assessment?.analysis?.cvReport?.overall?.visualAge

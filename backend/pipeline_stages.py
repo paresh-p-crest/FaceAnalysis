@@ -16,6 +16,12 @@ from .photo_storage import (
     save_parsing_crop,
     save_projected_full,
 )
+from .pipeline_stage_checks import (
+    ai_visuals_stage_complete,
+    narratives_stage_complete,
+    parsing_stage_complete,
+    projected_after_stage_complete,
+)
 from .pipeline_status import _utcnow_iso, new_feature_parsing_pending
 from .projected_after_status import merge_projected_after_update, new_projected_after_pending
 from .projected_analysis_status import (
@@ -105,16 +111,24 @@ async def run_cv_stage(assessment: dict) -> dict:
     return updated
 
 
-async def run_narratives_stage(assessment: dict) -> dict:
+async def run_narratives_stage(assessment: dict, *, force: bool = False) -> dict:
     """Executive + protocol NL enrichment (soft-fail on errors)."""
-    refreshed = await get_assessment_by_id(assessment["id"])
+    assessment_id = assessment["id"]
+    if not force and narratives_stage_complete(assessment):
+        logger.info("Pipeline stage narratives skipped (complete) assessment=%s", assessment_id)
+        return assessment
+    refreshed = await get_assessment_by_id(assessment_id)
     if not refreshed:
         raise RuntimeError("Assessment not found for narratives stage")
-    return await enrich_assessment_nl_content(refreshed)
+    return await enrich_assessment_nl_content(refreshed, force=force)
 
 
-async def run_parsing_stage(assessment: dict) -> dict:
+async def run_parsing_stage(assessment: dict, *, force: bool = False) -> dict:
     """SegFormer crops + assumed-scale metrics into feature_parsing."""
+    assessment_id = assessment["id"]
+    if not force and parsing_stage_complete(assessment):
+        logger.info("Pipeline stage parsing skipped (complete) assessment=%s", assessment_id)
+        return assessment
     from .face_parsing import (
         extract_feature_crops,
         extract_lips_crop_from_front_landmarks,
@@ -419,8 +433,11 @@ async def generate_projected_after_now(
     return await run_projected_analysis_now({"id": assessment_id})
 
 
-async def run_projected_after_stage(assessment: dict) -> dict:
+async def run_projected_after_stage(assessment: dict, *, force: bool = False) -> dict:
     """Full-face projected AFTER JPEG into projected_after JSONB (pipeline; soft-skip/soft-fail)."""
+    if not force and projected_after_stage_complete(assessment):
+        logger.info("Pipeline stage projected_after skipped (complete) assessment=%s", assessment["id"])
+        return assessment
     return await generate_projected_after_now(
         assessment,
         respect_enabled_flag=True,
@@ -428,29 +445,20 @@ async def run_projected_after_stage(assessment: dict) -> dict:
     )
 
 
-async def run_ai_visuals_stage(assessment: dict) -> dict:
+async def run_ai_visuals_stage(assessment: dict, *, force: bool = False) -> dict:
     """Generate all AI visual variants from front (BEFORE) portrait."""
     from .visual_generation import generate_visual_variants
 
     assessment_id = assessment["id"]
-    # Previously required projected AFTER ready + loadable bytes before generating.
-    # projected = assessment.get("projectedAfter") or {}
-    # if projected.get("status") != "ready":
-    #     logger.info(
-    #         "AI visuals skipped for %s: projected AFTER status=%s",
-    #         assessment_id,
-    #         projected.get("status"),
-    #     )
-    #     return assessment
-    # if not load_projected_full(assessment_id, projected):
-    #     logger.info("AI visuals skipped for %s: projected AFTER file missing", assessment_id)
-    #     return assessment
-
     refreshed = await get_assessment_by_id(assessment_id)
     if not refreshed:
         raise RuntimeError("Assessment missing or soft-deleted for AI visuals stage")
     analysis = refreshed.get("analysis") or {}
     cv_report = analysis.get("cvReport")
+    answers = refreshed.get("answers") or {}
+    if not force and cv_report and ai_visuals_stage_complete(refreshed, cv_report, answers):
+        logger.info("Pipeline stage ai_visuals skipped (complete) assessment=%s", assessment_id)
+        return refreshed
     if not cv_report:
         logger.warning("AI visuals skipped for %s: no cvReport", assessment_id)
         return refreshed

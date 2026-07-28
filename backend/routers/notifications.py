@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..auth import require_admin
-from ..email_service import email_config, send_email
+from ..email_service import email_config, public_app_url, send_email
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -24,12 +24,15 @@ async def get_notification_config(current_user: dict = Depends(require_admin)):
 async def post_test_email(req: TestEmailRequest, current_user: dict = Depends(require_admin)):
     if "@" not in req.toEmail:
         raise HTTPException(status_code=400, detail="Valid recipient email is required.")
-    result = send_email(
-        to_email=req.toEmail,
-        subject="MyFace email test",
-        text="MyFace transactional email is configured correctly.",
-        html="<p>MyFace transactional email is configured correctly.</p>",
+    result = await send_email(
+        to=req.toEmail,
+        template="signup_confirmation",
+        data={
+            "firstName": current_user.get("firstName") or "there",
+            "loginUrl": f"{public_app_url()}/auth",
+        },
+        user_id=current_user.get("id"),
     )
-    if not result.get("sent"):
+    if result.get("status") != "sent":
         raise HTTPException(status_code=503, detail=result.get("error") or "Email send failed.")
     return result

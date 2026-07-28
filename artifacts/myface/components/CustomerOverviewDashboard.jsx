@@ -83,10 +83,20 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
       if (frontPhoto) {
         const { downloadMyFacePdf } = await import('../utils/reportPdf')
         const { mergeNarrativesForPdf } = await import('../utils/protocolSections')
+        const { pickLocalizedNarratives } = await import('../utils/narrativeLocale')
         const messagesModule = locale === 'de'
           ? await import('../messages/de.json')
           : await import('../messages/en.json')
         const pdfMessages = messagesModule?.default || messagesModule
+        const localized = pickLocalizedNarratives(
+          {
+            aiNarrative: assessment.aiNarrative || analysis?.aiNarrative || null,
+            protocolNarrative: assessment.protocolNarrative,
+            featureNarratives: assessment.featureNarratives,
+          },
+          locale,
+          { t: tReport },
+        )
         await downloadMyFacePdf({
           photo: frontPhoto,
           photos: posePhotos,
@@ -94,12 +104,12 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
           metrics: analysis?.metrics ?? null,
           landmarks: analysis?.landmarks ?? null,
           protocolNarrative: mergeNarrativesForPdf(
-            assessment.protocolNarrative,
-            assessment.featureNarratives,
+            localized.protocolNarrative,
+            localized.featureNarratives,
           ),
           answers: assessment.answers ?? null,
           eyeAnalysis: analysis?.eyeAnalysis ?? null,
-          aiNarrative: assessment.aiNarrative || analysis?.aiNarrative || null,
+          aiNarrative: localized.aiNarrative,
           user,
           assessmentOwner,
           projectedAfter: assessment.projectedAfter || analysis?.projectedAfter || null,
@@ -108,9 +118,10 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
           createdAt: assessment.createdAt ?? null,
           updatedAt: assessment.updatedAt ?? null,
           pdfMessages,
+          locale,
         })
       } else if (assessment.id && isBackendApiEnabled()) {
-        await downloadAssessmentPdf(assessment.id)
+        await downloadAssessmentPdf(assessment.id, locale)
       } else {
         throw new Error(tReport('shell.pdfFailed'))
       }
@@ -119,7 +130,7 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
       // Fallback: server PDF when client build fails (bad photo metadata, CORS, etc.)
       if (assessment?.id && isBackendApiEnabled()) {
         try {
-          await downloadAssessmentPdf(assessment.id)
+          await downloadAssessmentPdf(assessment.id, locale)
           return
         } catch (fallbackErr) {
           console.error('Backend PDF fallback failed:', fallbackErr)
@@ -174,7 +185,7 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
 
   return (
     <StandalonePageShell scrollable compactTop>
-      <div className="qoves-report-page qoves-report-page--overview py-2 sm:py-3">
+      <div className="report-view-page report-view-page--overview py-2 sm:py-3">
         <ExecutiveSummary
           cvReport={cvReport}
           eyeAnalysis={analysis?.eyeAnalysis ?? null}

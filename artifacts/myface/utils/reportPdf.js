@@ -21,20 +21,20 @@ import {
   buildFeaturePages,
   buildProtocolContents,
   buildProtocolDashboardData,
-  DISCLAIMER_PARAGRAPHS,
   formatProtocolId,
   formatProtocolMonth,
   getClientName,
   getFeatureComparisonData,
-  INTRODUCTION_PARAGRAPHS,
-  LIMITATIONS_PARAGRAPH,
-  PRIVACY_PARAGRAPHS,
-  QOVES_PROTOCOL_FEATURES,
+  INTRODUCTION_PARAGRAPH_KEYS,
+  LIMITATIONS_PARAGRAPH_KEY,
+  localizedFeaturePrimary,
+  localizedSubsectionTitle,
+  PRIVACY_POLICY_URL,
   resolveTreatmentPhases,
   resolveFeaturePreviewCallouts,
   mapCoverTopCenter,
-  UNDERSTANDING_RESULTS,
-} from './qovesProtocolModel'
+  UNDERSTANDING_RESULTS_KEYS,
+} from './reportProtocolModel'
 
 // MyFace theme tokens (docs/design/theme.md)
 const BRAND = { r: 94, g: 159, b: 139 }
@@ -71,16 +71,51 @@ const EVIDENCE_TIER_LABELS = {
   refer_clinician: 'evidenceReferClinician',
 }
 
+// ponytail: one PDF build's translators; avoid threading through every draw*FeaturePage. Reset in finally.
+let activePdfT = defaultPdfT
+let activeReportT = createReportTranslator()
+
+function pm(key, params) {
+  return activeReportT(`protocolModel.${key}`, params)
+}
+
+function featureSplit(featureId) {
+  return [localizedFeaturePrimary(featureId, activeReportT), pm('recommendations')]
+}
+
+function subLabel(enTitle) {
+  return localizedSubsectionTitle(enTitle, activeReportT)
+}
+
+function tagBefore() {
+  return pm('tagBefore')
+}
+function tagAfter() {
+  return pm('tagAfter')
+}
+function tagProfile() {
+  return pm('tagProfile')
+}
+function tagAnalysis() {
+  return pm('tagAnalysis')
+}
+function tagEyes() {
+  return pm('tagEyes')
+}
+function tagLips() {
+  return pm('tagLips')
+}
+
 function evidenceTierLabel(tier, pdfT) {
   const key = EVIDENCE_TIER_LABELS[tier]
   return key ? pdfT(key) : tier
 }
 
-function wrapSubsectionText(doc, sub, x, y, maxW, lineH = 11.5, pdfT = defaultPdfT) {
+function wrapSubsectionText(doc, sub, x, y, maxW, lineH = 11.5, pdfT = activePdfT) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   setInk(doc)
-  doc.text(sub.title, x, y)
+  doc.text(subLabel(sub.title), x, y)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
@@ -110,15 +145,6 @@ const PRIVACY_PARAGRAPHS_PDF = [
   'Client-supplied images that have been modified by MyFace will be stored as a whole within the report.',
   'The MyFace brand does use cookies on the myface.club website to help aid navigation, analytics and browsing metadata. This process does track browser usage throughout the site.'
 ]
-
-const INTRODUCTION_PARAGRAPHS_PDF = [
-  'In this report, MyFace has approached the commissioned facial analysis from a cephalometric point of view; taking soft tissue measurements and comparing it with established scientific research data. The majority of this research data concerns itself with facial aesthetics and determining \'ideal\' cephalometric values in how they correspond to a 1/10 scale of rated attractiveness by the layperson.',
-  'This approach makes the report\'s findings less subjective where recommendations and observations may vary from person to person. However, it should be noted that there are some limitations to the studies used throughout the report and the recommendations throughout should be taken only as empirical guidelines and not entirely precise measurements.'
-]
-
-const LIMITATIONS_PARAGRAPH_PDF =
-  'This report does have numerous limitations that need to be taken into account. For one it\'s not possible for the MyFace team to ensure the subject is maintaining a Neutral Head Position. This may influence submental and under jaw measurements significantly. Another issue is lighting, camera quality and shadows which may influence the qualitative assessments by \'ageing\' the face unfavourably. Also, a proper assessment would require radio-cephalographs to better determine underlying dentofacial structure. These are not available and the MyFace team would like to reiterate that this report is not a medical diagnosis.'
-
 function setBrand(doc) {
   doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
 }
@@ -225,6 +251,125 @@ function splitTextMaxLines(doc, text, maxWidth, maxLines) {
     shown[shown.length - 1] = last
   }
   return shown.map((line) => sanitizePdfText(line))
+}
+
+const PHASE_CARD_LAYOUT = {
+  titleLineH: 9,
+  bodyLineH: 7.5,
+  padTop: 10,
+  padBottom: 6,
+  labelToTitle: 10,
+  titleToDurationGap: 2,
+  durationToDivider: 4,
+  dividerToItems: 8,
+}
+
+function phaseCardFixedOverhead(opts = PHASE_CARD_LAYOUT) {
+  return (
+    opts.padTop
+    + opts.labelToTitle
+    + opts.titleToDurationGap
+    + opts.durationToDivider
+    + opts.dividerToItems
+    + opts.padBottom
+  )
+}
+
+function phaseCardHeight(titleLines, durationLines, itemLineGroups, opts = PHASE_CARD_LAYOUT) {
+  const titleH = titleLines.length * opts.titleLineH
+  const durationH = durationLines.length * opts.bodyLineH
+  const itemsH = itemLineGroups.reduce((sum, lines) => sum + lines.length * opts.bodyLineH, 0)
+  const headerH = opts.padTop + opts.labelToTitle + titleH + opts.titleToDurationGap + durationH + opts.durationToDivider
+  return headerH + opts.dividerToItems + itemsH + opts.padBottom
+}
+
+function buildPhaseItemLine(item) {
+  if (!item) return '· —'
+  return `· ${item.name}${item.detail ? `: ${item.detail}` : ''}`
+}
+
+function buildPhaseCardLayout(doc, phase, phaseKey, textW, lineCaps = null, opts = PHASE_CARD_LAYOUT) {
+  const items = (phase?.items || []).slice(0, 3)
+  const itemRows = items.length ? items : [null]
+  const unlimited = 999
+
+  const maxTitleLines = lineCaps?.maxTitleLines ?? unlimited
+  const maxDurationLines = lineCaps?.maxDurationLines ?? unlimited
+  const maxItemLinesTotal = lineCaps?.maxItemLinesTotal ?? unlimited
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  const titleLines = lineCaps
+    ? splitTextMaxLines(doc, phase?.title || '—', textW, maxTitleLines)
+    : doc.splitTextToSize(sanitizePdfText(phase?.title || '—'), textW).map((line) => sanitizePdfText(line))
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6)
+  const durationLines = lineCaps
+    ? splitTextMaxLines(doc, phase?.duration || '—', textW, maxDurationLines)
+    : doc.splitTextToSize(sanitizePdfText(phase?.duration || '—'), textW).map((line) => sanitizePdfText(line))
+
+  let itemLineGroups
+  if (!lineCaps) {
+    itemLineGroups = itemRows.map((item) => {
+      const line = buildPhaseItemLine(item)
+      return doc.splitTextToSize(sanitizePdfText(line), textW).map((l) => sanitizePdfText(l))
+    })
+  } else {
+    let remainingItemLines = maxItemLinesTotal
+    itemLineGroups = itemRows.map((item, idx) => {
+      const slotsLeft = itemRows.length - idx
+      const cap = Math.max(1, Math.min(remainingItemLines, Math.ceil(remainingItemLines / slotsLeft)))
+      remainingItemLines -= cap
+      return splitTextMaxLines(doc, buildPhaseItemLine(item), textW, cap)
+    })
+  }
+
+  return {
+    phase,
+    phaseKey,
+    titleLines,
+    durationLines,
+    itemLineGroups,
+    height: phaseCardHeight(titleLines, durationLines, itemLineGroups, opts),
+  }
+}
+
+function lineCapsForPhaseCard(perCardBudget, itemCount, opts = PHASE_CARD_LAYOUT) {
+  let remaining = perCardBudget - phaseCardFixedOverhead(opts)
+  if (remaining < opts.bodyLineH) {
+    return { maxTitleLines: 1, maxDurationLines: 1, maxItemLinesTotal: 1 }
+  }
+
+  const maxTitleLines = Math.min(2, Math.max(1, Math.floor(remaining / opts.titleLineH)))
+  remaining -= maxTitleLines * opts.titleLineH
+
+  const maxDurationLines = remaining >= opts.bodyLineH ? 1 : 1
+  remaining -= maxDurationLines * opts.bodyLineH
+
+  const maxItemLinesTotal = Math.max(1, Math.floor(remaining / opts.bodyLineH))
+  return { maxTitleLines, maxDurationLines, maxItemLinesTotal }
+}
+
+/** Measure and cap treatment phase cards to fit a fixed column budget (PDF page 1). */
+function layoutTreatmentPhaseCards(doc, { phaseKeys, phases, textW, columnBudget, phaseGap = 5 }) {
+  const opts = PHASE_CARD_LAYOUT
+  let layouts = phaseKeys.map((phaseKey) =>
+    buildPhaseCardLayout(doc, phases?.[phaseKey], phaseKey, textW, null, opts),
+  )
+
+  const totalHeight = layouts.reduce((sum, layout, i) => sum + layout.height + (i < layouts.length - 1 ? phaseGap : 0), 0)
+  if (totalHeight > columnBudget && layouts.length > 0) {
+    const perCardBudget = (columnBudget - (layouts.length - 1) * phaseGap) / layouts.length
+    layouts = phaseKeys.map((phaseKey) => {
+      const phase = phases?.[phaseKey]
+      const itemCount = Math.max(1, (phase?.items || []).slice(0, 3).length || 1)
+      const caps = lineCapsForPhaseCard(perCardBudget, itemCount, opts)
+      return buildPhaseCardLayout(doc, phase, phaseKey, textW, caps, opts)
+    })
+  }
+
+  return layouts
 }
 
 function drawSplitTitle(doc, x, y, primary, secondary, size = 26) {
@@ -402,7 +547,7 @@ function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false, poseId = nul
   return { w, h, ox, oy }
 }
 
-function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IMAGE_TEXT_GAP, pdfT = defaultPdfT, poseId = null } = {}) {
+function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IMAGE_TEXT_GAP, pdfT = activePdfT, poseId = null } = {}) {
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.roundedRect(x, y, w, h, 6, 6, 'F')
   doc.setDrawColor(229, 231, 235)
@@ -474,12 +619,12 @@ function drawSplitComparisonFrame(doc, x, y, w, h, beforeSrc, afterSrc, { gap = 
   return y + h + gap
 }
 
-/** Labeled body block; returns Y after the last text line. */
+/** Labeled body block; returns Y after the last text line. EN title → localized display. */
 function drawLabeledBody(doc, x, y, title, body, maxW, lineH = 11.5) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   setInk(doc)
-  doc.text(title, x, y)
+  doc.text(subLabel(title), x, y)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
@@ -615,13 +760,13 @@ function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 10
   const frameH = horizontal ? imgH : (imgH - gap) / 2
 
   if (horizontal) {
-    drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE', { cover })
-    drawImageFrame(doc, x + frameW + gap, y, frameW, frameH, afterSrc, 'AFTER', { cover })
+    drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, tagBefore(), { cover })
+    drawImageFrame(doc, x + frameW + gap, y, frameW, frameH, afterSrc, tagAfter(), { cover })
     return y + frameH + IMAGE_TEXT_GAP
   }
 
-  drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, 'BEFORE', { cover })
-  drawImageFrame(doc, x, y + frameH + gap, frameW, frameH, afterSrc, 'AFTER', { cover })
+  drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, tagBefore(), { cover })
+  drawImageFrame(doc, x, y + frameH + gap, frameW, frameH, afterSrc, tagAfter(), { cover })
   return y + frameH * 2 + gap + IMAGE_TEXT_GAP
 }
 
@@ -699,11 +844,9 @@ function drawDumbbellChart(doc, x, y, w, h, items) {
 }
 
 function drawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal = false) {
-  drawHeader(doc, pageNum)
+  drawHeader(doc, pageNum, activePdfT)
 
-  const titleParts = section.title.split(' ')
-  const primary = titleParts[0]
-  const secondary = titleParts.slice(1).join(' ')
+  const [primary, secondary] = featureSplit(section.id)
   let titleY = drawSplitTitle(doc, MARGIN, 68, primary, secondary, 20)
 
   const rightX = MARGIN + COL_W + COL_GAP
@@ -715,7 +858,7 @@ function drawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profile
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     setInk(doc)
-    doc.text(sub.title, MARGIN, textY)
+    doc.text(subLabel(sub.title), MARGIN, textY)
     textY += 12
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
@@ -725,14 +868,14 @@ function drawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profile
 
   let imgY = titleY + 4
   if (section.layoutHints?.profileImage && profileJpeg && profileIsReal) {
-    imgY = drawImageFrame(doc, rightX, imgY, imgColW, 120, profileJpeg, 'PROFILE')
+    imgY = drawImageFrame(doc, rightX, imgY, imgColW, 120, profileJpeg, tagProfile())
   }
 
   const pairH = section.layoutHints?.stackedImages ? 180 : 100
   const vertical = section.layoutHints?.stackedImages
   imgY = drawBeforeAfterPair(doc, rightX, imgY, imgColW, beforeJpeg, section.afterJpeg || null, pairH, !vertical)
 
-  const summaryTitle = `${section.title.replace(' Recommendations', '')} Summary`
+  const summaryTitle = pm('featureSummary', { name: primary })
   drawSummaryBar(doc, Math.max(textY, imgY) + SECTION_GAP, summaryTitle, section.summary)
 }
 
@@ -920,8 +1063,8 @@ function drawNorwoodPanel(doc, y, activeStage = 1, stageImages = []) {
 }
 
 function drawHairFeaturePage(doc, section, pageNum, beforeJpeg, norwoodImages = []) {
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Hair', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('hair'), 26) + 4
 
   const subs = section.subsections || []
   const rightX = MARGIN + COL_W + COL_GAP
@@ -931,8 +1074,8 @@ function drawHairFeaturePage(doc, section, pageNum, beforeJpeg, norwoodImages = 
   let leftY = y
   let rightY = y
   if (subs[0]) leftY = wrapSubsectionText(doc, subs[0], MARGIN, leftY, COL_W)
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, beforeJpeg, 'BEFORE', { cover: true })
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, section.afterJpeg || null, 'AFTER', {
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, beforeJpeg, tagBefore(), { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, section.afterJpeg || null, tagAfter(), {
     cover: true,
   })
   y = Math.max(leftY, rightY) + SECTION_GAP
@@ -941,7 +1084,7 @@ function drawHairFeaturePage(doc, section, pageNum, beforeJpeg, norwoodImages = 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     setInk(doc)
-    doc.text('Hair Loss', MARGIN, y)
+    doc.text(subLabel('Hair Loss'), MARGIN, y)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     const body = subs[1].body || ''
@@ -959,7 +1102,7 @@ function drawHairFeaturePage(doc, section, pageNum, beforeJpeg, norwoodImages = 
   leftY = y
   rightY = y
   if (subs[2]) leftY = wrapSubsectionText(doc, subs[2], MARGIN, leftY, COL_W)
-  drawSummaryCard(doc, rightX, rightY, COL_W, 'Hair Summary', section.summary)
+  drawSummaryCard(doc, rightX, rightY, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('hair', activeReportT) }), section.summary)
 }
 
 function drawEyesFeaturePage(doc, section, pageNum) {
@@ -969,8 +1112,8 @@ function drawEyesFeaturePage(doc, section, pageNum) {
   const subs = section.subsections || []
   const rightX = MARGIN + COL_W + COL_GAP
 
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Eye', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('eyes'), 26) + 4
 
   let leftY = y
   let rightY = y
@@ -988,17 +1131,17 @@ function drawEyesFeaturePage(doc, section, pageNum) {
 
   // EYES crop + summary share the bottom edge of the page
   const eyesFrameH = 110
-  const summary = drawSummaryCard(doc, rightX, y, COL_W, 'Eye Region Summary', section.summary)
+  const summary = drawSummaryCard(doc, rightX, y, COL_W, pm('eyeRegionSummary'), section.summary)
   const eyesY = Math.max(y, summary.bottom - eyesFrameH)
-  drawImageFrame(doc, MARGIN, eyesY, COL_W, eyesFrameH, eyesPreview, 'EYES', {
+  drawImageFrame(doc, MARGIN, eyesY, COL_W, eyesFrameH, eyesPreview, tagEyes(), {
     cover: false,
     gap: 0,
   })
 }
 
 function drawNoseFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal) {
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Nose', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('nose'), 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
@@ -1006,12 +1149,12 @@ function drawNoseFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, pro
   let rightY = y
 
   if (profileJpeg && profileIsReal) {
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, PROFILE_FRAME_H, profileJpeg, 'PROFILE', {
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, PROFILE_FRAME_H, profileJpeg, tagProfile(), {
       cover: true,
     })
   }
   rightY = drawBeforeAfterPair(doc, rightX, rightY, COL_W, beforeJpeg, section.afterJpeg || null, 120, true)
-  drawSummaryCard(doc, rightX, rightY, COL_W, 'Nose Summary', section.summary)
+  drawSummaryCard(doc, rightX, rightY, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('nose', activeReportT) }), section.summary)
 }
 
 function drawCheeksFeaturePage(doc, section, pageNum) {
@@ -1023,8 +1166,8 @@ function drawCheeksFeaturePage(doc, section, pageNum) {
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Cheek', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('cheeks'), 26) + 4
 
   let leftY = y
   let rightY = y
@@ -1033,7 +1176,7 @@ function drawCheeksFeaturePage(doc, section, pageNum) {
   // ANALYSIS + BEFORE + AFTER share one box size
   const cheekFrameW = COL_W
   const cheekFrameH = 180
-  drawImageFrame(doc, rightX, rightY, cheekFrameW, cheekFrameH, analysisSrc, 'ANALYSIS', {
+  drawImageFrame(doc, rightX, rightY, cheekFrameW, cheekFrameH, analysisSrc, tagAnalysis(), {
     cover: true,
     gap: 0,
   })
@@ -1052,12 +1195,12 @@ function drawCheeksFeaturePage(doc, section, pageNum) {
 
   // Pair width so each tile is exactly cheekFrameW (= COL_W)
   y = drawBeforeAfterPair(doc, MARGIN, y, cheekFrameW * 2 + 8, pairBefore, section.afterJpeg || null, cheekFrameH, true)
-  drawSummaryBar(doc, y, 'Cheek Region Summary', section.summary)
+  drawSummaryBar(doc, y, pm('cheekRegionSummary'), section.summary)
 }
 
 function drawJawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal) {
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Jaw', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('jaw'), 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
@@ -1069,7 +1212,7 @@ function drawJawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, prof
     COL_W,
     PROFILE_FRAME_H,
     profileJpeg && profileIsReal ? profileJpeg : beforeJpeg,
-    'PROFILE',
+    tagProfile(),
     { cover: true },
   )
   y = Math.max(leftY, rightY) + SECTION_GAP
@@ -1080,7 +1223,7 @@ function drawJawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, prof
   leftY = y
   rightY = y
   if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Further Enhancement', subs[1].body, COL_W)
-  drawSummaryCard(doc, rightX, rightY, COL_W, 'Jaw Region Summary', section.summary)
+  drawSummaryCard(doc, rightX, rightY, COL_W, pm('jawRegionSummary'), section.summary)
 }
 
 function drawLipsFeaturePage(doc, section, pageNum) {
@@ -1090,21 +1233,21 @@ function drawLipsFeaturePage(doc, section, pageNum) {
   const subs = section.subsections || []
   const rightX = MARGIN + COL_W + COL_GAP
 
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Lip', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('lips'), 26) + 4
 
   let leftY = y
   let rightY = y
-  if (subs[0]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Lip', subs[0].body, COL_W)
+  if (subs[0]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Lips', subs[0].body, COL_W)
   // Square LIPS contour preview — full column width (and equal height)
   const lipsSquare = COL_W
-  rightY = drawImageFrame(doc, rightX, rightY, lipsSquare, lipsSquare, previewSrc, 'LIPS', {
+  rightY = drawImageFrame(doc, rightX, rightY, lipsSquare, lipsSquare, previewSrc, tagLips(), {
     cover: true,
   })
   y = Math.max(leftY, rightY) + SECTION_GAP
 
   y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, pairBefore, section.afterJpeg || null, 200, true)
-  drawSummaryBar(doc, y, 'Lips Summary', section.summary)
+  drawSummaryBar(doc, y, pm('featureSummary', { name: localizedFeaturePrimary('lips', activeReportT) }), section.summary)
 }
 
 /** Map 0–1 profile landmark into a center-cover PROFILE frame (inner padded box). */
@@ -1263,8 +1406,8 @@ async function resolveChinProfileOverlay(cvReport, profileJpeg) {
 }
 
 async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profileIsReal) {
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Chin', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('chin'), 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
   const profileSrc = profileJpeg && profileIsReal ? profileJpeg : null
@@ -1280,12 +1423,12 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
     const topAnnotated = await generateAnnotatedChinProfileImage(showSrc, 'thirds', poseId, rawOverlay, COL_W, CHIN_PROFILE_FRAME_H)
     const botAnnotated = await generateAnnotatedChinProfileImage(showSrc, 'projection', poseId, rawOverlay, COL_W, CHIN_PROFILE_FRAME_H)
 
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, topAnnotated, 'PROFILE', {
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, topAnnotated, tagProfile(), {
       cover: false,
       poseId,
     })
 
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, botAnnotated, 'PROFILE', {
+    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, botAnnotated, tagProfile(), {
       cover: false,
       poseId,
     })
@@ -1293,12 +1436,12 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
 
   y = Math.max(leftY, rightY) + SECTION_GAP
   y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, section.afterJpeg || null, 120, true)
-  drawSummaryBar(doc, y, 'Chin Summary', section.summary)
+  drawSummaryBar(doc, y, pm('featureSummary', { name: localizedFeaturePrimary('chin', activeReportT) }), section.summary)
 }
 
 function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null) {
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Skin', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('skin'), 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
@@ -1323,37 +1466,37 @@ function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null
   const pairBefore = section.imageSlots?.pairBefore || beforeJpeg
   leftY = drawBeforeAfterPair(doc, MARGIN, y, COL_W, pairBefore, afterJpeg, 150, true)
   if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Further Skin Enhancement', subs[1].body, COL_W)
-  drawSummaryCard(doc, rightX, y, COL_W, 'Skin Summary', section.summary)
+  drawSummaryCard(doc, rightX, y, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('skin', activeReportT) }), section.summary)
 }
 
 function drawNeckFeaturePage(doc, section, pageNum, beforeJpeg) {
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Neck', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('neck'), 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
   let leftY = drawLabeledBody(doc, MARGIN, y, 'Neck Size', subs[0]?.body, COL_W) + 16
   if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Neck Skin', subs[1].body, COL_W)
 
-  let rightY = drawImageFrame(doc, rightX, y, COL_W, 240, beforeJpeg, 'BEFORE', { cover: true })
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 240, section.afterJpeg || null, 'AFTER', { cover: true })
+  let rightY = drawImageFrame(doc, rightX, y, COL_W, 240, beforeJpeg, tagBefore(), { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 240, section.afterJpeg || null, tagAfter(), { cover: true })
 
-  drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, 'Neck Summary', section.summary)
+  drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('neck', activeReportT) }), section.summary)
 }
 
 function drawEarsFeaturePage(doc, section, pageNum, beforeJpeg) {
-  drawHeader(doc, pageNum)
-  let y = drawSplitTitle(doc, MARGIN, 85, 'Ear', 'Recommendations', 26) + 4
+  drawHeader(doc, pageNum, activePdfT)
+  let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('ears'), 26) + 4
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
   let leftY = drawLabeledBody(doc, MARGIN, y, 'Ear Structure', subs[0]?.body, COL_W)
 
   // Front-facing ear crop only — no measurement overlays for now
-  let rightY = drawImageFrame(doc, rightX, y, COL_W, 220, beforeJpeg, 'BEFORE', { cover: true })
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 220, section.afterJpeg || null, 'AFTER', { cover: true })
+  let rightY = drawImageFrame(doc, rightX, y, COL_W, 220, beforeJpeg, tagBefore(), { cover: true })
+  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 220, section.afterJpeg || null, tagAfter(), { cover: true })
 
-  drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, 'Ear Summary', section.summary)
+  drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('ears', activeReportT) }), section.summary)
 }
 
 function reportFeatureCopy(pdfMessages, zoneKey, field) {
@@ -2026,50 +2169,22 @@ function drawProtocolDashboardPage1(doc, ctx) {
   const phaseGap = 5
   const textX = rightX + 6
   const textW = rightW - 12
-  const titleLineH = 9
-  const bodyLineH = 7.5
-  const padTop = 10
-  const padBottom = 6
-  const labelToTitle = 10
-  const titleToDurationGap = 2
-  const durationToDivider = 4
-  const dividerToItems = 8
+  const titleLineH = PHASE_CARD_LAYOUT.titleLineH
+  const bodyLineH = PHASE_CARD_LAYOUT.bodyLineH
+  const padTop = PHASE_CARD_LAYOUT.padTop
+  const padBottom = PHASE_CARD_LAYOUT.padBottom
+  const labelToTitle = PHASE_CARD_LAYOUT.labelToTitle
+  const titleToDurationGap = PHASE_CARD_LAYOUT.titleToDurationGap
+  const durationToDivider = PHASE_CARD_LAYOUT.durationToDivider
+  const dividerToItems = PHASE_CARD_LAYOUT.dividerToItems
 
-  // Full wrap — phase cards grow with content; no max-line ellipsis on items/title/duration.
-  const layouts = phaseKeys.map((phaseKey) => {
-    const phase = treatment.phases?.[phaseKey]
-    const items = (phase?.items || []).slice(0, 3)
-    const itemRows = items.length ? items : [null]
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7.5)
-    const titleLines = doc.splitTextToSize(sanitizePdfText(phase?.title || '—'), textW)
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6)
-    const durationLines = doc.splitTextToSize(sanitizePdfText(phase?.duration || '—'), textW)
-
-    const itemLineGroups = itemRows.map((item) => {
-      const line = item
-        ? `· ${item.name}${item.detail ? `: ${item.detail}` : ''}`
-        : '· —'
-      return doc.splitTextToSize(sanitizePdfText(line), textW)
-    })
-
-    const titleH = titleLines.length * titleLineH
-    const durationH = durationLines.length * bodyLineH
-    const itemsH = itemLineGroups.reduce((sum, lines) => sum + lines.length * bodyLineH, 0)
-    const headerH = padTop + labelToTitle + titleH + titleToDurationGap + durationH + durationToDivider
-    const height = headerH + dividerToItems + itemsH + padBottom
-
-    return {
-      phase,
-      phaseKey,
-      titleLines: titleLines.map((line) => sanitizePdfText(line)),
-      durationLines: durationLines.map((line) => sanitizePdfText(line)),
-      itemLineGroups: itemLineGroups.map((group) => group.map((line) => sanitizePdfText(line))),
-      height,
-    }
+  const columnBudget = bodyBottom - 8 - ry
+  const layouts = layoutTreatmentPhaseCards(doc, {
+    phaseKeys,
+    phases: treatment.phases,
+    textW,
+    columnBudget,
+    phaseGap,
   })
 
   layouts.forEach((layout) => {
@@ -2127,7 +2242,8 @@ function drawProtocolDashboardPage1(doc, ctx) {
   doc.setFontSize(5.5)
   setMuted(doc)
   if (treatment.summary && ry < bodyBottom - 12) {
-    wrapText(doc, treatment.summary, rightX, ry + 2, rightW, 7)
+    const summaryMaxLines = Math.max(1, Math.floor((bodyBottom - 12 - ry) / 7))
+    wrapTextMaxLines(doc, treatment.summary, rightX, ry + 2, rightW, 7, summaryMaxLines)
   }
 
   // Footer
@@ -2157,7 +2273,7 @@ function triggerBlobDownload(blob, filename) {
 }
 
 /**
- * Build MyFace Qoves-style aesthetic protocol PDF (same generator as download).
+ * Build MyFace report-style aesthetic protocol PDF (same generator as download).
  * @returns {Promise<{ blob: Blob, filename: string }>}
  */
 export async function buildMyFacePdf({
@@ -2179,9 +2295,12 @@ export async function buildMyFacePdf({
   updatedAt = null,
   pdfT = defaultPdfT,
   pdfMessages = null,
+  locale = 'en',
 }) {
   if (!photo || !cvReport) throw new Error(pdfT('missingData'))
   const t = pdfMessages ? createPdfTranslator(pdfMessages) : pdfT
+  activePdfT = t
+  activeReportT = createReportTranslator(pdfMessages)
 
   const photoJpeg = await normalizeToJpegDataUrl(photo)
   const afterUrl = resolveProjectedAfterUrl(projectedAfter)
@@ -2207,7 +2326,7 @@ export async function buildMyFacePdf({
     }
   }
   const [featurePages, norwoodImages] = await Promise.all([
-    Promise.resolve(buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative)),
+    Promise.resolve(buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative, locale, activeReportT)),
     loadBaldnessStageImages(answers).catch(() => []),
   ])
 
@@ -2290,10 +2409,12 @@ export async function buildMyFacePdf({
     aiNarrative,
     cvReport,
     clientName,
-    protocolNarrative
+    protocolNarrative,
+    locale,
+    activeReportT,
   )
   const closingCols = buildClosingColumns(closingParagraphs)
-  const contents = buildProtocolContents(clientName)
+  const contents = buildProtocolContents(clientName, activeReportT)
   const chartItems = getFeatureComparisonData(cvReport)
 
   try {
@@ -2301,7 +2422,7 @@ export async function buildMyFacePdf({
   const reportDateSource = updatedAt || createdAt
   const reportDateMs = reportDateSource ? Date.parse(reportDateSource) : NaN
   const reportDate = Number.isFinite(reportDateMs)
-    ? new Date(reportDateMs).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    ? new Date(reportDateMs).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '—'
 
   // ── Page 1: Protocol dashboard (mint clinical overview) ──
@@ -2392,7 +2513,7 @@ export async function buildMyFacePdf({
   doc.setLineWidth(0.5)
   doc.line(MARGIN + COL_W + COL_GAP + prefixW, rightY + 1.5, MARGIN + COL_W + COL_GAP + prefixW + linkW, rightY + 1.5)
   
-  doc.link(MARGIN + COL_W + COL_GAP + prefixW, rightY - 7, linkW, 9, { url: 'https://myface.club' })
+  doc.link(MARGIN + COL_W + COL_GAP + prefixW, rightY - 7, linkW, 9, { url: PRIVACY_POLICY_URL })
 
   // Bottom signature block at the bottom of the right column (left-aligned within the column)
   const signatureY = PAGE_H - 110
@@ -2409,8 +2530,8 @@ export async function buildMyFacePdf({
 
   // ── Page 3: Introduction + Contents (two columns) ──
   doc.addPage()
-  drawHeader(doc, 3)
-  y = drawSplitTitle(doc, MARGIN, 85, 'Introduction', null, 26)
+  drawHeader(doc, 3, t)
+  y = drawSplitTitle(doc, MARGIN, 85, pm('introduction'), null, 26)
 
   // Draw vertical separator line
   doc.setDrawColor(236, 236, 236) // #ECECEC
@@ -2425,8 +2546,8 @@ export async function buildMyFacePdf({
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
-  INTRODUCTION_PARAGRAPHS_PDF.forEach((para) => {
-    leftY = wrapText(doc, para, MARGIN, leftY, COL_W, 11.5) + 10
+  INTRODUCTION_PARAGRAPH_KEYS.forEach((key) => {
+    leftY = wrapText(doc, activeReportT(key), MARGIN, leftY, COL_W, 11.5) + 10
   })
 
   // Horizontal divider in left column
@@ -2439,42 +2560,25 @@ export async function buildMyFacePdf({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   setInk(doc)
-  doc.text('Limitations', MARGIN, dividerY + 20)
+  doc.text(pm('limitationsLabel'), MARGIN, dividerY + 20)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
-  wrapText(doc, LIMITATIONS_PARAGRAPH_PDF, MARGIN, dividerY + 34, COL_W, 11.5)
+  wrapText(doc, activeReportT(LIMITATIONS_PARAGRAPH_KEY), MARGIN, dividerY + 34, COL_W, 11.5)
 
   // Right column (Contents)
   rightY = colStartY
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   setInk(doc)
-  doc.text('Contents', MARGIN + COL_W + COL_GAP, rightY)
+  doc.text(pm('contents'), MARGIN + COL_W + COL_GAP, rightY)
   rightY += 22
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  
-  const contentsList = [
-    { label: 'Understanding the Results', page: 4 },
-    { label: `${clientName}'s Protocol`, page: 5 },
-    { label: 'Hair', page: 6 },
-    { label: 'Eyebrows', page: 7 },
-    { label: 'Eyes', page: 7 },
-    { label: 'Nose', page: 8 },
-    { label: 'Cheeks', page: 9 },
-    { label: 'Jaw', page: 10 },
-    { label: 'Lips', page: 11 },
-    { label: 'Chin', page: 12 },
-    { label: 'Skin', page: 13 },
-    { label: 'Neck', page: 14 },
-    { label: 'Ear', page: 15 },
-    { label: 'Closing Recommendations', page: 16 }
-  ]
 
-  contentsList.forEach((item) => {
+  contents.forEach((item) => {
     setInk(doc)
     doc.text(item.label, MARGIN + COL_W + COL_GAP, rightY)
     setMuted(doc)
@@ -2484,34 +2588,19 @@ export async function buildMyFacePdf({
 
   // ── Page 4: Understanding the Results ──
   doc.addPage()
-  drawHeader(doc, 4)
-  y = drawSplitTitle(doc, MARGIN, 85, 'Understanding', 'the Results', 28)
+  drawHeader(doc, 4, t)
+  y = drawSplitTitle(doc, MARGIN, 85, pm('understandingPrimary'), pm('understandingSecondary'), 28)
 
   // Horizontal divider below the title
   doc.setDrawColor(236, 236, 236)
   doc.setLineWidth(0.75)
   doc.line(MARGIN, 138, PAGE_W - MARGIN, 138)
 
-  const UNDERSTANDING_RESULTS_RICH = [
-    {
-      bold: 'These recommendations focus on key markers of facial health and harmony.',
-      normal: 'The goal is not to change what makes the subject unique, but to understand what works best with the subject\'s existing features. By refining what is already there, overall facial harmony can improve and form a strong foundation for any future aesthetic goals.',
-    },
-    {
-      bold: 'MyFace does not rate attractiveness.',
-      normal: 'The assessment is designed to highlight what works best for the subject\'s features. The analysis is objective by design. Rather than measuring against a single standard, it identifies what is already working well and where there is room to build, because everyone\'s features present a different set of opportunities.',
-    },
-    {
-      bold: 'The protocol includes a mix of foundational and more advanced recommendations.',
-      normal: 'Some may feel simple or general, and the subject may already follow some of them. While some recommendations, like "SPF", may seem obvious, the fundamentals matter most, as they support the effectiveness of any more targeted recommendations.',
-    },
-    {
-      bold: 'All recommendations are provided for informational purposes and reflect aesthetic considerations only.',
-      normal: 'Any in-clinic treatment or prescription-only product should be discussed with and approved by a qualified medical professional before use.',
-    },
-  ]
-
-  UNDERSTANDING_RESULTS_RICH.forEach((item, idx) => {
+  UNDERSTANDING_RESULTS_KEYS.forEach((key, idx) => {
+    const full = activeReportT(key)
+    const splitAt = full.indexOf('. ')
+    const bold = splitAt > 0 ? full.slice(0, splitAt + 1) : full
+    const normal = splitAt > 0 ? full.slice(splitAt + 2) : ''
     const blockY = 172 + idx * 140
 
     doc.setFont('helvetica', 'normal')
@@ -2527,35 +2616,44 @@ export async function buildMyFacePdf({
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
     setInk(doc)
-    const boldLines = doc.splitTextToSize(item.bold, textW)
+    const boldLines = doc.splitTextToSize(bold, textW)
     boldLines.forEach((line, i) => {
       doc.text(line, textX, blockY + 10 + i * 15)
     })
 
     let textY = blockY + 10 + boldLines.length * 15 + 5
 
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    setMuted(doc)
-    const normalLines = doc.splitTextToSize(item.normal, textW)
-    normalLines.forEach((line, i) => {
-      doc.text(line, textX, textY + i * 13)
-    })
+    if (normal) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      setMuted(doc)
+      const normalLines = doc.splitTextToSize(normal, textW)
+      normalLines.forEach((line, i) => {
+        doc.text(line, textX, textY + i * 13)
+      })
+    }
   })
 
   // ── Page 5: Client protocol overview ──
   doc.addPage()
-  drawHeader(doc, 5)
-  y = drawSplitTitle(doc, MARGIN, 85, `${clientName}'s`, 'Protocol', 26)
+  drawHeader(doc, 5, t)
+  y = drawSplitTitle(
+    doc,
+    MARGIN,
+    85,
+    locale === 'de' ? clientName : `${clientName}'s`,
+    pm('protocolSecondary'),
+    26,
+  )
 
   // Tall side-by-side BEFORE / AFTER portraits
   const rightX = MARGIN + COL_W + COL_GAP
   const protocolPairH = 360
   const protocolPairY = 140
-  drawImageFrame(doc, MARGIN, protocolPairY, COL_W, protocolPairH, photoJpeg, 'BEFORE', {
+  drawImageFrame(doc, MARGIN, protocolPairY, COL_W, protocolPairH, photoJpeg, tagBefore(), {
     cover: true,
   })
-  drawImageFrame(doc, rightX, protocolPairY, COL_W, protocolPairH, overviewAfterJpeg, 'AFTER', {
+  drawImageFrame(doc, rightX, protocolPairY, COL_W, protocolPairH, overviewAfterJpeg, tagAfter(), {
     cover: true,
   })
 
@@ -2577,23 +2675,32 @@ export async function buildMyFacePdf({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   setInk(doc)
-  doc.text('Projected potential', MARGIN, bottomY)
+  doc.text(pm('projectedPotential').split(' · ')[0] || pm('projectedPotential'), MARGIN, bottomY)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
   doc.text('This report is organised around 11 key features for facial aesthetics:', MARGIN, bottomY + 16)
 
-  const col1Features = ['Hair', 'Eyebrows', 'Eyes', 'Nose', 'Cheeks', 'Jaw']
-  const col2Features = ['Lips', 'Chin', 'Skin', 'Neck', 'Ears']
+  const listCol1 = [
+    localizedFeaturePrimary('hair', activeReportT),
+    pm('contentsEyebrows'),
+    pm('contentsEyes'),
+    localizedFeaturePrimary('nose', activeReportT),
+    pm('contentsCheeks'),
+    localizedFeaturePrimary('jaw', activeReportT),
+  ]
+  const listCol2 = ['lips', 'chin', 'skin', 'neck', 'ears'].map((id) =>
+    localizedFeaturePrimary(id, activeReportT),
+  )
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
   const listY = bottomY + 32
-  col1Features.forEach((label, i) => {
+  listCol1.forEach((label, i) => {
     doc.text(`•  ${label}`, MARGIN, listY + i * 12)
   })
-  col2Features.forEach((label, i) => {
+  listCol2.forEach((label, i) => {
     doc.text(`•  ${label}`, MARGIN + 120, listY + i * 12)
   })
 
@@ -2645,8 +2752,8 @@ export async function buildMyFacePdf({
 
   // ── Page 16: Closing Recommendations (two columns) ──
   doc.addPage()
-  drawHeader(doc, 16)
-  y = drawSplitTitle(doc, MARGIN, 78, 'Closing', 'Recommendations', 20)
+  drawHeader(doc, 16, t)
+  y = drawSplitTitle(doc, MARGIN, 78, pm('closingPrimary'), pm('recommendations'), 20)
   y += 12
 
   doc.setDrawColor(229, 231, 235)
@@ -2670,10 +2777,12 @@ export async function buildMyFacePdf({
   return { blob, filename }
   } finally {
     coverCropSession = null
+    activePdfT = defaultPdfT
+    activeReportT = createReportTranslator()
   }
 }
 
-/** Generate and download MyFace Qoves-style aesthetic protocol PDF. */
+/** Generate and download MyFace report-style aesthetic protocol PDF. */
 export async function downloadMyFacePdf(opts) {
   const { blob, filename } = await buildMyFacePdf(opts)
   triggerBlobDownload(blob, filename)

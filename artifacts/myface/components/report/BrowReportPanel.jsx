@@ -159,7 +159,6 @@ function buildAllMetricsRows(m, fp, t) {
 export function BrowReportPanel({
   eyebrows,
   featureParsing = null,
-  narrative: _narrative = null,
   photo = null,
   landmarks = null,
 }) {
@@ -231,6 +230,7 @@ export function BrowReportPanel({
           </div>
         </div>
       </div>
+
     </div>
   )
 }

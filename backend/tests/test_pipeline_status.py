@@ -24,6 +24,13 @@ def test_next_pipeline_stage_order():
     assert next_pipeline_stage("ai_visuals") == "done"
 
 
+def test_resolve_resume_stage():
+    from backend.pipeline_status import claim_stage_from_pipeline, resolve_resume_stage
+
+    assert resolve_resume_stage({"stage": "parsing"}) == "parsing"
+    assert claim_stage_from_pipeline({"stage": "narratives"}) == "narratives"
+
+
 def test_pipeline_is_processing():
     assert pipeline_is_processing({"status": "queued"})
     assert pipeline_is_processing({"status": "running"})

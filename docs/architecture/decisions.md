@@ -48,7 +48,7 @@ Date: 2026-07-09
 Status: accepted  
 
 ### Context
-Qoves-style analysis requires multiple photo angles (front, profiles, quarter views, smile, top of head), physical ruler scaling for mm cephalometrics, and persisted photos for report sections (e.g. naso-aural ratio on side profile). MyFace previously ran MediaPipe only on the front photo and stored pose key names without image files.
+report-style analysis requires multiple photo angles (front, profiles, quarter views, smile, top of head), physical ruler scaling for mm cephalometrics, and persisted photos for report sections (e.g. naso-aural ratio on side profile). MyFace previously ran MediaPipe only on the front photo and stored pose key names without image files.
 
 ### Decision
 - Run MediaPipe independently per uploaded pose via `multi_view.py`.
@@ -58,7 +58,7 @@ Qoves-style analysis requires multiple photo angles (front, profiles, quarter vi
 - Gate production migration with `docs/pre-prod-checklist.md` (S3/R2, signed URLs, GDPR deletion).
 
 ### Consequences
-- Profile cephalometrics use MediaPipe landmarks on profile photos (best-effort; not Qoves 529-point proprietary model).
+- Profile cephalometrics use MediaPipe landmarks on profile photos (best-effort; not MyFace 529-point proprietary model).
 - Dev photos are publicly served under `/uploads/` — must not ship to production without storage migration.
 - `photosKeys` retained for backward compatibility; `photos` map is source of truth for URLs.
 
@@ -89,12 +89,12 @@ Date: 2026-07-09
 Status: accepted  
 
 ### Context
-The Qoves protocol PDF (16 pages) is the primary client deliverable. Monolithic `generate_protocol_narrative` produced weak grounding, and frontend `buildFeaturePages` fallbacks contained invasive procedure language. Beauty Assistant needed on-demand report section access without dumping full context each turn.
+The protocol PDF (16 pages) is the primary client deliverable. Monolithic `generate_protocol_narrative` produced weak grounding, and frontend `buildFeaturePages` fallbacks contained invasive procedure language. Beauty Assistant needed on-demand report section access without dumping full context each turn.
 
 ### Decision
 - Generate **10 per-feature** narratives via OpenAI strict `json_schema` + Pydantic + `clinical_guardrails.py`.
 - Store `featureNarratives` on assessment and in `protocol.json`; expose via `GET /protocol`.
-- Stitch `protocolNarrative.features` compat shim for `QovesProtocolReport` / jsPDF.
+- Stitch `protocolNarrative.features` compat shim for `ProtocolReport` / jsPDF.
 - Beauty Assistant uses ReAct loop with `assistant_tools.py` (CV + protocol fetch tools).
 - Client jsPDF remains canonical PDF renderer when front photo exists; server `GET /pdf` is summary fallback.
 
@@ -155,7 +155,7 @@ Multi-view CV metrics (profile cephalometrics, quarter oblique, smile dynamics, 
 - Enforce on frontend (`PhotoUpload.canAnalyze`) and backend (`photo_validation.validate_required_poses` on `POST /api/assessments`).
 
 ### Consequences
-- Higher upload friction but eliminates stub metrics and enables full Qoves-style report parity.
+- Higher upload friction but eliminates stub metrics and enables full report-style report parity.
 - Demo photo injector fills all 7 poses for dev testing.
 
 ---
@@ -269,16 +269,16 @@ Protocol PDF and assistant copy mixed third-person clinic narration (“the clie
 - New assessments and regenerations read as direct coaching.
 - Older stored narratives keep prior wording until re-upload or admin force-regenerate.
 
-## ADR-017: Qoves-Style Third-Person Report Voice (Subject as Subject)
+## ADR-017: MyFace-Style Third-Person Report Voice (Subject as Subject)
 Date: 2026-07-10  
 Status: accepted  
 
 ### Context
-ADR-013 moved PDF/protocol copy to second person (you/your). Qoves-style clinical protocol PDFs instead narrate in third person with the assessed person as the grammatical subject (“the subject…”, or a provided name). Chat coaching still benefits from second person.
+ADR-013 moved PDF/protocol copy to second person (you/your). report-style clinical protocol PDFs instead narrate in third person with the assessed person as the grammatical subject (“the subject…”, or a provided name). Chat coaching still benefits from second person.
 
 ### Decision
 - **PDF / protocol / executive / feature narratives:** third person with **the subject** as the grammatical subject (prefer the subject’s name when provided). Shared `NARRATIVE_VOICE_RULES` + `NO_TECH_JARGON_RULES` on narrative/protocol system prompts only.
-- **Hard-coded PDF/protocol fallbacks** (`qovesProtocolModel`, `reportPdf`, guardrail templates, closing stitchers, CV `explanation` strings) use the same third-person subject voice.
+- **Hard-coded PDF/protocol fallbacks** (`reportProtocolModel`, `reportPdf`, guardrail templates, closing stitchers, CV `explanation` strings) use the same third-person subject voice.
 - **Beauty Assistant** keeps second person (`ASSISTANT_VOICE_RULES` / `assistant_agent`); image-generation prompts are unchanged.
 - Do not use “the client” as the default referent in narrative copy (legal/privacy pages may still say client/reader).
 
@@ -316,7 +316,7 @@ Hair segmentation was gated behind `HAIR_SEGMENTATION_ENABLED` and returned `Non
 ### Decision
 - Remove the `HAIR_SEGMENTATION_ENABLED` kill-switch. OpenCV HSV hair-mask segmentation always runs in `analyze_hair_photo` / `hair_segmentation.py` as part of the analysis pipeline (BiSeNet remains a future upgrade path, not an env gate).
 - Prefer silhouette anatomical points from `profile_silhouette.extract_profile_silhouette_points` for soft-tissue profile angles; merge with FaceMesh ears when available (`landmarkSource`: `silhouette` | `facemesh` | `silhouette+facemesh`).
-- Surface Tier C fields (`nasofrontalAngleDeg`, `nasolabialAngleDeg`, `dorsalHump*`, etc.) in `cvReport.nose` explanation, `CvReportView`, `qovesProtocolModel`, and `feature_context` measured facts.
+- Surface Tier C fields (`nasofrontalAngleDeg`, `nasolabialAngleDeg`, `dorsalHump*`, etc.) in `cvReport.nose` explanation, `CvReportView`, `reportProtocolModel`, and `feature_context` measured facts.
 
 ### Consequences
 - Hair and profile numbers can change without setting env vars.
@@ -330,7 +330,7 @@ Date: 2026-07-12
 Status: accepted  
 
 ### Context
-Protocol action cards (`protocolData`) were generated and dual-written but unused in the Qoves UI/PDF. Closing text could be synthesized on the client from `aiNarrative` without persistence. File `protocol.json` could shadow richer database fields. Generated report text needed a clear latest-only source of truth across executive narrative, protocol/feature copy, AI visual prompts, and Beauty Assistant chat.
+Protocol action cards (`protocolData`) were generated and dual-written but unused in the MyFace UI/PDF. Closing text could be synthesized on the client from `aiNarrative` without persistence. File `protocol.json` could shadow richer database fields. Generated report text needed a clear latest-only source of truth across executive narrative, protocol/feature copy, AI visual prompts, and Beauty Assistant chat.
 
 ### Decision
 - Remove `protocolData` from generation, database writes, `protocol.json`, APIs, FE props, and the Beauty Assistant `get_protocol_cards` tool.
@@ -424,6 +424,8 @@ Interactive Features Analysis panels repeated the same CV `explanation` in multi
 - Assessment sections remain available even when NL enrichment is incomplete.
 - Re-enrichment (or first enrichment after this change) generates an 11th narrative key `smile` without expanding the PDF page count.
 
+**Amendment (2026-07-28):** Removed bottom `FeatureProseBlock` from interactive feature Analysis tabs — protocol narrative lives on the Protocol section/PDF only; feature tabs show metrics and carousels without a duplicate EXPLANATION box.
+
 ---
 
 ## ADR-023: PostgreSQL + JSONB (supersedes ADR-001 database engine)
@@ -454,7 +456,7 @@ Date: 2026-07-14
 Status: accepted  
 
 ### Context
-The SegFormer + MediaPipe notebook exports mm distances using assumed IPD = 63.5 mm to align with Qoves-style reference bands. ADR-019 forbids clinical px→mm rulers in the core CV pipeline, but interactive Features Analysis needs comparable numeric cards.
+The SegFormer + MediaPipe notebook exports mm distances using assumed IPD = 63.5 mm to align with report-style reference bands. ADR-019 forbids clinical px→mm rulers in the core CV pipeline, but interactive Features Analysis needs comparable numeric cards.
 
 ### Decision
 - Face-parsing metrics may emit **mm** values with metadata `scale: "assumed_ipd_63.5"` and `scaleNote` on `featureParsing`.
@@ -472,7 +474,7 @@ Date: 2026-07-14
 Status: accepted  
 
 ### Context
-`POST /api/assessments` blocked for minutes running CV + NL + (planned) parsing inline. Users need a Qoves-style preparation screen and the ability to close the tab while work continues.
+`POST /api/assessments` blocked for minutes running CV + NL + (planned) parsing inline. Users need a report-style preparation screen and the ability to close the tab while work continues.
 
 ### Decision
 - Fast **POST** validates poses, persists JPGs, creates assessment with `pipeline.status = queued`, returns `assessmentId` + `processing: true`.
@@ -620,12 +622,12 @@ The prior flow validated poses client-side, then on Submit compressed each pose 
 
 ---
 
-## ADR-032: Qoves-style severity-gated narrative generation (null path, numeric scrub, enforced non-invasive vocabulary)
+## ADR-032: report-style severity-gated narrative generation (null path, numeric scrub, enforced non-invasive vocabulary)
 Date: 2026-07-15  
 Status: accepted  
 
 ### Context
-Per-feature report narratives read unlike the Qoves reference: every section was padded with the same SPF/hydration/sleep triad regardless of severity, raw deviation numbers (e.g. `0.04`) leaked into prose, sections contradicted themselves (jaw described as both "wide" and "narrower"), the sclera observation drifted into clinical-cause claims, and there was no enforced, enumerated ban on invasive/energy-based treatment vocabulary. The generation approach itself was sound — the defects were pipeline-level (prompt assembly + guardrails), not model-level.
+Per-feature report narratives read unlike the MyFace reference: every section was padded with the same SPF/hydration/sleep triad regardless of severity, raw deviation numbers (e.g. `0.04`) leaked into prose, sections contradicted themselves (jaw described as both "wide" and "narrower"), the sclera observation drifted into clinical-cause claims, and there was no enforced, enumerated ban on invasive/energy-based treatment vocabulary. The generation approach itself was sound — the defects were pipeline-level (prompt assembly + guardrails), not model-level.
 
 ### Decision
 - **Severity gates content, computed before prompt assembly.** `feature_severity_bucket` + `get_severity_content_directive` (`backend/recommendation_rules.py`) map each feature's deviation magnitude (`_feature_deviation_magnitude` → `magnitude_label`) to `minimal | mild | moderate | notable` and return a bucket-specific recommendation directive injected into the user message by `_build_feature_messages`.
@@ -637,7 +639,7 @@ Per-feature report narratives read unlike the Qoves reference: every section was
 - **Enforced non-invasive vocabulary.** `STRICT_NON_SURGICAL_RULES` enumerates the ban list (Botox, fillers, injectables, laser, IPL, HIFU, Thermage, Endolift, microneedling, chemical peels, radiofrequency, Ultherapy, energy-based devices). `BANNED_TERM_PATTERN` is extended with tightly scoped `(?:chemical|laser|micro\w*)\s+peels?`, `radiofrequency`, `ultherapy`, `energy-based`. **Bare `peel(s)` is intentionally not banned** to avoid false-positives on the verb ("skin may peel"). On a banned-term hit the existing hard-reject path applies: regenerate up to `FEATURE_NARRATIVE_MAX_ATTEMPTS` (with `_RETRY_USER_HINT` now naming the banned vocabulary), then fall back to the deterministic guardrail template for that section only — the report never fails.
 
 ### Consequences
-- Strong features get terse "no changes recommended" copy; weak features get the full, targeted protocol — matching the Qoves length profile and removing boilerplate padding.
+- Strong features get terse "no changes recommended" copy; weak features get the full, targeted protocol — matching the MyFace length profile and removing boilerplate padding.
 - Numeric leaks are structurally impossible in the assembled prompt (removed at source, not just instructed), and the ban list is enforced pre-generation (prompt) and post-generation (regex → retry → per-section template).
 - The contradiction and sclera checks are intentionally soft (logged, LLM copy retained) to catch regressions without churning otherwise-good reports; escalate to hard only if they prove reliable.
 - **Deferred (tracked, not dropped):** surfacing shape-based Hamilton–Norwood staging *reasoning* in the hair narrative text (the CV metric already uses shape-based staging under ADR-028) is out of scope here and logged as an open backlog item in the sprint.
@@ -649,7 +651,7 @@ Date: 2026-07-15
 Status: accepted (refines ADR-032 null path)  
 
 ### Context
-ADR-032's null path was **length-anchored** ("no changes recommended, 2-3 sentences"). A length constraint alone lets the model satisfy the target with generic template phrases ("balanced", "harmonious") because nothing forces it to reference the actual measured cues. The Qoves reference null sections (Nose, Eyes, Ears) are substantive because they still describe the specific measured geometry — the "no change" is the *conclusion*, not the *substance*.
+ADR-032's null path was **length-anchored** ("no changes recommended, 2-3 sentences"). A length constraint alone lets the model satisfy the target with generic template phrases ("balanced", "harmonious") because nothing forces it to reference the actual measured cues. The MyFace reference null sections (Nose, Eyes, Ears) are substantive because they still describe the specific measured geometry — the "no change" is the *conclusion*, not the *substance*.
 
 ### Decision
 - **Content-anchored directive.** The `minimal`/non-Skin branch of `get_severity_content_directive` now requires a 3-part structure: (1) name the specific measured attributes from the cues, (2) explain why those values sit within the expected/balanced range (grounded in the stated classification), (3) close with "no non-surgical changes recommended". "balanced/harmonious/no deviations" may not appear unless paired to the specific attribute they describe. The old "2-3 sentences / do not stretch" cap is replaced with a "4-6 sentences (~70-120 words), fully describe attributes, do not pad" band. `min_length=80` is comfortably cleared, so no schema change.
@@ -658,7 +660,7 @@ ADR-032's null path was **length-anchored** ("no changes recommended, 2-3 senten
 - **Independent grounding retry budget + keep-best-LLM fallback.** `generate_feature_narrative_async` is a `while` loop with two budgets: `FEATURE_NARRATIVE_MAX_ATTEMPTS` (schema/banned, existing) and new `NULL_PATH_GROUNDING_MAX_RETRIES` (default 2), so a schema failure cannot starve grounding retries; total LLM calls per feature are bounded by their sum. An ungrounded-but-schema-valid null section triggers a corrective `_null_path_grounding_hint` regeneration; if the grounding budget is spent, the **last LLM copy is kept** (logged warning) rather than dropping to the generic template — the whole point is to avoid the boilerplate the template would reintroduce. Banned-term/schema hard rejects still fall back to the template (unchanged), except a usable-but-ungrounded copy seen along the way is now preferred over the template.
 
 ### Consequences
-- Null sections read as substantive measured descriptions ending in "no change", matching Qoves, instead of interchangeable filler.
+- Null sections read as substantive measured descriptions ending in "no change", matching MyFace, instead of interchangeable filler.
 - Grounding is enforced structurally (validator + regeneration), not just requested; cue-sparse features degrade gracefully via the `< 2 terms` skip.
 - The stopword list and curated term sets are a first pass — tuned against a real `measuredFacts` key dump; extend if new noise tokens or collisions appear.
 - `smile` is included as the 11th non-Skin null-path feature (12th narrative feature overall); its cues are photo-dependent, so the skip-guard covers the no-smile-photo case.
@@ -706,6 +708,8 @@ Status: accepted
 **Amendment (2026-07-20):** Aging scope-fence expanded from skin-only to skin + hair + soft tissue per tier (ADR-038); `hairColor` gates temple-graying language.
 
 **Amendment (2026-07-24):** Hair prompts omit CV hair color (`include_hair_color=False`); hard-lock color/texture from the reference image. Style banks are preference-keyed via `resolve_style_preference` (`genderPreference`, then `growBeard` soft proxy).
+
+**Amendment (2026-07-28):** Hair prompts append a head-and-shoulders crop fence (`don't zoom out to show full length`). Long-layer style bank descriptors avoid ambiguous "long" hair-length wording in prompt prose.
 ---
 
 ## ADR-036: Frontend i18n with next-intl (en/de path prefixes)
@@ -722,7 +726,7 @@ MyFace needs German UI support with SEO-friendly locale URLs, static generation 
 - Client components use `useTranslations('Namespace')`; server metadata uses `getTranslations` / message imports in `app/[locale]/layout.jsx`.
 - In-app navigation via `i18n/navigation.js` (`Link`, `useRouter`, `usePathname`); `utils/routes.js` stays locale-free.
 - Non-React utils return **translation keys** (`labelKey`, `messageKey`, `ERROR_KEYS`); callers call `t()`.
-- **Out of scope for static catalogs:** brand name MyFace, assessment UUIDs, raw backend `detail` strings, GPT/protocol narrative bodies (locale belongs in generation prompts later).
+- **Out of scope for static catalogs:** brand name MyFace, assessment UUIDs, raw backend `detail` strings. Protocol/executive narrative bodies are generated per locale — see **ADR-042** (`contentDe`, `protocolNarrative.de`, `featureNarratives[id].de`).
 - **i18next-parser** (devDependency) audits flat `t()` usage via `pnpm --filter @workspace/myface run i18n:extract` → `messages/en.extracted.json`; structured `en.json` remains the translation source file.
 
 ### Consequences
@@ -739,7 +743,7 @@ Date: 2026-07-17
 Status: accepted  
 
 ### Context
-The Protocol tab rendered an HTML approximation of A4 pages (`QovesProtocolReport`) that did not match the downloadable jsPDF output. Admins edited protocol LLM text only via a header overlay (`AdminReviewPanel`), not while reviewing the protocol document.
+The Protocol tab rendered an HTML approximation of A4 pages (`ProtocolReport`) that did not match the downloadable jsPDF output. Admins edited protocol LLM text only via a header overlay (`AdminReviewPanel`), not while reviewing the protocol document.
 
 ### Decision
 - **Preview = download:** extract `buildMyFacePdf` from `downloadMyFacePdf` in `utils/reportPdf.js` (export surface only — no page layout changes). Protocol tab embeds the returned blob in an iframe.
@@ -752,7 +756,7 @@ The Protocol tab rendered an HTML approximation of A4 pages (`QovesProtocolRepor
 
 ### Consequences
 - `mergeNarrativesForPdf` merges `featureNarratives` into `protocolNarrative.features` before PDF generation (viewer + download).
-- HTML `.qoves-report-a4-page` mock is unused in Protocol tab preview; may be removed later.
+- HTML `.report-view-a4-page` mock is unused in Protocol tab preview; may be removed later.
 - Direct API calls cannot mutate protocol text on approved assessments.
 
 ---
@@ -783,6 +787,8 @@ The existing AI visuals feature generated three previews (hair / outfit / aging)
 **Amendment (2026-07-24):** Hair and outfit banks are preference-keyed (`masculine` / `feminine` / `no-preference`) via `resolve_style_preference`. Same 5 occasions for outfit; descriptors differ by preference. Face-shape hair banks remain 5 styles each per preference.
 
 **Amendment (2026-07-24, outfit baseline + media URLs):** When outfit variants are generated, one extra edit produces `outfitBaseline` (plain white crew-neck tee, shoulders visible) for outfit slider BEFORE only — outfit AFTER edits still use front. All new AI visual images (variants + baseline) are written to media storage at `assessments/{id}/ai-visuals/…` with `/api/media/…` refs in JSONB; legacy inline data URLs in existing rows remain valid until regen.
+
+**Amendment (2026-07-28):** White-tee `outfitBaseline` generation temporarily disabled; outfit UI is after-only. See ADR-041.
 
 ### Consequences
 - Users see grouped galleries with distinct prompt directions per card (hair styles differ by named style, not random sampling noise).
@@ -826,3 +832,96 @@ Dimorphism scores are geometry-only (0 = feminine … 100 = masculine). Feminine
 ### Consequences
 - UI badges/sliders never show the opposite gender band for an explicit masculine/feminine preference.
 - Measured geometry remains in explanations for clinical honesty.
+
+---
+
+## ADR-041: report-style AI visuals rows; outfit after-only
+Date: 2026-07-28
+Status: accepted
+
+### Context
+The AI visuals hair/outfit UI used a single hero with a before/after slider and circular thumbnail picker. Outfit also spent an extra image-edit call on a white-tee `outfitBaseline` used only as slider BEFORE. Product wants a report-like stacked suggestion list; outfit should show AFTER only (no compare), while hair keeps before/after against the original front.
+
+### Decision
+1. **Hair / outfit layout:** stacked rows per variant — left visual, right title + optional “Recommended” + 2×2 attrs + explanation (`resolveStylePanelCopy`). No thumbnail picker.
+2. **Hair:** keep before/after slider (before = original front).
+3. **Outfit:** AFTER image only; do not wire `outfitBeforeSrc` / `outfitBaseline` in the UI.
+4. **White-tee generation:** temporarily comment out `_generate_outfit_baseline` call sites (and stage-check requirement); keep helper code for easy restore. Merge still preserves legacy `outfitBaseline` on existing assessments.
+5. **Aging:** unchanged vertical stack.
+
+### Consequences
+- New gens skip one image API call per outfit batch.
+- Pipeline `ai_visuals` completeness no longer waits on `outfitBaseline`.
+- Restoring outfit compare = uncomment generation + re-enable stage check + show slider again.
+
+---
+
+## ADR-042: Post-hoc German protocol narrative translation
+Date: 2026-07-28  
+Status: accepted  
+
+### Context
+German UI chrome ships via next-intl (`ADR-036`), but protocol/executive narrative bodies remained English-only LLM output. Product requires German report prose in the interactive viewer, admin edit dock, and client jsPDF download without dual-language generation in the same prompt.
+
+### Decision
+1. **English first, translate second** — Keep existing EN orchestration (`narrative_orchestrator`, `text_ai_service`). After each EN unit is complete, run a dedicated translation LLM call (`backend/narrative_translation.py`) with a fixed system prompt (Du-form, no en/em dashes, natural tone).
+2. **Nested JSONB storage (no migration)** — `aiNarrative.contentDe` / `contentDeOrigin`; `protocolNarrative.de.{summary, closing, treatmentPhases}` + `summaryOrigin` / `closingOrigin`; `featureNarratives[id].de` + per-feature `origin` on EN blocks.
+3. **Provenance** — Stamp `origin` on EN write: `llm` | `template` | `stitch` | `admin`. LLM DE translation runs only when EN `origin === "llm"`. Template/stitch EN → hardcoded DE catalogs (`clinical_guardrails_de`, `stitch_closing_paragraphs_de`).
+4. **Chaining** — Full protocol: all EN features + overview + closing finish, then parallel DE batch, then single persist. Section regen: EN → DE for that section in the same call.
+5. **Frontend** — `pickLocalizedNarratives(assessment, locale)` in `utils/narrativeLocale.js`; never show English narrative prose when `locale === "de"`. Admin dock edits/saves the locale branch (`narrativeLocale` on `PATCH admin-review`).
+6. **Server PDF fallback** — `GET …/pdf?locale=de` uses `contentDe` for executive summary.
+
+### Consequences
+- Extra LLM calls per assessment (batched after EN). `NARRATIVE_TRANSLATION_CONCURRENCY` env (default 11).
+- Legacy assessments without `.de` blocks: UI uses hardcoded DE pending/fallback strings until regen.
+- EN/DE may diverge after manual DE admin edits (intentional).
+
+---
+
+## ADR-043: CV report labels and explanations are locale-aware
+Date: 2026-07-28  
+Status: accepted  
+
+### Context
+Facial Assessments and Features report sections mixed German UI chrome (`Report.*` i18n) with English dynamic values: CV classification bands, hardcoded metric slide copy, and English `explanation` prose from `cv_report.py`. A full `CvReport.labels` catalog existed but was unused at render time; feature panels discarded the localized `narrative` prop.
+
+### Decision
+1. **Classification keys at source** — Panel `classify*` helpers and display boundaries return/resolve stable keys (`narrow`, `fullPlush`, `earGreaterNose`, etc.) translated via `useCvLabel()` / `translateClassification()` (`utils/cvReportLocale.js`).
+2. **Static slide copy in i18n** — Nose, lips, cheek, and hair metric carousel + table labels live under `Report.{feature}.slides.*` and `Report.{feature}.metrics.*` in `en.json` / `de.json` (same pattern as jaw/chin/skin).
+3. **CV explanations at CV build time (Layer A)** — Twin German f-strings in `backend/cv_report_explanations_de.py` write `explanationDe` beside each `explanation` when the CV report is built. Frontend uses `pickLocalizedCvText(obj, locale)` (EN fallback when `explanationDe` is absent on legacy assessments). No LLM post-hoc translation for CV explanations; no structured-field resume backfill.
+4. **Feature narratives** — Protocol and executive narratives stay in the Protocol section and PDF; interactive feature Analysis tabs show CV metrics only (no duplicate bottom prose block).
+
+### Consequences
+- German Facial Assessment ERKLÄRUNG bodies no longer depend on OpenRouter auth.
+- Pre-fix assessments show English explanations until a **CV re-run** (resume alone does not backfill).
+- Classifications translate immediately via key mapping / `ENGLISH_TO_KEY` aliases without re-running CV.
+
+**Amendment (2026-07-28):** Extended label catalog covers eyes, brows, skin, symmetry regions, and proportions ratio compare strings; proportions expectation copy uses static `Report.proportions.ratioTabs.*` i18n.
+
+**Amendment (2026-07-28, Layer A only):** Replaced LLM `cv_report_translation.py` and `_maybe_backfill_cv_explanation_de` with build-time `explanationDe` twin templates. Removed narratives-stage CV explanation backfill.
+
+---
+
+## ADR-044: DE narrative translation is plain text per field
+Date: 2026-07-28  
+Status: accepted  
+
+### Context
+ADR-042 translated feature narratives, closing, and treatment phases via one structured JSON blob per unit (`chat_json_completion`). On OpenRouter free models this frequently hit output token caps or invalid JSON, triggering an unstructured `{label}/plain` fallback. Translation does not need the model to invent structure — EN shape already exists in Python.
+
+### Decision
+1. **Plain text per field for DE** — `translate_text_en_to_de` / `chat_text_completion` for each summary, subsection body, closing paragraph; reassemble DE objects in Python; keep English subsection titles as merge keys. **Treatment phases:** one call for `summary` + one **packed** call per phase (`title`/`duration`/`item.*.name`/`item.*.detail` via `<<tag>>` markers) — not one call per field.
+2. **Structured reserved for EN generation** — Feature narratives, treatment phases, and protocol overview EN stay on `chat_structured_completion`.
+3. **No `/plain` fallback** — `chat_json_completion` fails closed on json_object errors (legacy executive/protocol callers only).
+4. **Protocol UI locale** — `buildFeaturePages` reads `explanationDe` via locale-aware helpers; ProtocolReport chrome uses `Report.protocolModel.*` i18n.
+5. **Force re-translate** — Admin `POST …/narrative-translations` + protocol dock button (when UI locale is `de`) + `scripts/rerun_narrative_translations.py --language de` redo DE only; EN remains source.
+
+**Amendment (2026-07-28):** Protocol/PDF **static chrome** (Introduction, Contents, Understanding titles, feature split titles, subsection display titles, BEFORE/AFTER/PAGE tags) is next-intl / `pdfMessages` only — no LLM. Narrative bodies remain ADR-044 plain-text DE. Admin edits still key off English subsection titles.
+
+**Amendment (2026-07-28, treatment-phase pack):** Treatment-phase DE drops from up to 25 per-field calls to **4** (summary + phase01–03 packed).
+
+### Consequences
+- More small LLM calls per assessment (parallelized with `NARRATIVE_TRANSLATION_CONCURRENCY`).
+- Fewer JSON-parse / truncation failures on free models; same path works with GPT-5 mini.
+- Protocol feature pages no longer mix English CV bodies with German LLM summaries when `explanationDe` is present.
+- Admins can refresh DE after EN edits or failed translation runs without burning a full EN regen.

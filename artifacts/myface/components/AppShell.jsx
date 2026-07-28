@@ -36,6 +36,7 @@ export function AppShell({ children }) {
     logout,
     startNewAnalysis,
     closeReportModal,
+    clearOpeningReport,
     adminWorkspace,
     loadAdminTab,
   } = useApp()
@@ -70,6 +71,7 @@ export function AppShell({ children }) {
           reportToolbar={reportToolbar}
           onAuth={openAuth}
           onLogout={() => setLogoutConfirmOpen(true)}
+          onCloseReport={closeReportModal}
           user={user}
           adminNavBadges={adminNavBadges}
         />
@@ -99,6 +101,7 @@ export function AppShell({ children }) {
         onSectionChange={setReportSectionId}
         user={user}
         onRestart={startNewAnalysis}
+        onReportReady={clearOpeningReport}
       />
     </div>
   )

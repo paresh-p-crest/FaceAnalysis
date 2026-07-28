@@ -47,12 +47,27 @@ export function login(email, password) {
   return authRequest('/api/auth/login', { email, password })
 }
 
-export async function resetPassword({ email, newPassword }) {
+export async function requestPasswordReset(email) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const detail = data.detail
+    throw new Error(typeof detail === 'string' ? detail : 'Password reset request failed')
+  }
+  return data
+}
+
+export async function resetPassword({ token, newPassword }) {
   const base = getApiBaseUrl()
   const res = await fetch(`${base}/api/auth/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, newPassword }),
+    body: JSON.stringify({ token, newPassword }),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {

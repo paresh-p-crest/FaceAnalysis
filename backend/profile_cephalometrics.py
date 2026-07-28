@@ -55,7 +55,7 @@ def _pct_x(x: float) -> float:
 
 
 def _ear_span(landmarks: list, pose_id: str) -> tuple[dict, dict]:
-    """Ear top/bottom on the visible profile side (Qoves naso-aural vertical span)."""
+    """Ear top/bottom on the visible profile side (naso-aural vertical span)."""
     indices = RIGHT_PROFILE_EAR if pose_id == "rightProfile" else LEFT_PROFILE_EAR
     pts = [lm(landmarks, i) for i in indices]
     top = min(pts, key=lambda p: p["y"])
@@ -146,7 +146,7 @@ def _merge_profile_points(
 
 
 def build_naso_aural_proportion_overlay(pts: dict) -> dict:
-    """Qoves-style ear/nose height brackets for ProportionFeatureOverlay (image 0–100).
+    """report-style ear/nose height brackets for ProportionFeatureOverlay (image 0–100).
 
     Short horizontal ticks at the ear and nose columns (not full-width guides) so the
     mapping stays readable on profile photos.
@@ -207,7 +207,7 @@ def _e_line_lip_distances(pts: dict) -> dict:
 
 
 def _naso_aural_ratio(pts: dict) -> float:
-    """Ear vertical height / nose vertical height (nasion → subnasale), Qoves-style."""
+    """Ear vertical height / nose vertical height (nasion → subnasale), report-style."""
     ear_h = abs(pts["earTop"]["y"] - pts["earBottom"]["y"])
     nose_h = abs(pts["noseTop"]["y"] - pts["noseBottom"]["y"])
     if nose_h < 1e-6:

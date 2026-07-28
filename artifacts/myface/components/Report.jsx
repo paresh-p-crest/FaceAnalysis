@@ -23,14 +23,19 @@ import {
 } from '../utils/reportWorkflow'
 import { ReportDocumentLayout } from './report/ReportDocumentLayout'
 import { LockedSectionGate } from './report/LockedSectionGate'
+import { CvReportView } from './report/CvReportView'
 import {
   isPublicSection,
   INTRO_SECTIONS,
   ASSESSMENT_SECTIONS,
   FEATURE_SECTIONS,
   PROTOCOL_SECTIONS,
+  REPORT_NAV_GROUPS,
+  REPORT_ADMIN_AI_VISUAL_NAV_GROUP,
+  REPORT_ADMIN_AI_VISUAL_SECTIONS,
 } from './report/reportNavConfig'
-import { CvReportView } from './report/CvReportView'
+import { resolveAssessmentAiVisualsBaseline } from '../utils/assessmentPhotos'
+import { pickLocalizedNarratives } from '../utils/narrativeLocale'
 import { PastAssessmentsPanel } from './report/PastAssessmentsPanel'
 import AdminReviewPanel from './AdminReviewPanel'
 import ConfirmDialog from './ConfirmDialog'
@@ -85,6 +90,7 @@ export default function Report({
   onRestart,
   user,
   onClose,
+  onReportReady,
 }) {
   const t = useTranslations('Report')
   const locale = useLocale()
@@ -148,7 +154,7 @@ export default function Report({
   const landmarks = displayAnalysis?.landmarks
   const eyeAnalysis = historyEntry?.eyeAnalysis ?? displayAnalysis?.eyeAnalysis ?? null
   const cvLabel = historyEntry?.cvLabel ?? getCvLabel(displayAnalysis, metrics)
-  const showQovesReport = hasRenderableCvReport
+  const showReport = hasRenderableCvReport
   const reportStatus = normalizeReportStatus(statusOverride || historyEntry?.reportStatus || displayAnalysis?.reportStatus)
   const assessmentId = displayAnalysis?.assessmentId || historyEntry?.assessmentId
   const requiresApproval = !!displayAnalysis?.savedToDb || !!displayAnalysis?.assessmentId || !!historyEntry?.assessmentId
@@ -157,9 +163,15 @@ export default function Report({
   const canDownloadPdf = canDownloadReportPdf(reportStatus, requiresApproval, isAdmin)
   const clientReportLocked = isUser && requiresApproval && !canClientViewFullReport(reportStatus, false)
 
+  // Signal that the report content is ready (clears openingReportId).
+  useEffect(() => {
+    if (!showReport && !cvFailed) return
+    if (onReportReady) onReportReady(assessmentId)
+  }, [showReport, cvFailed, assessmentId, onReportReady])
+
   useEffect(() => {
     // Admins review one assessment at a time; platform-wide past list is noise.
-    if (!user || isAdmin || !isBackendApiEnabled() || !showQovesReport) {
+    if (!user || isAdmin || !isBackendApiEnabled() || !showReport) {
       setShowPastAssessmentsNav(false)
       return undefined
     }
@@ -175,28 +187,7 @@ export default function Report({
       }
     })()
     return () => { cancelled = true }
-  }, [user, isAdmin, showQovesReport])
-
-  const sectionIds = useMemo(() => {
-    return [
-      ...INTRO_SECTIONS,
-      ...ASSESSMENT_SECTIONS,
-      ...FEATURE_SECTIONS,
-      ...PROTOCOL_SECTIONS,
-    ].map((section) => section.id)
-  }, [])
-
-  useEffect(() => {
-    if (!sectionIds.includes(activeSectionId)) {
-      setActiveSectionId(sectionIds[0] || 'intro')
-    }
-  }, [sectionIds, activeSectionId])
-
-  useEffect(() => {
-    if (sectionId && sectionIds.includes(sectionId) && sectionId !== activeSectionId) {
-      setActiveSectionId(sectionId)
-    }
-  }, [sectionId, sectionIds])
+  }, [user, isAdmin, showReport])
 
   const selectSection = useCallback((id) => {
     setActiveSectionId(id)
@@ -237,11 +228,45 @@ export default function Report({
   }, [onCloudAssessmentChange])
 
   const showAdminTools = isAdmin && !!assessmentId && !isReportApproved(reportStatus)
+  const showAdminAiVisualsNav = isAdmin && !!assessmentId && isReportApproved(reportStatus)
+
+  const sectionIds = useMemo(() => {
+    const base = [
+      ...INTRO_SECTIONS,
+      ...ASSESSMENT_SECTIONS,
+      ...FEATURE_SECTIONS,
+      ...PROTOCOL_SECTIONS,
+    ].map((section) => section.id)
+    if (!showAdminAiVisualsNav) return base
+    return [...base, ...REPORT_ADMIN_AI_VISUAL_SECTIONS.map((section) => section.id)]
+  }, [showAdminAiVisualsNav])
+
+  const navGroups = useMemo(() => {
+    if (!showAdminAiVisualsNav) return REPORT_NAV_GROUPS
+    return [...REPORT_NAV_GROUPS, REPORT_ADMIN_AI_VISUAL_NAV_GROUP]
+  }, [showAdminAiVisualsNav])
+
+  useEffect(() => {
+    if (!sectionIds.includes(activeSectionId)) {
+      setActiveSectionId(sectionIds[0] || 'intro')
+    }
+  }, [sectionIds, activeSectionId])
+
+  useEffect(() => {
+    if (sectionId && sectionIds.includes(sectionId) && sectionId !== activeSectionId) {
+      setActiveSectionId(sectionId)
+    }
+  }, [sectionId, sectionIds])
+
   const toggleAdminView = useCallback((next) => {
     setAdminView((prev) => (prev === next ? null : next))
   }, [])
 
   const assessmentRecord = cloudAssessment || adminAssessment
+  const aiVisualsBeforeSrc = useMemo(
+    () => resolveAssessmentAiVisualsBaseline(assessmentRecord) || displayPhoto,
+    [assessmentRecord, displayPhoto],
+  )
   const assessmentCreatedAt = assessmentRecord?.createdAt ?? null
   const assessmentUpdatedAt = assessmentRecord?.updatedAt ?? null
   // Subject who took the analysis — not the viewer (admin may open others' reports)
@@ -254,6 +279,11 @@ export default function Report({
     if (user?.id && String(user.id) === String(uid)) return user
     return { id: uid }
   }, [assessmentRecord, adminWorkspace?.users, user])
+
+  const localizedNarratives = useMemo(
+    () => pickLocalizedNarratives({ aiNarrative, protocolNarrative, featureNarratives }, locale, { t }),
+    [aiNarrative, protocolNarrative, featureNarratives, locale, t],
+  )
 
   const handleDownloadPdf = useCallback(async () => {
     const canUseBackendPdf = assessmentId && displayAnalysis?.savedToDb && isBackendApiEnabled()
@@ -272,10 +302,13 @@ export default function Report({
           cvReport,
           metrics,
           landmarks,
-          protocolNarrative: mergeNarrativesForPdf(protocolNarrative, featureNarratives),
+          protocolNarrative: mergeNarrativesForPdf(
+            localizedNarratives.protocolNarrative,
+            localizedNarratives.featureNarratives,
+          ),
           answers: displayAnswers,
           eyeAnalysis,
-          aiNarrative,
+          aiNarrative: localizedNarratives.aiNarrative,
           user,
           assessmentOwner,
           projectedAfter,
@@ -284,9 +317,10 @@ export default function Report({
           createdAt: assessmentCreatedAt,
           updatedAt: assessmentUpdatedAt,
           pdfMessages: messagesModule.default,
+          locale,
         })
       } else if (canUseBackendPdf) {
-        await downloadAssessmentPdf(assessmentId)
+        await downloadAssessmentPdf(assessmentId, locale)
       }
     } catch (err) {
       console.error('PDF export failed:', err)
@@ -294,10 +328,10 @@ export default function Report({
     } finally {
       setPdfLoading(false)
     }
-  }, [displayPhoto, photos, cvReport, metrics, landmarks, protocolNarrative, featureNarratives, displayAnswers, eyeAnalysis, aiNarrative, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis, user, assessmentOwner, projectedAfter, projectedAnalysis, locale, t, assessmentCreatedAt, assessmentUpdatedAt])
+  }, [displayPhoto, photos, cvReport, metrics, landmarks, localizedNarratives, displayAnswers, eyeAnalysis, pdfLoading, canDownloadPdf, assessmentId, displayAnalysis, user, assessmentOwner, projectedAfter, projectedAnalysis, locale, t, assessmentCreatedAt, assessmentUpdatedAt])
 
   useEffect(() => {
-    if (!showQovesReport) {
+    if (!showReport) {
       setReportToolbar(null)
       return undefined
     }
@@ -314,7 +348,7 @@ export default function Report({
     })
     return () => setReportToolbar(null)
   }, [
-    showQovesReport,
+    showReport,
     handleDownloadPdf,
     pdfLoading,
     canDownloadPdf,
@@ -329,7 +363,7 @@ export default function Report({
 
   const persistHistory = useCallback(
     (content, source, error) => {
-      const label = showQovesReport
+      const label = showReport
         ? `AuraScan report · ${cvReport?.overall?.score ?? cvReport?.symmetry?.score ?? '—'} overall`
         : `Analysis · ${metrics?.harmonyScore ?? '—'}/100 harmony`
 
@@ -375,20 +409,20 @@ export default function Report({
         aiVisuals,
         protocolNarrative,
         featureNarratives,
-        label: showQovesReport
+        label: showReport
           ? `MyFace report · ${cvReport?.overall?.score ?? cvReport?.symmetry?.score ?? '—'} overall`
           : `Analysis · ${metrics?.harmonyScore ?? '—'}/100 harmony`,
       }).catch((err) => {
         console.warn('[MyFace] Could not persist analysis history:', err)
       })
     },
-    [sessionId, displayPhoto, photos, displayAnswers, displayAnalysis, cvLabel, metrics, eyeAnalysis, cvReport, showQovesReport, reportStatus, assessmentId, aiNarrative, aiVisuals, protocolNarrative, featureNarratives]
+    [sessionId, displayPhoto, photos, displayAnswers, displayAnalysis, cvLabel, metrics, eyeAnalysis, cvReport, showReport, reportStatus, assessmentId, aiNarrative, aiVisuals, protocolNarrative, featureNarratives]
   )
 
   useEffect(() => {
-    if (!showQovesReport || !cvReport) return
+    if (!showReport || !cvReport) return
     persistHistory()
-  }, [showQovesReport, cvReport, persistHistory])
+  }, [showReport, cvReport, persistHistory])
 
   useEffect(() => {
     nlHydratedForId.current = null
@@ -408,7 +442,7 @@ export default function Report({
 
   // Hydrate NL from the open-path payload when available; otherwise one GET (legacy / incomplete).
   useEffect(() => {
-    if (!showQovesReport || !assessmentId || !isBackendApiEnabled()) return
+    if (!showReport || !assessmentId || !isBackendApiEnabled()) return
     if (nlHydratedForId.current === assessmentId) return
 
     const applyPacked = (full) => {
@@ -499,7 +533,7 @@ export default function Report({
       }
     })()
     return () => { cancelled = true }
-  }, [showQovesReport, assessmentId, cloudAssessment, displayAnalysis, aiNarrative, protocolNarrative, featureNarratives])
+  }, [showReport, assessmentId, cloudAssessment, displayAnalysis, aiNarrative, protocolNarrative, featureNarratives])
 
   const confirmAdminApprove = useCallback(async () => {
     if (!assessmentId || statusUpdating) return
@@ -570,11 +604,14 @@ export default function Report({
           </div>
         )}
 
-        {showQovesReport ? (
+        {showReport ? (
           <div className="flex-1 min-h-0">
             <ReportDocumentLayout
               activeId={activeSectionId}
               onSelect={selectSection}
+              groups={navGroups}
+              onClose={onClose}
+              isAdmin={isAdmin}
               sidebarFooter={showPastAssessmentsNav ? {
                 label: t('nav.pastAssessments'),
                 onClick: handlePastAssessments,
@@ -611,6 +648,9 @@ export default function Report({
                   adminAssessment={adminAssessment}
                   onNarrativesSaved={handleAdminReviewSaved}
                   onNavigate={selectSection}
+                  aiVisuals={aiVisuals}
+                  aiVisualsBeforeSrc={aiVisualsBeforeSrc}
+                  visualAge={metrics?.visualAge ?? null}
                 />
               </LockedSectionGate>
             </ReportDocumentLayout>

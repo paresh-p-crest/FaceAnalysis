@@ -59,17 +59,19 @@ Indexes: unique `email`, `role`.
 Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolWarnings`, etc. (see prior MediaPipe/`cvReport` documentation). Stored as JSONB — not normalized into metric tables.
 
 ### Generated text (latest-only)
-| Surface | Column / table |
-|---------|----------------|
-| Executive narrative | `ai_narrative` |
-| Protocol overview + closing | `protocol_narrative` (+ disk `protocol.json`) |
-| Per-feature narratives | `feature_narratives` |
-| AI visuals | `ai_visuals` |
+| Surface | Column / table | Locale |
+|---------|----------------|--------|
+| Executive narrative | `ai_narrative` (`content`, `contentOrigin`; `contentDe`, `contentDeOrigin`) | EN + DE |
+| Protocol overview + closing | `protocol_narrative` (`summary`, `summaryOrigin`, `closing`, `closingOrigin`, `de.*`) | EN + DE |
+| Per-feature narratives | `feature_narratives` (`origin`; nested `de.{summary, subsections}`) | EN + DE |
+| AI visuals | `ai_visuals` | — |
 | Async pipeline state | `pipeline` (`status`, `stage`, `attempts`, timestamps) |
 | SegFormer parsing (interactive only) | `feature_parsing` (`crops`, `metrics`, `scaleNote`); `parsing/*.jpg` — front white-mask (incl. neck) / rect chin·cheeks·jaw; lips from front DB landmarks; smile from smile mesh; earsLeft/earsRight from profiles |
 | Projected AFTER (protocol/PDF) | `projected_after` (`status`, `full.publicUrl` → `projected/full.jpg` or `full.png`) |
 | Projected AFTER CV (immutable sibling of BEFORE) | `projected_analysis` (`status`, `cvReport`, `landmarks`, `metrics`, `eyeAnalysis`, `source: projected_full`) — never writes into `analysis` |
 | Beauty Assistant | `conversations` + `conversation_messages` |
+
+**German narrative nesting (ADR-042):** no new columns. `ai_narrative.contentDe` mirrors `content`; `protocol_narrative.de` holds `{ summary, closing[], treatmentPhases?, origin }`; each `feature_narratives[id].de` holds `{ summary, subsections[], origin }`. Disk backup `assessments/{id}/protocol.json` stores the same nested shape. `origin` / `contentDeOrigin` values: `llm` | `template` | `stitch` | `admin`.
 
 ---
 
@@ -104,8 +106,56 @@ Unique `(user_id, hour_bucket)`; `count`; `created_at`. Hour bucket UTC `YYYY-MM
 
 ---
 
+## 7. Table: `email_send_logs`
+Transactional email audit log (written by `backend/email_service.py` on every send attempt).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `recipient` | `VARCHAR(320)` | |
+| `template` | `VARCHAR(64)` | `signup_confirmation` \| `password_reset` \| `report_ready` |
+| `provider` | `VARCHAR(32)` | `resend` \| `smtp` |
+| `provider_message_id` | `VARCHAR(255)` nullable | Resend message id |
+| `status` | `VARCHAR(16)` | `sent` \| `failed` |
+| `error_message` | `TEXT` nullable | |
+| `user_id` | `UUID` FK → users SET NULL | optional audit link |
+| `raw` | `JSONB` | provider response payload |
+| `created_at` | `TIMESTAMPTZ` | |
+
+---
+
+## 8. Table: `password_reset_tokens`
+Token-based password reset (SHA-256 hash of raw token; never store plaintext).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `user_id` | `UUID` FK → users CASCADE | |
+| `token_hash` | `TEXT` | indexed |
+| `expires_at` | `TIMESTAMPTZ` | default TTL 60 min |
+| `used_at` | `TIMESTAMPTZ` nullable | set on successful reset |
+| `created_at` | `TIMESTAMPTZ` | |
+
+---
+
+## 9. Table: `auth_rate_limits`
+Hourly buckets for auth abuse prevention (e.g. forgot-password).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `scope` | `VARCHAR(64)` | e.g. `forgot_password_email`, `forgot_password_ip` |
+| `key` | `VARCHAR(320)` | normalized email or client IP |
+| `hour_bucket` | `VARCHAR(16)` | UTC `YYYY-MM-DDTHH` |
+| `count` | `INT` | |
+| `created_at` | `TIMESTAMPTZ` | |
+
+Unique `(scope, key, hour_bucket)`.
+
+---
+
 ## Ops
 - Env: `DATABASE_URL` (or `POSTGRES_URL`)
 - Startup: `connect_db()` → `Base.metadata.create_all`
 - Migrations: Alembic under `backend/alembic/` (revision `20260713_0001`)
-- Health: `GET /api/health` → `{ "database": "connected" | "error" | "not_configured" }`
+- Health: `GET|HEAD /api/health` → `{ "database": "connected" | "error" | "not_configured" }` (HEAD for uptime monitors)

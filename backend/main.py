@@ -162,7 +162,7 @@ class GeneratePdfRequest(BaseModel):
     reportData: Optional[dict] = None
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 async def health():
     if not _boot_done.is_set():
         return {

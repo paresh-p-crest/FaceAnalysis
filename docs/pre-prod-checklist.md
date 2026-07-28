@@ -35,6 +35,6 @@ Gate items before deploying MyFace to production. Photo storage and biometric da
 
 ## Known limitations (accept or mitigate)
 
-- MediaPipe 478 pts vs Qoves 521–529 — profile metrics are best-effort
+- MediaPipe 478 pts vs MyFace 521–529 — profile metrics are best-effort
 - No 3D multi-view fusion
 - Ethnicity norms are hardcoded tables, not live cohort DB

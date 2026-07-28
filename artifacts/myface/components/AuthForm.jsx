@@ -3,15 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Eye, EyeOff, Loader2, X } from 'lucide-react'
-import { login, register, resetPassword } from '../utils/authClient'
+import { login, register, requestPasswordReset } from '../utils/authClient'
 import { BrandLogo } from './BrandLogo'
 import { LocaleSwitcher } from './LocaleSwitcher'
 
 function ForgotPasswordModal({ open, initialEmail = '', onClose, t }) {
   const [email, setEmail] = useState(initialEmail)
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -19,9 +16,6 @@ function ForgotPasswordModal({ open, initialEmail = '', onClose, t }) {
   useEffect(() => {
     if (!open) return
     setEmail(initialEmail || '')
-    setNewPassword('')
-    setConfirmPassword('')
-    setShowPassword(false)
     setBusy(false)
     setError('')
     setSuccess(false)
@@ -41,17 +35,9 @@ function ForgotPasswordModal({ open, initialEmail = '', onClose, t }) {
   const handleSubmit = async (event) => {
     event.preventDefault()
     setError('')
-    if (newPassword.length < 8) {
-      setError(t('passwordTooShort'))
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      setError(t('passwordMismatch'))
-      return
-    }
     setBusy(true)
     try {
-      await resetPassword({ email, newPassword })
+      await requestPasswordReset(email)
       setSuccess(true)
     } catch (err) {
       setError(err.message || t('resetFailed'))
@@ -97,7 +83,7 @@ function ForgotPasswordModal({ open, initialEmail = '', onClose, t }) {
         {success ? (
           <div className="space-y-4">
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-              {t('resetSuccess')}
+              {t('forgotPasswordSent')}
             </div>
             <button type="button" onClick={onClose} className="btn-primary w-full text-sm">
               {t('backToSignIn')}
@@ -115,44 +101,6 @@ function ForgotPasswordModal({ open, initialEmail = '', onClose, t }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-field"
-                required
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                {t('newPassword')}
-              </span>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="input-field pr-11"
-                  minLength={8}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
-                  aria-label={showPassword ? t('hidePassword') : t('showPassword')}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                {t('confirmNewPassword')}
-              </span>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="input-field"
-                minLength={8}
                 required
               />
             </label>
@@ -178,7 +126,7 @@ function ForgotPasswordModal({ open, initialEmail = '', onClose, t }) {
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand hover:bg-brand-dark transition-colors disabled:opacity-50"
               >
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {t('resetPasswordCta')}
+                {t('sendResetLink')}
               </button>
             </div>
           </form>
@@ -212,7 +160,7 @@ export default function AuthForm({ onAuthenticated }) {
         : await login(email, password)
       onAuthenticated(user)
     } catch (err) {
-      setError(err.message || t('authFailed'))
+      setError(isRegister ? (err.message || t('authFailed')) : t('loginError'))
     } finally {
       setBusy(false)
     }

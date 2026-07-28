@@ -9,6 +9,7 @@ import {
   FeatureHeroFrame,
   FeatureSummaryGrid,
 } from './FeatureSummaryUi'
+import { toCvLabelKey } from '../../utils/cvReportLocale'
 
 function fmt(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return null
@@ -23,22 +24,22 @@ function textOrNull(v) {
 }
 
 function classifyMouthWidth(widthMm, cvClass) {
-  const fromCv = textOrNull(cvClass)
+  const fromCv = toCvLabelKey(cvClass)
   if (fromCv) return fromCv
   if (!Number.isFinite(widthMm)) return null
-  if (widthMm < 40) return 'Narrow'
-  if (widthMm > 60) return 'Wide'
-  return 'Balanced'
+  if (widthMm < 40) return 'narrow'
+  if (widthMm > 60) return 'wide'
+  return 'balanced'
 }
 
 function classifySmileShape(upperArc, cvCurvature) {
   if (Number.isFinite(upperArc)) {
-    if (upperArc > 0.1) return 'Strongly Upturned'
-    if (upperArc > 0.05) return 'Mildly Upturned'
-    if (upperArc > 0) return 'Straight'
-    return 'Downturned'
+    if (upperArc > 0.1) return 'stronglyUpturned'
+    if (upperArc > 0.05) return 'mildlyUpturned'
+    if (upperArc > 0) return 'straight'
+    return 'downturned'
   }
-  return textOrNull(cvCurvature)
+  return toCvLabelKey(cvCurvature)
 }
 
 /**
@@ -47,7 +48,6 @@ function classifySmileShape(upperArc, cvCurvature) {
 export function SmileReportPanel({
   smile,
   featureParsing,
-  narrative: _narrative,
   imageSrc = null,
 }) {
   const t = useTranslations('Report')
@@ -179,6 +179,7 @@ export function SmileReportPanel({
         <p className="font-display text-base font-bold text-ink mb-3">{t('smile.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
+
     </div>
   )
 }

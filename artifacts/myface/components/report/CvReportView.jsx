@@ -1,6 +1,6 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 import { EyeReportPanel } from '../EyeReportPanel'
 import { SymmetryOverlay, FaceShapeOverlay } from './FaceImageFrame'
 import { FeatureRegionHero } from './FeatureRegionHero'
@@ -21,15 +21,12 @@ import { ProportionsSection } from './ProportionsSection'
 import { IntroductionSection } from './IntroductionSection'
 import { DisclaimerSection } from './DisclaimerSection'
 import { ProtocolDocumentViewer } from './ProtocolDocumentViewer'
+import { AiVisualsSection } from '../AiVisualsSection'
+import { AI_VISUAL_TYPE_BY_SECTION_ID } from './reportNavConfig'
 import { ReportSectionHeading, ReportMetricCard, ReportExplanationCard } from './ReportSectionHeading'
 import { AssessmentGridLayout, FeatureAnalysisPage } from './FeatureAnalysisPage'
-import {
-  FeatureProseBlock,
-  resolveEyebrowsNarrative,
-  resolveFeatureNarrative,
-  eyesNarrativeWithoutBrows,
-} from './FeatureProseBlock'
 import { resolveFeatureHero } from '../../utils/featureParsing'
+import { pickLocalizedCvText, useCvLabel, SYMMETRY_REGION_LABEL_KEY } from '../../utils/cvReportLocale'
 
 export function CvReportView({
   activeId,
@@ -59,11 +56,13 @@ export function CvReportView({
   createdAt = null,
   updatedAt = null,
   onNavigate,
+  aiVisuals = null,
+  aiVisualsBeforeSrc = null,
+  visualAge = null,
 }) {
   const t = useTranslations('Report')
-
-  const narrativeFor = (featureId) =>
-    resolveFeatureNarrative(featureNarratives, protocolNarrative, featureId)
+  const locale = useLocale()
+  const cvLabel = useCvLabel()
 
   if (activeId === 'intro') {
     return <IntroductionSection />
@@ -90,10 +89,10 @@ export function CvReportView({
   if (activeId === 'faceShape' && cvReport?.faceShape) {
     const fs = cvReport.faceShape
     const primaryMetrics = [
-      fs.midfaceWidth != null && { label: t('faceShape.midfaceWidth'), value: fs.midfaceWidth },
-      fs.foreheadWidth != null && { label: t('faceShape.foreheadWidth'), value: fs.foreheadWidth },
-      fs.lowerThirdWidth != null && { label: t('faceShape.lowerThirdWidth'), value: fs.lowerThirdWidth },
-      fs.facialLength != null && { label: t('faceShape.facialLength'), value: fs.facialLength },
+      fs.midfaceWidth != null && { label: t('faceShape.midfaceWidth'), value: cvLabel(fs.midfaceWidth) },
+      fs.foreheadWidth != null && { label: t('faceShape.foreheadWidth'), value: cvLabel(fs.foreheadWidth) },
+      fs.lowerThirdWidth != null && { label: t('faceShape.lowerThirdWidth'), value: cvLabel(fs.lowerThirdWidth) },
+      fs.facialLength != null && { label: t('faceShape.facialLength'), value: cvLabel(fs.facialLength) },
     ].filter(Boolean)
     const extraMetrics = [
       fs.lengthToMidfaceRatio != null && { label: t('faceShape.lengthMidface'), value: fs.lengthToMidfaceRatio },
@@ -116,9 +115,9 @@ export function CvReportView({
           rightCards={
             <>
               {fs.shape != null && (
-                <div className="qoves-report-metric-card text-center py-5">
-                  <p className="qoves-report-mono-label mb-3">{t('common.shape')}</p>
-                  <p className="text-3xl font-display font-bold text-ink">{fs.shape}</p>
+                <div className="report-view-metric-card text-center py-5">
+                  <p className="report-view-mono-label mb-3">{t('common.shape')}</p>
+                  <p className="text-3xl font-display font-bold text-ink">{cvLabel(fs.shape)}</p>
                 </div>
               )}
               {primaryMetrics.length > 0 && (
@@ -129,9 +128,11 @@ export function CvReportView({
                 </div>
               )}
               {fs.explanation && (
-                <div className="qoves-report-metric-card">
-                  <p className="qoves-report-mono-label mb-2">{t('common.explanation')}</p>
-                  <p className="text-sm text-ink-secondary leading-relaxed font-sans">{fs.explanation}</p>
+                <div className="report-view-metric-card">
+                  <p className="report-view-mono-label mb-2">{t('common.explanation')}</p>
+                  <p className="text-sm text-ink-secondary leading-relaxed font-sans">
+                    {pickLocalizedCvText(fs, locale)}
+                  </p>
                 </div>
               )}
             </>
@@ -162,10 +163,10 @@ export function CvReportView({
           photoFit="contain"
           rightCards={
             <>
-              <ReportMetricCard label={t('symmetry.symmetryScore')} value={`${s.score}/100`} />
-              <ReportMetricCard label={t('symmetry.classification')} value={s.scoreLabel} />
-              <div className="qoves-report-metric-card">
-                <p className="qoves-report-mono-label mb-2">{t('symmetry.symmetryRange')}</p>
+              <ReportMetricCard label={t('symmetry.symmetryScore')} value={`${s.score}/100`} translateValue={false} />
+              <ReportMetricCard label={t('symmetry.classification')} value={cvLabel(s.scoreLabel)} />
+              <div className="report-view-metric-card">
+                <p className="report-view-mono-label mb-2">{t('symmetry.symmetryRange')}</p>
                 <div className="relative h-2 rounded-full bg-surface-border mt-3 mb-2">
                   {s.rangeHighlight && (
                     <div
@@ -179,18 +180,20 @@ export function CvReportView({
                   />
                 </div>
                 <div className="flex justify-between text-[11px] text-ink-muted">
-                  <span>{s.scaleLeft}</span>
-                  <span>{s.scaleRight}</span>
+                  <span>{cvLabel(s.scaleLeft)}</span>
+                  <span>{cvLabel(s.scaleRight)}</span>
                 </div>
               </div>
               {regions.length > 0 && (
-                <div className="qoves-report-metric-card">
-                  <p className="qoves-report-mono-label mb-3">{t('symmetry.regionalBalance')}</p>
+                <div className="report-view-metric-card">
+                  <p className="report-view-mono-label mb-3">{t('symmetry.regionalBalance')}</p>
                   <div className="space-y-3">
                     {regions.map((r) => (
                       <div key={r.id}>
                         <div className="flex items-center justify-between gap-3 mb-1">
-                          <span className="text-sm text-ink">{r.label}</span>
+                          <span className="text-sm text-ink">
+                            {cvLabel(SYMMETRY_REGION_LABEL_KEY[r.id] || r.label)}
+                          </span>
                           <span className="text-sm font-medium text-ink tabular-nums">{r.score}/100</span>
                         </div>
                         <div className="h-1.5 rounded-full bg-surface-border overflow-hidden">
@@ -209,13 +212,13 @@ export function CvReportView({
               )}
             </>
           }
-          explanation={s.explanation}
+          explanation={pickLocalizedCvText(s, locale)}
         />
       </div>
     )
   }
 
-  // Proportions (Qoves-style tabbed ratio view)
+  // Proportions (report-style tabbed ratio view)
   if (activeId === 'proportions' && cvReport?.proportions?.ratios) {
     return <ProportionsSection proportions={cvReport.proportions} landmarks={landmarks} photo={photo} photos={photos} />
   }
@@ -226,7 +229,6 @@ export function CvReportView({
       <NoseReportPanel
         nose={cvReport.nose}
         featureParsing={featureParsing}
-        narrative={narrativeFor('nose')}
       />
     )
   }
@@ -237,7 +239,6 @@ export function CvReportView({
       <LipsReportPanel
         lips={cvReport.lips}
         featureParsing={featureParsing}
-        narrative={narrativeFor('lips')}
       />
     )
   }
@@ -247,7 +248,6 @@ export function CvReportView({
     return (
       <EyeReportPanel
         eyeAnalysis={eyeAnalysis}
-        narrative={eyesNarrativeWithoutBrows(narrativeFor('eyes'))}
         featureParsing={featureParsing}
         photo={photo}
         landmarks={landmarks}
@@ -261,7 +261,6 @@ export function CvReportView({
       <BrowReportPanel
         eyebrows={cvReport.eyebrows}
         featureParsing={featureParsing}
-        narrative={resolveEyebrowsNarrative(featureNarratives, protocolNarrative)}
         photo={photo}
         landmarks={landmarks}
       />
@@ -279,7 +278,6 @@ export function CvReportView({
       <JawReportPanel
         jaw={j}
         featureParsing={featureParsing}
-        narrative={narrativeFor('jaw')}
         imageSrc={jawSrc}
       />
     )
@@ -297,7 +295,6 @@ export function CvReportView({
       <ChinReportPanel
         chin={c}
         featureParsing={featureParsing}
-        narrative={narrativeFor('chin')}
         imageSrc={chinSrc}
         heroSlot={
           chinHero && landmarks?.length ? (
@@ -322,7 +319,6 @@ export function CvReportView({
       <HairReportPanel
         hair={h}
         featureParsing={featureParsing}
-        narrative={narrativeFor('hair')}
         imageSrc={h.imageSrc}
       />
     )
@@ -335,7 +331,6 @@ export function CvReportView({
       <SmileReportPanel
         smile={s}
         featureParsing={featureParsing}
-        narrative={narrativeFor('smile')}
         imageSrc={s.imageSrc}
       />
     )
@@ -348,7 +343,6 @@ export function CvReportView({
       <NeckReportPanel
         neck={n}
         featureParsing={featureParsing}
-        narrative={narrativeFor('neck')}
         imageSrc={n.imageSrc}
       />
     )
@@ -368,7 +362,6 @@ export function CvReportView({
       <EarReportPanel
         ears={e}
         featureParsing={featureParsing}
-        narrative={narrativeFor('ears')}
         imageSrc={earHero}
       />
     )
@@ -382,7 +375,6 @@ export function CvReportView({
       <CheekReportPanel
         cheeks={cvReport.cheeks}
         featureParsing={featureParsing}
-        narrative={narrativeFor('cheeks')}
         heroSlot={
           cheekHero && landmarks?.length ? (
             <FeatureRegionHero
@@ -401,7 +393,7 @@ export function CvReportView({
 
   // â”€â”€ Skin Quality â”€â”€
   if (activeId === 'skin' && cvReport?.skin) {
-    return <SkinReportPanel skin={cvReport.skin} featureParsing={featureParsing} narrative={narrativeFor('skin')} />
+    return <SkinReportPanel skin={cvReport.skin} featureParsing={featureParsing} />
   }
 
   if (activeId === 'protocol') {
@@ -429,6 +421,22 @@ export function CvReportView({
         assessmentId={assessmentId}
         adminAssessment={adminAssessment}
         onNarrativesSaved={onNarrativesSaved}
+      />
+    )
+  }
+
+  const aiVisualType = AI_VISUAL_TYPE_BY_SECTION_ID[activeId]
+  if (aiVisualType) {
+    return (
+      <AiVisualsSection
+        aiVisuals={aiVisuals}
+        activeType={aiVisualType}
+        beforeSrc={aiVisualsBeforeSrc}
+        visualAge={visualAge}
+        loading={false}
+        error=""
+        canGenerate={false}
+        showGenerate={false}
       />
     )
   }

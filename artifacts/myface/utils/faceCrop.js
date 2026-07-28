@@ -181,7 +181,7 @@ function orbitalBarXs(toX) {
   }
 }
 
-/** Qoves-style guides per proportion tab (coords in 0–100 image or crop space).
+/** report-style guides per proportion tab (coords in 0–100 image or crop space).
  *  Pass `box` (normalized face crop) when the displayed image is that crop.
  *  orbito-nasal: en–en and al–al as horizontal bars with end ticks;
  *  naso-oral: al–al and ch–ch as horizontal bars with end ticks;
@@ -261,7 +261,7 @@ const RIGHT_PROFILE_EAR = [234, 127, 132, 93, 58, 172, 136, 150]
 const LEFT_PROFILE_EAR = [356, 454, 323, 361, 288, 397, 365, 379]
 
 /**
- * Qoves-style ear/nose height brackets on a profile photo (image 0–100).
+ * report-style ear/nose height brackets on a profile photo (image 0–100).
  * rightProfile = person's right side visible → right-ear landmarks on the rear side.
  */
 export function buildNasoAuralOverlay(landmarks, poseId = 'rightProfile') {

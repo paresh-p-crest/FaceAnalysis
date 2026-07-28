@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from './apiClient'
+
 /** Coerce photo metadata or string to a usable URL (never `[object Object]`). */
 export function coercePhotoUrl(value) {
   if (!value) return null
@@ -24,8 +26,16 @@ export function resolveAssessmentFrontPhoto(assessment) {
     || coercePhotoUrl(report?.symmetry?.imageSrc)
     || coercePhotoUrl(report?.proportions?.imageSrc)
     || coercePhotoUrl(report?.nose?.imageSrc)
+    || canonicalFrontPhotoUrl(assessment?.id)
     || null
   )
+}
+
+/** List/summary rows omit photos — front upload path is stable per assessment id. */
+function canonicalFrontPhotoUrl(assessmentId) {
+  if (!assessmentId) return null
+  const base = getApiBaseUrl().replace(/\/$/, '')
+  return `${base}/api/media/assessments/${assessmentId}/front.jpg`
 }
 
 /** Front photo URL — baseline for AI visual comparisons (hair/outfit/aging). */

@@ -4,6 +4,15 @@ The Python FastAPI backend exposes these endpoints. All REST responses are in JS
 
 ---
 
+## System
+
+### `GET|HEAD /api/health`
+Liveness / readiness for uptime monitors and load balancers. `HEAD` returns the same status with an empty body.
+- **Auth:** None
+- **Response Shape (200 OK):** `{ "status": "ok" | "starting" | "degraded", "provider": "python-fastapi", "database": "connected" | "error" | "not_configured" | "starting", "bootError"?: string }`
+
+---
+
 ## Authentication Domain
 
 ### `POST /api/auth/register`
@@ -80,13 +89,19 @@ Change the signed-in user's password.
 - **Response Shape (200 OK):** `{ "ok": true }`
 - **400:** Current password incorrect or validation error
 
-### `POST /api/auth/reset-password`
-Forgot-password flow: set a new password for an account by email (no auth token).
+### `POST /api/auth/forgot-password`
+Request a password-reset email. Always returns success (no email enumeration).
 - **Auth:** Public
-- **Request Body:** `{ "email": "user@example.com", "newPassword": "…" }` (new password ≥ 8 chars)
+- **Request Body:** `{ "email": "user@example.com" }`
 - **Response Shape (200 OK):** `{ "ok": true }`
-- **400:** Validation error
-- **404:** No account for that email
+- **Rate limits:** 3 requests/hour per email, 10/hour per client IP (throttled requests still return `{ "ok": true }`)
+
+### `POST /api/auth/reset-password`
+Complete password reset using a token from the email link.
+- **Auth:** Public
+- **Request Body:** `{ "token": "…", "newPassword": "…" }` (new password ≥ 8 chars)
+- **Response Shape (200 OK):** `{ "ok": true }`
+- **400:** Validation error, or generic `"Invalid or expired reset link. Request a new one."` for all token failures (invalid, expired, already used)
 
 ### `GET /api/auth/admin-check`
 Validates that the token holder has admin privilege.
@@ -153,7 +168,38 @@ Fast upload + enqueue: validates 7 poses, persists photos, creates assessment wi
 - **Worker:** Background loop runs `cv` → `narratives` → `parsing` (SegFormer). On success: `pipeline.status = ready`, workflow `status = pending_review` (or `approved` if `DEV_AUTO_APPROVE_REPORTS`).
 
 ### `POST /api/assessments/{assessment_id}/retry-pipeline`
-Re-enqueue a **failed** pipeline (owner or admin). Returns the full serialized assessment (pipeline reset to `queued`). No-op returning current state if already `queued`/`running`; **400** if `ready` or not in a failed state.
+Re-enqueue a pipeline job (owner or admin). Optional JSON body:
+
+```json
+{ "mode": "resume" | "full" }
+```
+
+- **`resume`** (default when body omitted): preserve artifacts and `pipeline.stage`; skip stages that pass completion checks; partial narrative regen for missing/template features.
+- **`full`**: clear NL/protocol/ai_visuals/projected_after/parsing outputs; set `forceRetry=true`; requeue from `cv`.
+
+| `pipeline.status` | Behavior |
+|-------------------|----------|
+| `ready` | **400** — already completed |
+| `failed` | Requeue with chosen `mode` |
+| `running` | Requeue (stuck run recovery) with chosen `mode` |
+| `queued` | Re-enqueue with chosen `mode` |
+
+On worker startup, stale `running` rows are auto-reclaimed to `queued` (stage preserved). Returns the full serialized assessment.
+
+### `POST /api/assessments/{assessment_id}/narrative-translations`
+Admin-only. Force re-translate stored **English** protocol/feature/executive narratives into a target locale **without** regenerating English text.
+
+```json
+{ "locale": "de" }
+```
+
+| `locale` | Behavior |
+|----------|----------|
+| `de` | `ensure_narrative_translations(force=True)` then persist protocol + `aiNarrative.contentDe` |
+| `en` | **400** — English is the source language |
+| other | **400** — unsupported |
+
+Rejects when report status is `approved`, cvReport is missing, or no EN narratives exist. Manual CLI: `scripts/rerun_narrative_translations.py <id> --language de`.
 
 ### Progressive draft-upload-finalize flow (ADR-026)
 This is the single assessment-creation path used by the web app in **all** environments. Photos are uploaded to the active `MediaStorage` backend (local filesystem in dev, Replit Object Storage in prod) immediately after client-side validation, then `submit` enqueues the pipeline. Original image bytes are stored **as-is** (no server or client re-encode).
@@ -295,6 +341,7 @@ Saves admin review comments, PDF protocol text edits, and/or publishes reports.
   ```
   `treatmentPhases` bounds (Pydantic / structured LLM): `title`/`duration` ≤100 chars; item `name` ≤100; item `detail` ≤280; `items` 1–3 per phase; `summary` 20–500 chars. Soft overruns are clamped before validate.
   Optional legacy `aiNarrative` is still accepted. Protocol text is persisted via protocol storage + DB when `protocolNarrative` / `featureNarratives` are sent.
+  Optional `narrativeLocale` (`"en"` | `"de"`, default `"en"`) — when `"de"`, merges edited text into nested `.de` / `contentDe` blocks with `origin: "admin"` (no auto-retranslate). When `"en"`, saves English fields and retriggers DE translation for affected sections.
 - **400:** When assessment status is **Approved**, requests that include `protocolNarrative` or `featureNarratives` are rejected (`Cannot edit protocol narrative on approved reports.`).
 - **Response Shape (200 OK):** Complete updated assessment document.
 
@@ -370,11 +417,12 @@ Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images 
   ```
   - `variants` — category subset to regenerate (default all three). When a subset is sent, regenerated cards for those types are **merged** into the existing `aiVisuals.variants` blob; other categories are preserved.
   - `styleId` — optional. When set, regenerates **only** that style card and merges it by `styleId` (siblings unchanged). `variants` is ignored for scoping; the type is resolved from the style bank / existing variants. Unknown `styleId` → **400**.
-- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variantCounts`, `variants[]`, optional `outfitBaseline`). When all categories are requested (no `styleId`), `variants[]` length is `AI_VISUALS_HAIR_COUNT + AI_VISUALS_OUTFIT_COUNT + AI_VISUALS_AGING_COUNT` (defaults **13**: 5 hairstyles, 5 outfit occasions, 3 aging previews). Each variant includes `type` (hair/outfit/aging), `styleId`, `title`, `prompt`, `imageSrc`, `status`, and `error`. **`imageSrc`** is a `/api/media/assessments/{id}/ai-visuals/…` URL for new generations; legacy rows may still hold inline `data:image/…;base64,…` until regen. Optional `relativePath` / `contentType` on new cards. **`outfitBaseline`** (present when outfit variants were generated): `{ imageSrc, prompt, status, error, relativePath?, contentType? }` — white-tee comparison image for outfit slider BEFORE only. Failed edits return `status: "blocked"` per variant instead of crashing the request. Prompt text is natural-language with a shared identity opening and per-card scope-fence (ADR-035); image edits are executed as separate single-call prompts (no mega-prompt). Admin report overlay **Edit AI Visuals** (navbar, same pattern as Edit After Image) exposes full-gallery regen plus per-card regen. Projected AFTER regen remains `POST …/projected-after` (Admin After panel).
+- **Response Shape (200 OK):** Updated assessment with `aiVisuals` (`source`, `model`, `sourceKind`, `variantCounts`, `variants[]`, optional legacy `outfitBaseline`). When all categories are requested (no `styleId`), `variants[]` length is `AI_VISUALS_HAIR_COUNT + AI_VISUALS_OUTFIT_COUNT + AI_VISUALS_AGING_COUNT` (defaults **13**: 5 hairstyles, 5 outfit occasions, 3 aging previews). Each variant includes `type` (hair/outfit/aging), `styleId`, `title`, `prompt`, `imageSrc`, `status`, and `error`. **`imageSrc`** is a `/api/media/assessments/{id}/ai-visuals/…` URL for new generations; legacy rows may still hold inline `data:image/…;base64,…` until regen. Optional `relativePath` / `contentType` on new cards. **`outfitBaseline`** white-tee generation is **temporarily disabled** (outfit UI is after-only; code commented for restore). Legacy assessments may still hold `outfitBaseline`; new gens do not produce it. Failed edits return `status: "blocked"` per variant instead of crashing the request. Prompt text is natural-language with a shared identity opening and per-card scope-fence (ADR-035); image edits are executed as separate single-call prompts (no mega-prompt). Admin report overlay **Edit AI Visuals** (navbar, same pattern as Edit After Image) exposes full-gallery regen plus per-card regen. Projected AFTER regen remains `POST …/projected-after` (Admin After panel).
 
 ### `GET /api/assessments/{assessment_id}/pdf`
 Retrieves generated PDF bytes directly.
 - **Auth:** Owner User or Admin (Status must be `approved` or `published`).
+- **Query:** `locale` (`en` | `de`, default `en`) — when `de`, executive summary uses `aiNarrative.contentDe` when present.
 - **Response:** PDF binary download stream (`application/pdf`).
 
 ### `POST /api/generate-pdf`
@@ -520,22 +568,29 @@ Captures PayPal transaction funds after confirmation.
 ## Notification Settings
 
 ### `GET /api/notifications/config`
-Checks if SMTP notification variables are loaded.
+Email provider configuration status.
 - **Auth:** Private (Admin)
 - **Response Shape (200 OK):**
   ```json
   {
-    "configured": true
+    "email": {
+      "defaultProvider": "resend",
+      "configured": true,
+      "resendConfigured": true,
+      "smtpConfigured": false,
+      "fromEmail": "noreply@myface.club",
+      "fromName": "MyFace"
+    }
   }
   ```
 
 ### `POST /api/notifications/test-email`
-Triggers test SMTP send.
+Sends a test `signup_confirmation` email via `send_email()`.
 - **Auth:** Private (Admin)
 - **Request Body:**
   ```json
   {
-    "email": "test@example.com"
+    "toEmail": "test@example.com"
   }
   ```
-- **Response Shape (200 OK):** `{"ok": true}`
+- **Response Shape (200 OK):** `{ "id": "…", "status": "sent", "provider": "resend", "providerMessageId": "…" }`

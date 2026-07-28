@@ -206,6 +206,7 @@ export function SiteNavbar({
   onLogo,
   reportModalOpen = false,
   reportToolbar = null,
+  onCloseReport,
   user,
   adminNavBadges,
 }) {
@@ -264,6 +265,12 @@ export function SiteNavbar({
 
   const activeAdminTab = isAdmin ? (adminTabFromPath(pathname) || 'overview') : null
 
+  const closeReportIfOpen = useCallback(() => {
+    if (user?.role === 'admin' && reportModalOpen) {
+      onCloseReport?.()
+    }
+  }, [user, reportModalOpen, onCloseReport])
+
   const navItems = useMemo(() => {
     if (!user) return []
 
@@ -275,6 +282,7 @@ export function SiteNavbar({
         href: adminTabToPath(tab),
         active: !reportModalOpen && activeAdminTab === tab,
         badge: tab === 'review' ? adminNavBadges?.review : tab === 'users' ? adminNavBadges?.users : undefined,
+        onClick: closeReportIfOpen,
       }))
     }
 
@@ -382,7 +390,7 @@ export function SiteNavbar({
         <div className="site-navbar-cluster">
           <Link
             href={logoHref}
-            onClick={onLogo}
+            onClick={(e) => { closeReportIfOpen(); onLogo?.(e) }}
             className="shrink-0 hover:opacity-80 transition-opacity"
             aria-label="MyFace"
           >

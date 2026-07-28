@@ -147,7 +147,6 @@ function buildAllMetricsRows(m, fp, t) {
 
 export function EyeReportPanel({
   eyeAnalysis,
-  narrative: _narrative = null,
   featureParsing = null,
   photo = null,
   landmarks = null,
@@ -220,6 +219,7 @@ export function EyeReportPanel({
           </div>
         </div>
       </div>
+
     </div>
   )
 }

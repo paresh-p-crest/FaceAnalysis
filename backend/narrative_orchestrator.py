@@ -16,6 +16,7 @@ from .clinical_guardrails import (
     try_validate_feature_narrative,
     validate_or_template,
 )
+from .narrative_provenance import stamp_origin
 from .config import (
     FEATURE_NARRATIVE_CONCURRENCY,
     FEATURE_NARRATIVE_IDS,
@@ -352,11 +353,44 @@ def _clamp_str(value: Any, max_len: int) -> str:
     return text[:max_len].rstrip()
 
 
+_PHASE_KEY_ALIASES = {
+    "phase01": "phase01",
+    "phase02": "phase02",
+    "phase03": "phase03",
+    "phase_01": "phase01",
+    "phase_02": "phase02",
+    "phase_03": "phase03",
+    "phase_1": "phase01",
+    "phase_2": "phase02",
+    "phase_3": "phase03",
+    "phase 01": "phase01",
+    "phase 02": "phase02",
+    "phase 03": "phase03",
+    "phase 1": "phase01",
+    "phase 2": "phase02",
+    "phase 3": "phase03",
+}
+
+
+def _normalize_treatment_phase_keys(raw: dict) -> dict:
+    """Map common LLM key aliases (Phase 01, phase_01) onto phase01/02/03."""
+    out = dict(raw)
+    for key in list(out.keys()):
+        if not isinstance(key, str):
+            continue
+        canon = _PHASE_KEY_ALIASES.get(key.strip().lower())
+        if canon and canon != key and canon not in out:
+            out[canon] = out.pop(key)
+        elif canon and canon != key and canon in out:
+            out.pop(key, None)
+    return out
+
+
 def _clamp_treatment_phases_raw(raw: Any) -> Any:
     """Trim soft overruns before Pydantic so mild length slips don't burn retries."""
     if not isinstance(raw, dict):
         return raw
-    out = dict(raw)
+    out = _normalize_treatment_phase_keys(dict(raw))
     if "summary" in out:
         out["summary"] = _clamp_str(out.get("summary"), TREATMENT_PHASE_SUMMARY_MAX)
     for phase_key in ("phase01", "phase02", "phase03"):
@@ -446,7 +480,7 @@ async def generate_feature_narrative_async(
                     feature_id,
                     FEATURE_NARRATIVE_RATE_LIMIT_RETRIES,
                 )
-                return last_usable
+                return stamp_origin(last_usable, "llm")
             logger.info(
                 "feature %s structured: TEMPLATE (rate limit after %s backoff retries)",
                 feature_id,
@@ -475,7 +509,7 @@ async def generate_feature_narrative_async(
             if null_path_grounded(feature_id, ctx, validated):
                 label = "LLM accepted" if call_no == 1 else f"LLM accepted (call {call_no})"
                 logger.info("feature %s structured: %s", feature_id, label)
-                return validated
+                return stamp_origin(validated, "llm")
             # Schema/policy OK but null-path reads as ungrounded boilerplate.
             last_usable = validated
             if grounding_used >= max_grounding:
@@ -484,7 +518,7 @@ async def generate_feature_narrative_async(
                     feature_id,
                     grounding_used,
                 )
-                return last_usable
+                return stamp_origin(last_usable, "llm")
             grounding_used += 1
             logger.info(
                 "feature %s structured: null-path ungrounded (grounding retry %s/%s)",
@@ -513,7 +547,7 @@ async def generate_feature_narrative_async(
         logger.warning(
             "feature %s structured: keeping last LLM copy (hard budget exhausted)", feature_id
         )
-        return last_usable
+        return stamp_origin(last_usable, "llm")
     logger.info("feature %s structured: TEMPLATE (schema/retry fail)", feature_id)
     return validate_or_template(None, feature_id, ctx, answers=answers)
 
@@ -736,6 +770,8 @@ def build_protocol_narrative_compat(
     treatment_phases: Optional[dict] = None,
     source: Optional[str] = None,
     model: Optional[str] = None,
+    summary_origin: Optional[str] = None,
+    closing_origin: Optional[str] = None,
 ) -> dict:
     features_compat = {}
     for fid, fn in feature_narratives.items():
@@ -758,6 +794,10 @@ def build_protocol_narrative_compat(
         out["model"] = model
     if treatment_phases:
         out["treatmentPhases"] = treatment_phases
+    if summary_origin:
+        out["summaryOrigin"] = summary_origin
+    if closing_origin:
+        out["closingOrigin"] = closing_origin
     return out
 
 
@@ -819,14 +859,16 @@ async def generate_treatment_phases_async(
             "role": "system",
             "content": (
                 "You write the three-phase TREATMENT PROTOCOL panel for a facial aesthetic dashboard.\n"
-                "Return JSON only. Third-person clinical tone. Each phase has title, duration, and "
+                "Return JSON only. Top-level keys MUST be exactly: phase01, phase02, phase03, summary "
+                "(never 'Phase 01' or phase_01).\n"
+                "Third-person clinical tone. Each phase has title, duration, and "
                 f"{TREATMENT_PHASE_ITEMS_MIN}–{TREATMENT_PHASE_ITEMS_MAX} items "
                 "(name + detail line like timing or anatomical focus).\n"
                 f"Budgets: title/duration ≤{TREATMENT_PHASE_TITLE_MAX} chars; "
                 f"name ≤{TREATMENT_PHASE_NAME_MAX} chars; detail ≤{TREATMENT_PHASE_DETAIL_MAX} chars; "
                 f"summary {TREATMENT_PHASE_SUMMARY_MIN}–{TREATMENT_PHASE_SUMMARY_MAX} chars.\n"
-                "Phase 01 = foundation topicals/photoprotection; Phase 02 = supervised regeneration; "
-                "Phase 03 = long-term structural optimisation.\n"
+                "phase01 = foundation topicals/photoprotection; phase02 = supervised regeneration; "
+                "phase03 = long-term structural optimisation.\n"
                 + STRICT_NON_SURGICAL_RULES
                 + _NL_STYLE_RULES
             ),
@@ -887,6 +929,7 @@ async def generate_treatment_phases_async(
             data = _parse_treatment_phases(raw)
             label = "LLM accepted" if attempt == 1 else f"LLM accepted (call {attempt})"
             logger.info("treatment_phases structured: %s", label)
+            data["origin"] = "llm"
             return data
         except Exception as exc:
             logger.warning(
@@ -982,7 +1025,7 @@ async def generate_protocol_overview_async(
             data["summary"] = strip_score_language(data["summary"])
             label = "LLM accepted" if attempt == 1 else f"LLM accepted (call {attempt})"
             logger.info("protocol_overview structured: %s", label)
-            return data
+            return {"summary": data["summary"], "origin": "llm"}
         except Exception as exc:
             logger.warning(
                 "protocol_overview: schema validation failed (attempt %s/%s): %s",
@@ -1001,7 +1044,8 @@ async def generate_protocol_overview_async(
         "summary": (
             f"This evidence-based non-surgical protocol is grounded in the subject's measured facial analysis "
             f"(overall harmony described as {label}), organised around key aesthetic features."
-        )
+        ),
+        "origin": "template",
     }
 
 
@@ -1090,6 +1134,8 @@ async def generate_all_protocol_text(
         treatment_phases=treatment_phases,
         source="orchestrator",
         model=None,
+        summary_origin=overview.get("origin") or "template",
+        closing_origin=closing_source,
     )
 
     llm_features = [

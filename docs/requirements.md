@@ -22,7 +22,7 @@ This document captures the functional and non-functional requirements of the MyF
 
 ### 2. Photo Upload & Validation Checklist
 - **Multi-Angle Support:** Standard interface supporting front photograph upload and optional secondary photos (profile, hair, styling poses).
-- **Validation Checklist (Qoves-Style):** Before processing, verify image properties using client-side checks and AWS Rekognition details:
+- **Validation Checklist (MyFace-Style):** Before processing, verify image properties using client-side checks and AWS Rekognition details:
   - Neutral expression (no smile).
   - Adequate lighting (no extreme shadows).
   - Head pose alignment (warning if pitch, roll, or yaw exceeds 10°).

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { usePathname, useRouter } from '../../i18n/navigation'
 import { STAGES, INITIAL_ANSWERS } from '../../utils/constants'
 import {
@@ -61,6 +62,7 @@ const AppContext = createContext(null)
 export function AppProvider({ children }) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [answers, setAnswers] = useState(INITIAL_ANSWERS)
   const [photos, setPhotos] = useState(EMPTY_PHOTOS)
   const [analysis, setAnalysis] = useState(null)
@@ -81,6 +83,7 @@ export function AppProvider({ children }) {
   /** PDF actions while report modal is open — set by Report.jsx */
   const [reportToolbar, setReportToolbar] = useState(null)
   const [openingReportId, setOpeningReportId] = useState(null)
+  const openingReportIdRef = useRef(null)
   /** Full GET assessment used to open the report — reused by Report (no re-fetch). */
   const [cloudAssessment, setCloudAssessment] = useState(null)
   /** Bumped after soft-delete so chat / AI visuals remount loaders pick the new latest. */
@@ -102,6 +105,8 @@ export function AppProvider({ children }) {
   const adminInflightRef = useRef(new Set())
   /** Prevents re-applying local draft while already on /analysis. Reset when leaving the route. */
   const draftRestoreAttemptedRef = useRef(false)
+  const reportDeepLinkHandledRef = useRef(false)
+  const isAdminRef = useRef(user?.role === 'admin')
 
   const resetAdminWorkspace = useCallback(() => {
     adminCacheRef.current = { assessments: null, payments: null, users: null }
@@ -206,6 +211,7 @@ export function AppProvider({ children }) {
   }, [])
   useEffect(() => {
     userRef.current = user
+    isAdminRef.current = user?.role === 'admin'
   }, [user])
 
   useEffect(() => {
@@ -227,12 +233,21 @@ export function AppProvider({ children }) {
     goTo(stageToPath(stage), { replace })
   }, [goTo])
 
-  const openReportModal = useCallback(() => setReportModalOpen(true), [])
+  const openReportModal = useCallback(() => {
+    setReportModalOpen(true)
+    // Clear openingReportId immediately when the modal is opened programmatically
+    // (the Report component will signal readiness later)
+  }, [])
   const closeReportModal = useCallback(() => {
     setReportModalOpen(false)
     setReportSectionId('intro')
     setHistoryId(null)
     setCloudAssessment(null)
+    openingReportIdRef.current = null
+    setOpeningReportId(null)
+  }, [])
+  const clearOpeningReport = useCallback(() => {
+    setOpeningReportId(null)
   }, [])
 
   /** Open modal on /report (or admin tab); navigate there first from overview/other routes. */
@@ -250,7 +265,10 @@ export function AppProvider({ children }) {
     }
     const prev = prevPathnameRef.current
     if (prev === pathname) return
-    if (reportModalOpen && isReportModalHostPath(prev) && !isReportModalHostPath(pathname)) {
+    // Admin: close report on any admin tab navigation (even between host paths).
+    if (isAdminRef.current && reportModalOpen && isReportModalHostPath(prev) && isReportModalHostPath(pathname)) {
+      closeReportModal()
+    } else if (reportModalOpen && isReportModalHostPath(prev) && !isReportModalHostPath(pathname)) {
       closeReportModal()
     }
     prevPathnameRef.current = pathname
@@ -596,7 +614,7 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     if (!authReady) return
-    if (user && pathname === ROUTES.auth) {
+    if (user && (pathname === ROUTES.auth || pathname === ROUTES.authReset)) {
       goTo(dashboardPathForUser(user), { replace: true })
       return
     }
@@ -863,6 +881,7 @@ export function AppProvider({ children }) {
       return
     }
     setOpeningReportId(assessment.id)
+    openingReportIdRef.current = assessment.id
     try {
       const full = await fetchAssessment(assessment.id)
       if (pathnameRef.current !== originPath) return
@@ -881,10 +900,37 @@ export function AppProvider({ children }) {
       if (pathnameRef.current !== ROUTES.dashboard) {
         goTo(ROUTES.dashboard)
       }
-    } finally {
       setOpeningReportId(null)
+      openingReportIdRef.current = null
     }
   }, [hydrateFromCloudAssessment, openReportModalOnRoute, cloudAssessment, closeReportModal, goTo])
+
+  /** Email deep link: /report?assessmentId=… — ownership enforced by GET /api/assessments/{id}. */
+  useEffect(() => {
+    if (!authReady || !user || user.role === 'admin') return
+    if (pathname !== ROUTES.report) {
+      reportDeepLinkHandledRef.current = false
+      return
+    }
+    const assessmentId = searchParams.get('assessmentId')
+    if (!assessmentId || reportDeepLinkHandledRef.current) return
+    reportDeepLinkHandledRef.current = true
+
+    ;(async () => {
+      try {
+        if (!isBackendApiEnabled()) {
+          goTo(ROUTES.dashboard)
+          return
+        }
+        const full = await fetchAssessment(assessmentId)
+        await viewCloudAssessment(full, 'intro')
+        router.replace(ROUTES.report)
+      } catch {
+        alert('This report is unavailable.')
+        goTo(ROUTES.dashboard)
+      }
+    })()
+  }, [authReady, user, pathname, searchParams, viewCloudAssessment, goTo, router])
 
   /** After soft-delete: drop stale binding and rebind report modal to the next active report if needed. */
   const afterAssessmentDeleted = useCallback(async (deletedId) => {
@@ -1008,9 +1054,11 @@ export function AppProvider({ children }) {
   }, [goTo])
 
   const handleLogo = useCallback(() => {
+    const isAdminUser = user?.role === 'admin'
+    if (reportModalOpen && isAdminUser) closeReportModal()
     if (user) openDashboard()
     else goTo(ROUTES.auth)
-  }, [user, openDashboard, goTo])
+  }, [user, openDashboard, goTo, reportModalOpen, closeReportModal])
 
   const value = useMemo(() => ({
     user,
@@ -1044,6 +1092,7 @@ export function AppProvider({ children }) {
     reportToolbar,
     setReportToolbar,
     openingReportId,
+    clearOpeningReport,
     cloudAssessment,
     setCloudAssessment,
     latestAssessmentEpoch,
@@ -1099,7 +1148,7 @@ export function AppProvider({ children }) {
     handleAuthenticated, updateSessionUser, viewHistoryItem, viewCloudAssessment,
     adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace,
     skipQuestionnaireWithSampleData, handleLogo,
-    openReportModal, closeReportModal, goToWelcome, goToQuestionnaire,
+    openReportModal, closeReportModal, clearOpeningReport, goToWelcome, goToQuestionnaire,
     goToConfirm, goToUpload, goToPreparing,
     ensureDraft, submitAnalysis,
     handlePreparingReady, handlePreparingDashboard, resetAnalysisFlow,

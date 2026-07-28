@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { CreditCard, Loader2, RefreshCw, Wallet } from 'lucide-react'
+import { CreditCard, Loader2, RefreshCw } from 'lucide-react'
 import {
-  createPayPalOrder,
   createStripeCheckout,
   fetchMyPayments,
   fetchPaymentConfig,
@@ -38,19 +37,17 @@ function StatusBadge({ status }) {
   )
 }
 
-function ProviderButton({ provider, configured, loading, onClick, t }) {
-  const Icon = provider === 'stripe' ? CreditCard : Wallet
-  const label = provider === 'stripe' ? t('payWithStripe') : t('payWithPayPal')
+function StripePayButton({ configured, loading, onClick, t }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!configured || loading}
       className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold bg-brand text-white hover:bg-brand-dark shadow-brand transition-colors disabled:opacity-50 disabled:pointer-events-none w-full"
-      title={!configured ? t('providerNotConfigured', { provider }) : label}
+      title={!configured ? t('providerNotConfigured', { provider: 'stripe' }) : t('payWithStripe')}
     >
-      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icon className="w-4 h-4" />}
-      {label}
+      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+      {t('payWithStripe')}
     </button>
   )
 }
@@ -94,19 +91,6 @@ export default function BillingPage({ user, message = '', embedded = false }) {
       if (result.checkoutUrl) window.location.href = result.checkoutUrl
     } catch (err) {
       setError(err.message || t('stripeCheckoutFailed'))
-      setBusy('')
-    }
-  }
-
-  const startPayPal = async () => {
-    setBusy('paypal')
-    setError('')
-    trackEvent('checkout_start', { provider: 'paypal', planId: product?.id || 'myface_report' })
-    try {
-      const result = await createPayPalOrder()
-      if (result.approveUrl) window.location.href = result.approveUrl
-    } catch (err) {
-      setError(err.message || t('paypalCheckoutFailed'))
       setBusy('')
     }
   }
@@ -156,28 +140,15 @@ export default function BillingPage({ user, message = '', embedded = false }) {
               <div className="text-3xl font-bold text-brand mb-5">
                 {money(product?.amountCents || 0, product?.currency || 'usd')}
               </div>
-              <div className="grid gap-3">
-                <ProviderButton
-                  provider="stripe"
-                  configured={!!config?.stripe?.configured}
-                  loading={busy === 'stripe'}
-                  onClick={startStripe}
-                  t={t}
-                />
-                <ProviderButton
-                  provider="paypal"
-                  configured={!!config?.paypal?.configured}
-                  loading={busy === 'paypal'}
-                  onClick={startPayPal}
-                  t={t}
-                />
-              </div>
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-ink-muted">
+              <StripePayButton
+                configured={!!config?.stripe?.configured}
+                loading={busy === 'stripe'}
+                onClick={startStripe}
+                t={t}
+              />
+              <div className="mt-4 text-[11px] text-ink-muted">
                 <div className="rounded-xl bg-surface-warm border border-surface-border p-3">
                   {t('stripeLabel')}: {config?.stripe?.configured ? t('stripeConfigured') : t('stripeMissingKeys')}
-                </div>
-                <div className="rounded-xl bg-surface-warm border border-surface-border p-3">
-                  {t('paypalLabel')}: {config?.paypal?.configured ? t('paypalConfigured') : t('paypalMissingKeys')}
                 </div>
               </div>
             </div>

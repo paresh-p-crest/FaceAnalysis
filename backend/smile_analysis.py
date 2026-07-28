@@ -9,6 +9,7 @@ import numpy as np
 
 from .face_crop import lm
 from .mediapipe_analysis import analyze_with_mediapipe
+from . import cv_report_explanations_de as expl_de
 
 
 def analyze_smile_photo(smile_bytes: bytes, neutral_landmarks: Optional[list] = None) -> dict:
@@ -20,6 +21,7 @@ def analyze_smile_photo(smile_bytes: bytes, neutral_landmarks: Optional[list] = 
         "smileWidthPx": "N/A",
         "dataSource": "unavailable",
         "explanation": "Upload a smile photo for enhanced teeth & smile analysis.",
+        "explanationDe": expl_de.SMILE_UPLOAD_DE,
     }
     if not smile_bytes:
         return fallback
@@ -109,6 +111,10 @@ def analyze_smile_photo(smile_bytes: bytes, neutral_landmarks: Optional[list] = 
                 f"Smile analysis: {teeth_visibility.lower()} teeth visibility with {smile_arc.lower()}. "
                 f"Gum exposure is {gum_exposure.lower()}. Teeth appear {teeth_whiteness.lower()}."
             ),
+            "explanationDe": (
+                f"Lächelanalyse: {teeth_visibility.lower()} Zahnvisibilität mit {smile_arc.lower()}. "
+                f"Zahnfleischsichtbarkeit ist {gum_exposure.lower()}. Zähne wirken {teeth_whiteness.lower()}."
+            ),
         }
     except Exception:
-        return {**fallback, "explanation": "Smile photo analysis failed."}
+        return {**fallback, "explanation": "Smile photo analysis failed.", "explanationDe": expl_de.SMILE_FAILED_DE}

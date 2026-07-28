@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { ReportMetricCard, ReportExplanationCard, ReportMonoLabel } from './ReportSectionHeading'
@@ -121,6 +122,7 @@ export function FeatureAnalysisPage({
 }
 
 export function AssessmentGridLayout({ photo, photoOverlay, rightCards, explanation, metrics = [], photoFit = 'contain' }) {
+  const t = useTranslations('Report')
   return (
     <div className="space-y-6">
       <div className="grid lg:grid-cols-2 gap-6">
@@ -141,7 +143,9 @@ export function AssessmentGridLayout({ photo, photoOverlay, rightCards, explanat
           ))}
         </div>
       )}
-      {explanation && <ReportExplanationCard>{explanation}</ReportExplanationCard>}
+      {explanation && (
+        <ReportExplanationCard label={t('common.explanation')}>{explanation}</ReportExplanationCard>
+      )}
     </div>
   )
 }

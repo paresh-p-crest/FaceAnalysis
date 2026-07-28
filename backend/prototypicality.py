@@ -12,6 +12,7 @@ import math
 from typing import Any, Optional
 
 from .face_crop import FACE_OVAL, RIGHT_EYE, LEFT_EYE, RIGHT_BROW, LEFT_BROW, lm
+from . import cv_report_explanations_de as expl_de
 
 DEFAULT_NORMS = {
     # MediaPipe-calibrated: gonial jaw width / forehead–chin height
@@ -49,7 +50,7 @@ SCORE_WEIGHTS = {
     "brows": 0.22,
 }
 
-# Maps typical MediaPipe faces to mid-70s (Qoves-calibrated).
+# Maps typical MediaPipe faces to mid-70s (calibrated).
 SCORE_BASE = 84.0
 SCORE_PENALTY_SCALE = 195.0
 MAX_FEATURE_MAGNITUDE = 0.38
@@ -362,7 +363,7 @@ def compute_prototypicality_report(
         return {
             "score": None, "label": None, "rangeLabel": None,
             "scaleLeft": "Distinctive", "scaleRight": "Highly Typical",
-            "explanation": None, "deviations": [], "wireframe": None,
+            "explanation": None, "explanationDe": None, "deviations": [], "wireframe": None,
             "methodology": METHODOLOGY,
         }
 
@@ -382,6 +383,7 @@ def compute_prototypicality_report(
         "scaleLeft": "Distinctive",
         "scaleRight": "Highly Typical",
         "explanation": _build_explanation(deviations, score),
+        "explanationDe": expl_de.averageness_explanation_de(deviations, score),
         "methodology": METHODOLOGY,
         "cohortKey": norms["cohortKey"],
         "faceRatio": {

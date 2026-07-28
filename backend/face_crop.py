@@ -247,11 +247,11 @@ def _eye_fissure_xs(landmarks: list, box: Optional[dict] = None) -> dict:
 
 
 def proportion_ratio_overlays(landmarks: list, box: Optional[dict] = None) -> dict:
-    """Qoves-style guides per proportion tab (0–100 image or crop coords).
+    """report-style guides per proportion tab (0–100 image or crop coords).
 
     Pass ``box`` (normalized face crop) when the displayed image is that crop.
 
-    Canons (Farkas / Qoves):
+    Canons (Farkas / MyFace):
     - orbito-nasal: intercanthal (en–en) vs nasal width (al–al)
     - orbital: intercanthal vs eye fissure (ex–en)
     - naso-oral: mouth width (ch–ch) vs nasal width

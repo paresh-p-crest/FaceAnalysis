@@ -1,4 +1,8 @@
-/** Shared QOVES-style section heading with optional accent spans. */
+'use client'
+
+/** Shared report-style section heading with optional accent spans. */
+
+import { useCvLabel } from '../../utils/cvReportLocale'
 
 export function ReportSectionHeading({ title, accent, subtitle, className = '' }) {
   return (
@@ -21,23 +25,27 @@ export function ReportSectionHeading({ title, accent, subtitle, className = '' }
 
 export function ReportMonoLabel({ children, className = '' }) {
   return (
-    <p className={`qoves-report-mono-label ${className}`}>{children}</p>
+    <p className={`report-view-mono-label ${className}`}>{children}</p>
   )
 }
 
-export function ReportMetricCard({ label, value, className = '' }) {
+export function ReportMetricCard({ label, value, className = '', translateValue = true }) {
+  const cvLabel = useCvLabel()
+  const display = value != null && value !== ''
+    ? (translateValue ? cvLabel(value) : value)
+    : value
   return (
-    <div className={`qoves-report-metric-card ${className}`}>
-      <p className="qoves-report-mono-label mb-1">{label}</p>
-      <p className="text-lg font-display font-bold text-ink">{value}</p>
+    <div className={`report-view-metric-card ${className}`}>
+      <p className="report-view-mono-label mb-1">{label}</p>
+      <p className="text-lg font-display font-bold text-ink">{display}</p>
     </div>
   )
 }
 
 export function ReportExplanationCard({ children, label = 'Explanation' }) {
   return (
-    <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-      <p className="qoves-report-mono-label mb-2">{label}</p>
+    <div className="report-view-metric-card">
+      <p className="report-view-mono-label mb-2">{label}</p>
       <p className="text-sm text-ink-secondary leading-relaxed font-sans">{children}</p>
     </div>
   )

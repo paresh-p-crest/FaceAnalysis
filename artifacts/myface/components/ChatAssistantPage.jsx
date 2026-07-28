@@ -58,7 +58,7 @@ export default function ChatAssistantPage({ onStartAssessment }) {
   if (loading) {
     return (
       <StandalonePageShell>
-        <div className="tool-page-shell__body flex items-center justify-center qoves-report-layout">
+        <div className="tool-page-shell__body flex items-center justify-center report-view-layout">
           <div className="text-center py-16">
             <Loader2 className="w-7 h-7 text-brand animate-spin mx-auto mb-3" />
             <p className="text-sm text-ink-muted">{t('loading')}</p>

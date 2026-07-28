@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { DISCLAIMER_PARAGRAPH_KEYS, PRIVACY_PARAGRAPH_KEYS } from '../../utils/qovesProtocolModel'
+import { DISCLAIMER_PARAGRAPH_KEYS, PRIVACY_PARAGRAPH_KEYS, PRIVACY_POLICY_URL } from '../../utils/reportProtocolModel'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { ExternalLink } from 'lucide-react'
 
@@ -28,7 +28,7 @@ export function DisclaimerSection() {
       </div>
 
       <a
-        href="https://myface.club"
+        href={PRIVACY_POLICY_URL}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-dark transition-colors"

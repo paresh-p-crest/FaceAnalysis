@@ -44,7 +44,7 @@ def test_face_proportions_use_jaw_and_cheek_landmarks():
     assert abs(props["upper_third"] + props["middle_third"] + props["lower_third"] - 1.0) < 0.05
 
 
-def test_demo_like_face_scores_in_qoves_band():
+def test_demo_like_face_scores_in_report_band():
     answers = {"ethnicity": "white", "genderPreference": "no-preference"}
     report = compute_prototypicality_report(_demo_like_landmarks(), {}, answers)
     assert 60 <= report["score"] <= 82

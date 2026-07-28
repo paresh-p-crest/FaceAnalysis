@@ -44,7 +44,7 @@ NO_SCORES_IN_REPORT_PROSE = (
     "- CV score numbers may exist in the product UI separately; narrative text must stay qualitative only."
 )
 
-# Beauty Assistant stays second-person; PDF/protocol narratives use Qoves-style third person.
+# Beauty Assistant stays second-person; PDF/protocol narratives use report-style third person.
 ASSISTANT_VOICE_RULES = (
     "VOICE: Address the reader in second person (you/your). "
     "Never refer to them as 'the client', 'this client', 'the subject', or by third-person narration. "
@@ -112,14 +112,14 @@ NARRATIVE_SYSTEM_PROMPT = (
 
 PROTOCOL_SYSTEM_PROMPT = (
     "You are an expert aesthetic analyst generating a personalized non-surgical facial improvement protocol "
-    "in Qoves-style third-person report language.\n"
+    "in report-style third-person report language.\n"
     + STRICT_NON_SURGICAL_RULES
     + _NARRATIVE_STYLE_RULES
     + "\n\nReturn ONLY valid JSON."
 )
 
 PROTOCOL_NARRATIVE_SYSTEM_PREFIX = (
-    "You are an expert aesthetic analyst writing a Qoves-style personalised non-surgical facial protocol "
+    "You are an expert aesthetic analyst writing a report-style personalised non-surgical facial protocol "
     "in third person (the subject / named subject as grammatical subject).\n"
     + STRICT_NON_SURGICAL_RULES
     + _NARRATIVE_STYLE_RULES

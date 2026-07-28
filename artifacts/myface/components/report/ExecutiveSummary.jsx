@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { Download, Loader2, Share2 } from 'lucide-react'
 import { PhotoLandmarkFrame } from './FaceImageFrame'
@@ -10,12 +10,13 @@ import {
   formatProtocolId,
   getClientName,
   resolveTreatmentPhases,
-} from '../../utils/qovesProtocolModel'
+} from '../../utils/reportProtocolModel'
 import { shareReportPage } from '../../utils/reportShare'
 import { FeatureAnalysisHero } from './FeaturePreviewPortrait'
 import { NameProtocolPlate } from './NameProtocolPlate'
 import { TreatmentProtocolPhases } from './TreatmentProtocolPhases'
 import { FacialAgePanel } from './FacialAgePanel'
+import { pickLocalizedNarratives } from '../../utils/narrativeLocale'
 
 const RADAR_AXIS_KEYS = ['symmetry', 'smoothness', 'jawline', 'skin', 'volume', 'harmony']
 
@@ -130,6 +131,10 @@ export function ExecutiveSummary({
 }) {
   const t = useTranslations('Report')
   const locale = useLocale()
+  const localized = useMemo(
+    () => pickLocalizedNarratives({ aiNarrative, protocolNarrative }, locale, { t }),
+    [aiNarrative, protocolNarrative, locale, t],
+  )
   const afterSrc = resolveProjectedAfterUrl(projectedAfter)
   const clientName = getClientName(answers, user, assessmentOwner)
   const firstName = clientName.split(/\s+/)[0] || clientName
@@ -145,8 +150,8 @@ export function ExecutiveSummary({
   const dash = buildProtocolDashboardData({
     cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt,
   })
-  const overviewText = protocolNarrative?.summary || aiNarrative?.content?.summary || null
-  const treatment = resolveTreatmentPhases({ protocolNarrative, dash, t })
+  const overviewText = localized.protocolNarrative?.summary || localized.aiNarrative?.content?.summary || null
+  const treatment = resolveTreatmentPhases({ protocolNarrative: localized.protocolNarrative, dash, t })
 
   const analysisTimeLabel = dash.analysisTimeDays
     ? t('executiveSummary.kpiAnalysisTimeValue', { days: dash.analysisTimeDays })

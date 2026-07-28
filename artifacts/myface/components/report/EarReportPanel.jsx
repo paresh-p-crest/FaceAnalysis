@@ -8,7 +8,6 @@ import {
   FeatureSummaryGrid,
 } from './FeatureSummaryUi'
 import { resolveFeatureHero } from '../../utils/featureParsing'
-
 function textOrNull(v) {
   if (v == null) return null
   const s = String(v).trim()
@@ -61,7 +60,6 @@ function buildDetailSlides(e, t) {
 export function EarReportPanel({
   ears,
   featureParsing = null,
-  narrative: _narrative = null,
   imageSrc = null,
 }) {
   const t = useTranslations('Report')
@@ -118,6 +116,7 @@ export function EarReportPanel({
         <p className="font-display text-base font-bold text-ink mb-3">{t('ears.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
+
     </div>
   )
 }

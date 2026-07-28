@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { DetailCarousel, FeatureHeroFrame, MetricsColumn, SummaryLabelCard } from './FeatureSummaryUi'
 import { resolveFeatureHero } from '../../utils/featureParsing'
-
+import { toCvLabelKey } from '../../utils/cvReportLocale'
 function textOrNull(v) {
   if (v == null) return null
   const s = String(v).trim()
@@ -31,27 +31,27 @@ function formatDeg(n) {
 
 function classifyFullness(mouthMm, cvFullness) {
   const fromCv = textOrNull(cvFullness)
-  if (fromCv === 'Thin') return 'Thin / Narrow'
-  if (fromCv === 'Full') return 'Full / Plush'
-  if (fromCv === 'Balanced') return 'Balanced'
-  if (!Number.isFinite(mouthMm)) return fromCv
-  if (mouthMm < 42) return 'Thin / Narrow'
-  if (mouthMm > 55) return 'Full / Wide'
-  return 'Balanced'
+  if (fromCv === 'Thin') return 'thinNarrow'
+  if (fromCv === 'Full') return 'fullPlush'
+  if (fromCv === 'Balanced') return 'balanced'
+  if (!Number.isFinite(mouthMm)) return toCvLabelKey(fromCv)
+  if (mouthMm < 42) return 'thinNarrow'
+  if (mouthMm > 55) return 'fullWide'
+  return 'balanced'
 }
 
 function classifyWidth(mouthMm) {
   if (!Number.isFinite(mouthMm)) return null
-  if (mouthMm < 42) return 'Narrow'
-  if (mouthMm > 55) return 'Wide'
-  return 'Average'
+  if (mouthMm < 42) return 'narrow'
+  if (mouthMm > 55) return 'wide'
+  return 'average'
 }
 
 function classifyProportions(cupidDeg) {
   if (!Number.isFinite(cupidDeg)) return null
-  if (cupidDeg < 120) return 'Peaked / Defined'
-  if (cupidDeg > 145) return 'Flat / Subtle'
-  return 'Moderate Arch'
+  if (cupidDeg < 120) return 'peakedDefined'
+  if (cupidDeg > 145) return 'flatSubtle'
+  return 'moderateArch'
 }
 
 function buildLipMetrics(lips, featureParsing) {
@@ -64,7 +64,7 @@ function buildLipMetrics(lips, featureParsing) {
     philtrumMm,
     cupidDeg,
     fullnessLabel: classifyFullness(mouthMm, lips.fullness),
-    widthLabel: classifyWidth(mouthMm) || textOrNull(lips.fullness),
+    widthLabel: classifyWidth(mouthMm) || toCvLabelKey(lips.fullness),
     proportionsLabel: classifyProportions(cupidDeg),
     healthLabel: 'N/A',
   }
@@ -77,11 +77,11 @@ function buildDetailSlides(metrics, t) {
   if (metrics.mouthMm != null) {
     slides.push({
       id: 'mouth-width',
-      titleLead: 'Mouth Width',
-      titleAccent: '(mm)',
-      body: 'Horizontal distance between the mouth corners. Typical range 40–60 mm.',
+      titleLead: t('lips.slides.mouthWidth.titleLead'),
+      titleAccent: t('lips.slides.mouthWidth.titleAccent'),
+      body: t('lips.slides.mouthWidth.body'),
       meter: {
-        metricLabel: 'Mouth Width',
+        metricLabel: t('lips.slides.mouthWidth.metricLabel'),
         sourceLabel: landmark,
         valueText: formatMm(metrics.mouthMm),
         valueNum: metrics.mouthMm,
@@ -96,11 +96,11 @@ function buildDetailSlides(metrics, t) {
   if (metrics.cupidDeg != null) {
     slides.push({
       id: 'cupid',
-      titleLead: "Cupid's Bow",
-      titleAccent: 'Angle',
-      body: "Angle at the Cupid's bow dip. Lower = more peaked/defined upper lip arch.",
+      titleLead: t('lips.slides.cupid.titleLead'),
+      titleAccent: t('lips.slides.cupid.titleAccent'),
+      body: t('lips.slides.cupid.body'),
       meter: {
-        metricLabel: "Cupid's Bow Angle",
+        metricLabel: t('lips.slides.cupid.metricLabel'),
         sourceLabel: landmark,
         valueText: formatDeg(metrics.cupidDeg),
         valueNum: metrics.cupidDeg,
@@ -115,11 +115,11 @@ function buildDetailSlides(metrics, t) {
   if (metrics.philtrumMm != null) {
     slides.push({
       id: 'philtrum',
-      titleLead: 'Philtrum',
-      titleAccent: 'Length',
-      body: "Distance from subnasale (base of nose) to the Cupid's bow dip. Typical range 10–20 mm.",
+      titleLead: t('lips.slides.philtrum.titleLead'),
+      titleAccent: t('lips.slides.philtrum.titleAccent'),
+      body: t('lips.slides.philtrum.body'),
       meter: {
-        metricLabel: 'Philtrum Length',
+        metricLabel: t('lips.slides.philtrum.metricLabel'),
         sourceLabel: landmark,
         valueText: formatMm(metrics.philtrumMm),
         valueNum: metrics.philtrumMm,
@@ -134,29 +134,29 @@ function buildDetailSlides(metrics, t) {
   return slides
 }
 
-function buildAllMetricsRows(metrics) {
+function buildAllMetricsRows(metrics, t) {
   const left = [
-    { label: 'Mouth Width', value: formatMm(metrics.mouthMm) },
-    { label: "Cupid's Bow Angle", value: formatDeg(metrics.cupidDeg) },
-    { label: 'Width Classification', value: metrics.widthLabel },
-    { label: 'Health', value: metrics.healthLabel },
+    { label: t('lips.metrics.mouthWidth'), value: formatMm(metrics.mouthMm) },
+    { label: t('lips.metrics.cupidAngle'), value: formatDeg(metrics.cupidDeg) },
+    { label: t('lips.metrics.widthClass'), value: metrics.widthLabel },
+    { label: t('lips.health'), value: metrics.healthLabel },
   ]
   const right = [
-    { label: 'Philtrum Length', value: formatMm(metrics.philtrumMm) },
-    { label: 'Fullness Classification', value: metrics.fullnessLabel },
-    { label: 'Proportions', value: metrics.proportionsLabel },
+    { label: t('lips.metrics.philtrumLength'), value: formatMm(metrics.philtrumMm) },
+    { label: t('lips.metrics.fullnessClass'), value: metrics.fullnessLabel },
+    { label: t('lips.proportions'), value: metrics.proportionsLabel },
   ]
   return { left, right }
 }
 
-export function LipsReportPanel({ lips, featureParsing = null, narrative: _narrative = null }) {
+export function LipsReportPanel({ lips, featureParsing = null }) {
   const t = useTranslations('Report')
   if (!lips) return null
 
   const heroImage = resolveFeatureHero('lips', lips, featureParsing) || lips.imageSrc
   const metrics = buildLipMetrics(lips, featureParsing)
   const slides = buildDetailSlides(metrics, t)
-  const { left, right } = buildAllMetricsRows(metrics)
+  const { left, right } = buildAllMetricsRows(metrics, t)
 
   return (
     <div className="space-y-8">
@@ -198,6 +198,7 @@ export function LipsReportPanel({ lips, featureParsing = null, narrative: _narra
           </div>
         </div>
       </div>
+
     </div>
   )
 }

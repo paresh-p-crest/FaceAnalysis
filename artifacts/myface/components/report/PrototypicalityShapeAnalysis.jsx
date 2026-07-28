@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { buildFrontMeshProjection } from '../../utils/prototypicalityMeshProjection'
 
-/** Qoves-like sage mesh stroke — higher contrast than brand-on-grid. */
+/** report-like sage mesh stroke — higher contrast than brand-on-grid. */
 const MESH_STROKE = '#6B9080'
 
 export function PrototypicalityShapeAnalysis({ landmarks, averageness }) {
@@ -31,7 +31,7 @@ export function PrototypicalityShapeAnalysis({ landmarks, averageness }) {
       />
 
       <div className="absolute top-0 left-0 right-0 flex items-start justify-between px-1 pt-1 z-10">
-        <p className="qoves-report-mono-label">Shape Analysis</p>
+        <p className="report-view-mono-label">Shape Analysis</p>
       </div>
 
       <div className="absolute inset-0 flex items-center justify-center pt-8 pb-4 px-6">

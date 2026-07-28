@@ -14,6 +14,7 @@ import {
   isAnalysisLimitReached,
   MAX_SUBMITTED_ASSESSMENTS_PER_PACKAGE,
 } from '../utils/assessmentEligibility'
+import { resolveAssessmentFrontPhoto } from '../utils/assessmentPhotos'
 import { isAssessmentSubmitted, userReportReady } from '../utils/reportWorkflow'
 import { ROUTES } from '../utils/routes'
 import { translateApiError } from '../utils/translateApiError'
@@ -112,6 +113,11 @@ export function CustomerAssessmentGate({
   const daysLeft = useMemo(
     () => remainingPrepDays(latest?.createdAt, PREP_WINDOW_DAYS),
     [latest?.createdAt],
+  )
+
+  const preparingPhoto = useMemo(
+    () => (latest ? resolveAssessmentFrontPhoto(latest) : null),
+    [latest],
   )
 
   const handleCheckout = useCallback(async () => {
@@ -261,7 +267,7 @@ export function CustomerAssessmentGate({
 
   return (
     <AnalysisPreparing
-      photo={null}
+      photo={preparingPhoto}
       createdAt={latest.createdAt}
       daysLeft={daysLeft}
       totalDays={PREP_WINDOW_DAYS}

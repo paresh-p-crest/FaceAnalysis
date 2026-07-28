@@ -53,7 +53,7 @@ def new_feature_parsing_pending() -> dict:
         "maxAttempts": DEFAULT_MAX_ATTEMPTS,
         "lastError": None,
         "modelId": "jonathandinu/face-parsing",
-        "scaleNote": "Assumed IPD 63.5mm for Qoves-aligned display; not clinical measurement",
+        "scaleNote": "Assumed IPD 63.5mm for aligned display; not clinical measurement",
         "updatedAt": _utcnow_iso(),
         "crops": {},
         "metrics": {},
@@ -122,3 +122,27 @@ def merge_pipeline_update(existing: Optional[dict], **updates: Any) -> dict:
     base = dict(existing or new_queued_pipeline())
     base.update(updates)
     return base
+
+
+def resolve_resume_stage(pipeline: Optional[dict]) -> str:
+    """Pick pipeline stage to resume after reclaim or admin retry (resume mode)."""
+    if not isinstance(pipeline, dict):
+        return "cv"
+    stage = pipeline.get("stage") or "queued"
+    if stage in STAGE_ORDER:
+        return stage
+    attempts = pipeline.get("attempts") or {}
+    for s in reversed(STAGE_ORDER):
+        if int(attempts.get(s) or 0) > 0:
+            return s
+    return "cv"
+
+
+def claim_stage_from_pipeline(pipeline: Optional[dict]) -> str:
+    """Stage to run when claiming a queued/running job."""
+    if not isinstance(pipeline, dict):
+        return "cv"
+    stage = pipeline.get("stage") or "queued"
+    if stage in STAGE_ORDER:
+        return stage
+    return "cv"

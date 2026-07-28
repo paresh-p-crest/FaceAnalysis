@@ -14,6 +14,7 @@ import {
   optionDescription,
 } from '../utils/onboarding'
 import { BrandLogo } from './BrandLogo'
+import { AnalysisFlowHeader } from './analysis/AnalysisFlowHeader'
 import './Questionnaire.css'
 
 function isQuestionAnswerComplete(question, answers) {
@@ -174,27 +175,24 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
 
       <div className="w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-white dark:bg-slate-950 border-r border-surface-border">
 
-        <div className="flex items-center justify-between">
-          <button
-            onClick={handlePrev}
-            className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors uppercase tracking-wider"
-          >
-            {t('common.back')}
-          </button>
+        <AnalysisFlowHeader
+          backLabel={t('common.back')}
+          onBack={handlePrev}
+          trailing={(
+            <div className="flex items-center gap-1.5 text-xs font-bold font-mono">
+              <span className="px-2.5 py-1 rounded bg-[#5e9f8b] text-white">
+                {currentIdx + 1}
+              </span>
+              <span className="text-slate-400">/</span>
+              <span className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-500 bg-slate-50 dark:bg-slate-900">
+                {activeQuestions.length}
+              </span>
+            </div>
+          )}
+        />
 
-          <div className="flex items-center gap-1.5 text-xs font-bold font-mono">
-            <span className="px-2.5 py-1 rounded bg-[#5e9f8b] text-white">
-              {currentIdx + 1}
-            </span>
-            <span className="text-slate-400">/</span>
-            <span className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-500 bg-slate-50 dark:bg-slate-900">
-              {activeQuestions.length}
-            </span>
-          </div>
-        </div>
-
-        <div key={transitionKey} className="my-auto py-12 max-w-lg fade-in-slide space-y-8">
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-tight tracking-tight">
+        <div key={transitionKey} className="analysis-split-content py-12 fade-in-slide space-y-8">
+          <h1 className="analysis-split-panel__title text-2xl sm:text-3xl text-slate-900 dark:text-white">
             {t(currentQuestion.questionKey)}
           </h1>
 

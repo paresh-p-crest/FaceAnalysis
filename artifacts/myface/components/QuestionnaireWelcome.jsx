@@ -1,16 +1,17 @@
 'use client'
 
-import { Fingerprint, Clock, Scan } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { AnalysisFlowHeader } from './analysis/AnalysisFlowHeader'
 import { BrandLogo } from './BrandLogo'
+import './Questionnaire.css'
 
 export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
   const t = useTranslations('Questionnaire.welcome')
 
   const STATS = [
-    { icon: Fingerprint, value: '170+', label: t('statsLandmarks') },
-    { icon: Clock, value: '20+', label: t('statsDuration') },
-    { icon: Scan, value: '100 %', label: t('statsPersonalized') },
+    { value: '170+', label: t('statsLandmarks') },
+    { value: '20+', label: t('statsDuration') },
+    { value: '100 %', label: t('statsPersonalized') },
   ]
 
   return (
@@ -35,50 +36,45 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
       </div>
 
       {/* Right Column: Welcome */}
-      <div className="questionnaire-welcome__main w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-surface-card dark:bg-surface border-l border-surface-border">
-        <div className="questionnaire-welcome__header flex items-center justify-between">
-          <BrandLogo size="lg" className="questionnaire-welcome__mobile-logo" />
-          {onBackToDashboard && (
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="questionnaire-welcome__back flex items-center gap-1 text-xs font-semibold text-ink-muted hover:text-ink transition-colors uppercase tracking-wider"
-            >
-              {t('backToDashboard')}
-            </button>
-          )}
-        </div>
+      <div className="questionnaire-welcome__main w-full lg:w-[40%] flex flex-col min-h-screen lg:min-h-0 bg-surface-card dark:bg-surface border-l border-surface-border p-6 sm:p-16">
+        <AnalysisFlowHeader
+          className="questionnaire-welcome__header"
+          leading={<BrandLogo size="lg" className="questionnaire-welcome__mobile-logo" />}
+          backLabel={onBackToDashboard ? t('backToDashboard') : null}
+          onBack={onBackToDashboard}
+          backClassName="questionnaire-welcome__back"
+        />
 
-        {/* Content */}
-        <div className="questionnaire-welcome__content my-auto py-12 max-w-lg space-y-8">
-          <div>
-            {onBackToDashboard && (
-              <button
-                type="button"
-                onClick={onBackToDashboard}
-                className="questionnaire-welcome__mobile-back mb-7 flex items-center gap-1 text-[10px] font-semibold text-ink-muted hover:text-ink transition-colors uppercase tracking-[0.09em]"
-              >
-                {t('backToDashboard')}
-              </button>
-            )}
-            <h1 className="font-display sm:text-4xl font-bold text-ink tracking-tight text-left text-[26px]">
-              {t('title')}
-            </h1>
-            <p className="text-ink-muted mt-4 text-[13px]">
-              {t('description')}
-            </p>
+        <div className="questionnaire-welcome__content analysis-split-content">
+          <div className="questionnaire-welcome__body">
+            <div className="questionnaire-welcome__intro">
+              {onBackToDashboard && (
+                <button
+                  type="button"
+                  onClick={onBackToDashboard}
+                  className="questionnaire-welcome__mobile-back mb-7"
+                >
+                  {t('backToDashboard')}
+                </button>
+              )}
+              <h1 className="questionnaire-welcome__title">
+                {t('title')}
+              </h1>
+              <p className="questionnaire-welcome__body-text text-ink-muted">
+                {t('description')}
+              </p>
+            </div>
+
+            <div className="questionnaire-welcome__stats">
+              {STATS.map((stat) => (
+                <div key={stat.label} className="questionnaire-welcome__stat">
+                  <div className="text-xl font-bold text-ink">{stat.value}</div>
+                  <div className="questionnaire-welcome__stat-label text-[10px] text-ink-muted mt-1 uppercase font-medium tracking-wider">{stat.label}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="questionnaire-welcome__stats grid grid-cols-3 gap-3">
-            {STATS.map((stat) => (
-              <div key={stat.label} className="questionnaire-welcome__stat p-4 rounded-xl border border-surface-border bg-surface-warm/50 dark:bg-surface-raised/50 text-center">
-                <div className="text-xl font-bold text-ink">{stat.value}</div>
-                <div className="questionnaire-welcome__stat-label text-[10px] text-ink-muted mt-1 uppercase font-medium tracking-wider">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Start Button */}
           <div className="questionnaire-welcome__action">
             <button onClick={onBegin} className="btn-primary w-full flex items-center px-6 py-4 text-sm">
               <span className="flex-1 text-left">{t('getStarted')}</span>
@@ -87,8 +83,6 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
             </button>
           </div>
         </div>
-
-        <div className="questionnaire-welcome__footer" />
       </div>
     </div>
   )

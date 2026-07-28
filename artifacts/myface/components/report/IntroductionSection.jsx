@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { INTRODUCTION_PARAGRAPH_KEYS } from '../../utils/qovesProtocolModel'
+import { INTRODUCTION_PARAGRAPH_KEYS } from '../../utils/reportProtocolModel'
 import { ReportSectionHeading } from './ReportSectionHeading'
 
 const WHAT_TO_EXPECT_KEYS = [

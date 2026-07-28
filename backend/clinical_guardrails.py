@@ -423,7 +423,7 @@ def sanitize_report_ascii(text: str) -> str:
 
 
 def rewrite_to_subject_voice(text: str) -> str:
-    """Convert second-person coaching copy to Qoves-style third person."""
+    """Convert second-person coaching copy to report-style third person."""
     if not isinstance(text, str) or not text.strip():
         return text
     out = text
@@ -720,5 +720,8 @@ def validate_or_template(
 ) -> dict:
     validated, usable = try_validate_feature_narrative(raw, feature_id, ctx, answers=answers)
     if usable and validated:
+        validated["origin"] = "llm"
         return validated
-    return _rewrite_narrative_dict(template_feature_narrative(feature_id, ctx))
+    tpl = _rewrite_narrative_dict(template_feature_narrative(feature_id, ctx))
+    tpl["origin"] = "template"
+    return tpl

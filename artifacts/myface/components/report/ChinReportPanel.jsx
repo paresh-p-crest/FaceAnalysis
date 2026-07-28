@@ -3,12 +3,12 @@
 import { useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
+import { toCvLabelKey } from '../../utils/cvReportLocale'
 import {
   AllMetricsTable,
   FeatureHeroFrame,
   FeatureSummaryGrid,
 } from './FeatureSummaryUi'
-
 function fmt(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return null
   return Number(v).toFixed(digits)
@@ -22,44 +22,44 @@ function textOrNull(v) {
 }
 
 function classifyWidth(widthMm, cvWidth) {
-  const fromCv = textOrNull(cvWidth)
+  const fromCv = toCvLabelKey(cvWidth)
   if (fromCv) return fromCv
   if (!Number.isFinite(widthMm)) return null
-  if (widthMm < 37) return 'Narrow'
-  if (widthMm > 47) return 'Wide'
-  return 'Balanced'
+  if (widthMm < 37) return 'narrow'
+  if (widthMm > 47) return 'wide'
+  return 'balanced'
 }
 
 function classifyProjection(devMm, cvProj) {
   const fromCv = textOrNull(cvProj)
-  if (fromCv === 'Balanced') return 'Neutral'
-  if (fromCv === 'Prominent') return 'Prominent'
-  if (fromCv === 'Recessed') return 'Recessed'
-  if (!Number.isFinite(devMm)) return fromCv
-  if (Math.abs(devMm) < 2.5) return 'Neutral'
-  return 'Deviated'
+  if (fromCv === 'Balanced') return 'neutral'
+  if (fromCv === 'Prominent') return 'prominent'
+  if (fromCv === 'Recessed') return 'recessed'
+  if (!Number.isFinite(devMm)) return toCvLabelKey(fromCv)
+  if (Math.abs(devMm) < 2.5) return 'neutral'
+  return 'deviated'
 }
 
 function classifyShape(widthMm, heightMm, cvShape) {
-  const fromCv = textOrNull(cvShape)
+  const fromCv = toCvLabelKey(cvShape)
   if (!Number.isFinite(widthMm) || !Number.isFinite(heightMm) || heightMm <= 0) {
     return fromCv
   }
   const ratio = widthMm / heightMm
-  if (ratio < 1.8) return 'Pointed'
-  if (ratio < 2.4) return 'Oval'
-  return fromCv === 'Round' ? 'Round' : 'Square'
+  if (ratio < 1.8) return 'pointed'
+  if (ratio < 2.4) return 'oval'
+  return fromCv === 'round' ? 'round' : 'square'
 }
 
 function classifyDepth(heightMm, cvHeight) {
   const fromCv = textOrNull(cvHeight)
-  if (fromCv === 'Short') return 'Shallow'
-  if (fromCv === 'Long') return 'Deep'
-  if (fromCv === 'Balanced') return 'Moderate'
-  if (!Number.isFinite(heightMm)) return fromCv
-  if (heightMm < 14) return 'Shallow'
-  if (heightMm > 20) return 'Deep'
-  return 'Moderate'
+  if (fromCv === 'Short') return 'shallow'
+  if (fromCv === 'Long') return 'deep'
+  if (fromCv === 'Balanced') return 'moderate'
+  if (!Number.isFinite(heightMm)) return toCvLabelKey(fromCv)
+  if (heightMm < 14) return 'shallow'
+  if (heightMm > 20) return 'deep'
+  return 'moderate'
 }
 
 /**
@@ -68,7 +68,6 @@ function classifyDepth(heightMm, cvHeight) {
 export function ChinReportPanel({
   chin,
   featureParsing,
-  narrative: _narrative,
   heroSlot = null,
   imageSrc = null,
 }) {
@@ -206,6 +205,7 @@ export function ChinReportPanel({
         <p className="font-display text-base font-bold text-ink mb-3">{t('chin.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
+
     </div>
   )
 }

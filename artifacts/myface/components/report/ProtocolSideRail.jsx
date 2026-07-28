@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { getClientName } from '../../utils/qovesProtocolModel'
+import { getClientName } from '../../utils/reportProtocolModel'
 
 function tagList(answers, t) {
   const tags = []
@@ -28,7 +28,7 @@ export function ProtocolSideRail({
   return (
     <div className="space-y-6 sticky top-6">
       <div>
-        <p className="qoves-report-mono-label mb-3">{t('protocolSideRail.userProfile')}</p>
+        <p className="report-view-mono-label mb-3">{t('protocolSideRail.userProfile')}</p>
         <div className="flex items-center gap-3 mb-3">
           {photo ? (
             <img src={photo} alt="" className="w-12 h-12 rounded-full object-cover border border-surface-border" />
@@ -55,7 +55,7 @@ export function ProtocolSideRail({
       </div>
 
       <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-4">
-        <p className="qoves-report-mono-label mb-2">{t('protocolSideRail.nextSteps')}</p>
+        <p className="report-view-mono-label mb-2">{t('protocolSideRail.nextSteps')}</p>
         <p className="text-sm font-semibold text-ink mb-3">{t('protocolSideRail.nonSurgicalProtocol')}</p>
         <button
           type="button"

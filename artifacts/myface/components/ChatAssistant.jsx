@@ -244,8 +244,8 @@ export function ChatAssistant({ assessmentId, canUseAssistant, onLoad, onSend, f
     return (
       <StandalonePageShell className="text-ink">
         <div className="tool-page-shell__body">
-          <div className="qoves-report-layout flex-1 min-h-0 h-full">
-            <main className="qoves-report-canvas qoves-report-canvas--chat min-w-0">
+          <div className="report-view-layout flex-1 min-h-0 h-full">
+            <main className="report-view-canvas report-view-canvas--chat min-w-0">
               <div className="chat-page-shell__body">
           <div
             ref={scrollRef}

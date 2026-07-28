@@ -8,7 +8,6 @@ import {
   X,
   Sparkles,
   ArrowRight,
-  ChevronLeft,
   Check,
   Loader2,
   AlertCircle,
@@ -18,7 +17,9 @@ import { isDevShortcutsEnabled } from '../utils/devConfig'
 import { getAllDemoPhotos } from '../utils/demoPhotos'
 import { uploadAssessmentPhoto, deleteAssessmentPhoto } from '../utils/apiClient'
 import { validatePhoto } from '../utils/photoValidation'
+import { AnalysisFlowHeader } from './analysis/AnalysisFlowHeader'
 import { BrandLogo } from './BrandLogo'
+import './Questionnaire.css'
 
 const CHECKLIST_ITEM_KEYS = [
   'glassesHat',
@@ -271,16 +272,15 @@ export default function PhotoUpload({
       <div className="min-h-screen h-screen flex flex-col lg:flex-row animate-fade-up bg-surface lg:overflow-hidden">
         {/* Left/Main Column */}
         <div className="w-full lg:w-[380px] shrink-0 bg-white dark:bg-surface-card lg:border-r border-surface-border px-8 py-10 flex flex-col">
-          {/* Back + Title */}
-          <div className="space-y-6">
-            <button
-              onClick={onBack}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              {t('back')}
-            </button>
+          <AnalysisFlowHeader
+            backLabel={t('back')}
+            onBack={onBack}
+            backWithChevron
+            className="mb-6 shrink-0"
+          />
 
+          {/* Title */}
+          <div className="space-y-6 analysis-split-content shrink-0">
             <div className="pt-2">
               <span className="text-[10px] font-bold tracking-widest text-[#5e9f8b] uppercase block mb-1">
                 {t('requirementsLabel')}
@@ -392,13 +392,11 @@ export default function PhotoUpload({
 
         {/* Fixed Header */}
         <div className="px-7 pt-7 pb-4 shrink-0 space-y-4">
-          <button
-            onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            {t('backToRequirements')}
-          </button>
+          <AnalysisFlowHeader
+            backLabel={t('backToRequirements')}
+            onBack={onBack}
+            backWithChevron
+          />
 
           <div>
             <h1 className="font-serif font-bold text-xl tracking-tight text-slate-900 dark:text-white">

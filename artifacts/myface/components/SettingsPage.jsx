@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { changePassword, updateProfile } from '../utils/authClient'
 import { translateApiError } from '../utils/translateApiError'
 import BillingPage from './BillingPage'
@@ -20,6 +20,32 @@ function Field({ label, children }) {
 
 const inputClass =
   'w-full rounded-xl border border-surface-border bg-white dark:bg-surface-card px-3 py-2.5 text-sm text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40'
+
+function PasswordField({ label, value, onChange, show, onToggleShow, autoComplete, showLabel, hideLabel }) {
+  return (
+    <Field label={label}>
+      <div className="relative">
+        <input
+          type={show ? 'text' : 'password'}
+          className={`${inputClass} pr-11`}
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+          minLength={8}
+          required
+        />
+        <button
+          type="button"
+          onClick={onToggleShow}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
+          aria-label={show ? hideLabel : showLabel}
+        >
+          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      </div>
+    </Field>
+  )
+}
 
 function SettingsPanelHeader({ title, description }) {
   return (
@@ -50,6 +76,8 @@ export default function SettingsPage({ user, onUserUpdated }) {
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   useEffect(() => {
     setFirstName(user?.firstName || '')
@@ -159,28 +187,26 @@ export default function SettingsPage({ user, onUserUpdated }) {
               required
             />
           </Field>
-          <Field label={t('newPassword')}>
-            <input
-              type="password"
-              className={inputClass}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              autoComplete="new-password"
-              minLength={8}
-              required
-            />
-          </Field>
-          <Field label={t('confirmPassword')}>
-            <input
-              type="password"
-              className={inputClass}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-              minLength={8}
-              required
-            />
-          </Field>
+          <PasswordField
+            label={t('newPassword')}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            show={showNewPassword}
+            onToggleShow={() => setShowNewPassword((v) => !v)}
+            autoComplete="new-password"
+            showLabel={tAuth('showPassword')}
+            hideLabel={tAuth('hidePassword')}
+          />
+          <PasswordField
+            label={t('confirmPassword')}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            show={showConfirmPassword}
+            onToggleShow={() => setShowConfirmPassword((v) => !v)}
+            autoComplete="new-password"
+            showLabel={tAuth('showPassword')}
+            hideLabel={tAuth('hidePassword')}
+          />
           {passwordError ? <p className="text-xs text-red-600">{passwordError}</p> : null}
           {passwordMessage ? <p className="text-xs text-emerald-700">{passwordMessage}</p> : null}
           <button type="submit" disabled={passwordSaving} className="report-shell-btn-primary min-h-[40px] px-4">

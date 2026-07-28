@@ -1,4 +1,4 @@
-"""Canonical 16-page Qoves protocol PDF section map."""
+"""Canonical 16-page protocol PDF section map."""
 
 from __future__ import annotations
 

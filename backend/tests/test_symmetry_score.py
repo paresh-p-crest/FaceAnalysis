@@ -1,4 +1,4 @@
-"""Unit tests for Qoves-calibrated symmetry scoring."""
+"""Unit tests for calibrated symmetry scoring."""
 
 import sys
 from pathlib import Path

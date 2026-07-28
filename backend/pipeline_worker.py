@@ -14,8 +14,9 @@ from .pipeline_status import (
     _utcnow_iso,
 )
 from .repositories.assessment_repository import (
-    claim_next_queued_assessment,
+    claim_next_pipeline_job,
     get_assessment_by_id,
+    reclaim_stale_running_pipelines,
     update_assessment_pipeline,
 )
 # ponytail: pipeline_stages pulls mediapipe/torch — import only when a job runs.
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 _worker_task: Optional[asyncio.Task] = None
 _stop_event: Optional[asyncio.Event] = None
+_reclaim_done = False
 
 
 def pipeline_worker_enabled() -> bool:
@@ -35,6 +37,16 @@ def pipeline_poll_interval_sec() -> float:
         return float(os.environ.get("PIPELINE_POLL_INTERVAL_SEC", "3"))
     except ValueError:
         return 3.0
+
+
+async def _ensure_stale_reclaim() -> None:
+    global _reclaim_done
+    if _reclaim_done:
+        return
+    reclaimed = await reclaim_stale_running_pipelines()
+    ids = [r["id"] for r in reclaimed]
+    logger.info("Reclaimed %d stale running pipeline(s): %s", len(reclaimed), ids)
+    _reclaim_done = True
 
 
 async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
@@ -50,6 +62,7 @@ async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
     attempts = dict(pipeline.get("attempts") or {})
     max_attempts = int(pipeline.get("maxAttempts") or 3)
     stage_attempts = int(attempts.get(stage) or 0)
+    force = pipeline.get("forceRetry") is True
 
     runners = {
         "cv": run_cv_stage,
@@ -61,18 +74,36 @@ async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
     runner = runners[stage]
 
     while stage_attempts < max_attempts:
+        attempt_num = stage_attempts + 1
+        logger.info(
+            "Pipeline stage %s start assessment=%s attempt=%s",
+            stage,
+            assessment["id"],
+            attempt_num,
+        )
         try:
-            result = await runner(assessment)
-            attempts[stage] = stage_attempts + 1
+            if stage == "cv":
+                result = await runner(assessment)
+            else:
+                result = await runner(assessment, force=force)
+            attempts[stage] = attempt_num
             pipeline["attempts"] = attempts
             pipeline["lastError"] = None
             await update_assessment_pipeline(assessment["id"], pipeline)
+            logger.info("Pipeline stage %s complete assessment=%s", stage, assessment["id"])
             return result
         except Exception as exc:
-            stage_attempts += 1
+            stage_attempts = attempt_num
             attempts[stage] = stage_attempts
             pipeline["attempts"] = attempts
             pipeline["lastError"] = str(exc)
+            logger.warning(
+                "Pipeline stage %s failed assessment=%s attempt=%s error=%s",
+                stage,
+                assessment["id"],
+                stage_attempts,
+                exc,
+            )
             logger.exception("Pipeline stage %s failed (attempt %s) for %s", stage, stage_attempts, assessment["id"])
             if stage_attempts >= max_attempts:
                 pipeline["status"] = "failed"
@@ -87,6 +118,8 @@ async def _run_stage_with_retry(assessment: dict, stage: str) -> dict:
                     f"Assessment {assessment['id']} missing or soft-deleted; aborting stage {stage}"
                 )
             assessment = refreshed
+            pipeline = dict(assessment.get("pipeline") or pipeline)
+            force = pipeline.get("forceRetry") is True
 
     raise RuntimeError(f"Stage {stage} exhausted retries")
 
@@ -97,6 +130,7 @@ async def _process_assessment(assessment: dict) -> None:
     assessment_id = assessment["id"]
     pipeline = dict(assessment.get("pipeline") or {})
     current_stage = pipeline.get("stage") or "cv"
+    logger.info("Pipeline start assessment=%s stage=%s", assessment_id, current_stage)
 
     stage_sequence = ("cv", "narratives", "parsing", "projected_after", "ai_visuals")
     start_idx = stage_sequence.index(current_stage) if current_stage in stage_sequence else 0
@@ -129,17 +163,26 @@ async def _process_assessment(assessment: dict) -> None:
             pipeline = merge_pipeline_update(pipeline, stage=next_stage, stageStartedAt=_utcnow_iso())
 
     await finalize_pipeline(assessment_id)
-    logger.info("Pipeline complete for assessment %s", assessment_id)
+    logger.info("Pipeline complete assessment=%s", assessment_id)
 
 
 async def pipeline_worker_loop() -> None:
     global _stop_event
     _stop_event = asyncio.Event()
+    await _ensure_stale_reclaim()
     logger.info("Pipeline worker started (poll=%ss)", pipeline_poll_interval_sec())
     while not _stop_event.is_set():
         try:
-            claimed = await claim_next_queued_assessment()
+            claimed = await claim_next_pipeline_job()
             if claimed:
+                pipeline = claimed.get("pipeline") or {}
+                logger.info(
+                    "Claimed pipeline job assessment=%s status=%s stage=%s forceRetry=%s",
+                    claimed["id"],
+                    pipeline.get("status"),
+                    pipeline.get("stage"),
+                    pipeline.get("forceRetry"),
+                )
                 await _process_assessment(claimed)
             else:
                 try:

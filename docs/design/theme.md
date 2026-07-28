@@ -11,7 +11,7 @@
 |---|---|
 | Product name | **MyFace** |
 | Logo treatment | Wordmark: Inter bold (`font-sans`), tracking-tight. Same stack as app UI. |
-| Brand voice | Scientific, clean, premium; Qoves-style third person (“the subject”) in PDF/protocol/narrative copy; second-person (you/your) in Beauty Assistant chat; no pipeline/tech jargon in client-facing text |
+| Brand voice | Scientific, clean, premium; report-style third person (“the subject”) in PDF/protocol/narrative copy; second-person (you/your) in Beauty Assistant chat; no pipeline/tech jargon in client-facing text |
 | Dark panel background | `#0d1e1f` → `#091516` → `#04090a` (gradient) |
 
 ---
@@ -73,7 +73,7 @@ Use Tailwind's standard palette for status states only — do not use these for 
 | Role | Family | Tailwind class |
 |---|---|---|
 | App UI (body, headings, display) | `Inter, Helvetica` | `font-sans` · `font-serif` · `font-display` (all resolve to the same stack) |
-| Protocol PDF / HTML preview | `Helvetica` | `.qoves-pdf-*` / jsPDF built-in Helvetica |
+| Protocol PDF / HTML preview | `Helvetica` | `.report-pdf-*` / jsPDF built-in Helvetica |
 
 > **Rule:** Only load **Inter** from Google Fonts. Allowed families: **Inter** and **Helvetica** only. `font-serif` / `font-display` aliases must map to `Inter, Helvetica`.
 >
@@ -167,7 +167,7 @@ Used on all stages except **landing (questionnaire welcome)**, **questionnaire**
 | Content gap | `--site-navbar-gap`: `0.75rem` mobile · `1rem` from `sm` up (top only) |
 | Page offset | `.site-navbar-offset` — `padding-top: var(--site-navbar-offset)` |
 | Report modal | Explicit spacers: navbar-height clear + mint `--site-navbar-gap` strip |
-| Standalone tools | `/chat` and `/ai-visuals` use `StandalonePageShell` — mint surface, `report-shell-inner` gutters, white `qoves-report-layout` card |
+| Standalone tools | `/chat` and `/ai-visuals` use `StandalonePageShell` — mint surface, `report-shell-inner` gutters, white `report-view-layout` card |
 | Inner row | `.site-navbar-inner` — full width; `.site-navbar-cluster` left-aligns logo + links |
 | Customer links | Report · AI Visuals · Chat Assistant (left of bar); History/Billing removed from navbar (use dashboard KPIs) |
 | Active link | Brand liquid-glass pill (`site-navbar-link-active`) — low-opacity teal frost (~4–10% brand), heavy blur, brand-dark label |
@@ -181,7 +181,7 @@ Used on all stages except **landing (questionnaire welcome)**, **questionnaire**
 
 **Customer home:** Default authenticated route is `/report` (`CustomerHome`). Ready submitted assessment → open report modal; submitted pending → `AnalysisPreparing` `variant="home"`; in-progress draft (photos only) → **Continue upload**; empty → questionnaire CTA; unpaid → Stripe Checkout; Stripe return → `PaymentSuccessPage` with **Start Face Analysis**. Photo-only drafts are excluded from `GET /my/assessments`.
 
-**Standalone tools:** `/ai-visuals` and `/chat` use `StandalonePageShell` — mint surface + `report-shell-inner` gutters (`px-4 sm:px-6 lg:px-8`), then white `qoves-report-layout` card (same as report). Chat uses a floating pill composer inside the card. Generate/Regenerate on AI Visuals is **admin-only**.
+**Standalone tools:** `/ai-visuals` and `/chat` use `StandalonePageShell` — mint surface + `report-shell-inner` gutters (`px-4 sm:px-6 lg:px-8`), then white `report-view-layout` card (same as report). Chat uses a floating pill composer inside the card. Generate/Regenerate on AI Visuals is **admin-only**.
 
 **Report chrome:** Report has no secondary header bar (`REPORT` / `#ref` / close). PDF lives in the site navbar while the report modal is open; admin review actions (Edit PDF narrative, Edit After Image, Approve) share that navbar row and only render for admins on unapproved assessments. Share is on the overview header only (protocol meta · centered MyFace · Share). Mint gap under navbar via ReportModal spacers.
 
@@ -292,21 +292,21 @@ The in-app report uses a document-style shell separate from the onboarding/dashb
 
 | Element | Token / class | Notes |
 |---|---|---|
-| Sidebar width | `~240px` · `.qoves-report-sidebar` | `bg-surface-raised`, collapsible text TOC |
-| Document canvas | `.qoves-report-canvas` · `.qoves-report-page` | White document surface; no heavy outer card |
+| Sidebar width | `~240px` · `.report-view-sidebar` | `bg-surface-raised`, collapsible text TOC |
+| Document canvas | `.report-view-canvas` · `.report-view-page` | White document surface; no heavy outer card |
 | Section headings | `ReportSectionHeading` | `font-display` title + muted `accent` span |
-| Metric labels | `.qoves-report-mono-label` | Uppercase, `10px`, tracking-wide — **not** `font-mono` |
-| Metric cards | `.qoves-report-metric-card` | 2×2 grids on assessment/feature pages |
-| Protocol pages | `.qoves-protocol-pdf-frame` | Full-bleed native PDF iframe in report canvas; in-viewer toolbar removed (download stays in report header) |
-| Protocol admin HTML spike | `.qoves-protocol-scroll--html` · `.qoves-report-a4-page` · `.qoves-pdf-*` | Admins see fixed 595×842 HTML sheets mirroring jsPDF feature layouts (header, stacked titles, column images, summary cards); non-admins keep PDF iframe |
-| Protocol inline edit | `.qoves-editable` · `.qoves-protocol-edit-status` | `contentEditable` feature/closing text in the admin HTML preview; box-shadow affordance only (no layout shift); sticky status shows saving/error |
-| Protocol admin edit | `.qoves-protocol-edit-dock` | Lightweight: section picker + AI generate + Save only; narrative text edited inline on HTML sheets. Narrow rail (~14rem). |
-| Right rail | `.qoves-report-rail` | Protocol section only — patient profile + next steps |
+| Metric labels | `.report-view-mono-label` | Uppercase, `10px`, tracking-wide — **not** `font-mono` |
+| Metric cards | `.report-view-metric-card` | 2×2 grids on assessment/feature pages |
+| Protocol pages | `.report-protocol-pdf-frame` | Full-bleed native PDF iframe in report canvas; in-viewer toolbar removed (download stays in report header) |
+| Protocol admin HTML spike | `.report-protocol-scroll--html` · `.report-view-a4-page` · `.report-pdf-*` | Admins see fixed 595×842 HTML sheets mirroring jsPDF feature layouts (header, stacked titles, column images, summary cards); non-admins keep PDF iframe |
+| Protocol inline edit | `.report-editable` · `.report-protocol-edit-status` | `contentEditable` feature/closing text in the admin HTML preview; box-shadow affordance only (no layout shift); sticky status shows saving/error |
+| Protocol admin edit | `.report-protocol-edit-dock` | Lightweight: section picker + AI generate + Save only; narrative text edited inline on HTML sheets. Narrow rail (~14rem). |
+| Right rail | `.report-view-rail` | Protocol section only — patient profile + next steps |
 | Brand accents | `bg-brand` / `text-brand` | Never QOVES blue; keep MyFace green |
 
 ### 12.1 Protocol PDF export (`utils/reportPdf.js`)
 
-Client-side jsPDF uses the same tokens as the web report. **`buildMyFacePdf`** returns `{ blob, filename }` for in-app iframe preview; **`downloadMyFacePdf`** wraps it for file download. Preview and download share one generator. Admin HTML preview is only for edit UX evaluation, and its `.qoves-pdf-*` styles must mirror jsPDF’s built-in Helvetica typography plus the layout constants in `reportPdf.js` (`MARGIN=48`, `COL_GAP=20`, `SECTION_GAP=22`, `IMAGE_TEXT_GAP=22`, `SUMMARY_CARD_MIN_H=110`). Long narrative copy may still clip per-page in jsPDF layout (stored text remains complete in DB).
+Client-side jsPDF uses the same tokens as the web report. **`buildMyFacePdf`** returns `{ blob, filename }` for in-app iframe preview; **`downloadMyFacePdf`** wraps it for file download. Preview and download share one generator. Admin HTML preview is only for edit UX evaluation, and its `.report-pdf-*` styles must mirror jsPDF’s built-in Helvetica typography plus the layout constants in `reportPdf.js` (`MARGIN=48`, `COL_GAP=20`, `SECTION_GAP=22`, `IMAGE_TEXT_GAP=22`, `SUMMARY_CARD_MIN_H=110`). Long narrative copy may still clip per-page in jsPDF layout (stored text remains complete in DB).
 
 **Page 1 (protocol dashboard):** light-grey page background (`#F8F9FA`), compact soft-grey header bar (`#EEF0F3`, ~36pt) with PROTOCOL | client meta left and **MyFace** centered (no right-side action buttons), extra gap then larger KPI strip (brand-green type), more space before body; three-column body — **left** ~30% / **right** ~24%; summary panels use default light/white fills. Interactive overview uses full report canvas width (not A4 chrome).
 
@@ -322,9 +322,9 @@ Client-side jsPDF uses the same tokens as the web report. **`buildMyFacePdf`** r
 
 > **Rule:** AFTER/projected image slots use `projectedAfter.full.publicUrl` when `status === ready`; otherwise show “Projected image pending” (`skipped` / disabled until `PROJECTED_AFTER_ENABLED=true`).
 
-> **Rule:** Protocol HTML parity pages must keep content sequential with PDF spacing: header first, split title, two-column content, image groups, then summary card/bar. Do not use responsive app typography (`font-display`, Inter-only `font-sans`) or ad-hoc gaps inside `.qoves-report-a4-inner--pdf`; use the scoped Helvetica stack and `--qoves-pdf-*` spacing variables.
+> **Rule:** Protocol HTML parity pages must keep content sequential with PDF spacing: header first, split title, two-column content, image groups, then summary card/bar. Do not use responsive app typography (`font-display`, Inter-only `font-sans`) or ad-hoc gaps inside `.report-view-a4-inner--pdf`; use the scoped Helvetica stack and `--report-pdf-*` spacing variables.
 
-> **Rule:** Never pin protocol HTML blocks to the sheet bottom with `mt-auto`/`flex-1` — on a fixed-height clipped A4 page that causes images to overlap preceding text. Lay every block out top-down with `margin-top: var(--qoves-pdf-section-gap)` (first block after the title uses ~4px) and let overflow clip at the sheet boundary, matching jsPDF's sequential draw order.
+> **Rule:** Never pin protocol HTML blocks to the sheet bottom with `mt-auto`/`flex-1` — on a fixed-height clipped A4 page that causes images to overlap preceding text. Lay every block out top-down with `margin-top: var(--report-pdf-section-gap)` (first block after the title uses ~4px) and let overflow clip at the sheet boundary, matching jsPDF's sequential draw order.
 
 > **Rule:** Inline protocol edits (`contentEditable`) are admin-only (unapproved reports), update the shared local draft on blur (not on keystroke), and persist only when **Save edits** is clicked (`PATCH …/admin-review`). Editable fields: overview summary, feature subsection bodies, feature summaries, closing paragraphs. The right dock must stay lightweight — section nav + generate + save only; do not duplicate narrative textareas in the sidebar. Write only the edited subsection/summary/closing entry — do not emit empty sibling subsections, or `mergeSubsections` will blank CV-derived defaults. The edit dock section picker follows scroll via `[data-protocol-section]`.
 
@@ -431,7 +431,7 @@ Full-width frosted glass bar:
 | Header | `.report-shell-bar` white + hairline bottom border |
 | Actions | `.report-shell-btn` white pills; PDF uses `.report-shell-btn-primary` |
 | Sidebar nav | White panel; active item `bg-landing-mint text-brand` |
-| Document card | `.qoves-report-layout` — white `rounded-2xl shadow-soft` |
+| Document card | `.report-view-layout` — white `rounded-2xl shadow-soft` |
 
 ### 13.14 Admin panel
 | Element | Spec |

@@ -43,6 +43,29 @@ export const AI_VISUAL_NAV_GROUPS = [
   { id: 'visuals', labelKey: 'navGroup', items: AI_VISUAL_SECTIONS },
 ]
 
+/** Admin-only AI visual sections in report sidebar (after approval). IDs avoid clash with feature `hair`. */
+export const REPORT_ADMIN_AI_VISUAL_SECTIONS = [
+  { id: 'aiVisualHair', labelKey: 'nav.aiVisualHair' },
+  { id: 'aiVisualOutfit', labelKey: 'nav.aiVisualOutfit' },
+  { id: 'aiVisualAging', labelKey: 'nav.aiVisualAging' },
+]
+
+export const REPORT_ADMIN_AI_VISUAL_NAV_GROUP = {
+  id: 'aiVisuals',
+  labelKey: 'nav.aiVisuals',
+  items: REPORT_ADMIN_AI_VISUAL_SECTIONS,
+}
+
+export const AI_VISUAL_TYPE_BY_SECTION_ID = {
+  aiVisualHair: 'hair',
+  aiVisualOutfit: 'outfit',
+  aiVisualAging: 'aging',
+}
+
+export function isAiVisualReportSection(sectionId) {
+  return sectionId in AI_VISUAL_TYPE_BY_SECTION_ID
+}
+
 export const REPORT_NAV_GROUPS = [
   { id: 'introduction', labelKey: 'nav.introduction', items: INTRO_SECTIONS },
   { id: 'assessments', labelKey: 'nav.facialAssessments', items: ASSESSMENT_SECTIONS },

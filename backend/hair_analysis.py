@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 
 from .hair_segmentation import analyze_hair_segmentation
+from . import cv_report_explanations_de as expl_de
 
 
 def _norwood_stage(density_pct: float, hairline: str, thinning: str) -> int:
@@ -85,6 +86,7 @@ def analyze_hair_photo(
         "foreheadExposure": "Moderate",
         "dataSource": "estimated",
         "explanation": "Upload a top-of-head photo for real hair density & coverage analysis.",
+        "explanationDe": expl_de.HAIR_UPLOAD_DE,
     }
     if not top_head_bytes:
         return fallback
@@ -177,11 +179,25 @@ def analyze_hair_photo(
                 f"not scalp coverage percentage. "
                 f"Hairline is {hairline.lower()} with {forehead_exposure.lower()} forehead exposure."
             )
+            explanation_de = (
+                f"Haaranalyse vom Scheitel: {expl_de.label_de(density_estimate)}es Haar mit "
+                f"{coverage_estimate.lower()}. Geschätztes Norwood-Stadium {norwood} "
+                f"(keine klinische Diagnose; Grenzen der Stadien 1–3 nutzen Schläfenrezessions-Geometrie "
+                f"und sind Vor-Kalibrierungs-Schätzungen). Mittlere Schläfenrezessionstiefe beträgt etwa "
+                f"{depth * 100:.1f}% der Kopfhauthöhe relativ zur mittelfrontalen Haarlinie — "
+                f"kein Bedeckungsprozentsatz. "
+                f"Haarlinie ist {expl_de.label_de(hairline)} mit {expl_de.label_de(forehead_exposure)}er Stirnexposition."
+            )
         else:
             explanation = (
                 f"Hair analysis from top-of-head photo: {density_estimate.lower()} hair with "
                 f"{coverage_estimate.lower()}. Estimated Norwood stage {norwood} (not a clinical diagnosis). "
                 f"Hairline is {hairline.lower()} with {forehead_exposure.lower()} forehead exposure."
+            )
+            explanation_de = (
+                f"Haaranalyse vom Scheitel: {expl_de.label_de(density_estimate)}es Haar mit "
+                f"{coverage_estimate.lower()}. Geschätztes Norwood-Stadium {norwood} (keine klinische Diagnose). "
+                f"Haarlinie ist {expl_de.label_de(hairline)} mit {expl_de.label_de(forehead_exposure)}er Stirnexposition."
             )
 
         result = {
@@ -203,6 +219,7 @@ def analyze_hair_photo(
             "segmentationMethod": method,
             "dataSource": "measured",
             "explanation": explanation,
+            "explanationDe": explanation_de,
         }
         if seg:
             result["crownCoverage"] = seg.get("crownCoverage")
@@ -211,4 +228,4 @@ def analyze_hair_photo(
                 result["templeMetrics"] = temple_metrics
         return result
     except Exception:
-        return {**fallback, "explanation": "Top-of-head hair analysis failed."}
+        return {**fallback, "explanation": "Top-of-head hair analysis failed.", "explanationDe": expl_de.HAIR_FAILED_DE}

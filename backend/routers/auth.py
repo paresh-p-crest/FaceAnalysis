@@ -2,17 +2,35 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
-from typing import Literal, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from ..auth import create_access_token, get_current_user, hash_password, require_admin, verify_password
+from ..auth_rate_limit import check_forgot_password_rate_limit, record_forgot_password_attempt
 from ..database import is_db_configured
+from ..email_service import public_app_url, send_email
+from ..password_reset_service import (
+    RESET_TOKEN_ERROR,
+    RESET_TOKEN_TTL_MINUTES,
+    generate_reset_token,
+    hash_reset_token,
+    reset_token_expires_at,
+)
+from ..repositories.password_reset_repository import (
+    create_password_reset_token,
+    get_valid_reset_token,
+    invalidate_unused_tokens_for_user,
+    mark_reset_token_used,
+)
 from ..repositories.user_repository import (
     create_user,
     delete_user_and_related_data,
+    get_user_by_email,
     get_user_with_password_by_email,
     get_user_with_password_by_id,
     list_users,
@@ -22,6 +40,7 @@ from ..repositories.user_repository import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -52,8 +71,12 @@ class ChangePasswordRequest(BaseModel):
     newPassword: str
 
 
-class ResetPasswordRequest(BaseModel):
+class ForgotPasswordRequest(BaseModel):
     email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
     newPassword: str
 
 
@@ -80,6 +103,30 @@ def _validate_new_password(password: str) -> str:
     return password
 
 
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client:
+        return request.client.host or "unknown"
+    return "unknown"
+
+
+async def _send_signup_welcome(*, user: dict) -> None:
+    try:
+        await send_email(
+            to=user["email"],
+            template="signup_confirmation",
+            data={
+                "firstName": user.get("firstName") or "",
+                "loginUrl": f"{public_app_url()}/auth",
+            },
+            user_id=user.get("id"),
+        )
+    except Exception as exc:
+        logger.warning("Signup welcome email task failed: %s", exc)
+
+
 @router.post("/register", response_model=AuthResponse)
 async def register(req: RegisterRequest):
     if not is_db_configured():
@@ -99,6 +146,7 @@ async def register(req: RegisterRequest):
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    asyncio.create_task(_send_signup_welcome(user=user))
     return {"token": create_access_token(user), "user": user}
 
 
@@ -156,20 +204,64 @@ async def change_password(req: ChangePasswordRequest, current_user: dict = Depen
     return {"ok": True}
 
 
-@router.post("/reset-password")
-async def reset_password(req: ResetPasswordRequest):
-    """Set a new password for an account identified by email (forgot-password flow)."""
+@router.post("/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest, request: Request):
+    """Request a password-reset link. Always returns ok (no email enumeration)."""
     if not is_db_configured():
         raise HTTPException(status_code=503, detail="Database not configured")
     email = _validate_email(req.email)
+    client_ip = _client_ip(request)
+
+    if not await check_forgot_password_rate_limit(email=email, client_ip=client_ip):
+        return {"ok": True}
+
+    user = await get_user_by_email(email)
+    if user:
+        await record_forgot_password_attempt(email=email, client_ip=client_ip)
+        await invalidate_unused_tokens_for_user(user["id"])
+        raw_token, token_hash = generate_reset_token()
+        await create_password_reset_token(
+            user_id=user["id"],
+            token_hash=token_hash,
+            expires_at=reset_token_expires_at(),
+        )
+        reset_url = f"{public_app_url()}/auth/reset?token={raw_token}"
+        try:
+            await send_email(
+                to=user["email"],
+                template="password_reset",
+                data={
+                    "firstName": user.get("firstName") or "",
+                    "resetUrl": reset_url,
+                    "expiresInMinutes": RESET_TOKEN_TTL_MINUTES,
+                },
+                user_id=user.get("id"),
+            )
+        except Exception as exc:
+            logger.warning("Password reset email failed for %s: %s", email, exc)
+
+    return {"ok": True}
+
+
+@router.post("/reset-password")
+async def reset_password(req: ResetPasswordRequest):
+    """Set a new password using a reset token from email."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
     new_password = _validate_new_password(req.newPassword)
-    doc = await get_user_with_password_by_email(email)
-    if not doc:
-        raise HTTPException(status_code=404, detail="No account found for that email")
+    token = (req.token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail=RESET_TOKEN_ERROR)
+
+    token_row = await get_valid_reset_token(hash_reset_token(token))
+    if not token_row:
+        raise HTTPException(status_code=400, detail=RESET_TOKEN_ERROR)
+
     try:
-        await update_user_password(doc["id"], hash_password(new_password))
+        await update_user_password(token_row["userId"], hash_password(new_password))
+        await mark_reset_token_used(token_row["id"])
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=RESET_TOKEN_ERROR) from exc
     return {"ok": True}
 
 

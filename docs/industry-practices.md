@@ -101,12 +101,14 @@ Aligned with aesthetic photography standards (PRS GO photographic documentation;
 
 ---
 
-## 7. AI report narrative generation (Qoves-style)
+## 7. AI report narrative generation (report-style)
 
 Applies to per-feature narratives, closing synthesis, and protocol overview (`backend/narrative_orchestrator.py`, `recommendation_rules.py`, `feature_context.py`, `clinical_guardrails.py`; ADR-032, ADR-033). See the hard constraints in [`rules.md`](architecture/rules.md#report-narrative--text-generation-hard-rules).
 
+**Protocol/PDF static chrome** (section titles, Contents rows, feature split titles, subsection *display* labels, BEFORE/AFTER/PAGE tags) is **static i18n only** (`Report.protocolModel` / `Pdf` via next-intl and `pdfMessages`). Do not send chrome through the narrative LLM. Only narrative *bodies* use ADR-044 DE translation. Admin edit/merge keys stay English subsection titles.
+
 - **Convert to qualitative before the prompt, don't rely on instructions.** Any numeric CV value that would otherwise reach the model must be bucketed/scrubbed at assembly time (`magnitude_label`, `_drop_numeric_leaves`). Prompt instructions are a backstop, not the primary control.
-- **Gate content by severity; anchor the null path on content, not length.** Match Qoves: strong features conclude "no changes recommended" but still *describe the measured geometry* (attribute → why it's in range → conclusion); weak features get the full targeted protocol. A length-only cap ("2-3 sentences") invites generic filler ("balanced/harmonious") — instead require the model to cite concrete cues. Severity is computed once per feature (`feature_severity_bucket`).
+- **Gate content by severity; anchor the null path on content, not length.** Match MyFace: strong features conclude "no changes recommended" but still *describe the measured geometry* (attribute → why it's in range → conclusion); weak features get the full targeted protocol. A length-only cap ("2-3 sentences") invites generic filler ("balanced/harmonious") — instead require the model to cite concrete cues. Severity is computed once per feature (`feature_severity_bucket`).
 - **Use per-feature few-shot for precise formatting.** Few-shot beats instruction-only for structured output; keep one exemplar *per feature* (`NULL_PATH_FEATURE_GUIDE`) so vocabulary stays feature-specific (nose=dorsum/alar, ears=helix/lobule) rather than biasing every section toward one feature's language. Inject it into the per-feature user message, not the shared system prompt.
 - **Validate grounding, then regenerate; keep the best LLM copy over a template.** A null-path section that cites zero concrete cue terms (`null_path_grounded`) is regenerated on an *independent* retry budget so one failure type can't starve another; on exhaustion keep the last LLM copy rather than reintroducing the generic template you were trying to avoid. Exempt cue-sparse features (`has_usable_measured_cues` is false, e.g. smile with no smile photo) so they're never force-rejected. Curate grounding terms toward distinctive anatomical nouns; exclude generic dimension adjectives and common prose words that collide with ordinary language. Tune the stopword list against a real key dump before trusting it.
 - **Deduplicate deterministically under parallel generation.** Feature sections generate concurrently, so cross-section runtime checks are not possible — instead confine shared advice (SPF/hydration/sleep) to a single owning section (Skin) and instruct the others not to repeat it.
@@ -123,7 +125,7 @@ Locked loanword / localization policy (apply uniformly on every re-run):
 
 | Keep English | Localize |
 | --- | --- |
-| Product names: MyFace, Beauty Assistant, Qoves Choice | Descriptive UI, CTAs, errors, onboarding |
+| Product names: MyFace, Beauty Assistant | Descriptive UI, CTAs, errors, onboarding |
 | SaaS chrome: Score, Checkout, Dashboard, Upload (noun), Prompt, Pipeline, Admin | Upload as verb → hochladen; Report → Bericht; Billing → Abrechnung; Account → Konto; Sign in/up/out → Anmelden/Registrieren/Abmelden |
 | Tech tokens: PDF, SPF, LED, AHA, EAR, RIN, LAB, OTC, KI (for AI), AFTER/BEFORE pipeline labels | Style chips with natural German (Vibe→Ausstrahlung, Casual→Lässig, Smart Casual→Business-leger, Clean→Klar). **Business** and **Smart** stay as fashion-register loanwords (same bucket as Score) |
 | Chat-Assistent (hyphenated DE compound) | — |

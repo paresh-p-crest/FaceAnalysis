@@ -70,7 +70,7 @@ def feature_severity_bucket(feature_id: str, ctx: dict) -> str:
 
 
 def get_severity_content_directive(feature_id: str, ctx: dict) -> str:
-    """Severity-gated recommendation-length directive (Qoves-style; null path for negligible)."""
+    """Severity-gated recommendation-length directive (report-style; null path for negligible)."""
     bucket = feature_severity_bucket(feature_id, ctx)
     is_skin = feature_id == "skin"
     if bucket == "minimal":

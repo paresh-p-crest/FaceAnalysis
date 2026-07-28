@@ -4,12 +4,12 @@ import { useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { resolveFeatureHero } from '../../utils/featureParsing'
+import { toCvLabelKey } from '../../utils/cvReportLocale'
 import {
   AllMetricsTable,
   FeatureHeroFrame,
   FeatureSummaryGrid,
 } from './FeatureSummaryUi'
-
 function fmt(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return null
   return Number(v).toFixed(digits)
@@ -24,9 +24,9 @@ function textOrNull(v) {
 
 function classifyTempleWidth(widthMm) {
   if (!Number.isFinite(widthMm)) return null
-  if (widthMm < 100) return 'Narrow'
-  if (widthMm > 112) return 'Wide'
-  return 'Average'
+  if (widthMm < 100) return 'narrow'
+  if (widthMm > 112) return 'wide'
+  return 'average'
 }
 
 /**
@@ -35,7 +35,6 @@ function classifyTempleWidth(widthMm) {
 export function HairReportPanel({
   hair,
   featureParsing,
-  narrative: _narrative,
   imageSrc = null,
 }) {
   const t = useTranslations('Report')
@@ -70,10 +69,10 @@ export function HairReportPanel({
       leftTempleDeg: leftNum,
       avgTempleDeg: avgTemple != null && !Number.isNaN(avgTemple) ? avgTemple : null,
       templeWidthClass: classifyTempleWidth(widthNum),
-      densityClass: textOrNull(h.densityEstimate),
-      hairlineClass: textOrNull(h.hairline),
-      foreheadExposureClass: textOrNull(h.foreheadExposure),
-      coverageClass: textOrNull(h.coverageEstimate),
+      densityClass: toCvLabelKey(h.densityEstimate) || textOrNull(h.densityEstimate),
+      hairlineClass: toCvLabelKey(h.hairline) || textOrNull(h.hairline),
+      foreheadExposureClass: toCvLabelKey(h.foreheadExposure) || textOrNull(h.foreheadExposure),
+      coverageClass: toCvLabelKey(h.coverageEstimate) || textOrNull(h.coverageEstimate),
       densityPct: h.densityPct != null ? Number(h.densityPct) : null,
     }
   }, [featureParsing, h.densityEstimate, h.hairline, h.foreheadExposure, h.coverageEstimate, h.densityPct])
@@ -83,11 +82,11 @@ export function HairReportPanel({
   if (metrics.foreheadWidthMm != null) {
     slides.push({
       id: 'fw',
-      titleLead: 'Forehead Width',
-      titleAccent: '(mm)',
-      body: 'Distance between temple landmarks. Broader temples give more flexibility in choosing hairstyles.',
+      titleLead: t('hair.slides.foreheadWidth.titleLead'),
+      titleAccent: t('hair.slides.foreheadWidth.titleAccent'),
+      body: t('hair.slides.foreheadWidth.body'),
       meter: {
-        metricLabel: 'Forehead Width',
+        metricLabel: t('hair.slides.foreheadWidth.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.foreheadWidthMm)} mm`,
         valueNum: metrics.foreheadWidthMm,
@@ -101,11 +100,11 @@ export function HairReportPanel({
   if (metrics.foreheadHeightMm != null) {
     slides.push({
       id: 'fh',
-      titleLead: 'Forehead Height',
-      titleAccent: '(mm)',
-      body: 'Vertical distance from the mesh forehead top to the glabella. Typical range 50–75 mm.',
+      titleLead: t('hair.slides.foreheadHeight.titleLead'),
+      titleAccent: t('hair.slides.foreheadHeight.titleAccent'),
+      body: t('hair.slides.foreheadHeight.body'),
       meter: {
-        metricLabel: 'Forehead Height',
+        metricLabel: t('hair.slides.foreheadHeight.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.foreheadHeightMm)} mm`,
         valueNum: metrics.foreheadHeightMm,
@@ -119,11 +118,11 @@ export function HairReportPanel({
   if (metrics.avgTempleDeg != null) {
     slides.push({
       id: 'temple',
-      titleLead: 'Temple Inclination',
-      titleAccent: 'Angle',
-      body: 'Angle from vertical between temple and zygion landmarks. Reflects how much the temples flare outward.',
+      titleLead: t('hair.slides.temple.titleLead'),
+      titleAccent: t('hair.slides.temple.titleAccent'),
+      body: t('hair.slides.temple.body'),
       meter: {
-        metricLabel: 'Temple Inclination',
+        metricLabel: t('hair.slides.temple.metricLabel'),
         sourceLabel: landmark,
         valueText: `${fmt(metrics.avgTempleDeg)}°`,
         valueNum: metrics.avgTempleDeg,
@@ -144,30 +143,30 @@ export function HairReportPanel({
 
   const left = [
     {
-      label: 'Forehead Width',
+      label: t('hair.metrics.foreheadWidth'),
       value: metrics.foreheadWidthMm != null ? `${fmt(metrics.foreheadWidthMm)} mm` : null,
     },
     {
-      label: 'Forehead Height',
+      label: t('hair.metrics.foreheadHeight'),
       value: metrics.foreheadHeightMm != null ? `${fmt(metrics.foreheadHeightMm)} mm` : null,
     },
     {
-      label: 'Right Temple Inclination',
+      label: t('hair.metrics.rightTemple'),
       value: metrics.rightTempleDeg != null ? `${fmt(metrics.rightTempleDeg)}°` : null,
     },
-    { label: 'Temple Width Class', value: metrics.templeWidthClass },
-    { label: 'Hairline', value: metrics.hairlineClass },
+    { label: t('hair.metrics.templeWidthClass'), value: metrics.templeWidthClass },
+    { label: t('hair.hairline'), value: metrics.hairlineClass },
   ]
   const right = [
     {
-      label: 'Left Temple Inclination',
+      label: t('hair.metrics.leftTemple'),
       value: metrics.leftTempleDeg != null ? `${fmt(metrics.leftTempleDeg)}°` : null,
     },
-    { label: 'Hair Density', value: metrics.densityClass },
-    { label: 'Forehead Exposure', value: metrics.foreheadExposureClass },
-    { label: 'Coverage', value: metrics.coverageClass },
+    { label: t('hair.density'), value: metrics.densityClass },
+    { label: t('hair.foreheadExposure'), value: metrics.foreheadExposureClass },
+    { label: t('hair.metrics.coverage'), value: metrics.coverageClass },
     {
-      label: 'Density %',
+      label: t('hair.metrics.densityPct'),
       value: metrics.densityPct != null ? `${fmt(metrics.densityPct, 0)}%` : null,
     },
   ]
@@ -199,6 +198,7 @@ export function HairReportPanel({
         <p className="font-display text-base font-bold text-ink mb-3">{t('hair.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
+
     </div>
   )
 }

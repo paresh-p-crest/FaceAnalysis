@@ -106,7 +106,7 @@ def photos_map_to_urls(stored: dict[str, StoredPhoto]) -> dict[str, str]:
 
 
 def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -> dict:
-    """Bind persisted URLs into cvReport sections per Qoves pose routing."""
+    """Bind persisted URLs into cvReport sections per pose routing."""
     if not cv_report or not photo_urls:
         return cv_report
 

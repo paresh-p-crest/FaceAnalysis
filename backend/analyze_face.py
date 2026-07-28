@@ -11,6 +11,7 @@ from .profile_cephalometrics import build_profile_report, _naso_aural_explanatio
 from .quarter_analysis import build_quarter_report
 from .smile_analysis import analyze_smile_photo
 from .hair_analysis import analyze_hair_photo
+from . import cv_report_explanations_de as expl_de
 
 
 def _fail_result(error: str, provider: str, cv_engine: str) -> dict:
@@ -87,10 +88,12 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
                 "present" if dh is not None and abs(float(dh)) > 0.008 else "minimal"
             )
             base_expl = cv_report["nose"].get("explanation") or ""
+            base_expl_de = cv_report["nose"].get("explanationDe") or ""
             profile_expl = (
                 f" Profile angles: nasofrontal {nf}°, nasolabial {nasolabial}° "
                 f"(typical {nasolabial_norm}), dorsal hump {hump_label}."
             )
+            profile_expl_de = expl_de.nose_profile_append_de(nf, nasolabial, nasolabial_norm, hump_label)
             cv_report["nose"] = {
                 **cv_report["nose"],
                 "nasolabialAngleDeg": nasolabial,
@@ -106,6 +109,7 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
                 "profileLandmarkSource": primary.get("landmarkSource"),
                 "dataSource": "measured",
                 "explanation": (base_expl + profile_expl).strip(),
+                "explanationDe": (base_expl_de + profile_expl_de).strip(),
             }
         if cv_report.get("jaw") and meas.get("profileGonialAngleDeg"):
             cv_report["jaw"] = {
@@ -120,6 +124,7 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
             naso["yourValue"] = naso_val
             naso["yourLabel"] = cls.get("nasoAural", _naso_aural_label(naso_val))
             naso["explanation"] = _naso_aural_explanation(naso_val)
+            naso["explanationDe"] = expl_de.naso_aural_explanation_de(float(naso_val or 0))
             naso["photoSource"] = primary.get("poseId", "rightProfile")
             naso["dataSource"] = "measured"
             naso["requiresProfile"] = False

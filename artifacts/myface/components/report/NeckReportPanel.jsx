@@ -4,12 +4,12 @@ import { useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { resolveFeatureHero } from '../../utils/featureParsing'
+import { toCvLabelKey } from '../../utils/cvReportLocale'
 import {
   AllMetricsTable,
   FeatureHeroFrame,
   FeatureSummaryGrid,
 } from './FeatureSummaryUi'
-
 function fmt(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return null
   return Number(v).toFixed(digits)
@@ -23,12 +23,12 @@ function textOrNull(v) {
 }
 
 function classifyNeckWidth(widthMm, cvClass) {
-  const fromCv = textOrNull(cvClass)
+  const fromCv = toCvLabelKey(cvClass)
   if (fromCv) return fromCv
   if (!Number.isFinite(widthMm)) return null
-  if (widthMm < 80) return 'Slender'
-  if (widthMm > 100) return 'Wide'
-  return 'Balanced'
+  if (widthMm < 80) return 'slender'
+  if (widthMm > 100) return 'wide'
+  return 'balanced'
 }
 
 /**
@@ -37,7 +37,6 @@ function classifyNeckWidth(widthMm, cvClass) {
 export function NeckReportPanel({
   neck,
   featureParsing,
-  narrative: _narrative,
   imageSrc = null,
 }) {
   const t = useTranslations('Report')
@@ -150,6 +149,7 @@ export function NeckReportPanel({
         <p className="font-display text-base font-bold text-ink mb-3">{t('neck.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
+
     </div>
   )
 }

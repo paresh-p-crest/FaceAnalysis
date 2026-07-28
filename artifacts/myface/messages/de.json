@@ -39,7 +39,13 @@
     "hidePassword": "Passwort verbergen",
     "forgotPassword": "Passwort vergessen?",
     "forgotPasswordTitle": "Passwort zurücksetzen",
-    "forgotPasswordDesc": "Gib die E-Mail deines Kontos ein und wähl ein neues Passwort.",
+    "forgotPasswordDesc": "Gib die E-Mail deines Kontos ein. Wir senden dir einen Link zum Zurücksetzen.",
+    "forgotPasswordSent": "Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir dir einen Link zum Zurücksetzen des Passworts geschickt.",
+    "loginError": "E-Mail-Adresse oder Passwort ungültig. Bitte prüf deine Eingaben und versuch es erneut.",
+    "sendResetLink": "Link senden",
+    "resetPageTitle": "Neues Passwort wählen",
+    "resetPageDesc": "Gib ein neues Passwort für dein MyFace-Konto ein.",
+    "resetMissingToken": "Ungültiger oder abgelaufener Link. Fordere einen neuen an.",
     "newPassword": "Neues Passwort",
     "confirmNewPassword": "Neues Passwort bestätigen",
     "resetPasswordCta": "Passwort aktualisieren",
@@ -303,6 +309,7 @@
     "loading": "Wird geladen"
   },
   "Report": {
+    "narrativePending": "Narrativ für dieses Merkmal wird noch erstellt.",
     "nav": {
       "report": "Bericht",
       "tools": "Tools",
@@ -331,6 +338,9 @@
       "ears": "Ohren",
       "skin": "Haut",
       "aiVisuals": "Visuals",
+      "aiVisualHair": "Frisuren-Vorschläge",
+      "aiVisualOutfit": "Outfit-Vorschläge",
+      "aiVisualAging": "Gesundes Altern",
       "beautyAssistant": "Beauty Assistant",
       "pastAssessments": "Frühere Analysen"
     },
@@ -416,7 +426,7 @@
         "p1": "Die Gesichtsbilder und Fragebogenantworten der Person werden ausschließlich genutzt, um diesen personalisierten Analysebericht zu erstellen.",
         "p2": "MyFace verkauft keine biometrischen Daten. Der Zugang ist auf autorisierte Prüfer für die Qualitätssicherung beschränkt, bevor der Bericht freigegeben wird.",
         "p3": "Die Person kann die Löschung der Analysedaten beantragen, indem sie den Support kontaktiert.",
-        "p4": "Lies die vollständige Datenschutzerklärung unter myface.club."
+        "p4": "Lies die vollständige Datenschutzerklärung unter myface.de/datenschutzerklaerung."
       }
     },
     "protocolModel": {
@@ -428,9 +438,78 @@
         "p4": "Alle Empfehlungen dienen nur der Information und Ästhetik. Jede Behandlung in der Praxis oder jedes verschreibungspflichtige Produkt solltest du mit einer qualifizierten medizinischen Fachkraft besprechen."
       },
       "closingPending": "Die abschließenden Empfehlungen für dieses Protokoll werden aus den gespeicherten Messungen vorbereitet. Öffne das Protokoll erneut, wenn die Erzeugung fertig ist, oder kontaktiere den Support, falls diese Meldung bestehen bleibt.",
+      "overviewPending": "Die Protokoll-Übersicht wird aus den gespeicherten Messungen erstellt. Öffne den Bericht erneut, wenn die Erzeugung abgeschlossen ist.",
+      "narrativePending": "Das personalisierte Protokoll-Narrativ für diesen Abschnitt wird aus den gespeicherten Messungen erstellt. Öffne den Bericht erneut, wenn die Erzeugung abgeschlossen ist.",
+      "introduction": "Einführung",
+      "contents": "Inhalt",
+      "limitationsLabel": "Einschränkungen",
+      "privacyPolicy": "Datenschutz",
+      "understandingPrimary": "Ergebnisse",
+      "understandingSecondary": "verstehen",
+      "protocolSecondary": "Protokoll",
+      "closingPrimary": "Abschluss",
+      "projectedPotential": "Projiziertes Potenzial · 11 Schlüsselmerkmale",
+      "commissionedLine": "Der folgende Bericht wurde für {name} im {month} in Auftrag gegeben.",
       "contentsUnderstanding": "Ergebnisse verstehen",
       "contentsProtocol": "Protokoll von {name}",
-      "contentsClosing": "Abschließende Empfehlungen"
+      "contentsClosing": "Abschließende Empfehlungen",
+      "contentsHair": "Haar",
+      "contentsEyebrows": "Augenbrauen",
+      "contentsEyes": "Augen",
+      "contentsNose": "Nase",
+      "contentsCheeks": "Wangen",
+      "contentsJaw": "Kiefer",
+      "contentsLips": "Lippen",
+      "contentsChin": "Kinn",
+      "contentsSkin": "Haut",
+      "contentsNeck": "Hals",
+      "contentsEar": "Ohr",
+      "recommendations": "Empfehlungen",
+      "featureSummary": "{name} Zusammenfassung",
+      "eyeRegionSummary": "Zusammenfassung Augenregion",
+      "cheekRegionSummary": "Zusammenfassung Wangenregion",
+      "jawRegionSummary": "Zusammenfassung Kieferregion",
+      "tagProfile": "PROFIL",
+      "tagBefore": "VORHER",
+      "tagAfter": "NACHHER",
+      "tagAnalysis": "ANALYSE",
+      "tagEyes": "AUGEN",
+      "tagLips": "LIPPEN",
+      "featurePrimary": {
+        "hair": "Haar",
+        "eyes": "Augen",
+        "nose": "Nase",
+        "cheeks": "Wangen",
+        "jaw": "Kiefer",
+        "lips": "Lippen",
+        "chin": "Kinn",
+        "skin": "Haut",
+        "neck": "Hals",
+        "ears": "Ohren"
+      },
+      "subsectionTitles": {
+        "Hair Style": "Frisur",
+        "Hair Loss": "Haarausfall",
+        "Hair Health": "Haargesundheit",
+        "Eyebrows": "Augenbrauen",
+        "Eyelashes": "Wimpern",
+        "Eyes": "Augen",
+        "Under eye": "Unteraugenpartie",
+        "Nose": "Nase",
+        "Profile Angles": "Profilwinkel",
+        "Cheek Structure": "Wangenstruktur",
+        "Jaw Structure": "Kieferstruktur",
+        "Further Enhancement": "Weitere Optimierung",
+        "Lips": "Lippen",
+        "Chin": "Kinn",
+        "Skincare Protocol": "Hautpflegeprotokoll",
+        "Further Skin Enhancement": "Weitere Hautoptimierung",
+        "Neck Size": "Halsumfang",
+        "Neck Skin": "Halshaut",
+        "Ear Structure": "Ohrstruktur",
+        "Smile Shape": "Lachform",
+        "Teeth & Gingiva": "Zähne und Zahnfleisch"
+      }
     },
     "executiveSummary": {
       "protocolLabel": "PROTOKOLL",
@@ -676,20 +755,40 @@
       "ratioTabs": {
         "nasoAural": {
           "label": "Ohr",
-          "ratioLabel": "NASO-AURALES VERHÄLTNIS"
+          "ratioLabel": "NASO-AURALES VERHÄLTNIS",
+          "expectation": "In der Regel wird erwartet, dass Ohren ungefähr auf Höhe der Nase liegen."
         },
         "orbitoNasal": {
           "label": "Nase",
-          "ratioLabel": "ORBITO-NASALES VERHÄLTNIS"
+          "ratioLabel": "ORBITO-NASALES VERHÄLTNIS",
+          "expectation": "In der Regel sollen die äußeren Nasenflügel mit den inneren Augenwinkeln ausgerichtet sein."
         },
         "nasoOral": {
           "label": "Mund",
-          "ratioLabel": "NASO-ORALE PROPORTION"
+          "ratioLabel": "NASO-ORALE PROPORTION",
+          "expectation": "In der Regel wird erwartet, dass die Mundbreite etwa 50–60 % breiter ist als die Nasenbasis."
         },
         "orbital": {
           "label": "Auge",
-          "ratioLabel": "ORBITALE PROPORTION"
+          "ratioLabel": "ORBITALE PROPORTION",
+          "expectation": "In der Regel soll der Abstand zwischen den Augen der Breite eines Auges entsprechen."
         }
+      },
+      "ratioCompare": {
+        "earGreaterNose": "Ohr > Nase",
+        "earLessNose": "Ohr < Nase",
+        "earApproxNose": "Ohr ≈ Nase",
+        "earEqualNose": "Ohr = Nase",
+        "noseGreaterEye": "Nase > Auge",
+        "noseLessEye": "Nase < Auge",
+        "noseApproxEye": "Nase ≈ Auge",
+        "noseEqualEye": "Nase = Auge",
+        "mouthGreaterNose": "Mund > Nase",
+        "mouthLessNose": "Mund < Nase",
+        "mouthApproxNose": "Mund ≈ Nase",
+        "spacingGreaterEye": "Abstand > Auge",
+        "spacingLessEye": "Abstand < Auge",
+        "spacingEqualEye": "Abstand = Auge"
       },
       "ratioParts": {
         "ear": "Ohr",
@@ -997,7 +1096,40 @@
       "shape": "Nasenform",
       "height": "Nasenhöhe",
       "tip": "Nasenspitze",
-      "width": "Nasenbreite"
+      "width": "Nasenbreite",
+      "slides": {
+        "aspect": {
+          "titleLead": "Nasen-",
+          "titleAccent": "Seitenverhältnis",
+          "body": "Breite geteilt durch Höhe. <0,6 = schmal, 0,6–0,85 = durchschnittlich, >0,85 = breit.",
+          "metricLabel": "Nasen-Seitenverhältnis (B/H)",
+          "rangeMinLabel": "0,5 schmal",
+          "rangeMaxLabel": "1,1 breit"
+        },
+        "width": {
+          "titleLead": "Nasenbreite",
+          "titleAccent": "(mm)",
+          "body": "Abstand zwischen den Alae (äußeren Nasenlöchern) in Millimetern. Referenz-IPD = 63,5 mm.",
+          "metricLabel": "Nasenflügelbreite"
+        },
+        "nasoCanthal": {
+          "titleLead": "Naso-Kanthal-",
+          "titleAccent": "Verhältnis",
+          "body": "Flügelbreite / Interkanthalabstand. Ideal ≈ 1,0 (Nasenbreite = innerer Augenabstand).",
+          "metricLabel": "Naso-Kanthal-Verhältnis"
+        }
+      },
+      "metrics": {
+        "nasalWidth": "Nasenbreite",
+        "nasalAspectRatio": "Nasen-Seitenverhältnis (B/H)",
+        "pyramidalWidth": "Pyramidenbreite",
+        "heightClass": "Höhen-Klassifikation",
+        "widthClass": "Breiten-Klassifikation",
+        "nasalHeight": "Nasenhöhe",
+        "nasoCanthalRatio": "Naso-Kanthal-Verhältnis",
+        "shapeClass": "Form-Klassifikation",
+        "tipClass": "Spitzen-Klassifikation"
+      }
     },
     "lips": {
       "subtitle": "Die Lippen rahmen Ausdruck und Proportionen im unteren Gesicht und tragen zur Gesamtharmonie bei.",
@@ -1007,7 +1139,34 @@
       "fullness": "Lippenfülle",
       "width": "Lippenbreite",
       "proportions": "Lippenproportionen",
-      "health": "Lippensundheit"
+      "health": "Lippensundheit",
+      "slides": {
+        "mouthWidth": {
+          "titleLead": "Mundbreite",
+          "titleAccent": "(mm)",
+          "body": "Horizontaler Abstand zwischen den Mundwinkeln. Typischer Bereich 40–60 mm.",
+          "metricLabel": "Mundbreite"
+        },
+        "cupid": {
+          "titleLead": "Amorbogen",
+          "titleAccent": "Winkel",
+          "body": "Winkel an der Amorbogen-Einbuchtung. Niedriger = ausgeprägterer oberer Lippenbogen.",
+          "metricLabel": "Amorbogen-Winkel"
+        },
+        "philtrum": {
+          "titleLead": "Philtrum",
+          "titleAccent": "Länge",
+          "body": "Abstand vom Subnasale (Nasenbasis) zur Amorbogen-Einbuchtung. Typischer Bereich 10–20 mm.",
+          "metricLabel": "Philtrum-Länge"
+        }
+      },
+      "metrics": {
+        "mouthWidth": "Mundbreite",
+        "cupidAngle": "Amorbogen-Winkel",
+        "widthClass": "Breiten-Klassifikation",
+        "philtrumLength": "Philtrum-Länge",
+        "fullnessClass": "Fülle-Klassifikation"
+      }
     },
     "hair": {
       "subtitle": "Haaransatz und Stirngeometrie rahmen das obere Gesicht und tragen zur Gesamtharmonie bei.",
@@ -1017,7 +1176,36 @@
       "templeWidth": "Schläfenbreite",
       "density": "Haardichte",
       "hairline": "Haaransatz",
-      "foreheadExposure": "Stirnexposition"
+      "foreheadExposure": "Stirnexposition",
+      "slides": {
+        "foreheadWidth": {
+          "titleLead": "Stirnbreite",
+          "titleAccent": "(mm)",
+          "body": "Abstand zwischen den Schläfen-Messpunkten. Breitere Schläfen geben mehr Flexibilität bei der Frisurwahl.",
+          "metricLabel": "Stirnbreite"
+        },
+        "foreheadHeight": {
+          "titleLead": "Stirnhöhe",
+          "titleAccent": "(mm)",
+          "body": "Vertikaler Abstand vom Mesh-Stirnrand zur Glabella. Typischer Bereich 50–75 mm.",
+          "metricLabel": "Stirnhöhe"
+        },
+        "temple": {
+          "titleLead": "Schläfenneigung",
+          "titleAccent": "Winkel",
+          "body": "Winkel zur Vertikalen zwischen Schläfen- und Zygion-Messpunkten. Zeigt, wie stark die Schläfen nach außen flaren.",
+          "metricLabel": "Schläfenneigung"
+        }
+      },
+      "metrics": {
+        "foreheadWidth": "Stirnbreite",
+        "foreheadHeight": "Stirnhöhe",
+        "rightTemple": "Rechte Schläfenneigung",
+        "templeWidthClass": "Schläfenbreiten-Klasse",
+        "leftTemple": "Linke Schläfenneigung",
+        "coverage": "Bedeckung",
+        "densityPct": "Dichte %"
+      }
     },
     "cheek": {
       "subtitle": "Wangenknochen rahmen Mittelgesichtsbreite und -höhe und tragen zur Gesamtharmonie bei.",
@@ -1027,7 +1215,39 @@
       "width": "Wangenbreite",
       "position": "Wangenknochen-Position",
       "fullness": "Wangenfülle",
-      "height": "Wangenknochen-Höhe"
+      "height": "Wangenknochen-Höhe",
+      "slides": {
+        "malar": {
+          "titleLead": "Malarbreite",
+          "titleAccent": "Verhältnis",
+          "body": "Gesichtsbreite / Gesichtshöhe. Höher = breiteres, eckigeres Gesicht.",
+          "metricLabel": "Malarbreiten-Verhältnis"
+        },
+        "position": {
+          "titleLead": "Wangenknochen-",
+          "titleAccent": "Position",
+          "body": "Vertikale Position des Wangenknochen-Apex als Anteil der Gesichtshöhe. Niedrigerer Wert = höher liegende Wangenknochen.",
+          "metricLabel": "Wangenknochen-Position",
+          "rangeMinLabel": "0,30 hoch",
+          "rangeMaxLabel": "0,60 tief"
+        },
+        "facialWidth": {
+          "titleLead": "Gesichtsbreite",
+          "titleAccent": "(mm)",
+          "body": "Bizygomatische Breite · Abstand zwischen den äußersten Wangenknochenpunkten.",
+          "metricLabel": "Gesichtsbreite"
+        }
+      },
+      "metrics": {
+        "facialWidth": "Gesichtsbreite",
+        "malarRatio": "Malarbreiten-Verhältnis",
+        "widthClass": "Breiten-Klassifikation",
+        "fullnessClass": "Fülle-Klassifikation",
+        "rightPosition": "Rechte Wangenknochen-Position",
+        "leftPosition": "Linke Wangenknochen-Position",
+        "positionClass": "Positions-Klassifikation",
+        "heightClass": "Höhen-Klassifikation"
+      }
     },
     "skin": {
       "subtitle": "Hautton, Textur und Gleichmäßigkeit werden mit LAB-Farbwissenschaft und Laplace-Frequenzanalyse ausgewertet.",
@@ -1439,7 +1659,7 @@
     "welcome": {
       "backToDashboard": "← Zurück zum Dashboard",
       "title": "Starte deine Gesichtsanalyse",
-      "description": "Beantworte einige kurze Fragen, damit wir deine Analyse auf deine Ziele, Hautthemen und persönlichen Merkmale abstimmen können. Anschliessend lädst du deine Fotos sicher für die Auswertung hoch.",
+      "description": "Beantworte einige kurze Fragen, damit wir deinen Bericht auf deine Ziele, Hautthemen und persönlichen Merkmale abstimmen können. Lade anschliessend ein Foto hoch, um deine Gesichtsanalyse zu starten.",
       "statsLandmarks": "Messpunkte",
       "statsDuration": "Seiten Bericht",
       "statsPersonalized": "Individuell",
@@ -1748,6 +1968,7 @@
     "loadProtocolFailed": "Protokoll konnte nicht geladen werden",
     "generateProtocolFailed": "Protokoll konnte nicht erzeugt werden",
     "generateProtocolSectionFailed": "Protokollabschnitt konnte nicht erzeugt werden",
+    "retryNarrativeTranslationsFailed": "Übersetzungen konnten nicht erneut erzeugt werden",
     "generateProjectedAfterFailed": "Projiziertes AFTER-Bild konnte nicht erzeugt werden",
     "generateVisualsFailed": "Visuals konnten nicht erzeugt werden",
     "loadAssistantFailed": "Assistenten-Gespräch konnte nicht geladen werden",
@@ -1787,8 +2008,16 @@
       "title": "Pipeline-Status (Admin)",
       "notStarted": "Pipeline nicht gestartet · dieser Entwurf wurde noch nicht eingereicht.",
       "failedHint": "Fehlgeschlagen · erneut versuchen, um wieder einzureihen.",
+      "stuckHint": "Hängt in „running“ · erneut versuchen zum Fortsetzen oder Neustart.",
       "percentComplete": "{percent}% abgeschlossen",
       "retry": "Pipeline erneut starten",
+      "retryModalTitle": "Pipeline erneut starten",
+      "retryModalDescription": "Wähle, wie die Pipeline wiederhergestellt werden soll.",
+      "retryResumeTitle": "Fehlgeschlagene Teile fortsetzen",
+      "retryResumeHint": "Behält abgeschlossene CV-, Narrativ-, Parsing- und Visual-Daten; setzt an der fehlgeschlagenen Stufe fort.",
+      "retryFullTitle": "Vollständiger Neustart",
+      "retryFullHint": "Löscht generiertes Protokoll, Visuals und Parsing-Metadaten; startet die gesamte Pipeline ab CV neu. Das kann nicht rückgängig gemacht werden.",
+      "retryCancel": "Abbrechen",
       "stageDone": "Erledigt",
       "stageInProgress": "In Bearbeitung",
       "stageFailed": "Fehlgeschlagen",
@@ -1819,6 +2048,10 @@
       "generateWhole": "Narrativ für gesamtes PDF erzeugen",
       "protocolSectionLabel": "Protokollabschnitt",
       "generateSection": "Abschnitt erzeugen",
+      "retryTranslations": "Deutsche Übersetzungen erneut erzeugen",
+      "retryTranslationsHint": "Übersetzt alle Protokoll-Merkmale, Abschluss, Behandlungsphasen und Executive erneut aus dem gespeicherten Englisch. Erzeugt kein neues Englisch.",
+      "retryTranslationsEnHint": "Wechsle die UI-Sprache auf Deutsch, um DE-Übersetzungen erneut zu erzeugen (Englisch ist die Quelle).",
+      "retryTranslationsDeHint": "Wechsle die UI-Sprache auf Englisch, um englische Narrative neu zu erzeugen (Abschnitt / gesamtes PDF).",
       "adminNotes": "Admin-Notizen",
       "adminNotesPlaceholder": "Interne Prüfungsnotizen (nicht für den Kunden sichtbar)",
       "editSection": "Abschnitt bearbeiten · {section}",
@@ -1869,6 +2102,7 @@
       "reportCount": "{count} Berichte",
       "pendingBanner": "{count} Bericht(e) warten auf Prüfung",
       "processingBanner": "{count} Bericht(e) werden verarbeitet",
+      "draftNotSubmitted": "Diese Person hat die Analyse noch nicht vollständig eingereicht. Fotos oder Fragebogen können noch in Bearbeitung sein.",
       "pipelineRunning": "läuft · {stage}",
       "tabs": {
         "overview": "Dashboard",
@@ -1979,7 +2213,7 @@
     "disclaimerPolicy": "Hinweisrichtlinie",
     "privacyPolicy": "Datenschutzerklärung",
     "readPrivacyPrefix": "Lies die vollständige Datenschutzerklärung ",
-    "privacyLink": "hier (myface.club)",
+    "privacyLink": "hier (myface.de/datenschutzerklaerung)",
     "companyName": "MyFace Inc",
     "commissionedFor": "Der folgende Bericht wurde erstellt für",
     "commissionedOn": "{name} im {month}.",
@@ -2118,7 +2352,89 @@
       "idealEarNose": "Ohr = Nase",
       "idealNoseEye": "Nase = Auge",
       "idealMouthNose": "Mund > Nase",
-      "idealSpacingEye": "Abstand = Auge"
+      "idealSpacingEye": "Abstand = Auge",
+      "narrowLeptorrhine": "Schmal / Leptorrhin",
+      "widePlatyrrhine": "Breit / Platyrrhin",
+      "averageMesorrhine": "Durchschnittlich / Mesorrhin",
+      "wideBulbous": "Breit / Knollig",
+      "narrowRefined": "Schmal / Fein",
+      "thinNarrow": "Dünn / Schmal",
+      "fullPlush": "Voll / Üppig",
+      "moderateArch": "Mäßiger Bogen",
+      "softRounded": "Weich / Rund",
+      "moderateDefined": "Mäßig / Definiert",
+      "angularDefined": "Kantig / Definiert",
+      "sharpVU": "Scharfes V / U",
+      "softTaper": "Weicher Verlauf",
+      "fullCoverage": "Volle Abdeckung",
+      "highlyTypical": "Hochgradig typisch",
+      "moderatelyTypical": "Mäßig typisch",
+      "slightlyAtypical": "Leicht untypisch",
+      "highlyAverage": "Hochgradig durchschnittlich",
+      "prominent": "Prominent",
+      "small": "Klein",
+      "protruding": "Vorstehend",
+      "closeSet": "Eng stehend",
+      "midSet": "Mittel stehend",
+      "highSet": "Hoch stehend",
+      "thin": "Dünn",
+      "full": "Voll",
+      "thick": "Dicht",
+      "low": "Niedrig",
+      "lean": "Schlank",
+      "high": "Hoch",
+      "neutral": "Neutral",
+      "recessed": "Zurückgesetzt",
+      "deviated": "Abweichend",
+      "pointed": "Spitz",
+      "shallow": "Flach",
+      "deep": "Tief",
+      "peakedDefined": "Spitz / Definiert",
+      "flatSubtle": "Flach / Dezent",
+      "fullWide": "Voll / Breit",
+      "positiveUpturned": "Positiv (aufwärts)",
+      "negativeDownturned": "Negativ (abwärts)",
+      "naturalWhite": "Natürlich weiß",
+      "slightlyDull": "Leicht stumpf",
+      "yellowTinged": "Gelblich",
+      "shadowed": "Geschattet",
+      "good": "Gut",
+      "upturned": "Aufwärts",
+      "downturned": "Abwärts",
+      "arched": "Gebogen",
+      "straight": "Gerade",
+      "softArch": "Weicher Bogen",
+      "midSetSpaced": "Mittel stehend",
+      "highSetSpaced": "Hoch stehend",
+      "lowSetSpaced": "Tief stehend",
+      "uneven": "Ungleichmäßig",
+      "slightlyUneven": "Leicht ungleichmäßig",
+      "even": "Gleichmäßig",
+      "slightlyTextured": "Leicht strukturiert",
+      "smooth": "Glatt",
+      "texturedRough": "Strukturiert/Rau",
+      "warm": "Warm",
+      "cool": "Kühl",
+      "neutralWarm": "Neutral-Warm",
+      "neutralCool": "Neutral-Kühl",
+      "mild": "Leicht",
+      "severe": "Stark",
+      "oilyShiny": "Ölig/Glänzend",
+      "normalCombination": "Normal/Kombiniert",
+      "matteDry": "Matt / Trocken",
+      "darkCirclesDetected": "Augenringe erkannt",
+      "notProminent": "Nicht auffällig",
+      "darkCirclesPresent": "Augenringe vorhanden",
+      "stronglyUpturned": "Stark aufwärts",
+      "mildlyUpturned": "Leicht aufwärts",
+      "slender": "Schlank",
+      "angularNeck": "Kantig",
+      "smoothNeck": "Weich",
+      "definedNeck": "Definiert",
+      "protrudingEar": "Vorstehend",
+      "moderateEar": "Mittel",
+      "closeSetEar": "Eng anliegend",
+      "mildlyAsymmetric": "Leicht asymmetrisch"
     }
   },
   "Assistant": {
@@ -2160,9 +2476,26 @@
     "needsReport": "Schließe zuerst eine Gesichtsanalyse ab, um Visual-Vorschauen für deinen neuesten Bericht zu erzeugen.",
     "needsAfter": "Das Frontporträt muss verfügbar sein, bevor Visuals erzeugt werden.",
     "sections": {
-      "hair": "Frisur-Vorschauen",
-      "outfit": "Outfit-Stile",
+      "hair": "Frisurvorschläge",
+      "outfit": "Outfit-Vorschläge",
       "aging": "Gesundes Altern"
+    },
+    "headers": {
+      "hair": {
+        "titleLead": "Frisur",
+        "titleAccent": "Vorschläge",
+        "subtitle": "Wir haben <emph>Frisuren</emph> vorbereitet, die zu deinem Gesicht <emph>passen</emph> könnten — und andere, die weniger gut funktionieren, basierend auf deinen Merkmalen."
+      },
+      "outfit": {
+        "titleLead": "Outfit",
+        "titleAccent": "Vorschläge",
+        "subtitle": "Wir haben <emph>Outfits</emph> vorbereitet, die zu deinem Gesicht <emph>passen</emph> könnten — und andere, die weniger gut funktionieren, basierend auf deinen Merkmalen."
+      },
+      "aging": {
+        "titleLead": "Gesundes",
+        "titleAccent": "Altern",
+        "subtitle": "Sanfte <emph>Altersvorschauen</emph> basierend auf deinem Porträt."
+      }
     },
     "needsBackend": "Verfügbar für im Backend gespeicherte Berichte",
     "generateTitle": "Visuals erzeugen",
@@ -2203,14 +2536,53 @@
     "agePlusBullet2": "Sanfte Visualisierung gesunden Alterns",
     "agePlusBullet3": "Nur zur Information",
     "types": {
-      "hair": "Frisurempfehlungen basierend auf Gesichtsform, Haaransatz und Gesamtbalance.",
-      "outfit": "Farb- und Stylingkonzepte von den Schultern aufwärts für ein poliertes Porträt.",
+      "hair": "Wir haben Frisuren vorbereitet, die zu deinem Gesicht passen könnten — und andere, die weniger gut funktionieren, basierend auf deinen Merkmalen.",
+      "outfit": "Farb- und Stylingkonzepte von den Schultern aufwärts für eine polierte Porträtdarstellung, abgestimmt auf deine Merkmale.",
       "aging": "Sanfte Vorschau gesunden Alterns, nur zur Information.",
       "default": "Visual-Konzept."
     },
+    "about": {
+      "hair": {
+        "link": "Über diese Frisuren",
+        "tooltipTitle": "Über diese Frisuren",
+        "tooltipP1": "Wir bieten eine Auswahl an Frisuren mit unterschiedlichen visuellen Effekten. Nicht alle sollen die Attraktivität maximieren. Manche betonen Einzigartigkeit oder zielen auf eine bestimmte Ästhetik ab.",
+        "tooltipP2": "Ziel ist zu zeigen, wie verschiedene Frisuren an dir aussehen, damit du die wählen kannst, die am besten zu deinen Vorlieben passt."
+      },
+      "outfit": {
+        "link": "Über diese Outfits",
+        "tooltipTitle": "Über diese Outfits",
+        "tooltipP1": "Wir bieten eine Auswahl an Outfit-Stilen mit unterschiedlichen visuellen Effekten. Nicht alle sollen die Attraktivität maximieren. Manche betonen Einzigartigkeit oder zielen auf eine bestimmte Ästhetik ab.",
+        "tooltipP2": "Ziel ist zu zeigen, wie verschiedene Outfits an dir aussehen, damit du das wählen kannst, was am besten zu deinen Vorlieben passt."
+      },
+      "aging": {
+        "link": "Mehr erfahren",
+        "tooltipTitle": "Über gesundes Altern",
+        "tooltipP1": "Diese Vorschauen zeigen eine sanfte Visualisierung gesunden Alterns basierend auf deinem Porträt. Sie veranschaulichen, wie subtile Veränderungen mit der Zeit aussehen könnten — nicht jedes Detail ist exakt.",
+        "tooltipP2": "Nur zu Bildungszwecken. Dies ist keine medizinische Prognose und keine Vorhersage, wie du altern wirst."
+      }
+    },
+    "about": {
+      "hair": {
+        "link": "Über diese Frisuren",
+        "tooltipTitle": "Über diese Frisuren",
+        "tooltipP1": "Wir bieten eine Auswahl an Frisuren mit unterschiedlichen visuellen Effekten. Nicht alle sollen die Attraktivität maximieren. Manche betonen Einzigartigkeit oder zielen auf eine bestimmte Ästhetik ab.",
+        "tooltipP2": "Ziel ist zu zeigen, wie verschiedene Frisuren an dir aussehen, damit du die wählen kannst, die am besten zu deinen Vorlieben passt."
+      },
+      "outfit": {
+        "link": "Über diese Outfits",
+        "tooltipTitle": "Über diese Outfits",
+        "tooltipP1": "Wir bieten eine Auswahl an Outfit-Stilen mit unterschiedlichen visuellen Effekten. Nicht alle sollen die Attraktivität maximieren. Manche betonen Einzigartigkeit oder zielen auf eine bestimmte Ästhetik ab.",
+        "tooltipP2": "Ziel ist zu zeigen, wie verschiedene Outfits an dir aussehen, damit du das wählen kannst, was am besten zu deinen Vorlieben passt."
+      },
+      "aging": {
+        "link": "Mehr erfahren",
+        "tooltipTitle": "Über gesundes Altern",
+        "tooltipP1": "Diese Vorschauen zeigen eine sanfte Visualisierung gesunden Alterns basierend auf deinem Porträt. Sie veranschaulichen, wie subtile Veränderungen mit der Zeit aussehen könnten — nicht jedes Detail ist exakt.",
+        "tooltipP2": "Nur zu Bildungszwecken. Dies ist keine medizinische Prognose und keine Vorhersage, wie du altern wirst."
+      }
+    },
     "panel": {
       "recommended": "Empfohlen",
-      "qovesChoice": "Qoves Choice",
       "explanation": "Erklärung",
       "selectStyle": "Stil auswählen: {title}",
       "attrs": {

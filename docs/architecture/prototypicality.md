@@ -12,7 +12,7 @@
 
 - Not deviation from a real population mean face dataset
 - Not Procrustes / thin-plate spline distance to cohort landmarks
-- Not correlated to rated attractiveness (Qoves pg3 “1/10 scale” research is **not** replicated here)
+- Not correlated to rated attractiveness (MyFace pg3 “1/10 scale” research is **not** replicated here)
 
 ## Data sources
 

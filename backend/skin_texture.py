@@ -1,4 +1,4 @@
-"""LAB + skin-mask skin analysis (notebook-aligned Qoves metrics).
+"""LAB + skin-mask skin analysis (notebook-aligned calibrated metrics).
 
 Builds a face-oval mask minus eyes/lips/brows, then derives undertone, blemishing,
 evenness, texture, roughness/homogeneity RIN, oiliness skew, and under-eye L*.

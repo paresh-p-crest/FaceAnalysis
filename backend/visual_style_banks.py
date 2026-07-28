@@ -226,7 +226,7 @@ _FEMININE_HAIR: dict[str, list[HairStyleSpec]] = {
         HairStyleSpec(
             style_id="long_face_framing_layers",
             display_name="Long Face-Framing Layers",
-            descriptor="long face-framing layers with soft movement that skim the cheeks and jaw",
+            descriptor="face-framing layers with soft movement that skim the cheeks and jaw",
         ),
         HairStyleSpec(
             style_id="soft_side_part_feminine",
@@ -248,7 +248,7 @@ _FEMININE_HAIR: dict[str, list[HairStyleSpec]] = {
         HairStyleSpec(
             style_id="crown_volume_long_layers",
             display_name="Crown Volume Long Layers",
-            descriptor="long layers with lift at the crown to add height and elongate a rounder face",
+            descriptor="layered hair with lift at the crown to add height and elongate a rounder face",
         ),
         HairStyleSpec(
             style_id="soft_pixie_with_height",
@@ -258,7 +258,7 @@ _FEMININE_HAIR: dict[str, list[HairStyleSpec]] = {
         HairStyleSpec(
             style_id="long_layers_with_lift",
             display_name="Long Layers With Lift",
-            descriptor="long layered hair with crown lift and tapered ends to reduce roundness",
+            descriptor="layered hair with crown lift and tapered ends to reduce roundness",
         ),
         HairStyleSpec(
             style_id="side_swept_bangs_height",
@@ -361,7 +361,7 @@ _FEMININE_HAIR: dict[str, list[HairStyleSpec]] = {
         HairStyleSpec(
             style_id="long_face_framing_layers",
             display_name="Long Face-Framing Layers",
-            descriptor="long face-framing layers with soft movement around the cheeks and jaw",
+            descriptor="face-framing layers with soft movement around the cheeks and jaw",
         ),
         HairStyleSpec(
             style_id="soft_side_part_feminine",
@@ -424,7 +424,7 @@ _NO_PREF_HAIR: dict[str, list[HairStyleSpec]] = {
         HairStyleSpec(
             style_id="long_layers_neutral_lift",
             display_name="Long Layers With Lift",
-            descriptor="long layers with subtle crown lift to elongate a rounder face",
+            descriptor="layered hair with subtle crown lift to elongate a rounder face",
         ),
         HairStyleSpec(
             style_id="side_swept_fringe_height",

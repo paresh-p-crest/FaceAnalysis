@@ -9,7 +9,7 @@ import {
   fetchMyAssessments,
   isBackendApiEnabled,
 } from '../utils/apiClient'
-import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/qovesProtocolModel'
+import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/reportProtocolModel'
 import { isReportApproved, userReportReady } from '../utils/reportWorkflow'
 import { useApp } from './providers/AppProvider'
 

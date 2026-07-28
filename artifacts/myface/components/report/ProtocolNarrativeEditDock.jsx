@@ -1,14 +1,31 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslations } from 'next-intl'
-import { Loader2, Save, Sparkles } from 'lucide-react'
+import { useLocale, useTranslations } from 'next-intl'
+import { Languages, Loader2, Save, Sparkles } from 'lucide-react'
 import {
   generateAssessmentProtocol,
   generateAssessmentProtocolSection,
+  regenerateAssessmentNarrativeTranslations,
 } from '../../utils/apiClient'
 import { PROTOCOL_SECTION_OPTIONS } from '../../utils/protocolSections'
 import { translateApiError } from '../../utils/translateApiError'
+
+/** Stable icon slot — avoid swapping lucide roots mid-commit (insertBefore NotFoundError). */
+function DockIcon({ busy, IdleIcon }) {
+  return (
+    <span className="relative inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+      <Loader2
+        className={`absolute h-3.5 w-3.5 animate-spin ${busy ? 'opacity-100' : 'opacity-0'}`}
+        aria-hidden={!busy}
+      />
+      <IdleIcon
+        className={`absolute h-3.5 w-3.5 ${busy ? 'opacity-0' : 'opacity-100'}`}
+        aria-hidden={busy}
+      />
+    </span>
+  )
+}
 
 /**
  * Lightweight admin dock: section nav + AI generate + Save.
@@ -26,16 +43,21 @@ export function ProtocolNarrativeEditDock({
   const t = useTranslations('Admin.reviewPanel')
   const tErrors = useTranslations('Errors')
   const tProtocol = useTranslations('Admin.protocolSections')
+  const locale = useLocale()
 
   const [generatingWhole, setGeneratingWhole] = useState(false)
   const [generatingSection, setGeneratingSection] = useState(false)
+  const [translating, setTranslating] = useState(false)
   const [error, setError] = useState('')
 
-  const busy = saving || generatingWhole || generatingSection
+  const busy = saving || generatingWhole || generatingSection || translating
+  // EN is source; only locales with a translation layer (currently de) can retry.
+  const canRetryTranslations = locale === 'de'
 
+  /** Notify parent after local busy flag clears — avoids remount during icon commit. */
   const applyUpdate = (updated) => {
     if (!updated) return
-    onSaved?.(updated)
+    queueMicrotask(() => onSaved?.(updated))
   }
 
   const confirmDiscardDirty = () => {
@@ -50,10 +72,11 @@ export function ProtocolNarrativeEditDock({
     setGeneratingWhole(true)
     setError('')
     try {
-      applyUpdate(await generateAssessmentProtocol(assessmentId, { force: true }))
+      const updated = await generateAssessmentProtocol(assessmentId, { force: true })
+      setGeneratingWhole(false)
+      applyUpdate(updated)
     } catch (err) {
       setError(translateApiError(err, tErrors))
-    } finally {
       setGeneratingWhole(false)
     }
   }
@@ -63,16 +86,31 @@ export function ProtocolNarrativeEditDock({
     setGeneratingSection(true)
     setError('')
     try {
-      applyUpdate(await generateAssessmentProtocolSection(assessmentId, sectionId))
+      const updated = await generateAssessmentProtocolSection(assessmentId, sectionId)
+      setGeneratingSection(false)
+      applyUpdate(updated)
     } catch (err) {
       setError(translateApiError(err, tErrors))
-    } finally {
       setGeneratingSection(false)
     }
   }
 
+  const handleRetryTranslations = async () => {
+    if (!assessmentId || !canRetryTranslations || !confirmDiscardDirty()) return
+    setTranslating(true)
+    setError('')
+    try {
+      const updated = await regenerateAssessmentNarrativeTranslations(assessmentId, locale)
+      setTranslating(false)
+      applyUpdate(updated)
+    } catch (err) {
+      setError(translateApiError(err, tErrors))
+      setTranslating(false)
+    }
+  }
+
   return (
-    <div className="qoves-protocol-edit-dock">
+    <div className="report-protocol-edit-dock">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold text-ink font-display">Protocol edit</p>
         {dirty && (
@@ -111,7 +149,7 @@ export function ProtocolNarrativeEditDock({
         disabled={busy}
         className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-brand/20 bg-white text-[11px] font-semibold text-brand hover:bg-brand-50 transition-colors disabled:opacity-50"
       >
-        {generatingSection ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+        <DockIcon busy={generatingSection} IdleIcon={Sparkles} />
         {t('generateSection')}
       </button>
 
@@ -121,9 +159,31 @@ export function ProtocolNarrativeEditDock({
         disabled={busy}
         className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-brand/20 bg-brand-50 text-[11px] font-semibold text-brand hover:bg-brand/10 transition-colors disabled:opacity-50"
       >
-        {generatingWhole ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+        <DockIcon busy={generatingWhole} IdleIcon={Sparkles} />
         {t('generateWhole')}
       </button>
+
+      {canRetryTranslations ? (
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={handleRetryTranslations}
+            disabled={busy}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-surface-border bg-white text-[11px] font-semibold text-ink hover:bg-surface-warm transition-colors disabled:opacity-50"
+            title={t('retryTranslationsHint')}
+          >
+            <DockIcon busy={translating} IdleIcon={Languages} />
+            {t('retryTranslations')}
+          </button>
+          <p className="text-[10px] leading-snug text-ink-muted px-0.5">
+            {t('retryTranslationsDeHint')}
+          </p>
+        </div>
+      ) : (
+        <p className="text-[10px] leading-snug text-ink-muted px-0.5">
+          {t('retryTranslationsEnHint')}
+        </p>
+      )}
 
       <button
         type="button"
@@ -131,7 +191,7 @@ export function ProtocolNarrativeEditDock({
         disabled={busy || !dirty}
         className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-brand text-white text-xs font-semibold hover:bg-brand-dark transition-colors disabled:opacity-50 shadow-brand"
       >
-        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+        <DockIcon busy={saving} IdleIcon={Save} />
         {t('saveEdits')}
       </button>
     </div>

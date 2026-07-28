@@ -1,10 +1,11 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 import { resolveFeatureHero } from '../../utils/featureParsing'
 import { FeatureRegionHero } from './FeatureRegionHero'
+import { pickLocalizedCvText, useCvLabel } from '../../utils/cvReportLocale'
 
-const FEATURE_NAME_TO_PARSING_ID = {
+const FEATURE_NAME_TO_NAV = {
   Eyebrows: 'eyebrows',
   Eyes: 'eyes',
   Nose: 'nose',
@@ -23,11 +24,11 @@ const REGION_FEATURE_IDS = {
 
 const DIMORPHISM_HERO_IMG_CLASS = 'max-h-40 w-auto object-contain rounded-xl block'
 
-function DimorphismScale({ score, scaleLeft, scaleRight, t }) {
+function DimorphismScale({ score, scaleLeft, scaleRight, t, cvLabel }) {
   return (
     <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
       <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">{t('dimorphism.dimorphismRange')}</p>
-      <p className="text-2xl font-display font-bold text-ink mb-4">{score.label}</p>
+      <p className="text-2xl font-display font-bold text-ink mb-4">{cvLabel(score.label)}</p>
       <div className="relative h-2.5 rounded-full bg-surface-border mb-2">
         <div
           className="absolute top-0 bottom-0 rounded-full bg-brand/20"
@@ -39,8 +40,8 @@ function DimorphismScale({ score, scaleLeft, scaleRight, t }) {
         />
       </div>
       <div className="flex justify-between text-[11px] text-ink-secondary font-sans font-medium">
-        <span>{scaleLeft}</span>
-        <span>{scaleRight}</span>
+        <span>{cvLabel(scaleLeft)}</span>
+        <span>{cvLabel(scaleRight)}</span>
       </div>
     </div>
   )
@@ -63,9 +64,11 @@ function dimorphismBarClass(label) {
   return 'bg-amber-400'
 }
 
-function FeatureCard({ feature, imageSrc, t, photo = null, landmarks = null, featureParsing = null }) {
+function FeatureCard({ feature, imageSrc, t, photo = null, landmarks = null, featureParsing = null, cvLabel, locale }) {
   const badgeClass = dimorphismBadgeClass(feature.label)
   const barClass = dimorphismBarClass(feature.label)
+  const navKey = FEATURE_NAME_TO_NAV[feature.name]
+  const featureTitle = navKey ? t(`nav.${navKey}`) : feature.name
   const regionId = REGION_FEATURE_IDS[feature.name]
   const showRegion =
     Boolean(regionId && imageSrc && landmarks?.length)
@@ -73,9 +76,9 @@ function FeatureCard({ feature, imageSrc, t, photo = null, landmarks = null, fea
   return (
     <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card overflow-hidden p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <span className="font-display text-base font-semibold text-ink">{feature.name}</span>
+        <span className="font-display text-base font-semibold text-ink">{featureTitle}</span>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${badgeClass}`}>
-          {feature.label}
+          {cvLabel(feature.label)}
         </span>
       </div>
 
@@ -116,9 +119,11 @@ function FeatureCard({ feature, imageSrc, t, photo = null, landmarks = null, fea
         </div>
       </div>
 
-      <div className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4">
+      <div className="report-view-metric-card">
         <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-1.5 font-medium">{t('common.explanation')}</p>
-        <p className="text-sm text-ink-secondary leading-relaxed font-sans">{feature.explanation}</p>
+        <p className="text-sm text-ink-secondary leading-relaxed font-sans">
+          {pickLocalizedCvText(feature, locale)}
+        </p>
       </div>
     </div>
   )
@@ -126,11 +131,13 @@ function FeatureCard({ feature, imageSrc, t, photo = null, landmarks = null, fea
 
 export function DimorphismSection({ dimorphism, photo, featureParsing = null, landmarks = null }) {
   const t = useTranslations('Report')
+  const locale = useLocale()
+  const cvLabel = useCvLabel()
 
   if (!dimorphism) return null
 
   const cropFor = (featureName) => {
-    const id = FEATURE_NAME_TO_PARSING_ID[featureName]
+    const id = FEATURE_NAME_TO_NAV[featureName]
     if (!id) return null
     return resolveFeatureHero(id, null, featureParsing)
   }
@@ -159,10 +166,13 @@ export function DimorphismSection({ dimorphism, photo, featureParsing = null, la
             scaleLeft={dimorphism.scaleLeft}
             scaleRight={dimorphism.scaleRight}
             t={t}
+            cvLabel={cvLabel}
           />
-          <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
-            <p className="qoves-report-mono-label mb-2">{t('common.explanation')}</p>
-            <p className="text-sm text-ink-secondary leading-relaxed font-sans">{dimorphism.explanation}</p>
+          <div className="report-view-metric-card">
+            <p className="report-view-mono-label mb-2">{t('common.explanation')}</p>
+            <p className="text-sm text-ink-secondary leading-relaxed font-sans">
+              {pickLocalizedCvText(dimorphism, locale)}
+            </p>
           </div>
         </div>
       </div>
@@ -185,6 +195,8 @@ export function DimorphismSection({ dimorphism, photo, featureParsing = null, la
               photo={photo}
               landmarks={landmarks}
               featureParsing={featureParsing}
+              cvLabel={cvLabel}
+              locale={locale}
             />
           ))}
         </div>

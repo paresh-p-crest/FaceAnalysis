@@ -1,6 +1,6 @@
 /**
  * DEV ONLY — delete this file before production.
- * Sample questionnaire answers (all 23 Qoves onboarding questions).
+ * Sample questionnaire answers (all 23 onboarding questions).
  */
 import { INITIAL_ANSWERS } from './constants'
 

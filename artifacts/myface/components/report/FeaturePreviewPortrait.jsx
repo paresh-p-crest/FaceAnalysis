@@ -5,7 +5,7 @@ import {
   FEATURE_PREVIEW_CALLOUTS,
   mapCoverTopCenter,
   resolveFeaturePreviewCallouts,
-} from '../../utils/qovesProtocolModel'
+} from '../../utils/reportProtocolModel'
 
 export { FEATURE_PREVIEW_CALLOUTS }
 

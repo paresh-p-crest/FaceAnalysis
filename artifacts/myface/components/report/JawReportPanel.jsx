@@ -4,12 +4,12 @@ import { useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { resolveFeatureHero } from '../../utils/featureParsing'
+import { toCvLabelKey } from '../../utils/cvReportLocale'
 import {
   AllMetricsTable,
   FeatureHeroFrame,
   FeatureSummaryGrid,
 } from './FeatureSummaryUi'
-
 function fmt(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return null
   return Number(v).toFixed(digits)
@@ -24,35 +24,35 @@ function textOrNull(v) {
 
 function classifyDefinition(riseMm, cvDef) {
   const fromCv = textOrNull(cvDef)
-  if (fromCv === 'Soft') return 'Soft / Rounded'
-  if (fromCv === 'Defined') return 'Moderate / Defined'
-  if (fromCv === 'Angular') return 'Angular / Defined'
-  if (!Number.isFinite(riseMm)) return fromCv
-  if (riseMm < 18) return 'Soft / Rounded'
-  if (riseMm > 32) return 'Angular / Defined'
-  return 'Moderate / Defined'
+  if (fromCv === 'Soft') return 'softRounded'
+  if (fromCv === 'Defined') return 'moderateDefined'
+  if (fromCv === 'Angular') return 'angularDefined'
+  if (!Number.isFinite(riseMm)) return toCvLabelKey(fromCv)
+  if (riseMm < 18) return 'softRounded'
+  if (riseMm > 32) return 'angularDefined'
+  return 'moderateDefined'
 }
 
 function classifyWidth(widthMm, cvWidth) {
-  const fromCv = textOrNull(cvWidth)
+  const fromCv = toCvLabelKey(cvWidth)
   if (fromCv) return fromCv
   if (!Number.isFinite(widthMm)) return null
-  if (widthMm < 90) return 'Narrow'
-  if (widthMm > 110) return 'Wide'
-  return 'Balanced'
+  if (widthMm < 90) return 'narrow'
+  if (widthMm > 110) return 'wide'
+  return 'balanced'
 }
 
 function classifyShape(avgAngle) {
   if (!Number.isFinite(avgAngle)) return null
-  if (avgAngle < 55) return 'Sharp V / U'
-  if (avgAngle < 75) return 'Soft Taper'
-  return 'Square'
+  if (avgAngle < 55) return 'sharpVU'
+  if (avgAngle < 75) return 'softTaper'
+  return 'square'
 }
 
 /**
  * Jaw — Lips-matched UI. Image source / data unchanged.
  */
-export function JawReportPanel({ jaw, featureParsing, narrative: _narrative, imageSrc = null }) {
+export function JawReportPanel({ jaw, featureParsing, imageSrc = null }) {
   const t = useTranslations('Report')
   const j = jaw || {}
   const heroImage = resolveFeatureHero('jaw', j, featureParsing) || imageSrc || j.imageSrc
@@ -195,6 +195,7 @@ export function JawReportPanel({ jaw, featureParsing, narrative: _narrative, ima
         <p className="font-display text-base font-bold text-ink mb-3">{t('jaw.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
+
     </div>
   )
 }

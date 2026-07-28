@@ -15,6 +15,7 @@ from .face_crop import (
     lm, dist, bbox_from_indices, merge_bboxes, bbox_eyes_region,
     bbox_brows_region, RIGHT_EYE, LEFT_EYE,
 )
+from . import cv_report_explanations_de as expl_de
 
 
 # Landmark groups for under-eye regions
@@ -97,6 +98,17 @@ def _build_explanation(metrics: dict) -> str:
         f"{metrics['underEyeHealth'].lower()} under-eye appearance. "
         f"Lower eyelid curvature ({metrics['lowerLidCurvature']}) is "
         f"{metrics['curvatureDescription'].lower()} — typical bending range is 0.76–0.92."
+    )
+
+
+def _build_explanation_de(metrics: dict) -> str:
+    return (
+        f"Deine Augen zeigen {metrics['eyeTilt'].lower()}en Kanthalneigungswinkel mit "
+        f"{metrics['eyelidExposure'].lower()}er Lidexposition. "
+        f"Die Sklera wirkt {metrics['scleraColor'].lower()} mit "
+        f"{metrics['underEyeHealth'].lower()}em Unteraugen-Erscheinungsbild. "
+        f"Die Unterlidkrümmung ({metrics['lowerLidCurvature']}) ist "
+        f"{metrics['curvatureDescription'].lower()} — typischer Biegebereich ist 0,76–0,92."
     )
 
 
@@ -235,6 +247,11 @@ def eyelash_metrics(landmarks: list, image_bytes: bytes) -> dict:
             f"Lash-line contrast index {edge_var:.0f} suggests {density.lower()} apparent density "
             f"with {darkness_label.lower()} lash pigmentation on the frontal photo."
         ),
+        "explanationDe": (
+            f"Wimpernlinien-Kontrastindex {edge_var:.0f} deutet auf {expl_de.label_de(density)}e "
+            f"scheinbare Dichte mit {expl_de.label_de(darkness_label)}er Wimpernpigmentierung "
+            f"auf dem Frontalfoto hin."
+        ),
     }
 
 
@@ -260,6 +277,10 @@ def under_eye_metrics(landmarks: list, image_bytes: bytes) -> dict:
         "explanation": (
             f"Under-eye brightness {avg_bright:.0f} with {pigmentation.lower()} pigmentation signal; "
             f"hollowing reads as {hollowing.lower()} on the frontal photo."
+        ),
+        "explanationDe": (
+            f"Unteraugen-Helligkeit {avg_bright:.0f} mit {expl_de.label_de(pigmentation)}em "
+            f"Pigmentsignal; die Hohlheit wirkt {hollowing.lower()} auf dem Frontalfoto."
         ),
     }
 
@@ -296,6 +317,7 @@ def assemble_eyes_region(
             "peakHeight": brow_metrics.get("peakHeight"),
             "symmetryScore": brow_metrics.get("symmetryScore"),
             "explanation": brow_metrics.get("explanation"),
+            "explanationDe": brow_metrics.get("explanationDe"),
             "dataSource": "measured",
         },
         "eyelashes": lashes,
@@ -307,6 +329,7 @@ def assemble_eyes_region(
             "lowerLidCurvature": metrics.get("lowerLidCurvature"),
             "curvatureDescription": metrics.get("curvatureDescription"),
             "explanation": metrics.get("explanation"),
+            "explanationDe": metrics.get("explanationDe"),
             "dataSource": "measured",
         },
         "underEye": under_eye,
@@ -342,6 +365,7 @@ def analyze_eyes(landmarks: list, image_bytes: bytes) -> dict:
         (left_under_stats["brightness"] + right_under_stats["brightness"]) / 2
     )
     metrics["explanation"] = _build_explanation(metrics)
+    metrics["explanationDe"] = _build_explanation_de(metrics)
 
     return {"eyesCrop": eyes_crop, "eyesBox": eyes_box, "metrics": metrics}
 

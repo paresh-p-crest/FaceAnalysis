@@ -42,7 +42,7 @@ export const FACEMESH_NOSE = [
 ]
 
 /**
- * Qoves-style nose for prototypicality mesh:
+ * report-style nose for prototypicality mesh:
  * vertical bridge stops at tip (4); triangle continues tip → alae → alae.
  */
 export const PROTOTYPICALITY_NOSE = [
@@ -62,7 +62,7 @@ export const PROTOTYPICALITY_FACE_OUTLINE = [
 ]
 
 /**
- * Thick polygonal brows (Qoves-style): upper ridge + lower ridge closed at inner/outer tips.
+ * Thick polygonal brows (report-style): upper ridge + lower ridge closed at inner/outer tips.
  * Person's right / left.
  */
 export const PROTOTYPICALITY_RIGHT_EYEBROW = [

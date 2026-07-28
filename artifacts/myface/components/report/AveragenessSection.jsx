@@ -1,12 +1,15 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 import { ReportSectionHeading, ReportExplanationCard } from './ReportSectionHeading'
 import { PrototypicalityShapeAnalysis } from './PrototypicalityShapeAnalysis'
 import { prototypicalityRangeLabel } from '../../utils/prototypicalityWireframe'
+import { pickLocalizedCvText, useCvLabel } from '../../utils/cvReportLocale'
 
 export function AveragenessSection({ averageness, landmarks }) {
   const t = useTranslations('Report')
+  const locale = useLocale()
+  const cvLabel = useCvLabel()
 
   if (!averageness || averageness.score == null) {
     return (
@@ -17,11 +20,11 @@ export function AveragenessSection({ averageness, landmarks }) {
   }
 
   const score = averageness.score
-  const label = averageness.label
-  const explanation = averageness.explanation
-  const rangeLabel = averageness.rangeLabel || prototypicalityRangeLabel(score)
-  const scaleLeft = averageness.scaleLeft || t('averageness.distinctive')
-  const scaleRight = averageness.scaleRight || t('averageness.highlyTypical')
+  const label = averageness.label ? cvLabel(averageness.label) : null
+  const explanation = pickLocalizedCvText(averageness, locale)
+  const rangeLabel = cvLabel(averageness.rangeLabel || prototypicalityRangeLabel(score))
+  const scaleLeft = cvLabel(averageness.scaleLeft || t('averageness.distinctive'))
+  const scaleRight = cvLabel(averageness.scaleRight || t('averageness.highlyTypical'))
 
   return (
     <div className="space-y-6">
@@ -32,13 +35,13 @@ export function AveragenessSection({ averageness, landmarks }) {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 qoves-report-metric-card p-5 sm:p-6">
+        <div className="lg:col-span-2 report-view-metric-card p-5 sm:p-6">
           <PrototypicalityShapeAnalysis landmarks={landmarks} averageness={averageness} />
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="qoves-report-metric-card text-center flex flex-col min-h-[180px]">
-            <p className="qoves-report-mono-label mb-6">{t('averageness.prototypicality')}</p>
+          <div className="report-view-metric-card text-center flex flex-col min-h-[180px]">
+            <p className="report-view-mono-label mb-6">{t('averageness.prototypicality')}</p>
             <p className="text-[5.5rem] leading-none font-display font-bold text-ink tracking-tight flex-1 flex items-center justify-center">
               {score}
             </p>
@@ -48,8 +51,8 @@ export function AveragenessSection({ averageness, landmarks }) {
             </div>
           </div>
 
-          <div className="qoves-report-metric-card">
-            <p className="qoves-report-mono-label mb-2">{t('averageness.prototypicalityRange')}</p>
+          <div className="report-view-metric-card">
+            <p className="report-view-mono-label mb-2">{t('averageness.prototypicalityRange')}</p>
             <p className="text-lg font-display font-bold text-ink mb-5">{rangeLabel}</p>
             <div className="relative h-[3px] rounded-full bg-surface-border mb-3">
               <div

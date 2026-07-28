@@ -8,7 +8,6 @@ import {
   FeatureSummaryGrid,
 } from './FeatureSummaryUi'
 import { resolveFeatureHero } from '../../utils/featureParsing'
-
 function fmt(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return null
   return Number(v).toFixed(digits)
@@ -108,7 +107,7 @@ function buildDetailSlides(s, t) {
   return slides
 }
 
-export function SkinReportPanel({ skin, narrative: _narrative = null, featureParsing = null }) {
+export function SkinReportPanel({ skin, featureParsing = null }) {
   const t = useTranslations('Report')
   if (!skin) return null
 
@@ -189,6 +188,7 @@ export function SkinReportPanel({ skin, narrative: _narrative = null, featurePar
         <p className="font-display text-base font-bold text-ink mb-3">{t('skin.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
+
     </div>
   )
 }

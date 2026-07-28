@@ -29,7 +29,7 @@ import {
   isBackendApiEnabled,
 } from '../utils/apiClient'
 import { formatHistoryDate } from '../utils/historyStorage'
-import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/qovesProtocolModel'
+import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/reportProtocolModel'
 
 function money(amountCents, currency = 'usd') {
   return new Intl.NumberFormat('en-US', {

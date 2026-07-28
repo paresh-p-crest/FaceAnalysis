@@ -8,7 +8,6 @@ import {
   FeatureHeroFrame,
   FeatureSummaryGrid,
 } from './FeatureSummaryUi'
-
 function fmt(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return null
   return Number(v).toFixed(digits)
@@ -17,25 +16,25 @@ function fmt(v, digits = 2) {
 function classifyMalarWidth(ratio) {
   if (ratio == null || Number.isNaN(Number(ratio))) return null
   const r = Number(ratio)
-  if (r < 0.72) return 'Narrow'
-  if (r > 0.9) return 'Wide'
-  return 'Average'
+  if (r < 0.72) return 'narrow'
+  if (r > 0.9) return 'wide'
+  return 'average'
 }
 
 function classifyCheekPosition(ratio) {
   if (ratio == null || Number.isNaN(Number(ratio))) return null
   const r = Number(ratio)
-  if (r < 0.38) return 'High'
-  if (r > 0.52) return 'Low'
-  return 'Average'
+  if (r < 0.38) return 'high'
+  if (r > 0.52) return 'low'
+  return 'average'
 }
 
 function classifyCheekFullness(ratio) {
   if (ratio == null || Number.isNaN(Number(ratio))) return null
   const r = Number(ratio)
-  if (r < 0.72) return 'Lean'
-  if (r > 0.9) return 'Full'
-  return 'Average'
+  if (r < 0.72) return 'lean'
+  if (r > 0.9) return 'full'
+  return 'average'
 }
 
 /**
@@ -44,7 +43,6 @@ function classifyCheekFullness(ratio) {
 export function CheekReportPanel({
   cheeks,
   featureParsing,
-  narrative: _narrative,
   photoOverlay = null,
   heroSlot = null,
 }) {
@@ -88,11 +86,11 @@ export function CheekReportPanel({
   if (metrics.malarRatio != null) {
     slides.push({
       id: 'malar',
-      titleLead: 'Malar Width',
-      titleAccent: 'Ratio',
-      body: 'Facial width / face height. Higher = broader, more angular face shape.',
+      titleLead: t('cheek.slides.malar.titleLead'),
+      titleAccent: t('cheek.slides.malar.titleAccent'),
+      body: t('cheek.slides.malar.body'),
       meter: {
-        metricLabel: 'Malar Width Ratio',
+        metricLabel: t('cheek.slides.malar.metricLabel'),
         sourceLabel: landmark,
         valueText: fmt(metrics.malarRatio, 4),
         valueNum: metrics.malarRatio,
@@ -106,29 +104,29 @@ export function CheekReportPanel({
   if (metrics.positionAvg != null) {
     slides.push({
       id: 'position',
-      titleLead: 'Cheekbone',
-      titleAccent: 'Position',
-      body: 'Vertical position of the cheekbone apex as a fraction of face height. Lower value = higher set cheekbones.',
+      titleLead: t('cheek.slides.position.titleLead'),
+      titleAccent: t('cheek.slides.position.titleAccent'),
+      body: t('cheek.slides.position.body'),
       meter: {
-        metricLabel: 'Cheekbone Position',
+        metricLabel: t('cheek.slides.position.metricLabel'),
         sourceLabel: landmark,
         valueText: fmt(metrics.positionAvg, 4),
         valueNum: metrics.positionAvg,
         rangeMin: 0.3,
         rangeMax: 0.6,
-        rangeMinLabel: '0.30 high',
-        rangeMaxLabel: '0.60 low',
+        rangeMinLabel: t('cheek.slides.position.rangeMinLabel'),
+        rangeMaxLabel: t('cheek.slides.position.rangeMaxLabel'),
       },
     })
   }
   if (metrics.facialWidth != null) {
     slides.push({
       id: 'facial-width',
-      titleLead: 'Facial Width',
-      titleAccent: '(mm)',
-      body: 'Bizygomatic width — distance between the outermost cheekbone points.',
+      titleLead: t('cheek.slides.facialWidth.titleLead'),
+      titleAccent: t('cheek.slides.facialWidth.titleAccent'),
+      body: t('cheek.slides.facialWidth.body'),
       meter: {
-        metricLabel: 'Facial Width',
+        metricLabel: t('cheek.slides.facialWidth.metricLabel'),
         sourceLabel: landmark,
         valueText: metrics.facialWidth != null ? `${fmt(metrics.facialWidth)} mm` : null,
         valueNum: metrics.facialWidth,
@@ -149,18 +147,18 @@ export function CheekReportPanel({
 
   const left = [
     {
-      label: 'Facial Width',
+      label: t('cheek.metrics.facialWidth'),
       value: metrics.facialWidth != null ? `${fmt(metrics.facialWidth)} mm` : null,
     },
-    { label: 'Malar Width Ratio', value: fmt(metrics.malarRatio, 4) },
-    { label: 'Width Classification', value: metrics.widthClass },
-    { label: 'Fullness Classification', value: metrics.fullnessClass },
+    { label: t('cheek.metrics.malarRatio'), value: fmt(metrics.malarRatio, 4) },
+    { label: t('cheek.metrics.widthClass'), value: metrics.widthClass },
+    { label: t('cheek.metrics.fullnessClass'), value: metrics.fullnessClass },
   ]
   const right = [
-    { label: 'Right Cheekbone Position', value: fmt(metrics.rightPos, 4) },
-    { label: 'Left Cheekbone Position', value: fmt(metrics.leftPos, 4) },
-    { label: 'Position Classification', value: metrics.positionClass },
-    { label: 'Height Classification', value: metrics.heightClass },
+    { label: t('cheek.metrics.rightPosition'), value: fmt(metrics.rightPos, 4) },
+    { label: t('cheek.metrics.leftPosition'), value: fmt(metrics.leftPos, 4) },
+    { label: t('cheek.metrics.positionClass'), value: metrics.positionClass },
+    { label: t('cheek.metrics.heightClass'), value: metrics.heightClass },
   ]
 
   return (
@@ -199,6 +197,7 @@ export function CheekReportPanel({
         <p className="font-display text-base font-bold text-ink mb-3">{t('cheek.allMetrics')}</p>
         <AllMetricsTable left={left} right={right} />
       </div>
+
     </div>
   )
 }

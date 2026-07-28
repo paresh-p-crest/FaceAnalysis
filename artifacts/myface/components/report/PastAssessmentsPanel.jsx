@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { History, Loader2, RefreshCw, X } from 'lucide-react'
 import { formatHistoryDate } from '../../utils/historyStorage'
 import { fetchAdminAssessments, fetchMyAssessments, isBackendApiEnabled } from '../../utils/apiClient'
-import { formatAssessmentRef, resolveOverallHarmonyScore } from '../../utils/qovesProtocolModel'
+import { formatAssessmentRef, resolveOverallHarmonyScore } from '../../utils/reportProtocolModel'
 import { isReportApproved, userReportReady } from '../../utils/reportWorkflow'
 
 function StatusPill({ ready, readyLabel, pendingLabel }) {

@@ -159,7 +159,8 @@ def build_hair_prompt(
         "exactly as it is. Give this person a "
         f"{style.display_name}: {style.descriptor}. For {anchors['face_shape_phrase']} with {anchors['hairline_phrase']} — "
         "preserve the exact hair color and natural texture from the reference image; "
-        "do not dye, bleach, lighten, darken, or shift undertone. Change cut, shape, and finish only."
+        "do not dye, bleach, lighten, darken, or shift undertone. Change cut, shape, and finish only. "
+        "Keep the same head-and-shoulders crop. Style the hair within the frame — don't zoom out to show full length."
     )
 
 
@@ -515,14 +516,17 @@ def merge_ai_visuals(
     else:
         out["variantCounts"] = dict(_VARIANT_COUNT_BY_TYPE)
 
-    # outfitBaseline: full/category outfit regen replaces; hair/aging-only keeps existing.
-    regen_outfit = bool(
-        style_id
-        and any(v.get("type") == "outfit" for v in new_variants)
-    ) or bool(replaced_types and "outfit" in replaced_types) or (
-        not style_id and not replaced_types
-    )
-    if not regen_outfit and existing.get("outfitBaseline") and "outfitBaseline" not in regenerated:
+    # outfitBaseline: temporarily not generated (outfit UI is after-only).
+    # When white-tee baseline returns, restore regen_outfit merge below.
+    # regen_outfit = bool(
+    #     style_id
+    #     and any(v.get("type") == "outfit" for v in new_variants)
+    # ) or bool(replaced_types and "outfit" in replaced_types) or (
+    #     not style_id and not replaced_types
+    # )
+    # if not regen_outfit and existing.get("outfitBaseline") and "outfitBaseline" not in regenerated:
+    #     out["outfitBaseline"] = existing["outfitBaseline"]
+    if existing.get("outfitBaseline") and "outfitBaseline" not in regenerated:
         out["outfitBaseline"] = existing["outfitBaseline"]
 
     return out
@@ -644,15 +648,17 @@ async def generate_visual_variants(
     variants = []
     outfit_baseline = None
 
-    if "outfit" in selected:
-        outfit_baseline = await _generate_outfit_baseline(
-            image_bytes=image_bytes,
-            assessment_id=assessment_id,
-            can_generate=can_generate,
-            resolve_note=resolve_note,
-            existing_ai_visuals=existing_ai_visuals,
-            style_id_set=style_id_set,
-        )
+    # Temporarily disabled: outfit UI is after-only (no white-tee BEFORE compare).
+    # Restore by uncommenting the block below when outfit before/after returns.
+    # if "outfit" in selected:
+    #     outfit_baseline = await _generate_outfit_baseline(
+    #         image_bytes=image_bytes,
+    #         assessment_id=assessment_id,
+    #         can_generate=can_generate,
+    #         resolve_note=resolve_note,
+    #         existing_ai_visuals=existing_ai_visuals,
+    #         style_id_set=style_id_set,
+    #     )
 
     for variant_type in selected:
         if style_id_set:

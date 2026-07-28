@@ -1,18 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { Loader2 } from 'lucide-react'
 import {
   cloneProtocolDraft,
   draftSnapshot,
+  draftToAssessmentPayload,
   mergeNarrativesForPdf,
   setClosingParagraphs,
   setFeatureSummary,
   upsertFeatureSubsection,
 } from '../../utils/protocolSections'
 import { updateAssessmentAdminReview } from '../../utils/apiClient'
+import { pickLocalizedNarratives } from '../../utils/narrativeLocale'
 import { ProtocolNarrativeEditDock } from './ProtocolNarrativeEditDock'
-import QovesProtocolReport from './QovesProtocolReport'
+import ProtocolReport from './ProtocolReport'
 
 function pickVisibleProtocolSection(scrollRoot) {
   if (!scrollRoot) return null
@@ -56,6 +59,8 @@ export function ProtocolDocumentViewer({
   adminAssessment = null,
   onNarrativesSaved,
 }) {
+  const locale = useLocale()
+  const t = useTranslations('Report')
   const showHtmlPreview = showAdminEdit
   const scrollRef = useRef(null)
   const [building, setBuilding] = useState(false)
@@ -65,13 +70,19 @@ export function ProtocolDocumentViewer({
   const [saveError, setSaveError] = useState('')
   const [sectionId, setSectionId] = useState('overview')
   const [draft, setDraft] = useState(() =>
-    cloneProtocolDraft({ protocolNarrative, featureNarratives })
+    cloneProtocolDraft({ protocolNarrative, featureNarratives }, locale)
   )
   const [savedKey, setSavedKey] = useState(() =>
-    draftSnapshot(cloneProtocolDraft({ protocolNarrative, featureNarratives }))
+    draftSnapshot(cloneProtocolDraft({ protocolNarrative, featureNarratives }, locale))
   )
 
   const dirty = useMemo(() => draftSnapshot(draft) !== savedKey, [draft, savedKey])
+
+  const localizedPreview = useMemo(
+    () => pickLocalizedNarratives({ aiNarrative, protocolNarrative, featureNarratives }, locale, { t }),
+    [aiNarrative, protocolNarrative, featureNarratives, locale, t],
+  )
+  const previewAiNarrative = localizedPreview.aiNarrative ?? aiNarrative
 
   const displayNarrative = useMemo(
     () => mergeNarrativesForPdf(draft.protocolNarrative, draft.featureNarratives),
@@ -79,11 +90,11 @@ export function ProtocolDocumentViewer({
   )
 
   useEffect(() => {
-    const next = cloneProtocolDraft({ protocolNarrative, featureNarratives })
+    const next = cloneProtocolDraft({ protocolNarrative, featureNarratives }, locale)
     setDraft(next)
     setSavedKey(draftSnapshot(next))
     setSaveError('')
-  }, [assessmentId, protocolNarrative, featureNarratives])
+  }, [assessmentId, protocolNarrative, featureNarratives, locale])
 
   useEffect(() => {
     if (!dirty) return undefined
@@ -128,12 +139,15 @@ export function ProtocolDocumentViewer({
     setSaving(true)
     setSaveError('')
     try {
+      const payload = draftToAssessmentPayload(draft, {
+        protocolNarrative,
+        featureNarratives,
+      })
       const updated = await updateAssessmentAdminReview(assessmentId, {
         status: adminAssessment?.status || 'pending_review',
-        protocolNarrative: draft.protocolNarrative,
-        featureNarratives: draft.featureNarratives,
+        ...payload,
       })
-      const next = cloneProtocolDraft(updated)
+      const next = cloneProtocolDraft(updated, locale)
       setDraft(next)
       setSavedKey(draftSnapshot(next))
       onNarrativesSaved?.(updated)
@@ -143,7 +157,7 @@ export function ProtocolDocumentViewer({
     } finally {
       setSaving(false)
     }
-  }, [assessmentId, adminAssessment?.status, dirty, draft, onNarrativesSaved])
+  }, [assessmentId, adminAssessment?.status, dirty, draft, onNarrativesSaved, locale, protocolNarrative, featureNarratives])
 
   const handleSectionIdChange = useCallback((id) => {
     setSectionId(id)
@@ -204,6 +218,9 @@ export function ProtocolDocumentViewer({
     setBuildError('')
     try {
       const { buildMyFacePdf } = await import('../../utils/reportPdf')
+      const messagesModule = locale === 'de'
+        ? await import('../../messages/de.json')
+        : await import('../../messages/en.json')
       const { blob } = await buildMyFacePdf({
         photo,
         photos,
@@ -213,7 +230,7 @@ export function ProtocolDocumentViewer({
         protocolNarrative: displayNarrative,
         answers,
         eyeAnalysis,
-        aiNarrative,
+        aiNarrative: previewAiNarrative,
         user,
         assessmentOwner,
         projectedAfter,
@@ -221,6 +238,8 @@ export function ProtocolDocumentViewer({
         assessmentId,
         createdAt: adminAssessment?.createdAt,
         updatedAt: adminAssessment?.updatedAt,
+        pdfMessages: messagesModule?.default || messagesModule,
+        locale,
       })
       setBlobUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev)
@@ -241,13 +260,14 @@ export function ProtocolDocumentViewer({
     displayNarrative,
     answers,
     eyeAnalysis,
-    aiNarrative,
+    previewAiNarrative,
     user,
     assessmentOwner,
     projectedAfter,
     projectedAnalysis,
     assessmentId,
     adminAssessment,
+    locale,
   ])
 
   useEffect(() => {
@@ -265,7 +285,7 @@ export function ProtocolDocumentViewer({
 
   if (protocolLoading) {
     return (
-      <div className="qoves-protocol-viewer qoves-protocol-viewer--fill flex flex-col items-center justify-center">
+      <div className="report-protocol-viewer report-protocol-viewer--fill flex flex-col items-center justify-center">
         <Loader2 className="w-8 h-8 text-brand animate-spin" />
         <p className="text-ink-muted text-sm font-sans mt-4">Preparing aesthetic protocol…</p>
       </div>
@@ -273,15 +293,15 @@ export function ProtocolDocumentViewer({
   }
 
   return (
-    <div className="qoves-protocol-viewer qoves-protocol-viewer--fill">
-      <div className={`qoves-protocol-layout ${showAdminEdit ? 'qoves-protocol-layout--with-edit' : ''}`}>
+    <div className="report-protocol-viewer report-protocol-viewer--fill">
+      <div className={`report-protocol-layout ${showAdminEdit ? 'report-protocol-layout--with-edit' : ''}`}>
         <div
           ref={scrollRef}
-          className={`qoves-protocol-scroll ${showHtmlPreview ? 'qoves-protocol-scroll--html' : ''}`}
+          className={`report-protocol-scroll ${showHtmlPreview ? 'report-protocol-scroll--html' : ''}`}
         >
           {showHtmlPreview ? (
             <>
-              <div className={`qoves-protocol-edit-status ${saveError ? 'qoves-protocol-edit-status--error' : ''}`}>
+              <div className={`report-protocol-edit-status ${saveError ? 'report-protocol-edit-status--error' : ''}`}>
                 {saving ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -295,7 +315,7 @@ export function ProtocolDocumentViewer({
                   'Click overview, feature, or closing text to edit. Save in the panel when ready.'
                 )}
               </div>
-              <QovesProtocolReport
+              <ProtocolReport
                 photo={photo}
                 photos={photos}
                 landmarks={landmarks}
@@ -306,7 +326,7 @@ export function ProtocolDocumentViewer({
                 assessmentOwner={assessmentOwner}
                 eyeAnalysis={eyeAnalysis}
                 protocolNarrative={displayNarrative}
-                aiNarrative={aiNarrative}
+                aiNarrative={previewAiNarrative}
                 projectedAfter={projectedAfter}
                 projectedAnalysis={projectedAnalysis}
                 assessmentId={assessmentId}
@@ -337,7 +357,7 @@ export function ProtocolDocumentViewer({
                 <iframe
                   title="Protocol PDF"
                   src={blobUrl}
-                  className="qoves-protocol-pdf-frame"
+                  className="report-protocol-pdf-frame"
                 />
               )}
             </>

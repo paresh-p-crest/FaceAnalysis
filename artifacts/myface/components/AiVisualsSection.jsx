@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { Image, Loader2, Sparkles, X } from 'lucide-react'
+import { Image, CircleHelp, Loader2, Sparkles, X } from 'lucide-react'
 import { resolveStylePanelCopy } from '../utils/aiVisualStyleCopy'
 import { coercePhotoUrl } from '../utils/assessmentPhotos'
 
@@ -26,7 +26,7 @@ function ImagePreviewModal({ src, title, onClose, closeLabel }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 sm:p-8"
+      className="fixed inset-0 z-[220] flex items-center justify-center bg-black/70 p-4 sm:p-8"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -35,7 +35,7 @@ function ImagePreviewModal({ src, title, onClose, closeLabel }) {
       <button
         type="button"
         onClick={onClose}
-        className="absolute top-4 right-4 report-shell-btn min-w-[36px] px-2.5 z-10"
+        className="absolute top-4 right-4 report-shell-btn min-w-[36px] px-2.5 z-20 sm:top-5 sm:right-5"
         aria-label={closeLabel}
       >
         <X className="w-4 h-4" />
@@ -86,6 +86,56 @@ function aiVisualFrameAspect(ratio) {
 }
 
 const AI_VISUAL_IMG_FRAME = 'w-full max-w-[22rem] shrink-0'
+
+function StyleAboutTooltip({ type, t }) {
+  const tooltipId = `ai-visual-about-${type}`
+  return (
+    <span className="group/about relative inline-flex shrink-0">
+      <button
+        type="button"
+        className="inline-flex items-center gap-1.5 text-sm text-[#758084] transition-colors hover:text-ink-muted"
+        aria-describedby={tooltipId}
+      >
+        <span>{t(`about.${type}.link`)}</span>
+        <CircleHelp className="h-3 w-3 shrink-0" strokeWidth={1.5} aria-hidden />
+      </button>
+      <div
+        id={tooltipId}
+        role="tooltip"
+        className="pointer-events-none invisible absolute right-0 top-full z-30 mt-2 w-[min(calc(100vw-2rem),20rem)] rounded-xl bg-[#4a4f52] px-4 py-3 text-left opacity-0 shadow-xl transition-opacity duration-150 group-hover/about:visible group-hover/about:opacity-100 group-focus-within/about:visible group-focus-within/about:opacity-100 sm:w-80"
+      >
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-white/50">
+          {t(`about.${type}.tooltipTitle`)}
+        </p>
+        <p className="mb-2 text-sm font-bold leading-snug text-white">
+          {t(`about.${type}.tooltipP1`)}
+        </p>
+        <p className="text-sm font-bold leading-snug text-white">
+          {t(`about.${type}.tooltipP2`)}
+        </p>
+      </div>
+    </span>
+  )
+}
+
+function StyleSectionHeader({ type, t }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <h3 className="font-sans text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+          {t(`headers.${type}.titleLead`)}{' '}
+          <strong className="font-semibold">{t(`headers.${type}.titleAccent`)}</strong>
+        </h3>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-muted">
+          {t.rich(`headers.${type}.subtitle`, {
+            emph: (chunks) => <strong className="font-semibold text-ink-muted">{chunks}</strong>,
+          })}
+        </p>
+      </div>
+      <StyleAboutTooltip type={type} t={t} />
+    </div>
+  )
+}
 
 /** Drag slider: left reveals before, right reveals after. `position` = % width showing before. */
 function BeforeAfterSlider({ beforeSrc, afterSrc, beforeLabel, afterLabel, title, aspectRatio }) {
@@ -216,10 +266,96 @@ function RegenerateStyleButton({
   )
 }
 
-function StyleCompareHero({
+function StylePanelAside({
+  type,
+  variant,
+  t,
+  showGenerate,
+  canGenerate,
+  loading,
+  regeneratingStyleId,
+  onGenerateStyle,
+  className = '',
+}) {
+  const panel = resolveStylePanelCopy(type, variant)
+  const displayTitle = type === 'outfit' ? titleCaseLabel(variant.title) : variant.title
+  const attrLabel = (key) => (t.has(`panel.attrs.${key}`) ? t(`panel.attrs.${key}`) : key)
+  const attrValue = (raw) => (t.has(`panel.values.${raw}`) ? t(`panel.values.${raw}`) : raw)
+
+  return (
+    <aside
+      className={`flex min-h-full min-w-0 flex-col justify-between self-stretch rounded-2xl border border-surface-border bg-[#f4f6f7] px-4 py-4 sm:px-5 sm:py-5 dark:bg-surface-raised ${className}`.trim()}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h4 className="font-sans text-lg font-semibold text-ink leading-snug">
+          {displayTitle}
+        </h4>
+        <div className="flex items-center gap-2 shrink-0">
+          <RegenerateStyleButton
+            styleId={variant.styleId}
+            show={showGenerate}
+            canGenerate={canGenerate}
+            loading={loading}
+            regeneratingStyleId={regeneratingStyleId}
+            onGenerateStyle={onGenerateStyle}
+            t={t}
+          />
+        </div>
+      </div>
+
+      {panel ? (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            {panel.attrKeys.map((key) => (
+              <div
+                key={key}
+                className="rounded-xl border border-surface-border bg-white px-3 py-2.5 shadow-sm dark:bg-surface-card"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+                  {attrLabel(key)}
+                </p>
+                <p className="mt-1 font-sans text-sm font-semibold text-ink">
+                  {attrValue(panel.attrs[key])}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+              {t('panel.explanation')}
+            </p>
+            <p className="text-sm leading-relaxed text-ink-muted">{panel.explanation}</p>
+          </div>
+        </>
+      ) : null}
+    </aside>
+  )
+}
+
+function StyleUnavailableFrame({ aspectRatio, status, error, needBefore, t }) {
+  return (
+    <div
+      className="flex h-full w-full items-center justify-center rounded-xl border border-surface-border bg-surface-warm px-4 text-center dark:bg-surface-raised"
+      style={{ aspectRatio: String(aiVisualFrameAspect(aspectRatio)) }}
+    >
+      <div>
+        <Image className="mx-auto mb-2 h-7 w-7 text-brand" />
+        <p className="font-sans text-sm font-semibold text-ink mb-1">
+          {status === 'blocked' ? t('generationBlocked') : t('promptReady')}
+        </p>
+        <p className="text-xs text-ink-muted leading-relaxed">
+          {error || (needBefore ? t('beforeUnavailable') : t('imageUnavailable'))}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** report-style stacked suggestion rows. Hair: before/after slider. Outfit: after only. */
+function StyleSuggestionList({
   type,
   variants,
-  beforeSrc,
+  beforeSrc = null,
   aspectRatio,
   t,
   onOpenImage,
@@ -229,30 +365,7 @@ function StyleCompareHero({
   regeneratingStyleId = null,
   onGenerateStyle = null,
 }) {
-  const recommendedKey = useMemo(() => {
-    const ready = variants.find((v) => coercePhotoUrl(v.imageSrc))
-    return variantKey(ready || variants[0] || { type, title: '' })
-  }, [variants, type])
-
-  const [selectedKey, setSelectedKey] = useState(recommendedKey)
-
-  useEffect(() => {
-    setSelectedKey(recommendedKey)
-  }, [recommendedKey])
-
-  const selected = useMemo(() => {
-    const found = variants.find((v) => variantKey(v) === selectedKey)
-    return found || variants.find((v) => coercePhotoUrl(v.imageSrc)) || variants[0] || null
-  }, [variants, selectedKey])
-
-  const selectedAfterSrc = selected ? coercePhotoUrl(selected.imageSrc) : null
-
-  const panel = useMemo(
-    () => (selected ? resolveStylePanelCopy(type, selected) : null),
-    [type, selected],
-  )
-
-  if (!variants.length || !selected) {
+  if (!variants.length) {
     return (
       <div className="rounded-2xl border border-dashed border-surface-border bg-surface-warm dark:bg-surface-raised p-10 text-center">
         <Image className="w-10 h-10 text-brand mx-auto mb-3" />
@@ -262,141 +375,80 @@ function StyleCompareHero({
     )
   }
 
-  const hasCompare = Boolean(beforeSrc && selectedAfterSrc)
-  const isQovesChoice = variantKey(selected) === recommendedKey
-  const displayTitle = type === 'outfit' ? titleCaseLabel(selected.title) : selected.title
-  const attrLabel = (key) => (t.has(`panel.attrs.${key}`) ? t(`panel.attrs.${key}`) : key)
-  const attrValue = (raw) => (t.has(`panel.values.${raw}`) ? t(`panel.values.${raw}`) : raw)
+  const useCompare = type === 'hair'
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
-        <div className={`${AI_VISUAL_IMG_FRAME}`}>
-          {hasCompare ? (
-            <BeforeAfterSlider
-              beforeSrc={beforeSrc}
-              afterSrc={selectedAfterSrc}
-              beforeLabel={t('compareBefore')}
-              afterLabel={t('compareAfter')}
-              title={displayTitle}
-              aspectRatio={aspectRatio}
-            />
-          ) : (
-            <div
-              className="flex h-full w-full items-center justify-center rounded-xl border border-surface-border bg-surface-warm px-4 text-center dark:bg-surface-raised"
-              style={{ aspectRatio: String(aiVisualFrameAspect(aspectRatio)) }}
-            >
-              <div>
-                <Image className="mx-auto mb-2 h-7 w-7 text-brand" />
-                <p className="font-sans text-sm font-semibold text-ink mb-1">
-                  {selected.status === 'blocked' ? t('generationBlocked') : t('promptReady')}
-                </p>
-                <p className="text-xs text-ink-muted leading-relaxed">
-                  {selected.error || (!beforeSrc ? t('beforeUnavailable') : t('imageUnavailable'))}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+    <div className="space-y-8">
+      {variants.map((variant) => {
+        const afterSrc = coercePhotoUrl(variant.imageSrc)
+        const displayTitle = type === 'outfit' ? titleCaseLabel(variant.title) : variant.title
+        const hasCompare = Boolean(useCompare && beforeSrc && afterSrc)
+        const hasAfterOnly = Boolean(!useCompare && afterSrc)
 
-        <aside className="flex min-w-0 w-full flex-1 flex-col rounded-2xl border border-surface-border bg-white p-4 shadow-soft dark:bg-surface-card sm:p-5">
-          <div className="mb-3 flex items-start justify-between gap-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-              {t('panel.recommended')}
-            </p>
-            <div className="flex items-center gap-2 shrink-0">
-              {isQovesChoice ? (
-                <span className="rounded-md border border-brand/25 bg-brand-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand">
-                  {t('panel.qovesChoice')}
-                </span>
-              ) : null}
-              <RegenerateStyleButton
-                styleId={selected.styleId}
-                show={showGenerate}
-                canGenerate={canGenerate}
-                loading={loading}
-                regeneratingStyleId={regeneratingStyleId}
-                onGenerateStyle={onGenerateStyle}
-                t={t}
-              />
-            </div>
-          </div>
-          <h4 className="mb-4 font-sans text-base font-semibold text-ink leading-snug">
-            {displayTitle}
-          </h4>
-
-          {panel ? (
-            <div className="flex min-h-0 flex-1 flex-col gap-4">
-              <div className="grid grid-cols-2 gap-2">
-                {panel.attrKeys.map((key) => (
-                  <div
-                    key={key}
-                    className="rounded-xl border border-surface-border bg-surface-warm/60 px-3 py-2.5 dark:bg-surface-raised"
-                  >
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                      {attrLabel(key)}
-                    </p>
-                    <p className="mt-1 font-sans text-sm font-semibold text-ink">
-                      {attrValue(panel.attrs[key])}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-auto">
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                  {t('panel.explanation')}
-                </p>
-                <p className="text-sm leading-relaxed text-ink-muted">{panel.explanation}</p>
-              </div>
-            </div>
-          ) : null}
-        </aside>
-      </div>
-
-      <div className={`${AI_VISUAL_IMG_FRAME} space-y-3`}>
-        {hasCompare ? (
-          <button
-            type="button"
-            onClick={() => onOpenImage(selectedAfterSrc, displayTitle)}
-            className="w-full text-center text-[11px] font-medium text-brand hover:underline"
+        return (
+          <article
+            key={variantKey(variant)}
+            className="grid grid-cols-1 gap-5 sm:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] sm:items-stretch sm:gap-x-4 sm:gap-y-2"
           >
-            {t('openPreviewHint')}
-          </button>
-        ) : null}
+            <div className={`${AI_VISUAL_IMG_FRAME} order-1 min-w-0 sm:col-start-1 sm:row-start-1`}>
+              {hasCompare ? (
+                <BeforeAfterSlider
+                  beforeSrc={beforeSrc}
+                  afterSrc={afterSrc}
+                  beforeLabel={t('compareBefore')}
+                  afterLabel={t('compareAfter')}
+                  title={displayTitle}
+                  aspectRatio={aspectRatio}
+                />
+              ) : hasAfterOnly ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenImage(afterSrc, displayTitle)}
+                  className="group block w-full overflow-hidden rounded-xl bg-surface-warm text-left dark:bg-surface-raised"
+                  style={{ aspectRatio: String(aiVisualFrameAspect(aspectRatio)) }}
+                  aria-label={t('openPreview', { title: displayTitle })}
+                >
+                  <img
+                    src={afterSrc}
+                    alt={displayTitle}
+                    className="h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.02]"
+                  />
+                </button>
+              ) : (
+                <StyleUnavailableFrame
+                  aspectRatio={aspectRatio}
+                  status={variant.status}
+                  error={variant.error}
+                  needBefore={useCompare && !beforeSrc}
+                  t={t}
+                />
+              )}
+            </div>
 
-        <div className="flex flex-wrap items-center gap-3" role="listbox" aria-label={t(`sections.${type}`)}>
-          {variants.map((variant) => {
-            const key = variantKey(variant)
-            const selectedThumb = key === variantKey(selected)
-            const thumbSrc = coercePhotoUrl(variant.imageSrc)
-            const thumbTitle = type === 'outfit' ? titleCaseLabel(variant.title) : variant.title
-            return (
+            <StylePanelAside
+              type={type}
+              variant={variant}
+              t={t}
+              showGenerate={showGenerate}
+              canGenerate={canGenerate}
+              loading={loading}
+              regeneratingStyleId={regeneratingStyleId}
+              onGenerateStyle={onGenerateStyle}
+              className="order-3 sm:order-2 sm:col-start-2 sm:row-start-1"
+            />
+
+            {hasCompare ? (
               <button
-                key={key}
                 type="button"
-                role="option"
-                aria-selected={selectedThumb}
-                aria-label={t('panel.selectStyle', { title: thumbTitle })}
-                disabled={!thumbSrc}
-                onClick={() => thumbSrc && setSelectedKey(key)}
-                className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-40 ${
-                  selectedThumb
-                    ? 'border-brand ring-2 ring-brand/35'
-                    : 'border-surface-border hover:border-brand/50'
-                }`}
+                onClick={() => onOpenImage(afterSrc, displayTitle)}
+                className="order-2 w-full text-center text-[11px] font-medium text-brand hover:underline sm:order-3 sm:col-start-1 sm:row-start-2"
               >
-                {thumbSrc ? (
-                  <img src={thumbSrc} alt="" className="h-full w-full object-cover object-center" />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center bg-surface-warm text-[10px] text-ink-muted">
-                    —
-                  </span>
-                )}
+                {t('openPreviewHint')}
               </button>
-            )
-          })}
-        </div>
-      </div>
+            ) : null}
+          </article>
+        )
+      })}
     </div>
   )
 }
@@ -555,7 +607,7 @@ function AgingProgressionGrid({
                 ? t('agePlusBlurb', { age: projectedAge, years: stage.years })
                 : t('agePlusBlurbNoAge', { years: stage.years })
             }
-            footnote={t('ageEducationalNote')}
+            footnote={null}
             previewTitle={previewTitle}
             onOpenImage={onOpenImage}
             t={t}
@@ -581,8 +633,7 @@ function AgingProgressionGrid({
 
 /**
  * @param {string|null} activeType — when set (hair|outfit|aging), show only that category
- * @param {string|null} beforeSrc — original front portrait URL for hair/aging comparisons
- * @param {string|null} outfitBeforeSrc — white-tee baseline for outfit comparisons (falls back to beforeSrc)
+ * @param {string|null} beforeSrc — original front portrait URL for hair compare + aging
  * @param {number|null} visualAge — CV visual age for aging stack labels
  */
 export function AiVisualsSection({
@@ -596,16 +647,12 @@ export function AiVisualsSection({
   activeType = null,
   showGenerate = false,
   beforeSrc = null,
-  outfitBeforeSrc = null,
   visualAge = null,
 }) {
   const t = useTranslations('AiVisuals')
   const variants = aiVisuals?.variants || []
   const [preview, setPreview] = useState(null)
-  const outfitCompareBefore = outfitBeforeSrc || beforeSrc
-  const compareBeforeSrc =
-    activeType === 'outfit' ? outfitCompareBefore : beforeSrc
-  const aspectRatio = useImageAspectRatio(compareBeforeSrc || beforeSrc, 4 / 5)
+  const aspectRatio = useImageAspectRatio(beforeSrc, 4 / 5)
 
   const hairVariants = variants.filter((v) => v.type === 'hair')
   const outfitVariants = variants.filter((v) => v.type === 'outfit')
@@ -617,6 +664,7 @@ export function AiVisualsSection({
 
   const closePreview = useCallback(() => setPreview(null), [])
 
+  const isStyleSection = activeType === 'hair' || activeType === 'outfit' || activeType === 'aging'
   const sectionTitle = activeType ? t(`sections.${activeType}`) : t('title')
   const filtered =
     activeType === 'hair'
@@ -636,18 +684,28 @@ export function AiVisualsSection({
   }
 
   return (
-    <div className={activeType ? 'space-y-4' : 'space-y-6'}>
-      <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${activeType ? 'sm:items-center' : 'gap-4'}`}>
-        <div>
-          <div className={`flex items-center gap-2 ${activeType ? 'mb-1' : 'mb-2'}`}>
-            <Sparkles className={`${activeType ? 'w-4 h-4' : 'w-5 h-5'} text-brand`} />
-            <h3 className={`font-sans font-semibold text-ink ${activeType ? 'text-base' : 'text-lg'}`}>{sectionTitle}</h3>
-          </div>
-          {!activeType && (
-            <p className="text-sm text-ink-muted leading-relaxed max-w-2xl">{t('description')}</p>
-          )}
-          {activeType && t.has(`types.${activeType}`) && (
-            <p className="text-xs text-ink-muted leading-relaxed max-w-2xl line-clamp-2">{t(`types.${activeType}`)}</p>
+    <div className={activeType ? 'space-y-6' : 'space-y-6'}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          {isStyleSection ? (
+            <StyleSectionHeader type={activeType} t={t} />
+          ) : (
+            <>
+              <div className={`flex items-center gap-2 ${activeType ? 'mb-1' : 'mb-2'}`}>
+                <Sparkles className={`${activeType ? 'w-4 h-4' : 'w-5 h-5'} text-brand`} />
+                <h3 className={`font-sans font-semibold text-ink ${activeType ? 'text-base' : 'text-lg'}`}>
+                  {sectionTitle}
+                </h3>
+              </div>
+              {!activeType && (
+                <p className="text-sm text-ink-muted leading-relaxed max-w-2xl">{t('description')}</p>
+              )}
+              {activeType && t.has(`types.${activeType}`) && (
+                <p className="text-xs text-ink-muted leading-relaxed max-w-2xl line-clamp-2">
+                  {t(`types.${activeType}`)}
+                </p>
+              )}
+            </>
           )}
         </div>
         {showGenerate && (
@@ -688,10 +746,10 @@ export function AiVisualsSection({
         />
       ) : filtered ? (
         filtered.length > 0 ? (
-          <StyleCompareHero
+          <StyleSuggestionList
             type={activeType}
             variants={filtered}
-            beforeSrc={activeType === 'outfit' ? outfitCompareBefore : beforeSrc}
+            beforeSrc={activeType === 'hair' ? beforeSrc : null}
             aspectRatio={aspectRatio}
             t={t}
             onOpenImage={openPreview}
@@ -705,10 +763,10 @@ export function AiVisualsSection({
           </div>
         )
       ) : (
-        <div className="space-y-8">
-          <section className="space-y-3">
-            <h4 className="font-sans text-sm font-semibold text-ink">{t('sections.hair')}</h4>
-            <StyleCompareHero
+        <div className="space-y-10">
+          <section className="space-y-5">
+            <h4 className="font-sans text-xl font-semibold text-ink">{t('sections.hair')}</h4>
+            <StyleSuggestionList
               type="hair"
               variants={hairVariants}
               beforeSrc={beforeSrc}
@@ -718,12 +776,11 @@ export function AiVisualsSection({
               {...styleRegenProps}
             />
           </section>
-          <section className="space-y-3">
-            <h4 className="font-sans text-sm font-semibold text-ink">{t('sections.outfit')}</h4>
-            <StyleCompareHero
+          <section className="space-y-5">
+            <h4 className="font-sans text-xl font-semibold text-ink">{t('sections.outfit')}</h4>
+            <StyleSuggestionList
               type="outfit"
               variants={outfitVariants}
-              beforeSrc={outfitCompareBefore}
               aspectRatio={aspectRatio}
               t={t}
               onOpenImage={openPreview}

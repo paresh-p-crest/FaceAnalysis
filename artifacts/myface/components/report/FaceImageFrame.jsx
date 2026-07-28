@@ -309,7 +309,7 @@ export function ProportionsOverlay({ lines }) {
     strokeLinecap: 'round',
     vectorEffect: 'non-scaling-stroke',
   }
-  // Midface height tick (brow → subnasale), Qoves-style, on the viewer's right.
+  // Midface height tick (brow → subnasale), report-style, on the viewer's right.
   const midX = 88
   return (
     <svg
@@ -355,7 +355,7 @@ export function FeatureRegionOverlay({ paths, fill = 'rgba(150, 170, 180, 0.4)',
   )
 }
 
-/** Qoves-style per-feature proportion guides — dots use % CSS so size stays small on any aspect. */
+/** report-style per-feature proportion guides — dots use % CSS so size stays small on any aspect. */
 export function ProportionFeatureOverlay({ overlay }) {
   if (!overlay) return null
   // Same white + weight as facial-thirds overview (`ProportionsOverlay`).
@@ -404,7 +404,7 @@ export function ProportionFeatureOverlay({ overlay }) {
           const left = Math.min(x1, x2)
           const right = Math.max(x1, x2)
           const span = right - left
-          // Downward end ticks (~8% of span, clamped) — matches Qoves measurement brackets.
+          // Downward end ticks (~8% of span, clamped) — matches measurement brackets.
           const tickLen = Math.max(1.6, Math.min(3.2, span * 0.08 || 2.2))
           const tickXs = Array.isArray(bar.ticks) && bar.ticks.length
             ? bar.ticks.map(Number).filter(Number.isFinite)

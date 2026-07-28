@@ -17,6 +17,12 @@ from .repositories.assessment_repository import (
     update_assessment_ai_narrative,
     update_assessment_protocol,
 )
+from .narrative_provenance import resolve_feature_origin
+from .narrative_translation import (
+    ensure_ai_narrative_de,
+    ensure_narrative_translations,
+    translate_protocol_section_de,
+)
 from .text_ai_service import generate_cv_narrative
 
 logger = logging.getLogger(__name__)
@@ -73,27 +79,29 @@ async def ensure_ai_narrative(assessment: dict, *, force: bool = False) -> Optio
         "source": result.get("source"),
         "model": result.get("model"),
         "content": result.get("content"),
+        "contentOrigin": "llm",
     }
+    ai_narrative = await ensure_ai_narrative_de(ai_narrative) or ai_narrative
     updated = await update_assessment_ai_narrative(assessment["id"], ai_narrative)
     if updated:
         assessment["aiNarrative"] = ai_narrative
     return ai_narrative
 
 
-async def enrich_assessment_nl_content(assessment: dict) -> dict:
+async def enrich_assessment_nl_content(assessment: dict, *, force: bool = False) -> dict:
     """One-shot pipeline enrichment: executive narrative + protocol/feature text.
 
-    Idempotent — skips work that is already stored. Failures are logged; CV
-    assessment remains usable without NL content.
+    Idempotent — skips work that is already stored unless force=True. Failures are
+    logged; CV assessment remains usable without NL content.
     """
     assessment_id = assessment.get("id")
     try:
-        await ensure_ai_narrative(assessment, force=False)
+        await ensure_ai_narrative(assessment, force=force)
     except Exception:
         logger.exception("AI narrative enrichment failed for %s", assessment_id)
 
     try:
-        bundle = await generate_and_store_protocol(assessment)
+        bundle = await generate_and_store_protocol(assessment, force=force)
         assessment["protocolNarrative"] = bundle.get("protocolNarrative")
         assessment["featureNarratives"] = bundle.get("featureNarratives")
         assessment["protocolStorage"] = bundle.get("protocolStorage")
@@ -101,6 +109,25 @@ async def enrich_assessment_nl_content(assessment: dict) -> dict:
         logger.exception("Protocol enrichment failed for %s", assessment_id)
 
     return assessment
+
+
+def is_narratives_complete(assessment: dict) -> bool:
+    """True when executive narrative and all feature narratives are non-template."""
+    if not _has_ai_narrative(assessment):
+        return False
+    bundle = _bundle_from_assessment(assessment)
+    if not _bundle_complete(bundle):
+        return False
+    from .config import FEATURE_NARRATIVE_IDS
+
+    features = assessment.get("featureNarratives") or {}
+    if not isinstance(features, dict):
+        return False
+    for fid in FEATURE_NARRATIVE_IDS:
+        entry = features.get(fid)
+        if not entry or resolve_feature_origin(entry) != "llm":
+            return False
+    return True
 
 
 def _bundle_from_assessment(assessment: dict) -> Optional[dict]:
@@ -218,6 +245,9 @@ async def refresh_protocol_closing_for_assessment(assessment: dict) -> Optional[
             client_name,
             cv_report=cv_report,
         )
+        pn["closingOrigin"] = "stitch"
+    else:
+        pn["closingOrigin"] = "llm"
 
     pn["closing"] = closing
     if not pn.get("summary"):
@@ -237,10 +267,13 @@ async def refresh_protocol_closing_for_assessment(assessment: dict) -> Optional[
             model=pn.get("model"),
         )
 
+    assessment["protocolNarrative"] = pn
+    assessment["featureNarratives"] = features if features else feature_map
+    await translate_protocol_section_de(assessment, "closing")
     return await persist_protocol_bundle(
         assessment_id,
-        protocol_narrative=pn,
-        feature_narratives=features if features else None,
+        protocol_narrative=assessment["protocolNarrative"],
+        feature_narratives=assessment.get("featureNarratives"),
     )
 
 
@@ -262,10 +295,14 @@ async def generate_and_store_protocol(assessment: dict, *, force: bool = False) 
         merged.update(generated.get("featureNarratives") or {})
         generated["featureNarratives"] = merged
 
+    assessment["protocolNarrative"] = generated["protocolNarrative"]
+    assessment["featureNarratives"] = generated.get("featureNarratives")
+    await ensure_narrative_translations(assessment, force=force)
+
     persisted = await persist_protocol_bundle(
         assessment_id,
-        protocol_narrative=generated["protocolNarrative"],
-        feature_narratives=generated.get("featureNarratives"),
+        protocol_narrative=assessment["protocolNarrative"],
+        feature_narratives=assessment.get("featureNarratives"),
     )
     persisted["source"] = "generated"
     return persisted
@@ -306,12 +343,15 @@ async def regenerate_protocol_section(assessment: dict, section_id: str) -> dict
     pn = dict(assessment.get("protocolNarrative") or {})
     overview_summary = (pn.get("summary") or "").strip()
     closing = list(pn.get("closing") or []) if isinstance(pn.get("closing"), list) else []
+    summary_origin = pn.get("summaryOrigin")
+    closing_origin = pn.get("closingOrigin")
 
     if section_id == "overview":
         overview = await generate_protocol_overview_async(
             answers=answers, cv_report=cv_report, metrics=metrics
         )
         overview_summary = overview.get("summary") or overview_summary
+        summary_origin = overview.get("origin") or "template"
     elif section_id == "closing":
         closing = await generate_closing_synthesis_async(
             features,
@@ -327,6 +367,9 @@ async def regenerate_protocol_section(assessment: dict, section_id: str) -> dict
                 client_name,
                 cv_report=cv_report,
             )
+            closing_origin = "stitch"
+        else:
+            closing_origin = "llm"
     else:
         narrative = await generate_feature_narrative_async(
             section_id,
@@ -346,15 +389,77 @@ async def regenerate_protocol_section(assessment: dict, section_id: str) -> dict
         closing=closing,
         source="admin_section",
         model=None,
+        summary_origin=summary_origin,
+        closing_origin=closing_origin,
     )
+
+    assessment["protocolNarrative"] = protocol_narrative
+    assessment["featureNarratives"] = features
+    await translate_protocol_section_de(assessment, section_id)
 
     persisted = await persist_protocol_bundle(
         assessment_id,
-        protocol_narrative=protocol_narrative,
-        feature_narratives=features,
+        protocol_narrative=assessment["protocolNarrative"],
+        feature_narratives=assessment.get("featureNarratives"),
     )
     persisted["source"] = "section"
     persisted["sectionId"] = section_id
+    return persisted
+
+
+# Locales that have a post-hoc translation layer from English source narratives.
+SUPPORTED_TRANSLATION_LOCALES = frozenset({"de"})
+
+
+async def regenerate_narrative_translations(
+    assessment: dict,
+    *,
+    locale: str,
+) -> dict:
+    """Force re-translate stored EN narratives into ``locale`` and persist.
+
+    English is the source language — there is no EN translation step.
+    Currently only ``de`` is supported (ADR-044).
+    """
+    locale = (locale or "").strip().lower()
+    if locale in ("", "en"):
+        raise ValueError(
+            "English is the source narrative language; there is no translation to regenerate. "
+            "Use locale=de to force German translation."
+        )
+    if locale not in SUPPORTED_TRANSLATION_LOCALES:
+        raise ValueError(
+            f"Unsupported translation locale '{locale}'. "
+            f"Supported: {', '.join(sorted(SUPPORTED_TRANSLATION_LOCALES))}"
+        )
+
+    assessment_id = assessment["id"]
+    analysis = assessment.get("analysis") or {}
+    if not analysis.get("cvReport"):
+        raise ValueError("Stored cvReport is required for narrative translation.")
+
+    features = assessment.get("featureNarratives") or {}
+    pn = assessment.get("protocolNarrative") or {}
+    if not features and not (isinstance(pn, dict) and (pn.get("summary") or pn.get("closing"))):
+        raise ValueError("No English protocol/feature narratives to translate.")
+
+    # Always force — this endpoint exists to redo translations.
+    await ensure_narrative_translations(assessment, force=True)
+
+    persisted = await persist_protocol_bundle(
+        assessment_id,
+        protocol_narrative=assessment["protocolNarrative"],
+        feature_narratives=assessment.get("featureNarratives"),
+    )
+
+    ai = assessment.get("aiNarrative")
+    if isinstance(ai, dict) and ai.get("contentDe"):
+        updated = await update_assessment_ai_narrative(assessment_id, ai)
+        if updated:
+            persisted["assessment"] = updated
+
+    persisted["source"] = "translation"
+    persisted["locale"] = locale
     return persisted
 
 
@@ -367,10 +472,13 @@ async def delete_stored_protocol(assessment_id: str) -> None:
 __all__ = [
     "ensure_ai_narrative",
     "enrich_assessment_nl_content",
+    "is_narratives_complete",
     "load_protocol_bundle",
     "persist_protocol_bundle",
     "generate_and_store_protocol",
     "regenerate_protocol_section",
+    "regenerate_narrative_translations",
+    "SUPPORTED_TRANSLATION_LOCALES",
     "delete_stored_protocol",
     "refresh_protocol_closing_for_assessment",
     "report_content_status",

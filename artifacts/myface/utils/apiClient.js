@@ -22,6 +22,7 @@ export const ERROR_KEYS = {
   LOAD_PROTOCOL_FAILED: 'loadProtocolFailed',
   GENERATE_PROTOCOL_FAILED: 'generateProtocolFailed',
   GENERATE_PROTOCOL_SECTION_FAILED: 'generateProtocolSectionFailed',
+  RETRY_NARRATIVE_TRANSLATIONS_FAILED: 'retryNarrativeTranslationsFailed',
   GENERATE_PROJECTED_AFTER_FAILED: 'generateProjectedAfterFailed',
   GENERATE_VISUALS_FAILED: 'generateVisualsFailed',
   LOAD_ASSISTANT_FAILED: 'loadAssistantFailed',
@@ -144,12 +145,13 @@ export async function submitAssessment(assessmentId, { answers = {}, provider = 
   return data
 }
 
-/** Admin/owner: re-enqueue a failed pipeline job. */
-export async function retryAssessmentPipeline(assessmentId) {
+/** Admin/owner: re-enqueue a pipeline job. mode: 'resume' (default) | 'full'. */
+export async function retryAssessmentPipeline(assessmentId, { mode = 'resume' } = {}) {
   const base = getApiBaseUrl()
   const res = await fetch(`${base}/api/assessments/${assessmentId}/retry-pipeline`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throwApiError(res, data, ERROR_KEYS.RETRY_PIPELINE_FAILED)
@@ -344,6 +346,22 @@ export async function generateAssessmentProtocolSection(assessmentId, sectionId)
   return data
 }
 
+/** Admin: force re-translate EN narratives into locale (currently de). */
+export async function regenerateAssessmentNarrativeTranslations(assessmentId, locale = 'de') {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/narrative-translations`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ locale }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.RETRY_NARRATIVE_TRANSLATIONS_FAILED)
+  return data
+}
+
 export async function generateProjectedAfter(assessmentId) {
   const base = getApiBaseUrl()
   const res = await fetch(`${base}/api/assessments/${assessmentId}/projected-after`, {
@@ -421,9 +439,10 @@ export async function sendAssistantMessage(assessmentId, message) {
   return data
 }
 
-export async function downloadAssessmentPdf(assessmentId) {
+export async function downloadAssessmentPdf(assessmentId, locale = 'en') {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/pdf`, {
+  const loc = (locale || 'en').trim().toLowerCase()
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/pdf?locale=${encodeURIComponent(loc)}`, {
     headers: authHeaders(),
   })
   if (!res.ok) {

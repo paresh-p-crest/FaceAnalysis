@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { FaceImageFrame, ProportionFeatureOverlay, ProportionsOverlay } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { AssessmentGridLayout } from './FeatureAnalysisPage'
+import { pickLocalizedCvText, useCvLabel, translateRatioCompareLabel, SYMMETRY_REGION_LABEL_KEY } from '../../utils/cvReportLocale'
 import {
   bboxFullFace,
   proportionRatioOverlays,
@@ -53,8 +54,8 @@ function FacialThirdsBar({ upper, middle, lower, t }) {
   ]
 
   return (
-    <div className="qoves-report-metric-card">
-      <p className="qoves-report-mono-label mb-4">{t('proportions.facialThirds')}</p>
+    <div className="report-view-metric-card">
+      <p className="report-view-mono-label mb-4">{t('proportions.facialThirds')}</p>
       <div className="grid grid-cols-3 gap-1 mb-2">
         {segments.map((s) => (
           <p key={s.key} className="text-[9px] uppercase tracking-wider text-ink-muted text-center leading-tight">
@@ -165,6 +166,8 @@ export function ProportionsSection({
   photos = null,
 }) {
   const t = useTranslations('Report')
+  const locale = useLocale()
+  const cvLabel = useCvLabel()
   const [activeTab, setActiveTab] = useState('nasoAural')
 
   const frontSrc = photos?.front || photo || null
@@ -264,7 +267,11 @@ export function ProportionsSection({
   const displayYourValue =
     activeTab === 'nasoOral' && liveNasoOral ? liveNasoOral.yourValue : active?.yourValue
   const displayYourLabel =
-    activeTab === 'nasoOral' && liveNasoOral ? liveNasoOral.yourLabel : active?.yourLabel
+    activeTab === 'nasoOral' && liveNasoOral
+      ? liveNasoOral.yourLabel
+      : translateRatioCompareLabel(active?.yourLabel, t) || cvLabel(active?.yourLabel)
+  const displayIdealLabel =
+    translateRatioCompareLabel(active?.idealLabel, t) || cvLabel(active?.idealLabel)
 
   const score = proportions.score
   const badge = score != null ? proportionalityBadge(score, t) : null
@@ -289,8 +296,8 @@ export function ProportionsSection({
           rightCards={
             <>
               {score != null && (
-                <div className="qoves-report-metric-card text-center py-6">
-                  <p className="qoves-report-mono-label mb-4">{t('proportions.proportionality')}</p>
+                <div className="report-view-metric-card text-center py-6">
+                  <p className="report-view-mono-label mb-4">{t('proportions.proportionality')}</p>
                   <p className="text-5xl font-display font-bold text-ink tabular-nums leading-none">{score}</p>
                   <div className="flex justify-between items-center border-t border-surface-border pt-3 mt-5">
                     {badge ? (
@@ -311,9 +318,11 @@ export function ProportionsSection({
                 t={t}
               />
               {proportions.explanation && (
-                <div className="qoves-report-metric-card">
-                  <p className="qoves-report-mono-label mb-2">{t('common.explanation')}</p>
-                  <p className="text-sm text-ink-secondary leading-relaxed font-sans">{proportions.explanation}</p>
+                <div className="report-view-metric-card">
+                  <p className="report-view-mono-label mb-2">{t('common.explanation')}</p>
+                  <p className="text-sm text-ink-secondary leading-relaxed font-sans">
+                    {pickLocalizedCvText(proportions, locale)}
+                  </p>
                 </div>
               )}
             </>
@@ -339,7 +348,7 @@ export function ProportionsSection({
                 : 'border-surface-border bg-white dark:bg-surface-card hover:border-brand/30'
             }`}
           >
-            <p className="qoves-report-mono-label mb-2 font-medium leading-tight">
+            <p className="report-view-mono-label mb-2 font-medium leading-tight">
               {t(`proportions.ratioTabs.${tab.id}.ratioLabel`)}
             </p>
             <p className={`text-base font-display font-semibold ${
@@ -354,10 +363,10 @@ export function ProportionsSection({
       {active && (
         <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-6">
           <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-3 font-medium">
-            {active.ratioLabel}
+            {t(`proportions.ratioTabs.${activeTab}.ratioLabel`)}
           </p>
           <p className="text-sm text-ink font-sans mb-5 leading-relaxed">
-            {active.expectation}
+            {t(`proportions.ratioTabs.${activeTab}.expectation`)}
           </p>
 
           <div className="grid lg:grid-cols-2 gap-8 items-center">
@@ -378,7 +387,7 @@ export function ProportionsSection({
               yourValue={displayYourValue}
               idealValue={active.idealValue}
               label1={displayYourLabel}
-              label2={active.idealLabel}
+              label2={displayIdealLabel}
               primaryFeature={t(`proportions.ratioParts.${RATIO_PARTS[activeTab]?.primary}`)}
               secondaryFeature={t(`proportions.ratioParts.${RATIO_PARTS[activeTab]?.secondary}`)}
               t={t}
@@ -387,7 +396,9 @@ export function ProportionsSection({
 
           <div className="mt-6 pt-4 border-t border-surface-border">
             <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">{t('common.explanation')}</p>
-            <p className="text-sm text-ink-secondary leading-relaxed font-sans">{active.explanation}</p>
+            <p className="text-sm text-ink-secondary leading-relaxed font-sans">
+              {pickLocalizedCvText(active, locale)}
+            </p>
           </div>
         </div>
       )}

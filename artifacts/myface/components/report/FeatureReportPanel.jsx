@@ -2,7 +2,6 @@
 
 import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
-import { FeatureProseBlock } from './FeatureProseBlock'
 import { mergeMetricSections, resolveFeatureHero } from '../../utils/featureParsing'
 
 function MetricCard({ label, value, tooltip }) {
@@ -30,7 +29,6 @@ export function FeatureReportPanel({
   photoOverlay = null,
   heroSlot = null,
   extraMetrics,
-  narrative = null,
   featureId = null,
   featureParsing = null,
 }) {
@@ -77,8 +75,8 @@ export function FeatureReportPanel({
       {summaryCards.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
           {summaryCards.map((card) => (
-            <div key={card.label} className="qoves-report-metric-card">
-              <p className="qoves-report-mono-label mb-1">{card.label}</p>
+            <div key={card.label} className="report-view-metric-card">
+              <p className="report-view-mono-label mb-1">{card.label}</p>
               <p className="text-lg font-display font-bold text-ink">{card.value}</p>
             </div>
           ))}
@@ -123,7 +121,6 @@ export function FeatureReportPanel({
         </div>
       ))}
 
-      <FeatureProseBlock narrative={narrative} fallbackExplanation={data.explanation} />
     </div>
   )
 }

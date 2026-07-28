@@ -608,34 +608,136 @@ async def update_assessment_projected_analysis(
         return _assessment_to_dict(row)
 
 
-async def claim_next_queued_assessment() -> Optional[dict]:
-    """Claim one queued pipeline job (FOR UPDATE SKIP LOCKED)."""
+async def claim_next_pipeline_job() -> Optional[dict]:
+    """Claim one pipeline job — running orphans first, then queued FIFO."""
     async with session_scope() as session:
-        stmt = (
-            select(Assessment)
-            .where(
-                Assessment.pipeline["status"].astext == "queued",
-                Assessment.deleted_at.is_(None),
+        from ..pipeline_status import claim_stage_from_pipeline, merge_pipeline_update, _utcnow_iso
+
+        for job_status in ("running", "queued"):
+            stmt = (
+                select(Assessment)
+                .where(
+                    Assessment.pipeline["status"].astext == job_status,
+                    Assessment.deleted_at.is_(None),
+                )
+                .order_by(Assessment.created_at.asc())
+                .limit(1)
+                .with_for_update(skip_locked=True)
             )
-            .order_by(Assessment.created_at.asc())
-            .limit(1)
-            .with_for_update(skip_locked=True)
+            result = await session.execute(stmt)
+            row = result.scalar_one_or_none()
+            if not row:
+                continue
+            pipeline = dict(row.pipeline or {})
+            stage = claim_stage_from_pipeline(pipeline)
+            pipeline = merge_pipeline_update(
+                pipeline,
+                status="running",
+                stage=stage,
+                startedAt=pipeline.get("startedAt") or _utcnow_iso(),
+                stageStartedAt=_utcnow_iso(),
+            )
+            row.pipeline = pipeline
+            row.updated_at = _utcnow()
+            flag_modified(row, "pipeline")
+            await session.flush()
+            return _assessment_to_dict(row)
+        return None
+
+
+async def claim_next_queued_assessment() -> Optional[dict]:
+    """Deprecated alias — use claim_next_pipeline_job."""
+    return await claim_next_pipeline_job()
+
+
+async def reclaim_stale_running_pipelines() -> list[dict]:
+    """Requeue stuck running jobs (worker crash). Preserves stage; resets that stage's attempts."""
+    from ..pipeline_status import merge_pipeline_update, new_queued_pipeline, resolve_resume_stage, _utcnow_iso
+
+    reclaimed: list[dict] = []
+    async with session_scope() as session:
+        stmt = select(Assessment).where(
+            Assessment.pipeline["status"].astext == "running",
+            Assessment.deleted_at.is_(None),
         )
         result = await session.execute(stmt)
-        row = result.scalar_one_or_none()
-        if not row:
-            return None
-        pipeline = dict(row.pipeline or {})
-        from ..pipeline_status import _utcnow_iso, merge_pipeline_update
+        rows = result.scalars().all()
+        default_attempts = new_queued_pipeline().get("attempts") or {}
+        for row in rows:
+            pipeline = dict(row.pipeline or {})
+            resume_stage = resolve_resume_stage(pipeline)
+            attempts = dict(pipeline.get("attempts") or default_attempts)
+            attempts[resume_stage] = 0
+            row.pipeline = merge_pipeline_update(
+                pipeline,
+                status="queued",
+                stage=resume_stage,
+                forceRetry=False,
+                attempts=attempts,
+                lastError=None,
+                queuedAt=_utcnow_iso(),
+            )
+            row.updated_at = _utcnow()
+            flag_modified(row, "pipeline")
+            reclaimed.append(_assessment_to_dict(row))
+        await session.flush()
+    return reclaimed
 
-        pipeline = merge_pipeline_update(
-            pipeline,
-            status="running",
-            stage="cv",
-            startedAt=pipeline.get("startedAt") or _utcnow_iso(),
-            stageStartedAt=_utcnow_iso(),
-        )
-        row.pipeline = pipeline
+
+async def requeue_pipeline(assessment_id: str, *, mode: str = "resume") -> Optional[dict]:
+    """Re-enqueue pipeline: resume from failed stage or full clear + forceRetry."""
+    aid = parse_uuid(assessment_id)
+    if aid is None:
+        return None
+    from ..pipeline_status import merge_pipeline_update, new_queued_pipeline, new_feature_parsing_pending, resolve_resume_stage, _utcnow_iso
+    from ..projected_after_status import new_projected_after_pending
+    from ..projected_analysis_status import new_projected_analysis_pending
+    from ..protocol_service import delete_stored_protocol
+
+    async with session_scope() as session:
+        row = await session.get(Assessment, aid)
+        if not _is_active(row):
+            return None
+
+        pipeline = dict(row.pipeline or {})
+
+        if mode == "full":
+            await delete_stored_protocol(assessment_id)
+            row.ai_narrative = None
+            row.protocol_narrative = None
+            row.feature_narratives = None
+            row.protocol_storage = None
+            row.ai_visuals = None
+            row.feature_parsing = new_feature_parsing_pending()
+            row.projected_after = new_projected_after_pending()
+            row.projected_analysis = new_projected_analysis_pending()
+            for col in (
+                "ai_narrative",
+                "protocol_narrative",
+                "feature_narratives",
+                "protocol_storage",
+                "ai_visuals",
+                "feature_parsing",
+                "projected_after",
+                "projected_analysis",
+            ):
+                flag_modified(row, col)
+            row.pipeline = merge_pipeline_update(new_queued_pipeline(), forceRetry=True, stage="queued")
+        else:
+            resume_stage = resolve_resume_stage(pipeline)
+            attempts = dict(pipeline.get("attempts") or new_queued_pipeline().get("attempts") or {})
+            attempts[resume_stage] = 0
+            row.pipeline = merge_pipeline_update(
+                pipeline,
+                status="queued",
+                stage=resume_stage,
+                forceRetry=False,
+                attempts=attempts,
+                lastError=None,
+                queuedAt=_utcnow_iso(),
+            )
+
+        row.status = AssessmentStatus.draft
         row.updated_at = _utcnow()
         flag_modified(row, "pipeline")
         await session.flush()
@@ -643,18 +745,5 @@ async def claim_next_queued_assessment() -> Optional[dict]:
 
 
 async def requeue_failed_pipeline(assessment_id: str) -> Optional[dict]:
-    aid = parse_uuid(assessment_id)
-    if aid is None:
-        return None
-    from ..pipeline_status import new_queued_pipeline
-
-    async with session_scope() as session:
-        row = await session.get(Assessment, aid)
-        if not _is_active(row):
-            return None
-        row.pipeline = new_queued_pipeline()
-        row.status = AssessmentStatus.draft
-        row.updated_at = _utcnow()
-        flag_modified(row, "pipeline")
-        await session.flush()
-        return _assessment_to_dict(row)
+    """Deprecated alias — resume-mode requeue."""
+    return await requeue_pipeline(assessment_id, mode="resume")

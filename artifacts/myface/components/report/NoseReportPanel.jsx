@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { DetailCarousel, FeatureHeroFrame, MetricsColumn, SummaryLabelCard } from './FeatureSummaryUi'
 import { resolveFeatureHero } from '../../utils/featureParsing'
-
+import { toCvLabelKey } from '../../utils/cvReportLocale'
 function textOrNull(v) {
   if (v == null) return null
   const s = String(v).trim()
@@ -31,32 +31,32 @@ function formatRatio(n, digits = 4) {
 
 function classifyShape(aspect) {
   if (!Number.isFinite(aspect)) return null
-  if (aspect < 0.6) return 'Narrow / Leptorrhine'
-  if (aspect > 0.85) return 'Wide / Platyrrhine'
-  return 'Average / Mesorrhine'
+  if (aspect < 0.6) return 'narrowLeptorrhine'
+  if (aspect > 0.85) return 'widePlatyrrhine'
+  return 'averageMesorrhine'
 }
 
 function classifyHeight(heightMm) {
   if (!Number.isFinite(heightMm)) return null
-  if (heightMm < 45) return 'Short'
-  if (heightMm > 55) return 'Long'
-  return 'Average'
+  if (heightMm < 45) return 'short'
+  if (heightMm > 55) return 'long'
+  return 'average'
 }
 
 function classifyTip(nasoCanthal) {
   if (!Number.isFinite(nasoCanthal)) return null
-  if (nasoCanthal > 1.05) return 'Wide / Bulbous'
-  if (nasoCanthal < 0.95) return 'Narrow / Refined'
-  return 'Balanced'
+  if (nasoCanthal > 1.05) return 'wideBulbous'
+  if (nasoCanthal < 0.95) return 'narrowRefined'
+  return 'balanced'
 }
 
 function classifyWidth(widthMm, cvWidth) {
-  const fromCv = textOrNull(cvWidth)
+  const fromCv = toCvLabelKey(cvWidth)
   if (fromCv) return fromCv
   if (!Number.isFinite(widthMm)) return null
-  if (widthMm < 30) return 'Narrow'
-  if (widthMm > 40) return 'Wide'
-  return 'Average'
+  if (widthMm < 30) return 'narrow'
+  if (widthMm > 40) return 'wide'
+  return 'average'
 }
 
 function buildNoseMetrics(nose, featureParsing) {
@@ -88,18 +88,18 @@ function buildDetailSlides(metrics, t) {
   if (metrics.aspect != null) {
     slides.push({
       id: 'aspect',
-      titleLead: 'Nasal',
-      titleAccent: 'Aspect Ratio',
-      body: 'Width divided by height. <0.6 = narrow, 0.6–0.85 = average, >0.85 = wide.',
+      titleLead: t('nose.slides.aspect.titleLead'),
+      titleAccent: t('nose.slides.aspect.titleAccent'),
+      body: t('nose.slides.aspect.body'),
       meter: {
-        metricLabel: 'Nasal Aspect Ratio (W/H)',
+        metricLabel: t('nose.slides.aspect.metricLabel'),
         sourceLabel: landmark,
         valueText: `${formatRatio(metrics.aspect)} ratio`,
         valueNum: metrics.aspect,
         rangeMin: 0.5,
         rangeMax: 1.1,
-        rangeMinLabel: '0.5 narrow',
-        rangeMaxLabel: '1.1 wide',
+        rangeMinLabel: t('nose.slides.aspect.rangeMinLabel'),
+        rangeMaxLabel: t('nose.slides.aspect.rangeMaxLabel'),
       },
     })
   }
@@ -107,11 +107,11 @@ function buildDetailSlides(metrics, t) {
   if (metrics.widthMm != null) {
     slides.push({
       id: 'width',
-      titleLead: 'Nasal Width',
-      titleAccent: '(mm)',
-      body: 'Distance between the alae (outer nostrils) in millimetres. Reference IPD = 63.5 mm.',
+      titleLead: t('nose.slides.width.titleLead'),
+      titleAccent: t('nose.slides.width.titleAccent'),
+      body: t('nose.slides.width.body'),
       meter: {
-        metricLabel: 'Nasal Ala Width',
+        metricLabel: t('nose.slides.width.metricLabel'),
         sourceLabel: landmark,
         valueText: formatMm(metrics.widthMm),
         valueNum: metrics.widthMm,
@@ -126,11 +126,11 @@ function buildDetailSlides(metrics, t) {
   if (metrics.nasoCanthal != null) {
     slides.push({
       id: 'naso-canthal',
-      titleLead: 'Naso-Canthal',
-      titleAccent: 'Ratio',
-      body: 'Alar width / inter-canthal distance. Ideal ≈ 1.0 (nose width = inner eye distance).',
+      titleLead: t('nose.slides.nasoCanthal.titleLead'),
+      titleAccent: t('nose.slides.nasoCanthal.titleAccent'),
+      body: t('nose.slides.nasoCanthal.body'),
       meter: {
-        metricLabel: 'Naso-Canthal Ratio',
+        metricLabel: t('nose.slides.nasoCanthal.metricLabel'),
         sourceLabel: landmark,
         valueText: formatRatio(metrics.nasoCanthal),
         valueNum: metrics.nasoCanthal,
@@ -145,31 +145,31 @@ function buildDetailSlides(metrics, t) {
   return slides
 }
 
-function buildAllMetricsRows(metrics) {
+function buildAllMetricsRows(metrics, t) {
   const left = [
-    { label: 'Nasal Width', value: formatMm(metrics.widthMm) },
-    { label: 'Nasal Aspect Ratio (W/H)', value: formatRatio(metrics.aspect) },
-    { label: 'Pyramidal Width', value: formatMm(metrics.pyramidal) },
-    { label: 'Height Classification', value: metrics.heightLabel },
-    { label: 'Width Classification', value: metrics.widthLabel },
+    { label: t('nose.metrics.nasalWidth'), value: formatMm(metrics.widthMm) },
+    { label: t('nose.metrics.nasalAspectRatio'), value: formatRatio(metrics.aspect) },
+    { label: t('nose.metrics.pyramidalWidth'), value: formatMm(metrics.pyramidal) },
+    { label: t('nose.metrics.heightClass'), value: metrics.heightLabel },
+    { label: t('nose.metrics.widthClass'), value: metrics.widthLabel },
   ]
   const right = [
-    { label: 'Nasal Height', value: formatMm(metrics.heightMm) },
-    { label: 'Naso-Canthal Ratio', value: formatRatio(metrics.nasoCanthal) },
-    { label: 'Shape Classification', value: metrics.shapeLabel },
-    { label: 'Tip Classification', value: metrics.tipLabel },
+    { label: t('nose.metrics.nasalHeight'), value: formatMm(metrics.heightMm) },
+    { label: t('nose.metrics.nasoCanthalRatio'), value: formatRatio(metrics.nasoCanthal) },
+    { label: t('nose.metrics.shapeClass'), value: metrics.shapeLabel },
+    { label: t('nose.metrics.tipClass'), value: metrics.tipLabel },
   ]
   return { left, right }
 }
 
-export function NoseReportPanel({ nose, featureParsing = null, narrative: _narrative = null }) {
+export function NoseReportPanel({ nose, featureParsing = null }) {
   const t = useTranslations('Report')
   if (!nose) return null
 
   const heroImage = resolveFeatureHero('nose', nose, featureParsing) || nose.imageSrc
   const metrics = buildNoseMetrics(nose, featureParsing)
   const slides = buildDetailSlides(metrics, t)
-  const { left, right } = buildAllMetricsRows(metrics)
+  const { left, right } = buildAllMetricsRows(metrics, t)
 
   return (
     <div className="space-y-8">
@@ -211,6 +211,7 @@ export function NoseReportPanel({ nose, featureParsing = null, narrative: _narra
           </div>
         </div>
       </div>
+
     </div>
   )
 }

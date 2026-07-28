@@ -5,6 +5,7 @@ import { adminTabFromPath, adminTabToPath, isAdminTabPath } from './adminPanel'
 export const ROUTES = {
   home: '/',
   auth: '/auth',
+  authReset: '/auth/reset',
   analysis: '/analysis',
   report: '/report',
   aiVisuals: '/ai-visuals',
@@ -55,7 +56,7 @@ export function isReportModalHostPath(pathname) {
 
 export function requiresAuth(pathname) {
   if (!pathname || pathname === ROUTES.home) return true
-  if (pathname === ROUTES.auth) return false
+  if (pathname === ROUTES.auth || pathname === ROUTES.authReset) return false
   if (pathname === ROUTES.exampleResult) return false
   if (PROTECTED_PATHS.has(pathname)) return true
   return isAdminTabPath(pathname)
@@ -105,7 +106,7 @@ export function resolveLegacyPath(pathname) {
 export function isKnownAppPath(pathname) {
   if (!pathname) return false
   if (pathname === ROUTES.home) return true
-  if (pathname === ROUTES.auth) return true
+  if (pathname === ROUTES.auth || pathname === ROUTES.authReset) return true
   if (pathname === ROUTES.exampleResult) return true
   if (Object.values(ROUTES).includes(pathname)) return true
   return isAdminTabPath(pathname)

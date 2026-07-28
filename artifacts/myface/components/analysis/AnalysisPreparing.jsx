@@ -49,19 +49,20 @@ export default function AnalysisPreparing({
       style={
         isHome
           ? {
-              height: '100dvh',
+              minHeight: '100dvh',
               paddingTop: 'var(--site-navbar-offset)',
             }
           : undefined
       }
     >
-      <div className="flex-1 min-h-0 w-full max-w-lg mx-auto px-4 py-3 sm:py-4 flex flex-col justify-center gap-3">
+      <div className="flex-1 flex flex-col justify-center items-center px-4 py-8 sm:py-10">
+        <div className="w-full max-w-lg flex flex-col gap-3">
         <header className="flex flex-col items-center text-center shrink-0">
-          <div className="w-10 h-10 rounded-full border-2 border-brand/30 bg-brand/5 flex items-center justify-center mb-2.5">
+          <div className="w-16 h-16 rounded-full border-2 border-brand/30 bg-brand/5 flex items-center justify-center mb-2.5">
             {photo ? (
-              <img src={photo} alt="" className="w-8 h-8 rounded-full object-cover" />
+              <img src={photo} alt="" className="w-14 h-14 rounded-full object-cover" />
             ) : (
-              <ScanFace className="w-5 h-5 text-brand" />
+              <ScanFace className="w-7 h-7 text-brand" />
             )}
           </div>
           <h1 className="font-display text-xl sm:text-2xl font-bold text-ink leading-tight">
@@ -163,6 +164,7 @@ export default function AnalysisPreparing({
             {t('goHome')}
           </button>
         ) : null}
+        </div>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import { safeDisplay } from './safeFormat'
 
-export const QOVES_PROTOCOL_FEATURES = [
+export const REPORT_PROTOCOL_FEATURES = [
   { id: 'hair', title: 'Hair', page: 6 },
   { id: 'eyes', title: 'Eyes', page: 7, includes: ['eyebrows', 'eyes'] },
   { id: 'nose', title: 'Nose', page: 8 },
@@ -43,6 +43,8 @@ export const PRIVACY_PARAGRAPH_KEYS = [
 /** @deprecated Use PRIVACY_PARAGRAPH_KEYS with useTranslations('Report') */
 export const PRIVACY_PARAGRAPHS = PRIVACY_PARAGRAPH_KEYS
 
+export const PRIVACY_POLICY_URL = 'https://myface.de/datenschutzerklaerung'
+
 export const INTRODUCTION_PARAGRAPH_KEYS = [
   'intro.paragraphs.p1',
   'intro.paragraphs.p2',
@@ -67,12 +69,25 @@ export function splitSentences(text, max = 4) {
     .map((s) => (s.endsWith('.') ? s : `${s}.`))
 }
 
-function featureExplanation(cvReport, ...keys) {
+function featureExplanation(cvReport, locale, ...keys) {
   for (const key of keys) {
-    const value = cvReport?.[key]?.explanation
-    if (value) return value
+    const node = cvReport?.[key]
+    if (!node || typeof node !== 'object') continue
+    const text = pickLocalizedExplanation(node, locale)
+    if (text) return text
   }
   return ''
+}
+
+/** Prefer explanationDe when locale is de; else explanation. */
+function pickLocalizedExplanation(node, locale) {
+  if (!node || typeof node !== 'object') return ''
+  if (locale === 'de') {
+    const de = node.explanationDe
+    if (typeof de === 'string' && de.trim()) return de
+  }
+  const en = node.explanation
+  return typeof en === 'string' && en.trim() ? en : ''
 }
 
 function summaryFromExplanation(explanation, fallback, maxSentences = 2) {
@@ -110,7 +125,7 @@ function isGenericClosingParagraph(text) {
 }
 
 /**
- * Convert second-person coaching copy to Qoves-style third person
+ * Convert second-person coaching copy to report-style third person
  * ("the subject" as grammatical subject). Applied to stored narratives
  * so older assessments render correctly without force-regenerate.
  */
@@ -159,18 +174,36 @@ function applySubjectVoiceToFeaturePage(page) {
 
 function mergeSubsections(defaults, narrativeSubs) {
   if (!Array.isArray(narrativeSubs) || !narrativeSubs.length) return defaults
-  const allGeneric = narrativeSubs.every((sub) => isGenericGuardrailBody(sub?.body))
-  if (allGeneric) return defaults
-  return defaults.map((def) => {
-    const match = narrativeSubs.find((sub) => sub?.title === def.title)
-    if (match?.body && !isGenericGuardrailBody(match.body)) {
-      return { ...match, body: rewriteToSubjectVoice(match.body) }
+  const usable = narrativeSubs.filter((sub) => sub?.body && !isGenericGuardrailBody(sub.body))
+  if (!usable.length) return defaults
+  // Prefer narrative bodies matched by title; fall back to index for same-length lists.
+  return defaults.map((def, idx) => {
+    const byTitle = usable.find((sub) => sub?.title === def.title)
+    const byIndex = narrativeSubs[idx]
+    const match =
+      byTitle ||
+      (byIndex?.body && !isGenericGuardrailBody(byIndex.body) ? byIndex : null)
+    if (match?.body) {
+      return {
+        ...def,
+        title: def.title,
+        body: rewriteToSubjectVoice(match.body),
+        evidenceTier: match.evidenceTier ?? def.evidenceTier,
+      }
     }
     return def
   })
 }
 
-function mergeFeaturePage(defaults, narrativeFeature) {
+function mergeFeaturePage(defaults, narrativeFeature, locale = 'en', t = null) {
+  if (!narrativeFeature && locale === 'de' && t) {
+    const pending = t('protocolModel.narrativePending')
+    return {
+      ...defaults,
+      summary: pending,
+      subsections: (defaults.subsections || []).map((sub) => ({ ...sub, body: pending })),
+    }
+  }
   if (!narrativeFeature) return applySubjectVoiceToFeaturePage(defaults)
   const summary = isGenericSummary(narrativeFeature.summary)
     ? defaults.summary
@@ -236,21 +269,77 @@ export function formatProtocolMonth(date = new Date()) {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' }).toUpperCase()
 }
 
-export function buildProtocolContents(clientName) {
+export function buildProtocolContents(clientName, t = null) {
+  const label = (key, params) => (t ? t(`protocolModel.${key}`, params) : key)
   return [
-    { label: 'Understanding the Results', page: 4 },
-    { label: `${clientName}'s Protocol`, page: 5 },
-    ...QOVES_PROTOCOL_FEATURES.map((f) => ({ label: f.title, page: f.page })),
-    { label: 'Closing Recommendations', page: 16 },
+    { label: label('contentsUnderstanding'), page: 4 },
+    { label: label('contentsProtocol', { name: clientName }), page: 5 },
+    { label: label('contentsHair'), page: 6 },
+    { label: label('contentsEyebrows'), page: 7 },
+    { label: label('contentsEyes'), page: 7 },
+    { label: label('contentsNose'), page: 8 },
+    { label: label('contentsCheeks'), page: 9 },
+    { label: label('contentsJaw'), page: 10 },
+    { label: label('contentsLips'), page: 11 },
+    { label: label('contentsChin'), page: 12 },
+    { label: label('contentsSkin'), page: 13 },
+    { label: label('contentsNeck'), page: 14 },
+    { label: label('contentsEar'), page: 15 },
+    { label: label('contentsClosing'), page: 16 },
   ]
 }
 
-export function buildClosingRecommendations(aiNarrative, cvReport, clientName, protocolNarrative) {
+/** Resolve a message key without probing missing paths (next-intl logs MISSING_MESSAGE on t()). */
+function resolveMessageKey(t, keys, fallback) {
+  if (!t) return fallback
+  const hasFn = typeof t.has === 'function'
+  for (const key of keys) {
+    if (hasFn) {
+      if (!t.has(key)) continue
+      return t(key)
+    }
+    try {
+      const out = t(key)
+      if (out && out !== key) return out
+    } catch {
+      /* try next */
+    }
+  }
+  return fallback
+}
+
+/** Display label for EN schema subsection titles (edit/merge keys stay English).
+ *  `t` may be Report-scoped (`protocolModel.subsectionTitles.X`) or protocolModel-scoped (`subsectionTitles.X`).
+ */
+export function localizedSubsectionTitle(enTitle, t = null) {
+  if (!enTitle) return ''
+  return resolveMessageKey(
+    t,
+    [`protocolModel.subsectionTitles.${enTitle}`, `subsectionTitles.${enTitle}`],
+    enTitle,
+  )
+}
+
+/** Feature id → localized short primary for split titles / overview chips. */
+export function localizedFeaturePrimary(featureId, t = null) {
+  if (!featureId) return ''
+  return resolveMessageKey(
+    t,
+    [`protocolModel.featurePrimary.${featureId}`, `featurePrimary.${featureId}`],
+    featureId,
+  )
+}
+
+export function buildClosingRecommendations(aiNarrative, cvReport, clientName, protocolNarrative, locale = 'en', t = null) {
   const stored = (protocolNarrative?.closing || [])
     .filter((p) => typeof p === 'string' && p.trim() && !isGenericClosingParagraph(p))
     .map(rewriteToSubjectVoice)
   if (stored.length >= 1) {
     return stored
+  }
+
+  if (locale === 'de' && t) {
+    return [t('protocolModel.closingPending')]
   }
 
   // Do not synthesize durable closing on the client — server persists closing with the protocol bundle.
@@ -266,12 +355,15 @@ export function buildClosingColumns(paragraphs) {
   return { left: items.slice(0, mid), right: items.slice(mid) }
 }
 
-export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
-  const faceFallback = 'Measurements for this feature are drawn from the subject\'s stored facial analysis.'
+export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative, locale = 'en', t = null) {
+  const faceFallback = locale === 'de' && t
+    ? t('protocolModel.narrativePending')
+    : 'Measurements for this feature are drawn from the subject\'s stored facial analysis.'
   const narrativeFeatures = protocolNarrative?.features || {}
-  const pendingBody =
-    'Personalised protocol narrative for this section is being generated from the subject\'s stored measurements. ' +
-    'Reopen the protocol after generation completes, or contact support if this message persists.'
+  const pendingBody = locale === 'de' && t
+    ? t('protocolModel.narrativePending')
+    : 'Personalised protocol narrative for this section is being generated from the subject\'s stored measurements. '
+      + 'Reopen the protocol after generation completes, or contact support if this message persists.'
 
   const pages = [
     {
@@ -286,7 +378,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Hair Style',
           body:
-            featureExplanation(cvReport, 'hair') ||
+            featureExplanation(cvReport, locale, 'hair') ||
             `Based on the subject's measured hairline and framing, choose styles that balance facial thirds. Gentle cleansing and lightweight styling products support a neat upper-face frame. ${faceFallback}`,
         },
         {
@@ -306,7 +398,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
       ],
       summary:
         summaryFromExplanation(
-          featureExplanation(cvReport, 'hair'),
+          featureExplanation(cvReport, locale, 'hair'),
           cvReport?.hair?.norwoodStage != null
             ? `Hairline ${safeDisplay(cvReport.hair.hairline, 'measured')}, ${safeDisplay(cvReport.hair.densityEstimate, 'moderate').toLowerCase()} density, estimated Norwood stage ${cvReport.hair.norwoodStage}. Prioritize gentle scalp care and framing styles for 30 days.`
             : 'Optimizing hairstyle and scalp health supports a cleaner upper-face frame aligned with the subject\'s measured proportions.'
@@ -320,27 +412,27 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
       subsections: [
         {
           title: 'Eyebrows',
-          body: cvReport?.eyes?.eyebrows?.explanation
+          body: pickLocalizedExplanation(cvReport?.eyes?.eyebrows, locale)
             || (cvReport?.eyebrows?.metrics
               ? `Brow shape: ${safeDisplay(cvReport.eyebrows.metrics.shape, 'natural')}; symmetry ${safeDisplay(cvReport.eyebrows.metrics.symmetryScore, '—')}/100. Light grooming and brow gel can refine the upper orbital frame without invasive treatment.`
               : 'Light brow grooming and conditioning gel can support periorbital balance when shaping is desired.'),
         },
         {
           title: 'Eyelashes',
-          body: cvReport?.eyes?.eyelashes?.explanation
+          body: pickLocalizedExplanation(cvReport?.eyes?.eyelashes, locale)
             || 'Maintain lash hygiene with gentle daily cleansing. A conditioning lash serum applied at night supports fullness without irritation.',
         },
         {
           title: 'Eyes',
           body:
-            cvReport?.eyes?.ocular?.explanation ||
-            eyeAnalysis?.metrics?.explanation ||
-            featureExplanation(cvReport, 'eyes') ||
+            pickLocalizedExplanation(cvReport?.eyes?.ocular, locale) ||
+            pickLocalizedExplanation(eyeAnalysis?.metrics, locale) ||
+            featureExplanation(cvReport, locale, 'eyes') ||
             'The subject\'s ocular structure assessment focuses on symmetry, tilt, and periorbital support.',
         },
         {
           title: 'Under eye',
-          body: cvReport?.eyes?.underEye?.explanation
+          body: pickLocalizedExplanation(cvReport?.eyes?.underEye, locale)
             || (eyeAnalysis?.metrics?.underEyeHealth
               ? `Under-eye assessment: ${safeDisplay(eyeAnalysis.metrics.underEyeHealth, 'moderate')}. Caffeine-based OTC eye serum, sleep, hydration, and daily SPF support this area.`
               : 'Gentle periorbital care with sleep, hydration, caffeine-based OTC serums, and SPF supports the under-eye region.'),
@@ -358,10 +450,12 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Nose',
           body:
-            featureExplanation(cvReport, 'nose') ||
+            featureExplanation(cvReport, locale, 'nose') ||
             `Nasal proportions score ${safeDisplay(cvReport?.nose?.score, '—')}/100 with width-to-length ratio ${safeDisplay(cvReport?.nose?.widthLengthRatio, '—')}. ${faceFallback}`,
         },
-        ...(cvReport?.nose?.nasofrontalAngleDeg != null || cvReport?.nose?.nasolabialAngleDeg != null
+        // EN only: profile metrics are already appended into explanationDe for DE locale.
+        ...(locale !== 'de' &&
+        (cvReport?.nose?.nasofrontalAngleDeg != null || cvReport?.nose?.nasolabialAngleDeg != null)
           ? [
               {
                 title: 'Profile Angles',
@@ -391,7 +485,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
       ],
       summary:
         summaryFromExplanation(
-          featureExplanation(cvReport, 'nose'),
+          featureExplanation(cvReport, locale, 'nose'),
           'The nose provides midface structure; recommendations focus on harmony with surrounding features.',
           2
         ),
@@ -405,7 +499,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Cheek Structure',
           body:
-            featureExplanation(cvReport, 'cheeks') ||
+            featureExplanation(cvReport, locale, 'cheeks') ||
             `Cheek assessment score: ${safeDisplay(cvReport?.cheeks?.score, '—')}/100. Gentle exfoliation and daily SPF support skin clarity; discuss persistent laxity with a qualified clinician.`,
         },
       ],
@@ -421,7 +515,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Jaw Structure',
           body:
-            featureExplanation(cvReport, 'jaw', 'jawChin') ||
+            featureExplanation(cvReport, locale, 'jaw', 'jawChin') ||
             `Jaw and chin score: ${safeDisplay(cvReport?.jawChin?.score, '—')}/100. Jaw shape: ${safeDisplay(cvReport?.jawChin?.jawShape, 'measured')}.`,
         },
         {
@@ -442,7 +536,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Lips',
           body:
-            featureExplanation(cvReport, 'lips') ||
+            featureExplanation(cvReport, locale, 'lips') ||
             `Lip score ${safeDisplay(cvReport?.lips?.score, '—')}/100; fullness ${safeDisplay(cvReport?.lips?.fullness, 'medium')}. Regular moisturiser and gentle exfoliation support lip surface quality and framing around the mouth.`,
         },
       ],
@@ -457,7 +551,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Chin',
           body:
-            featureExplanation(cvReport, 'chin', 'jawChin') ||
+            featureExplanation(cvReport, locale, 'chin', 'jawChin') ||
             `Chin type: ${safeDisplay(cvReport?.jawChin?.chinType, 'measured')}. Grooming that frames the chin (e.g. neat beard edging) and posture support can emphasise lower-face balance without invasive procedures.`,
         },
       ],
@@ -472,7 +566,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Skincare Protocol',
           body:
-            featureExplanation(cvReport, 'skin') ||
+            featureExplanation(cvReport, locale, 'skin') ||
             `Skin score ${safeDisplay(cvReport?.skin?.score, '—')}/100. Tone: ${safeDisplay(cvReport?.skin?.tone, '—')}; texture: ${safeDisplay(cvReport?.skin?.texture, '—')}. Twice-daily cleansing, salicylic acid once or twice weekly, glycolic acid on alternate nights, morning vitamin C serum, azelaic acid as needed, low-dose retinol three evenings per week, and daily SPF 50.`,
         },
         {
@@ -493,7 +587,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Neck Size',
           body:
-            featureExplanation(cvReport, 'neck') ||
+            featureExplanation(cvReport, locale, 'neck') ||
             (cvReport?.neck?.dataSource === 'measured'
               ? `Neck length and posture were measured from the subject's jaw and shoulder line (${safeDisplay(cvReport?.neck?.headPosture, 'neutral')} posture). Neck curls and extensions three times per week can support neck column strength toward the target image.`
               : 'Neck curls and extensions three times per week can improve neck column strength and jaw-neck transition toward the target image.'),
@@ -515,7 +609,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
         {
           title: 'Ear Structure',
           body:
-            featureExplanation(cvReport, 'ears') ||
+            featureExplanation(cvReport, locale, 'ears') ||
             `Ear region score: ${safeDisplay(cvReport?.ears?.score, '—')}/100. ${faceFallback}`,
         },
       ],
@@ -523,7 +617,7 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative) {
     },
   ]
 
-  return pages.map((page) => mergeFeaturePage(page, narrativeFeatures[page.id]))
+  return pages.map((page) => mergeFeaturePage(page, narrativeFeatures[page.id], locale, t))
 }
 
 export function getFeatureComparisonData(cvReport) {
@@ -844,7 +938,7 @@ function miniCardScoreMeta(cvReport, eyeAnalysis, sectionId) {
 
 /** Top N lowest-scoring features for dashboard priority cards. */
 export function buildPriorityFeatureMiniCards(cvReport, eyeAnalysis, limit = DASHBOARD_PRIORITY_FEATURE_LIMIT) {
-  const ranked = QOVES_PROTOCOL_FEATURES
+  const ranked = REPORT_PROTOCOL_FEATURES
     .map((f) => ({
       id: f.id,
       pdfPage: f.page,
