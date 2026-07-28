@@ -382,7 +382,7 @@ export default function AuthForm({ onAuthenticated }) {
               </>
             ) : (
               <>
-                <span className="flex-1 text-left">{isRegister ? t('signUp') : t('signIn')}</span>
+                <span className="flex-1 text-left">{isRegister ? t('signUp') : t('signInCta')}</span>
                 <span className="text-white/40 mr-4">|</span>
                 <span>→</span>
               </>
