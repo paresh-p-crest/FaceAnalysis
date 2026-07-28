@@ -44,10 +44,10 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
                 {t('backToDashboard')}
               </button>
             )}
-            <h1 className="font-display text-3xl sm:text-4xl font-bold text-ink leading-tight tracking-tight text-left">
+            <h1 className="font-display sm:text-4xl font-bold text-ink tracking-tight text-left text-[26px]">
               {t('title')}
             </h1>
-            <p className="text-ink-muted text-sm leading-relaxed mt-4">
+            <p className="text-ink-muted mt-4 text-[13px]">
               {t('description')}
             </p>
           </div>
