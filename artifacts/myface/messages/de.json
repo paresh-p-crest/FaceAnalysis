@@ -1406,7 +1406,7 @@
   "Questionnaire": {
     "welcome": {
       "backToDashboard": "← Zurück zum Dashboard",
-      "title": "Deine persönliche Gesichtsanalyse beginnt hier",
+      "title": "Starte deine Gesichtsanalyse",
       "description": "Beantworte einige kurze Fragen, damit wir deine Analyse auf deine Ziele, Hautthemen und persönlichen Merkmale abstimmen können. Anschliessend lädst du deine Fotos sicher für die Auswertung hoch.",
       "statsLandmarks": "Messpunkte",
       "statsDuration": "Seiten Bericht",
