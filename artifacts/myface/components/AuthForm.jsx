@@ -390,7 +390,7 @@ export default function AuthForm({ onAuthenticated }) {
           </button>
         </form>
 
-        <p className="text-[11px] text-ink-muted text-center mt-4">
+        <p className="text-ink-muted text-center mt-4 text-[12px]">
           {isRegister ? t('switchToSignInHint') : t('switchToSignUpHint')}
         </p>
       </div>
