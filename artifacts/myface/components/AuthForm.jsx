@@ -245,7 +245,7 @@ export default function AuthForm({ onAuthenticated }) {
           <LocaleSwitcher />
         </div>
 
-        <div className="lg:hidden mb-6 flex items-center justify-between border-b border-[#d9e5e1] px-1 pb-4">
+        <div className="lg:hidden mb-6 -mx-5 flex items-center justify-between border-b border-[#d9e5e1] px-5 pb-4 sm:-mx-12 sm:px-12">
           <BrandLogo size="md" />
           <LocaleSwitcher />
         </div>
