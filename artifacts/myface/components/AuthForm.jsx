@@ -219,7 +219,7 @@ export default function AuthForm({ onAuthenticated }) {
   }
 
   return (
-    <div className="min-h-screen flex bg-surface-card dark:bg-surface animate-fade-up">
+    <div className="relative min-h-screen flex overflow-hidden bg-[#f4f8f6] dark:bg-surface animate-fade-up">
       {/* Left: brand panel (questionnaire mesh) */}
       <div className="hidden lg:flex lg:w-[60%] bg-[#0d1e1f] fluid-gradient-mesh flex-col justify-between p-16 relative">
         <div className="relative z-10">
@@ -240,18 +240,21 @@ export default function AuthForm({ onAuthenticated }) {
       </div>
 
       {/* Right: form panel */}
-      <div className="w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-12 lg:p-16 bg-surface-card dark:bg-surface border-l border-surface-border relative">
+      <div className="relative z-10 w-full lg:w-[40%] flex flex-col justify-between p-5 sm:p-12 lg:p-16 bg-transparent lg:bg-surface-card dark:bg-surface border-l-0 lg:border-l border-surface-border">
         <div className="absolute top-4 right-4 z-20 sm:top-6 sm:right-6">
           <LocaleSwitcher />
         </div>
 
-        <div className="lg:hidden mb-8">
-          <BrandLogo size="lg" />
+        <div className="lg:hidden mb-6 px-1">
+          <BrandLogo size="md" />
         </div>
 
-        <form onSubmit={handleSubmit} className="my-auto w-full max-w-md mx-auto space-y-6 py-8">
+        <form
+          onSubmit={handleSubmit}
+          className="my-auto w-full max-w-md mx-auto space-y-5 rounded-[28px] border border-white/80 bg-white/90 px-5 py-6 shadow-[0_20px_60px_rgba(20,59,53,0.12)] backdrop-blur-sm sm:space-y-6 sm:px-8 sm:py-8 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-8 lg:shadow-none lg:backdrop-blur-0"
+        >
           <div>
-            <h1 className="font-display text-3xl sm:text-4xl font-bold text-ink leading-tight tracking-tight">
+            <h1 className="font-display text-[30px] sm:text-4xl font-bold text-ink leading-tight tracking-tight">
               {isRegister ? t('createAccount') : t('signIn')}
             </h1>
             <p className="text-ink-muted text-sm leading-relaxed mt-3">
@@ -373,7 +376,7 @@ export default function AuthForm({ onAuthenticated }) {
           <button
             type="submit"
             disabled={busy}
-            className="btn-primary w-full flex items-center px-6 py-4 text-sm disabled:opacity-50"
+            className="btn-primary w-full flex items-center px-5 py-4 text-sm shadow-[0_10px_24px_rgba(94,159,139,0.28)] disabled:opacity-50"
           >
             {busy ? (
               <>
