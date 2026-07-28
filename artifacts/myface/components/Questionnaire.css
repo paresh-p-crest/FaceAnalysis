@@ -66,7 +66,7 @@
 
   .questionnaire-welcome__content h1 {
     max-width: 340px;
-    font-size: 30px;
+    font-size: 26px;
     line-height: 1.12;
     letter-spacing: -0.045em;
   }
@@ -74,7 +74,7 @@
   .questionnaire-welcome__content p {
     max-width: 350px;
     margin-top: 16px;
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1.65;
   }
 
