@@ -35,15 +35,6 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
         {/* Content */}
         <div className="questionnaire-welcome__content my-auto py-12 max-w-lg space-y-8">
           <div>
-            {onBackToDashboard && (
-              <button
-                type="button"
-                onClick={onBackToDashboard}
-                className="questionnaire-welcome__mobile-back mb-7 flex items-center gap-1 text-[10px] font-semibold text-ink-muted hover:text-ink transition-colors uppercase tracking-[0.09em]"
-              >
-                {t('backToDashboard')}
-              </button>
-            )}
             <h1 className="font-display sm:text-4xl font-bold text-ink tracking-tight text-left text-[26px]">
               {t('title')}
             </h1>
@@ -70,9 +61,6 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
             <span className="text-white/40 mr-4">|</span>
             <span>→</span>
           </button>
-          <p className="text-[11px] text-ink-muted text-center mt-3">
-            {t('durationHint')}
-          </p>
         </div>
       </div>
 
