@@ -17,7 +17,7 @@ export function AnalysisShell({ children }) {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden font-sans">
-      <div className="fixed top-3 right-3 z-40">
+      <div className="fixed top-3 right-3 lg:top-[3.75rem] lg:right-16 z-40">
         <LocaleSwitcher />
       </div>
       {showDevShortcuts && (
