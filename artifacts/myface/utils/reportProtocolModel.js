@@ -292,12 +292,15 @@ export function buildProtocolContents(clientName, t = null) {
 /** Resolve a message key without probing missing paths (next-intl logs MISSING_MESSAGE on t()). */
 function resolveMessageKey(t, keys, fallback) {
   if (!t) return fallback
-  const hasFn = typeof t.has === 'function'
-  for (const key of keys) {
-    if (hasFn) {
-      if (!t.has(key)) continue
-      return t(key)
+  // Prefer t.has when available — never call t() on a missing key.
+  if (typeof t.has === 'function') {
+    for (const key of keys) {
+      if (t.has(key)) return t(key)
     }
+    return fallback
+  }
+  // Plain translators (PDF): no has(), and they return the key string on miss — try each quietly.
+  for (const key of keys) {
     try {
       const out = t(key)
       if (out && out !== key) return out
@@ -315,17 +318,22 @@ export function localizedSubsectionTitle(enTitle, t = null) {
   if (!enTitle) return ''
   return resolveMessageKey(
     t,
-    [`protocolModel.subsectionTitles.${enTitle}`, `subsectionTitles.${enTitle}`],
+    // protocolModel-scoped callers first (FeaturePageHtml); Report-scoped second (PDF / ProtocolReport).
+    [`subsectionTitles.${enTitle}`, `protocolModel.subsectionTitles.${enTitle}`],
     enTitle,
   )
 }
 
-/** Feature id → localized short primary for split titles / overview chips. */
+/** Feature id → localized short primary for split titles / overview chips.
+ *  Callers pass Report-scoped `t` (PDF + ProtocolReport overview). FeaturePageHtml
+ *  uses `useTranslations('Report.protocolModel')` and reads `featurePrimary.*` itself.
+ */
 export function localizedFeaturePrimary(featureId, t = null) {
   if (!featureId) return ''
   return resolveMessageKey(
     t,
-    [`protocolModel.featurePrimary.${featureId}`, `featurePrimary.${featureId}`],
+    // Only the Report-scoped path — bare `featurePrimary.*` does not exist under Report.
+    [`protocolModel.featurePrimary.${featureId}`],
     featureId,
   )
 }

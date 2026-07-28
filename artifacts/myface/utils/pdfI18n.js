@@ -15,19 +15,24 @@ export function createPdfTranslator(messages = null) {
 /** Report namespace translator (executiveSummary, nav, etc.) for PDF/dashboard helpers. */
 export function createReportTranslator(messages = null) {
   const report = messages?.Report || enMessages.Report || {}
-  return (key, params = {}) => {
+  const resolve = (key) => {
     const parts = key.split('.')
     let node = report
     for (const part of parts) {
       node = node?.[part]
     }
-    if (typeof node !== 'string') return key
-    let text = node
+    return typeof node === 'string' ? node : null
+  }
+  const t = (key, params = {}) => {
+    let text = resolve(key)
+    if (text == null) return key
     Object.entries(params).forEach(([name, value]) => {
       text = text.replace(new RegExp(`\\{${name}\\}`, 'g'), String(value))
     })
     return text
   }
+  t.has = (key) => resolve(key) != null
+  return t
 }
 
 export const defaultPdfT = createPdfTranslator()

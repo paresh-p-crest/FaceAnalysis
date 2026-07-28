@@ -5,6 +5,7 @@
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
 ## In-Flight Tasks
+- [x] Fix root build TS5083 — drop stale lib/* tsconfig references; fix auth/reset import depth (status: completed)
 - [x] Fix DE protocol featurePrimary MISSING_MESSAGE (prefer protocolModel keys; skip t() when has=false) (status: completed)
 - [x] Admin panel refresh/delete busy icons: opacity-toggle slot (fix insertBefore NotFoundError) (status: completed)
 - [x] Admin retry DE narrative translations (API + protocol dock by UI locale + CLI --language) (status: completed)

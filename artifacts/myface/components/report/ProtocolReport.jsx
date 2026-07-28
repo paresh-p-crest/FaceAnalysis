@@ -27,7 +27,6 @@ import {
   getFeatureComparisonData,
   INTRODUCTION_PARAGRAPH_KEYS,
   LIMITATIONS_PARAGRAPH_KEY,
-  localizedFeaturePrimary,
   localizedSubsectionTitle,
   PRIVACY_PARAGRAPH_KEYS,
   REPORT_PROTOCOL_FEATURES,
@@ -902,7 +901,7 @@ export default function ProtocolReport({
             <p className="report-pdf-label mb-2">{t('protocolModel.projectedPotential')}</p>
             <div className="grid grid-cols-2 gap-0.5 text-[10px] text-ink-secondary font-sans">
               {REPORT_PROTOCOL_FEATURES.map((f) => (
-                <span key={f.id}>· {localizedFeaturePrimary(f.id, t)}</span>
+                <span key={f.id}>· {t(`protocolModel.featurePrimary.${f.id}`)}</span>
               ))}
             </div>
           </div>
