@@ -15,8 +15,27 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
 
   return (
     <div className="questionnaire-welcome min-h-screen flex bg-surface-card dark:bg-surface animate-fade-up">
-      {/* Left Column: Welcome */}
-      <div className="questionnaire-welcome__main w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-surface-card dark:bg-surface border-r border-surface-border">
+      {/* Left Column: Fluid Wavy Mesh Gradient (Forced Dark Background) */}
+      <div className="hidden lg:flex lg:w-[60%] bg-[#071c18] fluid-gradient-mesh flex-col justify-between p-16 relative">
+        <div className="relative z-10">
+          <BrandLogo size="xl" invert />
+        </div>
+
+        <div className="space-y-6 max-w-xl text-left relative z-10">
+          <div className="inline-block px-3 py-1 rounded-full border border-white/20 text-white/80 text-[10px] uppercase tracking-wider bg-white/5 backdrop-blur-md">
+            {t('sidebarBadge')}
+          </div>
+          <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight whitespace-pre-line">
+            {t('sidebarTitle')}
+          </h1>
+          <p className="text-sm text-slate-300 leading-relaxed max-w-md">
+            {t('sidebarDescription')}
+          </p>
+        </div>
+      </div>
+
+      {/* Right Column: Welcome */}
+      <div className="questionnaire-welcome__main w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-surface-card dark:bg-surface border-l border-surface-border">
         <div className="questionnaire-welcome__header flex items-center justify-between">
           <BrandLogo size="lg" className="questionnaire-welcome__mobile-logo" />
         </div>
@@ -72,25 +91,6 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
               {t('backToDashboard')}
             </button>
           )}
-        </div>
-      </div>
-
-      {/* Right Column: Fluid Wavy Mesh Gradient (Forced Dark Background) */}
-      <div className="hidden lg:flex lg:w-[60%] bg-[#0d1e1f] fluid-gradient-mesh flex-col justify-between p-16 relative">
-        <div className="relative z-10">
-          <BrandLogo size="xl" invert />
-        </div>
-
-        <div className="space-y-6 max-w-xl text-left relative z-10">
-          <div className="inline-block px-3 py-1 rounded-full border border-white/20 text-white/80 text-[10px] uppercase tracking-wider bg-white/5 backdrop-blur-md">
-            {t('sidebarBadge')}
-          </div>
-          <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight whitespace-pre-line">
-            {t('sidebarTitle')}
-          </h1>
-          <p className="text-sm text-slate-300 leading-relaxed max-w-md">
-            {t('sidebarDescription')}
-          </p>
         </div>
       </div>
     </div>

@@ -1707,7 +1707,7 @@
 
 .fluid-gradient-mesh {
   position: relative;
-  background-color: #0d1e1f !important; /* Force dark background in both light & dark mode */
+  background-color: #071c18 !important; /* Deep premium forest green */
   overflow: hidden;
 }
 
@@ -1717,8 +1717,8 @@
   content: "";
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.28;
+  filter: blur(90px);
+  opacity: 0.32;
   mix-blend-mode: screen;
   animation: float-mesh-blob 20s infinite alternate ease-in-out;
   pointer-events: none;
@@ -1727,7 +1727,7 @@
 .fluid-gradient-mesh::before {
   width: 140%;
   height: 140%;
-  background: radial-gradient(circle, #2d5a57 0%, #153c3a 40%, transparent 70%);
+  background: radial-gradient(circle, #1e5c4a 0%, #0e3328 40%, transparent 70%);
   top: -40%;
   left: -30%;
 }
@@ -1735,7 +1735,7 @@
 .fluid-gradient-mesh::after {
   width: 120%;
   height: 120%;
-  background: radial-gradient(circle, #3b716e 0%, #0d2e2c 50%, transparent 80%);
+  background: radial-gradient(circle, #2d7a5e 0%, #0b3525 50%, transparent 80%);
   bottom: -30%;
   right: -20%;
   animation-duration: 25s;
