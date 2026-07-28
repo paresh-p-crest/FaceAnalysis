@@ -80,6 +80,38 @@
     "openingReport": "Opening your report…",
     "reportReadyHint": "Your latest report is ready. Use Report in the navbar if it isn’t open."
   },
+  "ExampleResult": {
+    "badge": "Example report",
+    "eyebrow": "Your personal insight",
+    "title": "This is what your MyFace result could look like.",
+    "description": "A clear overview of facial proportions, symmetry, and skin appearance — presented simply and tailored to you.",
+    "scoreLabel": "Overall harmony",
+    "scoreTitle": "Balanced facial harmony",
+    "scoreDescription": "This example profile shows a strong balance between symmetry, proportions, and structural clarity.",
+    "reviewed": "Report fully assessed",
+    "metricsEyebrow": "Key measurements",
+    "metricsTitle": "Your analysis at a glance",
+    "metrics": {
+      "symmetry": "Symmetry",
+      "proportions": "Proportions",
+      "skin": "Skin appearance"
+    },
+    "metricDescriptions": {
+      "symmetry": "Harmonious balance between the left and right sides of the face.",
+      "proportions": "A considered relationship between the central facial areas.",
+      "skin": "An even complexion with clear starting points for your routine."
+    },
+    "detailEyebrow": "Included in your report",
+    "detailTitle": "More than a score.",
+    "detailDescription": "Your complete report combines measurements with clear recommendations and practical next steps.",
+    "highlights": {
+      "balance": "Facial balance and symmetry",
+      "structure": "Proportions and structural features",
+      "skin": "Skin appearance and personal recommendations"
+    },
+    "cta": "Start my analysis",
+    "backToStart": "Back to start"
+  },
   "Dashboard": {
     "title": "Your Dashboard",
     "subtitle": "Review assessments, track scores, and open your latest facial analysis report.",

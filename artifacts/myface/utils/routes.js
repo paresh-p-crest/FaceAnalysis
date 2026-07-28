@@ -12,6 +12,7 @@ export const ROUTES = {
   /** Customer home (overview). Admin tabs live under `/dashboard/admin-*`. */
   dashboard: '/dashboard',
   paymentSuccess: '/payment-success',
+  exampleResult: '/example-result',
   history: '/history',
   billing: '/billing',
   settings: '/settings',
@@ -55,6 +56,7 @@ export function isReportModalHostPath(pathname) {
 export function requiresAuth(pathname) {
   if (!pathname || pathname === ROUTES.home) return true
   if (pathname === ROUTES.auth) return false
+  if (pathname === ROUTES.exampleResult) return false
   if (PROTECTED_PATHS.has(pathname)) return true
   return isAdminTabPath(pathname)
 }
@@ -104,6 +106,7 @@ export function isKnownAppPath(pathname) {
   if (!pathname) return false
   if (pathname === ROUTES.home) return true
   if (pathname === ROUTES.auth) return true
+  if (pathname === ROUTES.exampleResult) return true
   if (Object.values(ROUTES).includes(pathname)) return true
   return isAdminTabPath(pathname)
 }

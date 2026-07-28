@@ -80,6 +80,38 @@
     "openingReport": "Dein Bericht wird geöffnet…",
     "reportReadyHint": "Dein neuester Bericht ist fertig. Klick in der Navigation auf „Bericht“, falls er nicht geöffnet ist."
   },
+  "ExampleResult": {
+    "badge": "Beispielbericht",
+    "eyebrow": "Dein persönlicher Einblick",
+    "title": "So könnte dein MyFace-Ergebnis aussehen.",
+    "description": "Ein klarer Überblick über Gesichtsproportionen, Symmetrie und Hautbild — verständlich aufbereitet und individuell auf dich zugeschnitten.",
+    "scoreLabel": "Gesamtharmonie",
+    "scoreTitle": "Ausgewogene Gesichtsharmonie",
+    "scoreDescription": "Dein Beispielprofil zeigt eine starke Balance zwischen Symmetrie, Proportionen und struktureller Klarheit.",
+    "reviewed": "Bericht vollständig ausgewertet",
+    "metricsEyebrow": "Die wichtigsten Werte",
+    "metricsTitle": "Deine Analyse auf einen Blick",
+    "metrics": {
+      "symmetry": "Symmetrie",
+      "proportions": "Proportionen",
+      "skin": "Hautbild"
+    },
+    "metricDescriptions": {
+      "symmetry": "Harmonische Balance zwischen linker und rechter Gesichtshälfte.",
+      "proportions": "Stimmiges Verhältnis der zentralen Gesichtsbereiche.",
+      "skin": "Gleichmäßiges Hautbild mit klaren Ansatzpunkten für deine Routine."
+    },
+    "detailEyebrow": "Im Bericht enthalten",
+    "detailTitle": "Mehr als nur ein Score.",
+    "detailDescription": "Dein vollständiger Bericht verbindet Messwerte mit verständlichen Empfehlungen und konkreten nächsten Schritten.",
+    "highlights": {
+      "balance": "Gesichtsbalance und Symmetrie",
+      "structure": "Proportionen und strukturelle Merkmale",
+      "skin": "Hautbild und persönliche Empfehlungen"
+    },
+    "cta": "Meine Analyse starten",
+    "backToStart": "Zurück zur Startseite"
+  },
   "Dashboard": {
     "title": "Dein Dashboard",
     "subtitle": "Prüf Analysen, verfolge Scores und öffne deinen neuesten Gesichtsanalyse-Bericht.",
