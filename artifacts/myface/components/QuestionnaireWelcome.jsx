@@ -52,15 +52,15 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Start Button */}
-        <div className="questionnaire-welcome__action">
-          <button onClick={onBegin} className="btn-primary w-full flex items-center px-6 py-4 text-sm">
-            <span className="flex-1 text-left">{t('getStarted')}</span>
-            <span className="text-white/40 mr-4">|</span>
-            <span>→</span>
-          </button>
+          {/* Start Button */}
+          <div className="questionnaire-welcome__action">
+            <button onClick={onBegin} className="btn-primary w-full flex items-center px-6 py-4 text-sm">
+              <span className="flex-1 text-left">{t('getStarted')}</span>
+              <span className="text-white/40 mr-4">|</span>
+              <span>→</span>
+            </button>
+          </div>
         </div>
       </div>
 
