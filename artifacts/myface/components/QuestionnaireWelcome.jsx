@@ -63,7 +63,6 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
           <div className="questionnaire-welcome__stats grid grid-cols-3 gap-3">
             {STATS.map((stat) => (
               <div key={stat.label} className="questionnaire-welcome__stat p-4 rounded-xl border border-surface-border bg-surface-warm/50 dark:bg-surface-raised/50 text-center">
-                <stat.icon className="w-5 h-5 text-brand mx-auto mb-2" />
                 <div className="text-xl font-bold text-ink">{stat.value}</div>
                 <div className="questionnaire-welcome__stat-label text-[10px] text-ink-muted mt-1 uppercase font-medium tracking-wider">{stat.label}</div>
               </div>
