@@ -367,8 +367,8 @@ export function AppProvider({ children }) {
       const sid = sessionId || localStorage.getItem(PAYMENT_SESSION_KEY)
       if (sid) localStorage.setItem(PAYMENT_SESSION_KEY, sid)
       setPaymentReturn({ provider: 'stripe', sessionId: sid })
-      setReturnPath(ROUTES.dashboard)
-      goTo(ROUTES.dashboard, { replace: true })
+      setReturnPath(ROUTES.paymentSuccess)
+      goTo(ROUTES.paymentSuccess, { replace: true })
       restored = true
     } else if (payment === 'stripe-cancel') {
       setBillingMessage('Payment was cancelled. You can restart checkout when ready.')
@@ -815,11 +815,14 @@ export function AppProvider({ children }) {
       goTo(adminTabToPath('overview'), { replace: true })
       return
     }
-    if (pathname === ROUTES.billing && (paymentReturn || localStorage.getItem(PAYMENT_SESSION_KEY))) {
+    if (
+      (pathname === ROUTES.billing || pathname === ROUTES.paymentSuccess) &&
+      (paymentReturn || localStorage.getItem(PAYMENT_SESSION_KEY))
+    ) {
       const sid = localStorage.getItem(PAYMENT_SESSION_KEY)
       if (sid) setPaymentReturn({ provider: 'stripe', sessionId: sid })
       await refreshAnalysisAccess(nextUser)
-      goTo(ROUTES.dashboard, { replace: true })
+      goTo(ROUTES.paymentSuccess, { replace: true })
       return
     }
     await refreshAnalysisAccess(nextUser)

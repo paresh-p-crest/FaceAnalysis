@@ -11,6 +11,7 @@ export const ROUTES = {
   chat: '/chat',
   /** Customer home (overview). Admin tabs live under `/dashboard/admin-*`. */
   dashboard: '/dashboard',
+  paymentSuccess: '/payment-success',
   history: '/history',
   billing: '/billing',
   settings: '/settings',
@@ -21,6 +22,7 @@ export const NAVBAR_PATHS = new Set([
   ROUTES.aiVisuals,
   ROUTES.chat,
   ROUTES.dashboard,
+  ROUTES.paymentSuccess,
   ROUTES.history,
   ROUTES.billing,
   ROUTES.settings,
@@ -32,6 +34,7 @@ export const PROTECTED_PATHS = new Set([
   ROUTES.aiVisuals,
   ROUTES.chat,
   ROUTES.dashboard,
+  ROUTES.paymentSuccess,
   ROUTES.history,
   ROUTES.billing,
   ROUTES.settings,
@@ -61,6 +64,7 @@ export const RESTORABLE_PATHS = new Set([
   ROUTES.aiVisuals,
   ROUTES.chat,
   ROUTES.dashboard,
+  ROUTES.paymentSuccess,
   ROUTES.history,
   ROUTES.billing,
   ROUTES.settings,
@@ -78,7 +82,6 @@ export const ANALYSIS_STEPS = {
 
 const LEGACY_REDIRECTS = {
   '/admin': adminTabToPath('overview'),
-  '/payment-success': ROUTES.billing,
 }
 
 const LOCALE_PREFIX = /^\/(en|de)(?=\/|$)/
@@ -130,7 +133,7 @@ export const STAGE_TO_ROUTE = {
   [STAGES.SETTINGS]: ROUTES.settings,
   [STAGES.DASHBOARD]: ROUTES.dashboard,
   [STAGES.ADMIN]: adminTabToPath('overview'),
-  [STAGES.PAYMENT_SUCCESS]: ROUTES.billing,
+  [STAGES.PAYMENT_SUCCESS]: ROUTES.paymentSuccess,
 }
 
 export function stageToPath(stage) {

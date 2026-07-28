@@ -169,7 +169,7 @@ async def create_stripe_checkout(
         raise HTTPException(status_code=503, detail="Stripe is not configured.")
 
     product = await get_premium_product()
-    success_url = req.successUrl or f"{_public_base_url()}/?payment=stripe-success&session_id={{CHECKOUT_SESSION_ID}}"
+    success_url = req.successUrl or f"{_public_base_url()}/payment-success?payment=stripe-success&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = req.cancelUrl or f"{_public_base_url()}/?payment=stripe-cancel"
     form = {
         "mode": "payment",
