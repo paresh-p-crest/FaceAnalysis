@@ -19,17 +19,6 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
       <div className="questionnaire-welcome__main w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-surface-card dark:bg-surface border-r border-surface-border">
         <div className="questionnaire-welcome__header flex items-center justify-between">
           <BrandLogo size="lg" className="questionnaire-welcome__mobile-logo" />
-          {onBackToDashboard ? (
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="questionnaire-welcome__back flex items-center gap-1 text-xs font-semibold text-ink-muted hover:text-ink transition-colors uppercase tracking-wider"
-            >
-              {t('backToDashboard')}
-            </button>
-          ) : (
-            <span aria-hidden className="w-px h-px" />
-          )}
         </div>
 
         {/* Content */}
@@ -70,6 +59,19 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
               <span>→</span>
             </button>
           </div>
+        </div>
+
+        {/* Footer — desktop back button */}
+        <div className="questionnaire-welcome__footer">
+          {onBackToDashboard && (
+            <button
+              type="button"
+              onClick={onBackToDashboard}
+              className="questionnaire-welcome__back flex items-center gap-1 text-xs font-semibold text-ink-muted hover:text-ink transition-colors uppercase tracking-wider"
+            >
+              {t('backToDashboard')}
+            </button>
+          )}
         </div>
       </div>
 
