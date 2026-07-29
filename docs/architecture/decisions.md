@@ -926,3 +926,21 @@ ADR-042 translated feature narratives, closing, and treatment phases via one str
 - Fewer JSON-parse / truncation failures on free models; same path works with GPT-5 mini.
 - Protocol feature pages no longer mix English CV bodies with German LLM summaries when `explanationDe` is present.
 - Admins can refresh DE after EN edits or failed translation runs without burning a full EN regen.
+
+---
+
+## ADR-045: OpenRouter json_schema for selected models
+Date: 2026-07-29  
+Status: accepted  
+
+### Context
+ADR-020 routes all OpenRouter structured completions through `json_object`. Some OpenRouter-hosted models (notably `openai/gpt-5-mini` and `google/gemma-4-26b-a4b-it:free`) support OpenAI strict `json_schema`, which improves shape adherence for EN narrative generation.
+
+### Decision
+- `llm_client.uses_strict_json_schema(source, model)` returns true for `source=openai` and for OpenRouter when `OPENROUTER_MODEL` is in an explicit allowlist (`openai/gpt-5-mini`, `google/gemma-4-26b-a4b-it:free`).
+- `chat_structured_completion` uses the same strict `json_schema` → `json_object` fallback path as direct OpenAI for those models; all other Groq/OpenRouter models remain `json_object`-only.
+
+### Consequences
+- Operators on OpenRouter can get stricter EN structured outputs without switching `LLM_PROVIDER` to OpenAI.
+- Allowlist must be updated when new OpenRouter models are verified to support strict schema mode.
+- ADR-020 remains in force for non-allowlisted OpenRouter models.

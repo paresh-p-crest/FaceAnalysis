@@ -3,16 +3,33 @@
 from __future__ import annotations
 
 from .clinical_guardrails import (
-    FEATURE_DISPLAY,
     _facts_phrase,
     _rewrite_narrative_dict,
 )
 from .narrative_schemas import FEATURE_SUBSECTION_TITLES, FeatureNarrative
 
+FEATURE_DISPLAY_DE = {
+    "hair": "Haar und Kopfhaut",
+    "eyes": "Augenregion",
+    "nose": "Nasenproportionen",
+    "cheeks": "Wangen",
+    "jaw": "Kieferlinie",
+    "lips": "Lippen",
+    "chin": "Kinn",
+    "skin": "Hautqualität",
+    "neck": "Hals und Submentalbereich",
+    "ears": "Ohrproportionen",
+    "smile": "Lächeln und dentofaziale Darstellung",
+}
+
+
+def _display_label_de(feature_id: str) -> str:
+    return FEATURE_DISPLAY_DE.get(feature_id, feature_id)
+
 
 def _template_summary_de(feature_id: str, ctx: dict) -> str:
     facts = _facts_phrase(ctx, 100)
-    label = FEATURE_DISPLAY.get(feature_id, feature_id)
+    label = _display_label_de(feature_id)
     return (
         f"Priorisiere deine {label}-Befunde ({facts}). "
         "Konzentriere dich 30 Tage auf Pflege, topische Basisversorgung, SPF, Schlaf und Flüssigkeit, bevor du neu bewertest."
@@ -21,7 +38,7 @@ def _template_summary_de(feature_id: str, ctx: dict) -> str:
 
 def _template_subsection_body_de(feature_id: str, title: str, ctx: dict) -> str:
     facts = _facts_phrase(ctx, 80)
-    label = FEATURE_DISPLAY.get(feature_id, feature_id)
+    label = _display_label_de(feature_id)
     return (
         f"Deine {label}-Analyse ({title}) zeigt {facts}. "
         "Bleib bei konservativen, nicht-invasiven Gewohnheiten. "

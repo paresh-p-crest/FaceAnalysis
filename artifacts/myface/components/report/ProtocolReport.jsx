@@ -363,8 +363,8 @@ function FeaturePageHtml({ page, images, pageNum, editable = false, onEditFeatur
             <LabeledBody title={subs[1].title} displayTitle={subLabel(subs[1].title)} body={subs[1].body} evidenceTier={subs[1].evidenceTier} {...bodyEdit(subs[1].title)} />
           </div>
         )}
-        <div className="report-pdf-cols report-pdf-cols--bottom">
-          <div>
+        <div className="report-pdf-cols report-pdf-cols--bottom report-pdf-cols--bottom-anchor">
+          <div className="report-pdf-bottom-left">
             {subs[2] && (
               <LabeledBody title={subs[2].title} displayTitle={subLabel(subs[2].title)} body={subs[2].body} evidenceTier={subs[2].evidenceTier} {...bodyEdit(subs[2].title)} />
             )}
@@ -403,8 +403,10 @@ function FeaturePageHtml({ page, images, pageNum, editable = false, onEditFeatur
         <div className="report-pdf-block">
           <BeforeAfterPair beforeSrc={beforeSrc} afterSrc={pageAfterSrc} height={150} />
         </div>
-        <div className="report-pdf-cols report-pdf-cols--bottom">
-          <LabeledBody title="Further Enhancement" displayTitle={subLabel('Further Enhancement')} body={subs[1]?.body} evidenceTier={subs[1]?.evidenceTier} {...bodyEdit('Further Enhancement')} />
+        <div className="report-pdf-cols report-pdf-cols--bottom report-pdf-cols--bottom-anchor">
+          <div className="report-pdf-bottom-left">
+            <LabeledBody title="Further Enhancement" displayTitle={subLabel('Further Enhancement')} body={subs[1]?.body} evidenceTier={subs[1]?.evidenceTier} {...bodyEdit('Further Enhancement')} />
+          </div>
           <SummaryCard title={t('jawRegionSummary')} summary={page.summary} {...summaryEdit} />
         </div>
       </PdfPageShell>

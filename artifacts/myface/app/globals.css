@@ -1440,6 +1440,15 @@
     margin-top: var(--report-pdf-section-gap);
   }
 
+  /* Hair / Jaw: pin bottom row to page footer; left title inset matches summary card p-3 */
+  .report-pdf-cols--bottom-anchor {
+    margin-top: auto;
+  }
+
+  .report-pdf-cols--bottom-anchor .report-pdf-bottom-left {
+    padding-top: 12px;
+  }
+
   .report-pdf-feature-fill {
     margin-top: 4px;
   }
@@ -1536,7 +1545,7 @@
   }
 
   .report-pdf-summary-bar .report-pdf-summary-title {
-    @apply w-28;
+    @apply min-w-28 max-w-[42%];
   }
 
   /* Inline admin editing — box-shadow affordance only (no layout shift, preserves PDF scale) */

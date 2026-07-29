@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from backend.clinical_guardrails import (
+    _facts_phrase,
     is_template_feature_narrative,
     normalize_feature_narrative_raw,
     strip_score_language,
@@ -14,6 +15,7 @@ from backend.clinical_guardrails import (
     try_validate_feature_narrative,
     validate_feature_narrative,
 )
+from backend.clinical_guardrails_de import template_feature_narrative_de
 from backend.feature_context import build_feature_context
 from backend.narrative_schemas import FeatureNarrative, feature_narrative_json_schema
 
@@ -278,3 +280,36 @@ def test_strip_score_language():
     assert "/100" not in strip_score_language("Overall harmony score 77/100 looks balanced.")
     assert "score 12" not in strip_score_language("The score 12 is noted.").lower()
     assert "0.33" not in strip_score_language("The middle third ratio is 0.33 for balance.")
+
+
+def test_facts_phrase_strips_camelcase_keys():
+    ctx = {
+        "measuredFacts": [
+            "relative strength: strong relative to peers",
+            "cheekboneHeightClass: High",
+            "prominence: Prominent",
+        ],
+        "cvMetrics": {"scoreLabel": "Strong"},
+    }
+    phrase = _facts_phrase(ctx, 120)
+    assert "cheekboneHeightClass" not in phrase
+    assert "High" in phrase
+    assert "Strong" in phrase
+
+
+def test_de_template_uses_german_labels():
+    cv = {
+        "cheeks": {
+            "score": 85,
+            "scoreLabel": "Strong",
+            "cheekboneHeightClass": "High",
+            "prominence": "Prominent",
+        },
+    }
+    ctx = build_feature_context("cheeks", cv_report=cv)
+    tpl = template_feature_narrative_de("cheeks", ctx)
+    summary = tpl["summary"]
+    assert "midface and cheeks" not in summary.lower()
+    assert "Wangen" in summary
+    assert "cheekboneHeightClass" not in summary
+    assert tpl.get("origin") == "template"

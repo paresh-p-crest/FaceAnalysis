@@ -347,10 +347,22 @@ async def _chat_protocol_with_rate_limit_backoff(
 
 
 def _clamp_str(value: Any, max_len: int) -> str:
+    """Trim to max_len without cutting mid-word (prefer sentence end, else last space)."""
     text = str(value or "").strip()
     if len(text) <= max_len:
         return text
-    return text[:max_len].rstrip()
+    cut = text[:max_len]
+    # Prefer ending on a sentence boundary inside the window.
+    last_stop = -1
+    for i, ch in enumerate(cut):
+        if ch in ".!?" and (i + 1 >= len(cut) or cut[i + 1].isspace()):
+            last_stop = i
+    if last_stop >= max(20, max_len // 4):
+        return cut[: last_stop + 1].rstrip()
+    last_space = cut.rfind(" ")
+    if last_space > 0:
+        return cut[:last_space].rstrip()
+    return cut.rstrip()
 
 
 _PHASE_KEY_ALIASES = {

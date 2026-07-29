@@ -89,6 +89,25 @@ FEATURE_DISPLAY = {
 }
 
 
+def _clean_fact_cue(fact: str) -> str:
+    """Drop CV field keys and score echoes; keep human-readable cue text."""
+    cleaned = fact.strip()
+    if not cleaned:
+        return ""
+    if SCORE_PROSE_PATTERN.search(cleaned) or re.search(r"\bscore\b", cleaned, re.I):
+        m = re.search(r"\(([^)]+)\)", cleaned)
+        return m.group(1).strip() if m else ""
+    if ":" in cleaned:
+        key_part, val_part = cleaned.split(":", 1)
+        key = key_part.strip()
+        val = val_part.strip().strip(";.")
+        if val and re.match(r"^[a-z][a-zA-Z0-9]*$", key):
+            return val
+        if len(cleaned) > 40:
+            return val
+    return cleaned
+
+
 def _facts_phrase(ctx: dict, limit: int = 120) -> str:
     """Short human-readable cue list (qualitative labels only — no X/100 scores)."""
     facts = [f for f in (ctx.get("measuredFacts") or []) if f]
@@ -98,12 +117,7 @@ def _facts_phrase(ctx: dict, limit: int = 120) -> str:
     if label:
         parts.append(str(label))
     for fact in facts:
-        cleaned = fact.strip()
-        if SCORE_PROSE_PATTERN.search(cleaned) or re.search(r"\bscore\b", cleaned, re.I):
-            m = re.search(r"\(([^)]+)\)", cleaned)
-            cleaned = m.group(1).strip() if m else ""
-        elif ":" in cleaned and len(cleaned) > 40:
-            cleaned = cleaned.split(":", 1)[-1].strip()
+        cleaned = _clean_fact_cue(fact)
         if cleaned and cleaned.lower() not in {p.lower() for p in parts}:
             parts.append(cleaned)
         if len(parts) >= 3:

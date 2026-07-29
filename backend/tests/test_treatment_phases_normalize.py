@@ -49,3 +49,38 @@ def test_clamp_accepts_aliased_keys():
     clamped = _clamp_treatment_phases_raw(raw)
     assert set(clamped.keys()) >= {"phase01", "phase02", "phase03", "summary"}
     assert clamped["phase01"]["title"].startswith("Foundation")
+
+
+def test_clamp_str_does_not_cut_mid_word():
+    from backend.narrative_orchestrator import _clamp_str
+
+    long = (
+        "The subject should use a gentle hydrating cleanser and ceramide-rich moisturizer nightly "
+        "and include targeted periocular hydration for high eyelid exposure and minimal under-eye changes."
+    )
+    out = _clamp_str(long, 80)
+    assert len(out) <= 80
+    assert not out.endswith("unde")
+    # Ends on sentence or word boundary relative to source
+    assert out[-1] in ".!?" or long[len(out) : len(out) + 1] in ("", " ")
+
+
+def test_clamp_treatment_phases_detail_word_safe():
+    from backend.narrative_orchestrator import _clamp_treatment_phases_raw
+    from backend.narrative_schemas import TREATMENT_PHASE_DETAIL_MAX
+
+    detail = ("word " * 100).strip()
+    raw = {
+        "phase01": {
+            "title": "Foundation",
+            "duration": "8 weeks",
+            "items": [{"name": "SPF", "detail": detail}],
+        },
+        "phase02": {"title": "P2", "duration": "12 weeks", "items": [{"name": "A", "detail": "Ok."}]},
+        "phase03": {"title": "P3", "duration": "Ongoing", "items": [{"name": "B", "detail": "Ok."}]},
+        "summary": "Baseline plan.",
+    }
+    clamped = _clamp_treatment_phases_raw(raw)
+    d = clamped["phase01"]["items"][0]["detail"]
+    assert len(d) <= TREATMENT_PHASE_DETAIL_MAX
+    assert not d.endswith("wor")

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocale, useTranslations } from 'next-intl'
 import { Image, CircleHelp, Loader2, Sparkles, X } from 'lucide-react'
 import { resolveStyleDisplayCopy, resolveStylePanelCopy } from '../utils/aiVisualStyleCopy'
@@ -15,31 +16,36 @@ function ImagePreviewModal({ src, title, onClose, closeLabel }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  if (!src) return null
+  if (!src || typeof document === 'undefined') return null
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[220] flex items-center justify-center bg-black/70 p-4 sm:p-8"
+      className="fixed inset-0 z-[220] flex items-center justify-center p-6 sm:p-10"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onClose}
     >
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute top-4 right-4 report-shell-btn min-w-[36px] px-2.5 z-20 sm:top-5 sm:right-5"
-        aria-label={closeLabel}
-      >
-        <X className="w-4 h-4" />
-      </button>
-      <img
-        src={src}
-        alt={title}
-        className="max-h-[85vh] max-w-full w-auto rounded-2xl shadow-elevated object-contain"
+      <div
+        className="relative inline-block max-h-full max-w-full"
         onClick={(event) => event.stopPropagation()}
-      />
-    </div>
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-0 left-full ml-1.5 report-shell-btn min-w-[36px] px-2.5 z-20"
+          aria-label={closeLabel}
+        >
+          <X className="w-4 h-4" />
+        </button>
+        <img
+          src={src}
+          alt={title}
+          className="block max-h-[calc(100dvh-5rem)] max-w-[calc(100vw-5.5rem)] w-auto rounded-2xl shadow-elevated object-contain"
+        />
+      </div>
+    </div>,
+    document.body,
   )
 }
 

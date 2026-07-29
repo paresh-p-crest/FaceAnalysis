@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocale, useTranslations } from 'next-intl'
 import { ImagePlus, Loader2, Save, Sparkles, X } from 'lucide-react'
 import {
@@ -28,31 +29,36 @@ function ImagePreviewModal({ src, title, onClose, closeLabel }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  if (!src) return null
+  if (!src || typeof document === 'undefined') return null
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[240] flex items-center justify-center bg-black/70 p-4 sm:p-8"
+      className="fixed inset-0 z-[240] flex items-center justify-center p-6 sm:p-10"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onClose}
     >
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute top-4 right-4 w-9 h-9 rounded-xl border border-white/20 bg-white/10 text-white hover:bg-white/20 inline-flex items-center justify-center z-10"
-        aria-label={closeLabel}
-      >
-        <X className="w-4 h-4" />
-      </button>
-      <img
-        src={src}
-        alt={title}
-        className="max-h-[85vh] max-w-full w-auto rounded-2xl shadow-elevated object-contain"
+      <div
+        className="relative inline-block max-h-full max-w-full"
         onClick={(event) => event.stopPropagation()}
-      />
-    </div>
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-0 left-full ml-1.5 report-shell-btn min-w-[36px] px-2.5 z-20"
+          aria-label={closeLabel}
+        >
+          <X className="w-4 h-4" />
+        </button>
+        <img
+          src={src}
+          alt={title}
+          className="block max-h-[calc(100dvh-5rem)] max-w-[calc(100vw-5.5rem)] w-auto rounded-2xl shadow-elevated object-contain"
+        />
+      </div>
+    </div>,
+    document.body,
   )
 }
 

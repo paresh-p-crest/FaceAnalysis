@@ -15,7 +15,7 @@ from typing import Any, Optional
 
 from .clinical_guardrails import sanitize_report_ascii
 from .clinical_guardrails_de import template_feature_narrative_de
-from .config import FEATURE_NARRATIVE_IDS
+from .config import FEATURE_NARRATIVE_IDS, LLM_MAX_OUTPUT_TOKENS
 from .feature_context import build_feature_context
 from .llm_client import chat_text_completion
 from .narrative_orchestrator import _clamp_treatment_phases_raw, stitch_closing_paragraphs
@@ -57,7 +57,7 @@ async def translate_text_en_to_de(text_en: str, *, label: str = "narrative_trans
             {"role": "user", "content": text_en},
         ],
         temperature=0.3,
-        max_tokens=2048,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
         label=label,
     )
     if result.get("error") or not result.get("content"):
@@ -272,7 +272,7 @@ async def _translate_phase_packed(phase: dict, *, label: str) -> dict:
             {"role": "user", "content": packed},
         ],
         temperature=0.3,
-        max_tokens=2048,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
         label=label,
     )
     if result.get("error") or not result.get("content"):

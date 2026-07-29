@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from backend.llm_client import get_chat_llm, resolve_llm_provider
+from backend.llm_client import get_chat_llm, resolve_llm_provider, uses_strict_json_schema
 
 
 def test_resolve_explicit_openrouter(monkeypatch):
@@ -51,3 +51,73 @@ def test_get_chat_llm_openrouter_client(monkeypatch):
     assert kwargs["base_url"] == "https://openrouter.ai/api/v1"
     assert kwargs["default_headers"]["HTTP-Referer"] == "https://example.com"
     assert kwargs["default_headers"]["X-Title"] == "MyFace"
+
+
+def test_uses_strict_json_schema_openai():
+    assert uses_strict_json_schema("openai", "gpt-5-mini") is True
+
+
+def test_uses_strict_json_schema_openrouter_allowlist():
+    assert uses_strict_json_schema("openrouter", "openai/gpt-5-mini") is True
+    assert uses_strict_json_schema("openrouter", "google/gemma-4-26b-a4b-it:free") is True
+    assert uses_strict_json_schema("openrouter", "meta-llama/llama-3.3-70b-instruct:free") is False
+
+
+def test_uses_strict_json_schema_groq():
+    assert uses_strict_json_schema("groq", "llama-3.3-70b-versatile") is False
+
+
+def test_chat_structured_openrouter_gpt5_mini_uses_json_schema(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setenv("OPENROUTER_MODEL", "openai/gpt-5-mini")
+
+    mock_response = type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": '{"ok": true}'})()})()]})()
+    captured = {}
+
+    def fake_chat_create(client, *, source, op, label, **kwargs):
+        captured.update(kwargs)
+        return mock_response, {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}, 0.01
+
+    with patch("backend.llm_client.OpenAI"), patch("backend.llm_client._chat_create", side_effect=fake_chat_create):
+        from backend.llm_client import chat_structured_completion
+
+        result = chat_structured_completion(
+            schema_name="test_schema",
+            json_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]},
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.2,
+            max_tokens=100,
+        )
+
+    assert result["error"] is None
+    assert result["content"] == {"ok": True}
+    assert captured["response_format"]["type"] == "json_schema"
+    assert captured["response_format"]["json_schema"]["strict"] is True
+
+
+def test_chat_structured_openrouter_free_llama_uses_json_object(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+
+    mock_response = type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": '{"ok": true}'})()})()]})()
+    captured = {}
+
+    def fake_chat_create(client, *, source, op, label, **kwargs):
+        captured.update(kwargs)
+        return mock_response, {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}, 0.01
+
+    with patch("backend.llm_client.OpenAI"), patch("backend.llm_client._chat_create", side_effect=fake_chat_create):
+        from backend.llm_client import chat_structured_completion
+
+        result = chat_structured_completion(
+            schema_name="test_schema",
+            json_schema={"type": "object"},
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.2,
+            max_tokens=100,
+        )
+
+    assert result["error"] is None
+    assert captured["response_format"] == {"type": "json_object"}

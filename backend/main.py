@@ -164,6 +164,7 @@ class GeneratePdfRequest(BaseModel):
 
 @app.api_route("/api/health", methods=["GET", "HEAD"])
 async def health():
+    logger.info("[Health check API called]")
     if not _boot_done.is_set():
         return {
             "status": "starting",

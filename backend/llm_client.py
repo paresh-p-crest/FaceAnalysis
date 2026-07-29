@@ -18,6 +18,20 @@ logger = logging.getLogger(__name__)
 
 _KNOWN_PROVIDERS = frozenset({"openai", "groq", "openrouter"})
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+# OpenRouter models that accept OpenAI strict json_schema (not just json_object).
+_OPENROUTER_JSON_SCHEMA_MODELS = frozenset({
+    # "openai/gpt-5-mini",
+    "google/gemma-4-26b-a4b-it:free",
+})
+
+
+def uses_strict_json_schema(source: str, model: str) -> bool:
+    """True when chat_structured_completion should try strict json_schema first."""
+    if source == "openai":
+        return True
+    if source == "openrouter":
+        return (model or "").strip() in _OPENROUTER_JSON_SCHEMA_MODELS
+    return False
 
 
 def resolve_llm_provider() -> str:
@@ -228,7 +242,7 @@ def chat_structured_completion(
     max_tokens: int,
     api_key_override: Optional[str] = None,
 ) -> dict:
-    """Chat completion with OpenAI strict json_schema; Groq/OpenRouter use json_object."""
+    """Chat completion with strict json_schema when supported; else json_object."""
     llm = get_chat_llm(api_key_override=api_key_override)
     if llm.get("error"):
         return {"content": None, "source": None, "model": None, "error": llm["error"], "usage": None}
@@ -241,7 +255,7 @@ def chat_structured_completion(
     def _parse_response(raw: str) -> dict:
         return _extract_json_object(raw)
 
-    if source == "openai":
+    if uses_strict_json_schema(source, model):
         try:
             response, usage, duration_s = _chat_create(
                 client,
@@ -304,7 +318,7 @@ def chat_structured_completion(
                     "usage": None,
                 }
 
-    # Groq / OpenRouter / other providers — json_object only
+    # Groq / OpenRouter (other models) — json_object only
     try:
         response, usage, duration_s = _chat_create(
             client,

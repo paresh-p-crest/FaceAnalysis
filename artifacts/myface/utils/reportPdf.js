@@ -224,6 +224,57 @@ function wrapText(doc, text, x, y, maxWidth, lineHeight = 13) {
   return y + lines.length * lineHeight
 }
 
+function drawLinkSegment(doc, text, x, y, url) {
+  if (!text) return
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(94, 159, 139)
+  doc.text(text, x, y)
+  const w = doc.getTextWidth(text)
+  doc.setDrawColor(94, 159, 139)
+  doc.setLineWidth(0.5)
+  doc.line(x, y + 1.5, x + w, y + 1.5)
+  doc.link(x, y - 7, w, 9, { url })
+}
+
+/** Prefix (muted) + link (brand, underlined, clickable) wrapped within maxWidth. */
+function drawWrappedPrivacyLink(doc, x, y, maxWidth, prefix, linkText, url, lineHeight = 11.5) {
+  const safePrefix = sanitizePdfText(prefix || '')
+  const safeLink = sanitizePdfText(linkText || '')
+  const joiner = safePrefix && safeLink ? ' ' : ''
+  const full = safePrefix + joiner + safeLink
+  if (!full) return y
+
+  const prefixEnd = safePrefix.length + joiner.length
+  const lines = doc.splitTextToSize(full, maxWidth)
+  let charOffset = 0
+
+  lines.forEach((line) => {
+    const lineStart = charOffset
+    const lineEnd = charOffset + line.length
+    charOffset = lineEnd
+    if (charOffset < full.length && full[charOffset] === ' ') charOffset += 1
+
+    if (lineEnd <= prefixEnd) {
+      doc.setFont('helvetica', 'normal')
+      setMuted(doc)
+      doc.text(line, x, y)
+    } else if (lineStart >= prefixEnd) {
+      drawLinkSegment(doc, line, x, y, url)
+    } else {
+      const splitAt = prefixEnd - lineStart
+      const prefixPart = line.slice(0, splitAt)
+      const linkPart = line.slice(splitAt)
+      doc.setFont('helvetica', 'normal')
+      setMuted(doc)
+      doc.text(prefixPart, x, y)
+      drawLinkSegment(doc, linkPart, x + doc.getTextWidth(prefixPart), y, url)
+    }
+    y += lineHeight
+  })
+
+  return y
+}
+
 function wrapTextMaxLines(doc, text, x, y, maxWidth, lineHeight = 8.5, maxLines = 6) {
   const safe = sanitizePdfText(text || '')
   if (!safe) return y
@@ -264,17 +315,6 @@ const PHASE_CARD_LAYOUT = {
   dividerToItems: 8,
 }
 
-function phaseCardFixedOverhead(opts = PHASE_CARD_LAYOUT) {
-  return (
-    opts.padTop
-    + opts.labelToTitle
-    + opts.titleToDurationGap
-    + opts.durationToDivider
-    + opts.dividerToItems
-    + opts.padBottom
-  )
-}
-
 function phaseCardHeight(titleLines, durationLines, itemLineGroups, opts = PHASE_CARD_LAYOUT) {
   const titleH = titleLines.length * opts.titleLineH
   const durationH = durationLines.length * opts.bodyLineH
@@ -285,44 +325,96 @@ function phaseCardHeight(titleLines, durationLines, itemLineGroups, opts = PHASE
 
 function buildPhaseItemLine(item) {
   if (!item) return '· —'
-  return `· ${item.name}${item.detail ? `: ${item.detail}` : ''}`
+  const detail = finalizePhaseDetailText(item.detail)
+  return `· ${item.name}${detail ? `: ${detail}` : ''}`
 }
 
-function buildPhaseCardLayout(doc, phase, phaseKey, textW, lineCaps = null, opts = PHASE_CARD_LAYOUT) {
-  const items = (phase?.items || []).slice(0, 3)
-  const itemRows = items.length ? items : [null]
-  const unlimited = 999
+/** Drop hard-clamped mid-word tails (e.g. detail max 280) so PDF never shows "unde" / "while ma". */
+function finalizePhaseDetailText(detail) {
+  const t = sanitizePdfText(detail || '').trim()
+  if (!t) return ''
+  if (/[.!?]$/.test(t)) return t
+  const sentence = t.match(/^[\s\S]*[.!?]/)
+  if (sentence && sentence[0].trim().length >= 24) return sentence[0].trim()
+  const sp = t.lastIndexOf(' ')
+  if (sp > 12) return t.slice(0, sp).trim()
+  return t
+}
 
-  const maxTitleLines = lineCaps?.maxTitleLines ?? unlimited
-  const maxDurationLines = lineCaps?.maxDurationLines ?? unlimited
-  const maxItemLinesTotal = lineCaps?.maxItemLinesTotal ?? unlimited
+function wrapPhaseItemLines(doc, item, textW) {
+  const line = buildPhaseItemLine(item)
+  return doc.splitTextToSize(sanitizePdfText(line), textW).map((l) => sanitizePdfText(l))
+}
 
+/** Wrap to maxLines without mid-word ellipsis — shrinks at word boundary until it fits. */
+function splitTextWordBoundary(doc, text, maxW, maxLines) {
+  const safe = sanitizePdfText(text || '')
+  if (!safe || maxLines < 1) return []
+  const full = doc.splitTextToSize(safe, maxW)
+  if (full.length <= maxLines) return full.map((l) => sanitizePdfText(l))
+
+  let lo = 0
+  let hi = safe.length
+  let best = ''
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    let candidate = safe.slice(0, mid).trimEnd()
+    const sp = candidate.lastIndexOf(' ')
+    if (sp > 0) candidate = candidate.slice(0, sp).trimEnd()
+    if (!candidate) {
+      hi = mid - 1
+      continue
+    }
+    const wrapped = doc.splitTextToSize(candidate, maxW)
+    if (wrapped.length <= maxLines) {
+      best = candidate
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+  if (!best) return []
+  return doc.splitTextToSize(best, maxW).map((l) => sanitizePdfText(l))
+}
+
+/** Header strip height (through divider gap) + padBottom — item heights added separately. */
+function measurePhaseHeader(doc, phase, textW, opts = PHASE_CARD_LAYOUT) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7.5)
-  const titleLines = lineCaps
-    ? splitTextMaxLines(doc, phase?.title || '—', textW, maxTitleLines)
-    : doc.splitTextToSize(sanitizePdfText(phase?.title || '—'), textW).map((line) => sanitizePdfText(line))
+  const titleLines = doc
+    .splitTextToSize(sanitizePdfText(phase?.title || '—'), textW)
+    .map((line) => sanitizePdfText(line))
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(6)
-  const durationLines = lineCaps
-    ? splitTextMaxLines(doc, phase?.duration || '—', textW, maxDurationLines)
-    : doc.splitTextToSize(sanitizePdfText(phase?.duration || '—'), textW).map((line) => sanitizePdfText(line))
+  const durationLines = doc
+    .splitTextToSize(sanitizePdfText(phase?.duration || '—'), textW)
+    .map((line) => sanitizePdfText(line))
+
+  const headerBase =
+    opts.padTop
+    + opts.labelToTitle
+    + titleLines.length * opts.titleLineH
+    + opts.titleToDurationGap
+    + durationLines.length * opts.bodyLineH
+    + opts.durationToDivider
+    + opts.dividerToItems
+    + opts.padBottom
+
+  return { titleLines, durationLines, headerBase }
+}
+
+function buildPhaseCardLayout(doc, phase, phaseKey, textW, opts = PHASE_CARD_LAYOUT, keptMetas = null) {
+  const { titleLines, durationLines } = measurePhaseHeader(doc, phase, textW, opts)
+  const sourceItems = (phase?.items || []).slice(0, 3)
 
   let itemLineGroups
-  if (!lineCaps) {
-    itemLineGroups = itemRows.map((item) => {
-      const line = buildPhaseItemLine(item)
-      return doc.splitTextToSize(sanitizePdfText(line), textW).map((l) => sanitizePdfText(l))
-    })
+  if (keptMetas) {
+    itemLineGroups = keptMetas.map((meta) => meta.lines)
+  } else if (sourceItems.length) {
+    itemLineGroups = sourceItems.map((item) => wrapPhaseItemLines(doc, item, textW))
   } else {
-    let remainingItemLines = maxItemLinesTotal
-    itemLineGroups = itemRows.map((item, idx) => {
-      const slotsLeft = itemRows.length - idx
-      const cap = Math.max(1, Math.min(remainingItemLines, Math.ceil(remainingItemLines / slotsLeft)))
-      remainingItemLines -= cap
-      return splitTextMaxLines(doc, buildPhaseItemLine(item), textW, cap)
-    })
+    itemLineGroups = [wrapPhaseItemLines(doc, null, textW)]
   }
 
   return {
@@ -335,40 +427,139 @@ function buildPhaseCardLayout(doc, phase, phaseKey, textW, lineCaps = null, opts
   }
 }
 
-function lineCapsForPhaseCard(perCardBudget, itemCount, opts = PHASE_CARD_LAYOUT) {
-  let remaining = perCardBudget - phaseCardFixedOverhead(opts)
-  if (remaining < opts.bodyLineH) {
-    return { maxTitleLines: 1, maxDurationLines: 1, maxItemLinesTotal: 1 }
-  }
-
-  const maxTitleLines = Math.min(2, Math.max(1, Math.floor(remaining / opts.titleLineH)))
-  remaining -= maxTitleLines * opts.titleLineH
-
-  const maxDurationLines = remaining >= opts.bodyLineH ? 1 : 1
-  remaining -= maxDurationLines * opts.bodyLineH
-
-  const maxItemLinesTotal = Math.max(1, Math.floor(remaining / opts.bodyLineH))
-  return { maxTitleLines, maxDurationLines, maxItemLinesTotal }
+function layoutsColumnHeight(layouts, phaseGap) {
+  return layouts.reduce(
+    (sum, layout, i) => sum + layout.height + (i < layouts.length - 1 ? phaseGap : 0),
+    0,
+  )
 }
 
-/** Measure and cap treatment phase cards to fit a fixed column budget (PDF page 1). */
+function buildLayoutsFromKept(doc, measured, kept, textW, opts) {
+  return measured.map((m) => {
+    const selected = kept[m.phaseKey] || []
+    if (!selected.length && !(m.phase?.items || []).length) {
+      return buildPhaseCardLayout(doc, m.phase, m.phaseKey, textW, opts, null)
+    }
+    return buildPhaseCardLayout(doc, m.phase, m.phaseKey, textW, opts, selected)
+  })
+}
+
+/** Drop one trailing complete bullet; never remove phase03's last remaining item. */
+function dropTrailingBullet(kept) {
+  if (kept.phase01?.length) {
+    kept.phase01.pop()
+    return true
+  }
+  if (kept.phase02?.length > 1) {
+    kept.phase02.pop()
+    return true
+  }
+  if (kept.phase03?.length > 1) {
+    kept.phase03.pop()
+    return true
+  }
+  if (kept.phase02?.length === 1) {
+    kept.phase02.pop()
+    return true
+  }
+  return false
+}
+
+/**
+ * Fit treatment phase cards to columnBudget by dropping whole bullets (full text only).
+ * phase01 filled first after reserving ≥1 complete bullet for phase03 (and phase02 when present);
+ * leftover shared round-robin across phase02/phase03.
+ * Final reconcile drops bullets until measured card stack ≤ budget (prevents mid-line page clip).
+ */
 function layoutTreatmentPhaseCards(doc, { phaseKeys, phases, textW, columnBudget, phaseGap = 5 }) {
   const opts = PHASE_CARD_LAYOUT
-  let layouts = phaseKeys.map((phaseKey) =>
-    buildPhaseCardLayout(doc, phases?.[phaseKey], phaseKey, textW, null, opts),
-  )
+  // Small slack so descenders / rounding never push past the column floor.
+  const budget = Math.max(0, columnBudget - 6)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6)
 
-  const totalHeight = layouts.reduce((sum, layout, i) => sum + layout.height + (i < layouts.length - 1 ? phaseGap : 0), 0)
-  if (totalHeight > columnBudget && layouts.length > 0) {
-    const perCardBudget = (columnBudget - (layouts.length - 1) * phaseGap) / layouts.length
-    layouts = phaseKeys.map((phaseKey) => {
-      const phase = phases?.[phaseKey]
-      const itemCount = Math.max(1, (phase?.items || []).slice(0, 3).length || 1)
-      const caps = lineCapsForPhaseCard(perCardBudget, itemCount, opts)
-      return buildPhaseCardLayout(doc, phase, phaseKey, textW, caps, opts)
-    })
+  const measured = phaseKeys.map((phaseKey) => {
+    const phase = phases?.[phaseKey]
+    const header = measurePhaseHeader(doc, phase, textW, opts)
+    const items = (phase?.items || []).slice(0, 3)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6)
+    const itemMetas = items.map((item) => {
+      const lines = wrapPhaseItemLines(doc, item, textW)
+      return { item, lines, height: lines.length * opts.bodyLineH }
+    }).filter((meta) => meta.lines.length > 0)
+    return { phaseKey, phase, header, itemMetas }
+  })
+
+  const gaps = Math.max(0, measured.length - 1) * phaseGap
+  const byKey = Object.fromEntries(measured.map((m) => [m.phaseKey, m]))
+  const kept = Object.fromEntries(phaseKeys.map((k) => [k, []]))
+
+  // Start from full item lists, then drop until fit (same priority rules as pack).
+  for (const m of measured) {
+    kept[m.phaseKey] = m.itemMetas.slice()
   }
 
+  let layouts = buildLayoutsFromKept(doc, measured, kept, textW, opts)
+  if (layoutsColumnHeight(layouts, phaseGap) <= budget) return layouts
+
+  // Rebuild with priority pack, then reconcile.
+  for (const k of phaseKeys) kept[k] = []
+
+  let remaining = budget - gaps - measured.reduce((sum, m) => sum + m.header.headerBase, 0)
+
+  const p3 = byKey.phase03
+  const p2 = byKey.phase02
+  const p1 = byKey.phase01
+
+  if (p3?.itemMetas.length) {
+    kept.phase03.push(p3.itemMetas[0])
+    remaining -= p3.itemMetas[0].height
+    if (remaining < 0) remaining = 0
+  }
+
+  const reserveP2 = p2?.itemMetas.length ? p2.itemMetas[0].height : 0
+
+  if (p1?.itemMetas.length) {
+    for (const meta of p1.itemMetas) {
+      if (meta.height <= remaining - reserveP2) {
+        kept.phase01.push(meta)
+        remaining -= meta.height
+      } else {
+        break
+      }
+    }
+  }
+
+  if (p2?.itemMetas.length && p2.itemMetas[0].height <= remaining) {
+    kept.phase02.push(p2.itemMetas[0])
+    remaining -= p2.itemMetas[0].height
+  }
+
+  let i2 = kept.phase02?.length || 0
+  let i3 = kept.phase03?.length || 0
+  for (;;) {
+    let progressed = false
+    if (p2 && i2 < p2.itemMetas.length && p2.itemMetas[i2].height <= remaining) {
+      kept.phase02.push(p2.itemMetas[i2])
+      remaining -= p2.itemMetas[i2].height
+      i2 += 1
+      progressed = true
+    }
+    if (p3 && i3 < p3.itemMetas.length && p3.itemMetas[i3].height <= remaining) {
+      kept.phase03.push(p3.itemMetas[i3])
+      remaining -= p3.itemMetas[i3].height
+      i3 += 1
+      progressed = true
+    }
+    if (!progressed) break
+  }
+
+  layouts = buildLayoutsFromKept(doc, measured, kept, textW, opts)
+  while (layoutsColumnHeight(layouts, phaseGap) > budget) {
+    if (!dropTrailingBullet(kept)) break
+    layouts = buildLayoutsFromKept(doc, measured, kept, textW, opts)
+  }
   return layouts
 }
 
@@ -688,6 +879,101 @@ function drawSummaryCard(
   return { cardY, cardH, bottom: cardY + cardH }
 }
 
+/**
+ * Keep full sentences that fit in maxBodyHeight; drop the rest.
+ * If even the first sentence is too long, fall back to line-clip with ellipsis.
+ */
+function truncateAtSentences(doc, text, maxW, maxBodyHeight, lineH = 11.5) {
+  const safe = sanitizePdfText(text || '')
+  if (!safe) return ''
+  const maxLines = Math.max(1, Math.floor(maxBodyHeight / lineH))
+  if (doc.splitTextToSize(safe, maxW).length <= maxLines) return safe
+
+  const sentences = safe.match(/.+?[.!?](?:\s+|$)|.+$/g) || [safe]
+  let kept = ''
+  for (const sentence of sentences) {
+    const candidate = `${kept}${sentence}`.trim()
+    if (doc.splitTextToSize(candidate, maxW).length > maxLines) break
+    kept = candidate
+  }
+  if (kept) return kept
+
+  return splitTextMaxLines(doc, safe, maxW, maxLines).join(' ')
+}
+
+/** Wrap text to lines, truncating at the last full sentence that fits. */
+function splitTextAtSentences(doc, text, maxW, maxLines, lineH) {
+  const truncated = truncateAtSentences(doc, text, maxW, maxLines * lineH, lineH)
+  if (!truncated) return []
+  return doc.splitTextToSize(sanitizePdfText(truncated), maxW).map((line) => sanitizePdfText(line))
+}
+
+/**
+ * Bottom-row layout for Hair Health / Further Enhancement:
+ * summary card stays bottom-anchored; left title aligns to card title, then
+ * moves up independently (or sentence-truncates at topFloor) when body overflows.
+ */
+function layoutBottomAnchoredLeftColumn(
+  doc,
+  sub,
+  summaryTitle,
+  summaryText,
+  topFloor,
+  rightX,
+  colW,
+  { bodyOffset = 18, drawTier = false, lineH = 11.5, pdfT = activePdfT } = {},
+) {
+  const card = drawSummaryCard(doc, rightX, topFloor, colW, summaryTitle, summaryText)
+  if (!sub) return card
+
+  const showTier =
+    drawTier && sub.evidenceTier && EVIDENCE_TIER_LABELS[sub.evidenceTier]
+  const tierH = showTier ? 12 : 0
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+
+  const measureBlockH = (bodyText) => {
+    const safe = sanitizePdfText(bodyText || '')
+    const lineCount = safe ? doc.splitTextToSize(safe, colW).length : 0
+    return bodyOffset + lineCount * lineH + tierH
+  }
+
+  let body = sub.body || ''
+  let titleY = card.cardY + 16
+  let blockH = measureBlockH(body)
+
+  if (titleY + blockH > PAGE_BOTTOM) {
+    titleY = Math.max(topFloor, PAGE_BOTTOM - blockH)
+  }
+
+  if (titleY <= topFloor && titleY + measureBlockH(body) > PAGE_BOTTOM) {
+    titleY = topFloor
+    const maxBodyHeight = Math.max(lineH, PAGE_BOTTOM - titleY - bodyOffset - tierH)
+    body = truncateAtSentences(doc, body, colW, maxBodyHeight, lineH)
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  setInk(doc)
+  doc.text(subLabel(sub.title), MARGIN, titleY)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setInk(doc)
+  let nextY = wrapText(doc, body, MARGIN, titleY + bodyOffset, colW, lineH)
+  if (showTier) {
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(7)
+    setMuted(doc)
+    doc.text(
+      `${pdfT('recommendationTier')}: ${evidenceTierLabel(sub.evidenceTier, pdfT)}`,
+      MARGIN,
+      nextY + 4,
+    )
+  }
+  return card
+}
+
 function drawCheekMeasurementOverlay(
   doc,
   frameX,
@@ -771,26 +1057,39 @@ function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 10
 }
 
 function drawSummaryBar(doc, y, title, summary) {
+  const pad = 12
+  const gap = 10
+  const lineH = 12
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  const measuredTitleW = doc.getTextWidth(title || '')
+  // Match HTML summary bar: fixed title column, but wide enough for DE labels like "Zusammenfassung Wangenregion"
+  const titleColW = Math.min(Math.max(112, measuredTitleW + pad), CONTENT_W * 0.42)
+
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  const summaryLines = doc.splitTextToSize(summary || '', CONTENT_W - 160)
-  const lineH = 12
-  const barH = Math.max(44, 20 + Math.min(summaryLines.length, 4) * lineH)
+  const bodyX = MARGIN + titleColW + gap
+  const bodyW = Math.max(120, CONTENT_W - titleColW - gap - pad)
+  const summaryLines = doc.splitTextToSize(summary || '', bodyW)
+  let barH = Math.max(44, 20 + Math.min(summaryLines.length, 4) * lineH)
   let barY = y
   if (barY + barH > PAGE_BOTTOM) {
-    barY = Math.max(80, PAGE_BOTTOM - barH)
+    // Never pull the bar above content already drawn above (e.g. BEFORE/AFTER row).
+    barY = Math.max(y, PAGE_BOTTOM - barH)
+    barH = Math.min(barH, Math.max(28, PAGE_BOTTOM - barY))
   }
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
   doc.roundedRect(MARGIN, barY, CONTENT_W, barH, 6, 6, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   setInk(doc)
-  doc.text(title, MARGIN + 12, barY + 16)
+  doc.text(title, MARGIN + pad, barY + 16)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
   summaryLines.slice(0, 4).forEach((line, i) => {
-    doc.text(line, MARGIN + 140, barY + 16 + i * lineH)
+    doc.text(line, bodyX, barY + 16 + i * lineH)
   })
   return barY + barH + 8
 }
@@ -1099,10 +1398,16 @@ function drawHairFeaturePage(doc, section, pageNum, beforeJpeg, norwoodImages = 
 
   y = drawNorwoodPanel(doc, y, norwoodStage, norwoodImages)
 
-  leftY = y
-  rightY = y
-  if (subs[2]) leftY = wrapSubsectionText(doc, subs[2], MARGIN, leftY, COL_W)
-  drawSummaryCard(doc, rightX, rightY, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('hair', activeReportT) }), section.summary)
+  layoutBottomAnchoredLeftColumn(
+    doc,
+    subs[2] || null,
+    pm('featureSummary', { name: localizedFeaturePrimary('hair', activeReportT) }),
+    section.summary,
+    y,
+    rightX,
+    COL_W,
+    { bodyOffset: 18, drawTier: true },
+  )
 }
 
 function drawEyesFeaturePage(doc, section, pageNum) {
@@ -1220,10 +1525,19 @@ function drawJawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, prof
   // BEFORE/AFTER larger than before, but still smaller than the profile plate
   y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, section.afterJpeg || null, 150, true)
 
-  leftY = y
-  rightY = y
-  if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Further Enhancement', subs[1].body, COL_W)
-  drawSummaryCard(doc, rightX, rightY, COL_W, pm('jawRegionSummary'), section.summary)
+  const furtherSub = subs[1]
+    ? { ...subs[1], title: subs[1].title || 'Further Enhancement' }
+    : null
+  layoutBottomAnchoredLeftColumn(
+    doc,
+    furtherSub,
+    pm('jawRegionSummary'),
+    section.summary,
+    y,
+    rightX,
+    COL_W,
+    { bodyOffset: 22, drawTier: false },
+  )
 }
 
 function drawLipsFeaturePage(doc, section, pageNum) {
@@ -1435,7 +1749,10 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
   }
 
   y = Math.max(leftY, rightY) + SECTION_GAP
-  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, section.afterJpeg || null, 120, true)
+  const summaryReserve = 52
+  const maxPairH = PAGE_BOTTOM - y - summaryReserve - IMAGE_TEXT_GAP
+  const pairH = Math.min(120, Math.max(60, maxPairH))
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, section.afterJpeg || null, pairH, true)
   drawSummaryBar(doc, y, pm('featureSummary', { name: localizedFeaturePrimary('chin', activeReportT) }), section.summary)
 }
 
@@ -2178,7 +2495,19 @@ function drawProtocolDashboardPage1(doc, ctx) {
   const durationToDivider = PHASE_CARD_LAYOUT.durationToDivider
   const dividerToItems = PHASE_CARD_LAYOUT.dividerToItems
 
-  const columnBudget = bodyBottom - 8 - ry
+  const summaryLineH = 7
+  const summaryGap = 10
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(5.5)
+  const summaryFullLines = treatment.summary
+    ? doc.splitTextToSize(sanitizePdfText(treatment.summary), rightW)
+    : []
+  // Reserve up to 4 lines for summary so phase cards don't eat the footer band.
+  const summaryReserve = summaryFullLines.length
+    ? Math.min(4, summaryFullLines.length) * summaryLineH + summaryGap
+    : 0
+
+  const columnBudget = Math.max(40, bodyBottom - 8 - ry - summaryReserve)
   const layouts = layoutTreatmentPhaseCards(doc, {
     phaseKeys,
     phases: treatment.phases,
@@ -2228,7 +2557,12 @@ function drawProtocolDashboardPage1(doc, ctx) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(6)
     setInk(doc)
+    const contentBottom = ry + drawH - padBottom
     layout.itemLineGroups.forEach((lines) => {
+      if (!lines.length) return
+      // Whole bullet only — if the last line baseline would pass the card floor, drop the bullet.
+      const lastBaseline = cursorY + (lines.length - 1) * bodyLineH
+      if (lastBaseline > contentBottom) return
       lines.forEach((line) => {
         doc.text(line, textX, cursorY)
         cursorY += bodyLineH
@@ -2242,8 +2576,11 @@ function drawProtocolDashboardPage1(doc, ctx) {
   doc.setFontSize(5.5)
   setMuted(doc)
   if (treatment.summary && ry < bodyBottom - 12) {
-    const summaryMaxLines = Math.max(1, Math.floor((bodyBottom - 12 - ry) / 7))
-    wrapTextMaxLines(doc, treatment.summary, rightX, ry + 2, rightW, 7, summaryMaxLines)
+    const summaryMaxLines = Math.max(1, Math.floor((bodyBottom - 12 - ry) / summaryLineH))
+    const summaryLines = splitTextWordBoundary(doc, treatment.summary, rightW, summaryMaxLines)
+    summaryLines.forEach((line, i) => {
+      doc.text(line, rightX, ry + 2 + i * summaryLineH)
+    })
   }
 
   // Footer
@@ -2497,23 +2834,17 @@ export async function buildMyFacePdf({
   })
 
   // Clickable Privacy Policy URL link at the bottom of the column
-  doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  setMuted(doc)
-  doc.text(t('readPrivacyPrefix'), MARGIN + COL_W + COL_GAP, rightY)
-
-  const linkText = t('privacyLink')
-  const prefixW = doc.getTextWidth(t('readPrivacyPrefix') + ' ')
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(94, 159, 139) // brand color `#5e9f8b`
-  doc.text(linkText, MARGIN + COL_W + COL_GAP + prefixW, rightY)
-  
-  const linkW = doc.getTextWidth(linkText)
-  doc.setDrawColor(94, 159, 139)
-  doc.setLineWidth(0.5)
-  doc.line(MARGIN + COL_W + COL_GAP + prefixW, rightY + 1.5, MARGIN + COL_W + COL_GAP + prefixW + linkW, rightY + 1.5)
-  
-  doc.link(MARGIN + COL_W + COL_GAP + prefixW, rightY - 7, linkW, 9, { url: PRIVACY_POLICY_URL })
+  rightY = drawWrappedPrivacyLink(
+    doc,
+    MARGIN + COL_W + COL_GAP,
+    rightY,
+    COL_W,
+    t('readPrivacyPrefix'),
+    t('privacyLink'),
+    PRIVACY_POLICY_URL,
+    11.5,
+  )
 
   // Bottom signature block at the bottom of the right column (left-aligned within the column)
   const signatureY = PAGE_H - 110
