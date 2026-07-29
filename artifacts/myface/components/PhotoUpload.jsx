@@ -270,8 +270,47 @@ export default function PhotoUpload({
   if (step === 'instructions') {
     return (
       <div className="min-h-screen h-screen flex flex-col lg:flex-row animate-fade-up bg-surface lg:overflow-hidden">
-        {/* Left/Main Column */}
-        <div className="w-full lg:w-[380px] shrink-0 bg-white dark:bg-surface-card lg:border-r border-surface-border px-8 py-10 flex flex-col">
+        {/* Left Column (Dark Slate-Teal Visual Page) — DESKTOP ONLY */}
+        <div className="hidden lg:flex flex-1 flex-col justify-center items-center p-12 bg-gradient-to-br from-[#0d1e1f] via-[#091516] to-[#04090a] relative">
+          <div className="absolute top-10 left-10">
+            <BrandLogo size="lg" invert />
+          </div>
+
+          <div className="max-w-xl w-full bg-white/[0.03] backdrop-blur-md rounded-3xl p-8 border border-white/10 shadow-2xl space-y-6">
+            <div>
+              <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block mb-1">{t('requirementsHeading')}</span>
+              <h3 className="text-white font-serif text-lg font-bold">{t('checklistTitle')}</h3>
+            </div>
+
+            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1.5 scrollbar-thin">
+              {CHECKLIST_ITEM_KEYS.map((itemKey, idx) => (
+                <label
+                  key={idx}
+                  className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
+                    confirmedChecks[idx]
+                      ? 'bg-[#5e9f8b]/10 border-[#5e9f8b]/30'
+                      : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  <span className="text-white text-xs font-sans leading-snug pr-4">{t(`checklist.${itemKey}`)}</span>
+                  <input
+                    type="checkbox"
+                    checked={confirmedChecks[idx]}
+                    onChange={(e) => {
+                      const next = [...confirmedChecks]
+                      next[idx] = e.target.checked
+                      setConfirmedChecks(next)
+                    }}
+                    className="w-4 h-4 rounded border-white/20 text-[#5e9f8b] focus:ring-[#5e9f8b] focus:ring-offset-0 bg-transparent shrink-0"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right/Main Column */}
+        <div className="w-full lg:w-[380px] shrink-0 bg-white dark:bg-surface-card lg:border-l border-surface-border px-8 py-10 flex flex-col">
           <AnalysisFlowHeader
             backLabel={t('back')}
             onBack={onBack}
@@ -294,7 +333,7 @@ export default function PhotoUpload({
             </div>
           </div>
 
-          {/* Checklist — MOBILE ONLY (shown inline, hidden on lg where right panel takes over) */}
+          {/* Checklist — MOBILE ONLY (shown inline, hidden on lg where left panel takes over) */}
           <div className="lg:hidden mt-6 space-y-2.5">
             <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block">{t('requirementsHeading')}</span>
             <h3 className="text-slate-900 dark:text-white font-semibold text-sm mb-3">{t('checklistTitle')}</h3>
@@ -341,45 +380,6 @@ export default function PhotoUpload({
             </button>
           </div>
         </div>
-
-        {/* Right Column (Dark Slate-Teal Visual Page) — DESKTOP ONLY */}
-        <div className="hidden lg:flex flex-1 flex-col justify-center items-center p-12 bg-gradient-to-br from-[#0d1e1f] via-[#091516] to-[#04090a] relative">
-          <div className="absolute top-10 left-10">
-            <BrandLogo size="lg" invert />
-          </div>
-
-          <div className="max-w-xl w-full bg-white/[0.03] backdrop-blur-md rounded-3xl p-8 border border-white/10 shadow-2xl space-y-6">
-            <div>
-              <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block mb-1">{t('requirementsHeading')}</span>
-              <h3 className="text-white font-serif text-lg font-bold">{t('checklistTitle')}</h3>
-            </div>
-
-            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1.5 scrollbar-thin">
-              {CHECKLIST_ITEM_KEYS.map((itemKey, idx) => (
-                <label
-                  key={idx}
-                  className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
-                    confirmedChecks[idx]
-                      ? 'bg-[#5e9f8b]/10 border-[#5e9f8b]/30'
-                      : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
-                  }`}
-                >
-                  <span className="text-white text-xs font-sans leading-snug pr-4">{t(`checklist.${itemKey}`)}</span>
-                  <input
-                    type="checkbox"
-                    checked={confirmedChecks[idx]}
-                    onChange={(e) => {
-                      const next = [...confirmedChecks]
-                      next[idx] = e.target.checked
-                      setConfirmedChecks(next)
-                    }}
-                    className="w-4 h-4 rounded border-white/20 text-[#5e9f8b] focus:ring-[#5e9f8b] focus:ring-offset-0 bg-transparent shrink-0"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
     )
   }
@@ -387,8 +387,97 @@ export default function PhotoUpload({
   // ── STEP 2: Main Image Upload View ──
   return (
     <div className="min-h-screen h-screen flex flex-col lg:flex-row animate-fade-up bg-surface lg:overflow-hidden">
-      {/* Left/Main Column */}
-      <div className="w-full lg:w-[380px] shrink-0 bg-white dark:bg-surface-card lg:border-r border-surface-border flex flex-col">
+      {/* Left Column (Dark Slate-Teal Visual Page) */}
+      <div className="hidden lg:flex flex-1 flex-col justify-center items-center p-12 bg-gradient-to-br from-[#0d1e1f] via-[#091516] to-[#04090a] relative">
+        <div className="absolute top-10 left-10">
+          <BrandLogo size="lg" invert />
+        </div>
+
+        {/* Center Glassmorphic Dropzone */}
+        <div className="max-w-xl w-full mx-auto my-auto space-y-6">
+          <div className="text-center space-y-1.5">
+            <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block">
+              {t('activePose')}
+            </span>
+            <h2 className="text-white font-serif text-2xl font-bold">{activePoseInfo.label}</h2>
+            <p className="text-xs text-slate-400 font-sans max-w-sm mx-auto">
+              {activePoseInfo.desc}
+            </p>
+          </div>
+
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragOver(false)
+              handleFile(e.dataTransfer.files[0], activePose)
+            }}
+            onClick={() => !currentPhoto && inputRef.current?.click()}
+            className={`rounded-3xl border border-white/10 p-8 cursor-pointer transition-all duration-300 min-h-[340px] flex flex-col items-center justify-center relative ${
+              dragOver
+                ? 'bg-white/10 border-[#5e9f8b]'
+                : currentPhoto
+                  ? 'bg-white/[0.02]'
+                  : 'bg-white/[0.03] backdrop-blur-md shadow-2xl hover:bg-white/[0.05] hover:border-white/20'
+            }`}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => handleFile(e.target.files[0], activePose)}
+            />
+
+            {currentPhoto ? (
+              <div className="relative w-full max-w-xs flex flex-col items-center">
+                <div className="relative">
+                  <img
+                    src={currentPhoto}
+                    alt={t('uploadPreviewAlt')}
+                    className={`w-48 h-60 rounded-2xl object-cover shadow-2xl border border-white/10 ${previewFilter} ${previewRing}`}
+                  />
+                  <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} large t={t} />
+                </div>
+                <div className="absolute top-2 right-12 flex gap-1.5">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
+                    className="w-8 h-8 rounded-lg bg-black/70 backdrop-blur-sm shadow-soft flex items-center justify-center text-white hover:text-[#5e9f8b] transition-colors"
+                    title={t('changePhoto')}
+                  >
+                    <Image className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removePhoto(activePose) }}
+                    className="w-8 h-8 rounded-lg bg-black/70 backdrop-blur-sm shadow-soft flex items-center justify-center text-white hover:text-red-500 transition-colors"
+                    title={t('deletePhoto')}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center space-y-4">
+                <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center mx-auto border border-white/10">
+                  <Upload className="w-5 h-5 text-[#5e9f8b]" />
+                </div>
+                <div>
+                  <p className="text-white text-xs font-semibold">
+                    {t('dragDropOrChoose')}
+                  </p>
+                  <p className="text-slate-450 text-[10px] mt-1">
+                    {t('fileTypesLong')}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right/Main Column */}
+      <div className="w-full lg:w-[380px] shrink-0 bg-white dark:bg-surface-card lg:border-l border-surface-border flex flex-col">
 
         {/* Fixed Header */}
         <div className="px-7 pt-7 pb-4 shrink-0 space-y-4">
@@ -584,94 +673,6 @@ export default function PhotoUpload({
         </div>
       </div>
 
-      {/* Right Column (Dark Slate-Teal Visual Page) */}
-      <div className="hidden lg:flex flex-1 flex-col justify-center items-center p-12 bg-gradient-to-br from-[#0d1e1f] via-[#091516] to-[#04090a] relative">
-        <div className="absolute top-10 left-10">
-          <BrandLogo size="lg" invert />
-        </div>
-
-        {/* Center Glassmorphic Dropzone */}
-        <div className="max-w-xl w-full mx-auto my-auto space-y-6">
-          <div className="text-center space-y-1.5">
-            <span className="text-[9px] uppercase tracking-wider text-[#5e9f8b] font-bold block">
-              {t('activePose')}
-            </span>
-            <h2 className="text-white font-serif text-2xl font-bold">{activePoseInfo.label}</h2>
-            <p className="text-xs text-slate-400 font-sans max-w-sm mx-auto">
-              {activePoseInfo.desc}
-            </p>
-          </div>
-
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setDragOver(false)
-              handleFile(e.dataTransfer.files[0], activePose)
-            }}
-            onClick={() => !currentPhoto && inputRef.current?.click()}
-            className={`rounded-3xl border border-white/10 p-8 cursor-pointer transition-all duration-300 min-h-[340px] flex flex-col items-center justify-center relative ${
-              dragOver
-                ? 'bg-white/10 border-[#5e9f8b]'
-                : currentPhoto
-                  ? 'bg-white/[0.02]'
-                  : 'bg-white/[0.03] backdrop-blur-md shadow-2xl hover:bg-white/[0.05] hover:border-white/20'
-            }`}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => handleFile(e.target.files[0], activePose)}
-            />
-
-            {currentPhoto ? (
-              <div className="relative w-full max-w-xs flex flex-col items-center">
-                <div className="relative">
-                  <img
-                    src={currentPhoto}
-                    alt={t('uploadPreviewAlt')}
-                    className={`w-48 h-60 rounded-2xl object-cover shadow-2xl border border-white/10 ${previewFilter} ${previewRing}`}
-                  />
-                  <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} large t={t} />
-                </div>
-                <div className="absolute top-2 right-12 flex gap-1.5">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
-                    className="w-8 h-8 rounded-lg bg-black/70 backdrop-blur-sm shadow-soft flex items-center justify-center text-white hover:text-[#5e9f8b] transition-colors"
-                    title={t('changePhoto')}
-                  >
-                    <Image className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); removePhoto(activePose) }}
-                    className="w-8 h-8 rounded-lg bg-black/70 backdrop-blur-sm shadow-soft flex items-center justify-center text-white hover:text-red-500 transition-colors"
-                    title={t('deletePhoto')}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center space-y-4">
-                <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center mx-auto border border-white/10">
-                  <Upload className="w-5 h-5 text-[#5e9f8b]" />
-                </div>
-                <div>
-                  <p className="text-white text-xs font-semibold">
-                    {t('dragDropOrChoose')}
-                  </p>
-                  <p className="text-slate-450 text-[10px] mt-1">
-                    {t('fileTypesLong')}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

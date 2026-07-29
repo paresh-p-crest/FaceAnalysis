@@ -173,7 +173,27 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
   return (
     <div className="min-h-screen flex bg-white dark:bg-slate-900 animate-fade-up">
 
-      <div className="w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-white dark:bg-slate-950 border-r border-surface-border">
+      <div className="hidden lg:flex lg:w-[60%] bg-[#0d1e1f] fluid-gradient-mesh flex-col justify-between p-16">
+
+        <div className="flex items-center gap-3">
+          <BrandLogo size="xl" invert />
+        </div>
+
+        <div className="space-y-6 max-w-xl text-left">
+          <div className="inline-block px-3 py-1 rounded-full border border-white/20 text-white/80 font-mono text-[10px] uppercase tracking-wider bg-white/5 backdrop-blur-md">
+            {tWelcome('sidebarBadge')}
+          </div>
+          <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight whitespace-pre-line">
+            {tWelcome('sidebarTitle')}
+          </h1>
+          <p className="text-sm text-slate-300 leading-relaxed max-w-md">
+            {tWelcome('sidebarDescription')}
+          </p>
+        </div>
+
+      </div>
+
+      <div className="w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-white dark:bg-slate-950 border-l border-surface-border">
 
         <AnalysisFlowHeader
           backLabel={t('common.back')}
@@ -360,26 +380,6 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
             <span className="text-white/40 mr-4">|</span>
             <span>→</span>
           </button>
-        </div>
-
-      </div>
-
-      <div className="hidden lg:flex lg:w-[60%] bg-[#0d1e1f] fluid-gradient-mesh flex-col justify-between p-16">
-
-        <div className="flex items-center gap-3">
-          <BrandLogo size="xl" invert />
-        </div>
-
-        <div className="space-y-6 max-w-xl text-left">
-          <div className="inline-block px-3 py-1 rounded-full border border-white/20 text-white/80 font-mono text-[10px] uppercase tracking-wider bg-white/5 backdrop-blur-md">
-            {tWelcome('sidebarBadge')}
-          </div>
-          <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight whitespace-pre-line">
-            {tWelcome('sidebarTitle')}
-          </h1>
-          <p className="text-sm text-slate-300 leading-relaxed max-w-md">
-            {tWelcome('sidebarDescription')}
-          </p>
         </div>
 
       </div>
