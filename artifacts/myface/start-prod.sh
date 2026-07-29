@@ -9,6 +9,8 @@ ARTIFACT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$ARTIFACT_DIR/../.." && pwd)"
 PORT="${PORT:-3000}"
 
+echo "[myface] Starting production services on port ${PORT}"
+
 export PYTHONUNBUFFERED=1
 # Persist matplotlib font cache across restarts (mediapipe pulls matplotlib).
 export MPLBACKEND="${MPLBACKEND:-Agg}"
@@ -16,10 +18,12 @@ export MPLCONFIGDIR="${MPLCONFIGDIR:-$WORKSPACE_ROOT/.cache/matplotlib}"
 mkdir -p "$MPLCONFIGDIR"
 
 cd "$WORKSPACE_ROOT"
+echo "[myface] Starting FastAPI backend on port 8000"
 python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --no-access-log &
 BACKEND_PID=$!
 
 cd "$ARTIFACT_DIR"
+echo "[myface] Starting Next.js on 0.0.0.0:${PORT}"
 ./node_modules/.bin/next start -p "$PORT" --hostname 0.0.0.0 &
 NEXT_PID=$!
 

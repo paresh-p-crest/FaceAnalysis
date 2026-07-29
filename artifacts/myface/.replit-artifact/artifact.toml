@@ -15,9 +15,12 @@ run = "pnpm --filter @workspace/myface run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/myface", "run", "build" ]
-run = [ "pnpm", "--filter", "@workspace/myface", "run", "start:prod" ]
+run = [ "bash", "artifacts/myface/start-prod.sh" ]
 
 [services.env]
 PORT = "3000"
 BASE_PATH = "/"
 NEXT_DISABLE_REACT_REFRESH = "1"
+
+[services.production.health.startup]
+path = "/healthz"
