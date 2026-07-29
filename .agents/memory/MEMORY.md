@@ -1,3 +1,4 @@
  - [MyFace run config](myface-run-config.md) — uvicorn PATH quirk + PORT conflict pattern to avoid on Replit
 - [next-intl localePrefix never hydration](next-intl-locale-prefix-never.md) — must pass locale prop to NextIntlClientProvider when localePrefix is 'never'
 - [Next dev cache race](next-dev-cache-race.md) — do not run a production build while the Next dev workflow is rebuilding the same `.next` directory
+- [Deployment launcher permissions](deployment-launcher-permissions.md) — production shell launchers must be executable or VM publishing fails after a successful build
