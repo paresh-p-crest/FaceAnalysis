@@ -1,13 +1,14 @@
 """Post-hoc German translation for stored English narratives.
 
-DE translation uses plain text per field (chat_text_completion). Structure is
-reassembled in Python — no structured JSON translation for narratives.
+DE translation uses structured flat-batch translation (chat_structured_completion) per logical block.
+Structure is reassembled in Python — EN titles are preserved. Per-field plain-text fallback runs on key mismatch or API errors.
 """
 
 from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import logging
 import os
 import re
@@ -17,7 +18,7 @@ from .clinical_guardrails import sanitize_report_ascii
 from .clinical_guardrails_de import template_feature_narrative_de
 from .config import FEATURE_NARRATIVE_IDS, LLM_MAX_OUTPUT_TOKENS
 from .feature_context import build_feature_context
-from .llm_client import chat_text_completion
+from .llm_client import chat_structured_completion, chat_text_completion
 from .narrative_orchestrator import _clamp_treatment_phases_raw, stitch_closing_paragraphs
 from .narrative_provenance import resolve_feature_origin, should_llm_translate_en, stamp_origin
 
@@ -29,6 +30,16 @@ NARRATIVE_TRANSLATION_SYSTEM_PROMPT = (
     "Preserve medical/technical terms. Output only the translation, no preamble."
 )
 
+FLAT_TRANSLATION_BATCH_SUFFIX = (
+    " You will receive a flat JSON object. Translate each string value to German. "
+    "Return the exact same keys, same count. Do not merge, split, add, rename, or omit any key. "
+    "Values must remain plain strings."
+)
+
+NARRATIVE_TRANSLATION_FLAT_SYSTEM = (
+    NARRATIVE_TRANSLATION_SYSTEM_PROMPT + FLAT_TRANSLATION_BATCH_SUFFIX
+)
+
 NARRATIVE_TRANSLATION_CONCURRENCY = max(
     1, int(os.environ.get("NARRATIVE_TRANSLATION_CONCURRENCY", "11") or "11")
 )
@@ -36,6 +47,109 @@ NARRATIVE_TRANSLATION_CONCURRENCY = max(
 _OVERVIEW_FALLBACK_DE = (
     "Dieses evidenzbasierte, nicht-invasive Protokoll basiert auf deinen gemessenen Gesichtsdaten."
 )
+
+
+def _batch_max_tokens(
+    field_count: int,
+    *,
+    base: int = LLM_MAX_OUTPUT_TOKENS,
+    per_field: int = 2000,
+    ceiling: int = 16000,
+) -> int:
+    """Scale max_tokens for batched translation blocks.
+
+    - Floor: `base` (short blocks keep standard budget).
+    - Scale: `per_field * field_count` up to `ceiling`.
+    """
+    return min(ceiling, max(base, per_field * field_count))
+
+
+def build_flat_translation_schema(keys: list[str]) -> dict:
+    return {
+        "type": "object",
+        "properties": {k: {"type": "string"} for k in keys},
+        "required": keys,
+        "additionalProperties": False,
+    }
+
+
+def _reassemble_indexed_list(
+    de_map: dict[str, str],
+    prefix: str,
+    expected_count: int,
+    en_fallback: list[str],
+    *,
+    label: str = "indexed_list",
+) -> list[str]:
+    """Reconstruct a list from indexed flat keys. Missing slots use EN fallback."""
+    out: list[str] = []
+    for i in range(expected_count):
+        key = f"{prefix}_{i}"
+        val = de_map.get(key)
+        if val and isinstance(val, str) and val.strip():
+            out.append(val.strip())
+        else:
+            logger.warning(
+                "Indexed list gap for %s at %s; using EN fallback", label, key
+            )
+            out.append(en_fallback[i] if i < len(en_fallback) else "")
+    return out
+
+
+async def _translate_flat_batch(
+    en_fields: dict[str, str],
+    *,
+    label: str,
+    schema_name: str,
+) -> dict[str, str]:
+    """Translate a flat dictionary of strings using chat_structured_completion in 1 batch call."""
+    keys = list(en_fields.keys())
+    if not keys:
+        return {}
+
+    max_tokens = _batch_max_tokens(len(keys))
+    schema = build_flat_translation_schema(keys)
+    messages = [
+        {"role": "system", "content": NARRATIVE_TRANSLATION_FLAT_SYSTEM},
+        {"role": "user", "content": json.dumps(en_fields, ensure_ascii=False)},
+    ]
+
+    for attempt in range(2):
+        res = await asyncio.to_thread(
+            chat_structured_completion,
+            schema_name=schema_name,
+            json_schema=schema,
+            messages=messages,
+            temperature=0.15,
+            max_tokens=max_tokens,
+            require_strict=True,
+        )
+
+        content = res.get("content")
+        if not res.get("error") and isinstance(content, dict):
+            res_keys = set(content.keys())
+            expected_keys = set(keys)
+            if res_keys == expected_keys and all(
+                isinstance(v, str) and v.strip() for v in content.values()
+            ):
+                return {k: _sanitize_translation_text(content[k].strip()) for k in keys}
+            logger.warning(
+                "Flat translation batch key mismatch for %s (attempt %d/2). Expected: %s, got: %s, raw: %s",
+                label,
+                attempt + 1,
+                sorted(keys),
+                sorted(res_keys),
+                str(content)[:200],
+            )
+        else:
+            logger.warning(
+                "Flat translation batch API error for %s (attempt %d/2): %s",
+                label,
+                attempt + 1,
+                res.get("error"),
+            )
+
+    raise RuntimeError(f"Flat translation batch failed after 2 attempts for {label}")
 
 
 def _sanitize_translation_text(text: str) -> str:
@@ -144,8 +258,8 @@ async def _translate_list_fields(values: list, *, label_prefix: str) -> list:
     return out
 
 
-async def _translate_executive_content(content: dict) -> dict:
-    """Plain-text per field for executive narrative content."""
+async def _translate_executive_content_plain(content: dict) -> dict:
+    """Plain-text per field fallback for executive narrative content."""
     out: dict[str, Any] = {}
     if content.get("summary"):
         out["summary"] = await translate_text_en_to_de(
@@ -164,8 +278,65 @@ async def _translate_executive_content(content: dict) -> dict:
     return stamp_origin(out, "llm")
 
 
-async def _translate_feature_narrative_llm(narrative: dict, feature_id: str) -> dict:
-    """Translate summary + each subsection body as plain text; keep EN titles."""
+async def _translate_executive_content(content: dict) -> dict:
+    """Flat-batch translation for executive narrative content with per-field fallback."""
+    en_fields: dict[str, str] = {}
+    if content.get("summary") and isinstance(content["summary"], str) and content["summary"].strip():
+        en_fields["summary"] = content["summary"].strip()
+
+    for list_key in ("strengths", "focusAreas", "recommendations"):
+        vals = content.get(list_key)
+        if isinstance(vals, list):
+            for i, v in enumerate(vals):
+                if isinstance(v, str) and v.strip():
+                    prefix_map = {
+                        "strengths": "strength",
+                        "focusAreas": "focus",
+                        "recommendations": "recommendation",
+                    }
+                    en_fields[f"{prefix_map[list_key]}_{i}"] = v.strip()
+
+    if content.get("disclaimer") and isinstance(content["disclaimer"], str) and content["disclaimer"].strip():
+        en_fields["disclaimer"] = content["disclaimer"].strip()
+
+    if not en_fields:
+        return stamp_origin(copy.deepcopy(content), "llm")
+
+    try:
+        de_map = await _translate_flat_batch(
+            en_fields, label="executive_content_de", schema_name="executive_content_de_flat"
+        )
+        out: dict[str, Any] = {}
+        if "summary" in de_map:
+            out["summary"] = de_map["summary"]
+
+        for list_key, prefix in (
+            ("strengths", "strength"),
+            ("focusAreas", "focus"),
+            ("recommendations", "recommendation"),
+        ):
+            vals = content.get(list_key)
+            if isinstance(vals, list):
+                out[list_key] = _reassemble_indexed_list(
+                    de_map, prefix, len(vals), vals, label=f"executive_{list_key}"
+                )
+            elif vals is not None:
+                out[list_key] = vals
+
+        if "disclaimer" in de_map:
+            out["disclaimer"] = de_map["disclaimer"]
+
+        return stamp_origin(out, "llm")
+    except Exception as exc:
+        logger.warning(
+            "Flat translation batch failed for executive content; falling back to plain per-field [tone-mismatch risk]: %s",
+            exc,
+        )
+        return await _translate_executive_content_plain(content)
+
+
+async def _translate_feature_narrative_llm_plain(narrative: dict, feature_id: str) -> dict:
+    """Plain-text per field fallback for feature narrative."""
     summary_en = narrative.get("summary") or ""
     subs_en = [
         s for s in (narrative.get("subsections") or []) if isinstance(s, dict)
@@ -190,9 +361,73 @@ async def _translate_feature_narrative_llm(narrative: dict, feature_id: str) -> 
     return stamp_origin({"summary": summary_de, "subsections": subsections}, "llm")
 
 
+async def _translate_feature_narrative_llm(narrative: dict, feature_id: str) -> dict:
+    """Translate summary + each subsection body as flat batch; keep EN titles."""
+    summary_en = narrative.get("summary") or ""
+    subs_en = [
+        s for s in (narrative.get("subsections") or []) if isinstance(s, dict)
+    ]
+
+    en_fields: dict[str, str] = {}
+    if summary_en.strip():
+        en_fields["summary"] = summary_en.strip()
+
+    for i, s in enumerate(subs_en):
+        body = s.get("body") or ""
+        if body.strip():
+            en_fields[f"subsection_{i}"] = body.strip()
+
+    if not en_fields:
+        subsections = [{"title": s.get("title"), "body": ""} for s in subs_en]
+        return stamp_origin({"summary": "", "subsections": subsections}, "llm")
+
+    try:
+        de_map = await _translate_flat_batch(
+            en_fields,
+            label=f"feature_{feature_id}_de",
+            schema_name=f"feature_{feature_id}_de_flat",
+        )
+        summary_de = de_map.get("summary", "")
+        subsections = []
+        for i, s in enumerate(subs_en):
+            key = f"subsection_{i}"
+            body_de = de_map.get(key) or (s.get("body") if key not in en_fields else "")
+            subsections.append({"title": s.get("title"), "body": body_de})
+        return stamp_origin({"summary": summary_de, "subsections": subsections}, "llm")
+    except Exception as exc:
+        logger.warning(
+            "Flat translation batch failed for feature %s; falling back to plain per-field [tone-mismatch risk]: %s",
+            feature_id,
+            exc,
+        )
+        return await _translate_feature_narrative_llm_plain(narrative, feature_id)
+
+
 async def _translate_closing_paragraphs(closing: list) -> list[str]:
-    texts = [p if isinstance(p, str) else "" for p in closing]
-    return await _translate_strings_parallel(texts, label_prefix="closing_para_de")
+    """Flat-batch translation for closing paragraphs with per-field fallback."""
+    en_fields: dict[str, str] = {}
+    for i, p in enumerate(closing):
+        if isinstance(p, str) and p.strip():
+            en_fields[f"paragraph_{i}"] = p.strip()
+
+    if not en_fields:
+        return [p if isinstance(p, str) else "" for p in closing]
+
+    try:
+        de_map = await _translate_flat_batch(
+            en_fields, label="closing_paragraphs_de", schema_name="closing_paragraphs_de_flat"
+        )
+        fallback_texts = [p if isinstance(p, str) else "" for p in closing]
+        return _reassemble_indexed_list(
+            de_map, "paragraph", len(closing), fallback_texts, label="closing_paragraphs"
+        )
+    except Exception as exc:
+        logger.warning(
+            "Flat translation batch failed for closing paragraphs; falling back to parallel per-field [tone-mismatch risk]: %s",
+            exc,
+        )
+        texts = [p if isinstance(p, str) else "" for p in closing]
+        return await _translate_strings_parallel(texts, label_prefix="closing_para_de")
 
 
 _PHASE_FIELD_TAG_RE = re.compile(r"<<([a-zA-Z0-9_.]+)>>")

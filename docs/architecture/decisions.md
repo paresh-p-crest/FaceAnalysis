@@ -921,6 +921,8 @@ ADR-042 translated feature narratives, closing, and treatment phases via one str
 
 **Amendment (2026-07-28, treatment-phase pack):** Treatment-phase DE drops from up to 25 per-field calls to **4** (summary + phase01–03 packed).
 
+**Amendment (2026-07-29, flat-batch translation):** DE translation primary path for feature narratives, executive content, closing paragraphs, and overview summary uses structured flat JSON batches (`chat_structured_completion` with `require_strict=True`). Each logical block uses dynamic flat string key mapping (no nesting, EN subsection titles excluded). Per-block plain-text fallback (`chat_text_completion`) is retained on key set mismatch or API error after 1 retry. Treatment phase `<<tag>>` packing remains unchanged. Reduces translation calls from ~40–50+ down to ~14–16 per assessment.
+
 ### Consequences
 - More small LLM calls per assessment (parallelized with `NARRATIVE_TRANSLATION_CONCURRENCY`).
 - Fewer JSON-parse / truncation failures on free models; same path works with GPT-5 mini.

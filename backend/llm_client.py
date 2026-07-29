@@ -20,7 +20,7 @@ _KNOWN_PROVIDERS = frozenset({"openai", "groq", "openrouter"})
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # OpenRouter models that accept OpenAI strict json_schema (not just json_object).
 _OPENROUTER_JSON_SCHEMA_MODELS = frozenset({
-    # "openai/gpt-5-mini",
+    "openai/gpt-5-mini",
     "google/gemma-4-26b-a4b-it:free",
 })
 
@@ -240,9 +240,10 @@ def chat_structured_completion(
     messages: list[dict],
     temperature: float,
     max_tokens: int,
+    require_strict: bool = False,
     api_key_override: Optional[str] = None,
 ) -> dict:
-    """Chat completion with strict json_schema when supported; else json_object."""
+    """Chat completion with strict json_schema when supported or required; else json_object."""
     llm = get_chat_llm(api_key_override=api_key_override)
     if llm.get("error"):
         return {"content": None, "source": None, "model": None, "error": llm["error"], "usage": None}
@@ -255,7 +256,7 @@ def chat_structured_completion(
     def _parse_response(raw: str) -> dict:
         return _extract_json_object(raw)
 
-    if uses_strict_json_schema(source, model):
+    if require_strict or uses_strict_json_schema(source, model):
         try:
             response, usage, duration_s = _chat_create(
                 client,
