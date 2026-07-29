@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname } from '../i18n/navigation'
-import { hasSiteNavbar, ROUTES } from '../utils/routes'
+import { ROUTES } from '../utils/routes'
 import { AppShell } from './AppShell'
 import { AnalysisShell } from './analysis/AnalysisShell'
 import { AuthShell } from './AuthShell'
@@ -10,9 +10,7 @@ import { AppBootScreen } from './AppBootScreen'
 import { useApp } from './providers/AppProvider'
 
 function RouteContent({ children }) {
-  const { user, authReady } = useApp()
-  const pathname = usePathname()
-  const withNavbarOffset = hasSiteNavbar(pathname) && authReady && !!user
+  const { authReady } = useApp()
 
   if (!authReady) {
     // Stable key — do NOT key on pathname. In Replit Agent iframe, usePathname() can
@@ -20,7 +18,9 @@ function RouteContent({ children }) {
     return <AppBootScreen withNavbarOffset={false} />
   }
 
-  return <div key={pathname}>{children}</div>
+  // Do not key on pathname: admin tabs (/dashboard/admin-users → admin-overview) would
+  // remount the whole page tree and throw removeChild NotFoundError during soft nav.
+  return <div>{children}</div>
 }
 
 export function RouteLayout({ children }) {

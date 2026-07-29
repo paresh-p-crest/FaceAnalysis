@@ -727,6 +727,7 @@ MyFace needs German UI support with SEO-friendly locale URLs, static generation 
 - In-app navigation via `i18n/navigation.js` (`Link`, `useRouter`, `usePathname`); `utils/routes.js` stays locale-free.
 - Non-React utils return **translation keys** (`labelKey`, `messageKey`, `ERROR_KEYS`); callers call `t()`.
 - **Out of scope for static catalogs:** brand name MyFace, assessment UUIDs, raw backend `detail` strings. Protocol/executive narrative bodies are generated per locale — see **ADR-042** (`contentDe`, `protocolNarrative.de`, `featureNarratives[id].de`).
+- **AI Visuals style titles/explanations** are static catalogs in `AiVisuals.styles.{hair|outfit}.{styleId}` (keyed by bank `style_id`; preference already separated by distinct IDs). Public page/API paths are `/visuals` and `POST …/visuals`; media keys may still use `ai-visuals/`.
 - **i18next-parser** (devDependency) audits flat `t()` usage via `pnpm --filter @workspace/myface run i18n:extract` → `messages/en.extracted.json`; structured `en.json` remains the translation source file.
 
 ### Consequences

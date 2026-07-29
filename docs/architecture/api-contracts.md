@@ -403,8 +403,9 @@ Admin-only on-demand projected AFTER image. Always runs (ignores `PROJECTED_AFTE
 
 Assessment `GET` payloads include `projectedAnalysis` alongside `projectedAfter` when present. Protocol UI and PDF feature AFTER images use `projectedAnalysis.landmarks` + the same `getFeatureBox` crop keys as BEFORE for eyes/jaw/chin/ears/neck/hair. When AFTER aspect or pixel size differs from front BEFORE, AFTER is cover-fitted onto the BEFORE canvas (AFTER-only; landmarks remapped) before cropping; `FEATURE_MIN_PX` is scaled by short-side ratio. Other features prefer `projectedAnalysis.cvReport` / `eyeAnalysis` stored crops when `status === "ready"`. Fallback: client MediaPipe on AFTER, then BEFORE landmarks, then stored crops. Skin PDF half-split does not use this path.
 
-### `POST /api/assessments/{assessment_id}/ai-visuals`
+### `POST /api/assessments/{assessment_id}/visuals`
 Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images Edits (`OPENAI_IMAGE_MODEL`, default `gpt-image-1`).
+(Public path renamed from `/ai-visuals` so browser Network does not expose that label; media object keys remain `assessments/{id}/ai-visuals/…`.)
 - **Auth:** Owner User or Admin (paid AI access)
 - **Prerequisite:** Stored front (BEFORE) portrait bytes; otherwise **400** with a clear detail. (Projected AFTER ready-check is disabled — visuals use BEFORE only.)
 - **Source image:** Assessment **front** pose (`assessments/{id}/front.jpg`) / photos.front refs. Not projected AFTER.

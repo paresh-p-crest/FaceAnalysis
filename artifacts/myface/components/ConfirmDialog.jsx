@@ -64,7 +64,15 @@ export default function ConfirmDialog({
               danger ? 'bg-red-600 hover:bg-red-700' : 'bg-brand hover:bg-brand-dark'
             }`}
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {/* Stable slot — never mount/unmount Lucide mid-commit (insertBefore NotFoundError). */}
+            <span
+              className="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+              aria-hidden={!loading}
+            >
+              <Loader2
+                className={`h-4 w-4 animate-spin ${loading ? 'opacity-100' : 'opacity-0'}`}
+              />
+            </span>
             {resolvedConfirmLabel}
           </button>
         </div>

@@ -32,7 +32,7 @@ export const PROTOCOL_SECTIONS = [
   { id: 'protocol', labelKey: 'nav.protocol' },
 ]
 
-/** Standalone `/ai-visuals` page — three preview categories in report-style sidebar. */
+/** Standalone `/visuals` page — three preview categories in report-style sidebar. */
 export const AI_VISUAL_SECTIONS = [
   { id: 'hair', labelKey: 'sections.hair' },
   { id: 'outfit', labelKey: 'sections.outfit' },

@@ -396,7 +396,7 @@ export async function generateAssessmentVisuals(
 ) {
   const base = getApiBaseUrl()
   const body = styleId ? { styleId } : { variants }
-  const res = await fetch(`${base}/api/assessments/${assessmentId}/ai-visuals`, {
+  const res = await fetch(`${base}/api/assessments/${assessmentId}/visuals`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

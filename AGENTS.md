@@ -44,3 +44,4 @@ After any change, update the md file(s) it touches. Do NOT finish a task without
 - Any change at all, however small → CHANGELOG.md (Added/Changed/Fixed/Removed, dated, Keep-a-Changelog format)
 - Sprint task done/blocked/added → docs/sprints/current/sprint.md
 - New/changed coding convention → docs/industry-practices.md
+- **Implementation plans** → must open with a thorough Summary (problem, approach, code changes, warnings, questions, user-review items) per [docs/industry-practices.md §9](docs/industry-practices.md)

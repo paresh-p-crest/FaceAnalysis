@@ -136,3 +136,20 @@ Style conventions:
 - Scores out of N: **"… von 100"**, never slash notation (`Harmonie / 100`).
 - No English medical shorthand (**Derm**); write **Dermatologisch** / **Dermatologe**.
 - Compounds: fuse solid German+German (`Gesichtsanalyse`); hyphenate long or loanword hybrids (`KI-Visuals`, `Goldener-Schnitt-Harmonie`, `Chat-Assistent`); leave multi-word English product names as-is (`Beauty Assistant`).
+
+**AI Visuals style copy:** Hair/outfit **titles** and **explanations** ship in `AiVisuals.styles.{hair|outfit}.{styleId}` (en + de). Key by bank `style_id` only — preference/gender banks already use distinct IDs. Do not nest by masculine/feminine. Attr labels/values stay under `AiVisuals.panel.*`. Backend `variants[].title` remains English for image prompts; UI prefers i18n when present. Public page/API paths are `/visuals` and `POST …/visuals`; media folder keys may still say `ai-visuals/`.
+
+---
+
+## 9. Agent implementation plans
+
+Every implementation plan **must open with a thorough Summary** (before root-cause diagrams or step lists). The Summary must cover:
+
+1. **Problem** — what is broken or missing (include UI/locale symptoms when relevant).
+2. **Approach** — concrete chosen design (not A vs B options).
+3. **Code changes** — files and behaviors that will change.
+4. **Warnings / risks** — breaking paths, data that stays English, storage vs URL renames, etc.
+5. **Open questions** — only unresolved items; otherwise state defaults already decided.
+6. **User review** — what to spot-check after implementation.
+
+Point agents at this section from [`AGENTS.md`](../AGENTS.md). Incomplete summaries are incomplete plans.

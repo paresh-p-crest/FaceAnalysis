@@ -2523,7 +2523,7 @@
     "ageCurrentBlurbNoAge": "Dein aktuelles Porträt. Dies ist der Ausgangspunkt für die Vorschau.",
     "ageCurrentBullet1": "Dein originales Frontporträt",
     "ageCurrentBullet2": "Ausgangspunkt für Altersvorschauen",
-      "ageCurrentBullet3": "Verglichen mit Altersvorschauen",
+    "ageCurrentBullet3": "Verglichen mit Altersvorschauen",
     "agePlusBadge": "+{years} Jahre",
     "agePlusMeta": "+{years}",
     "agePlusTagNear": "Nahbereich",
@@ -2540,26 +2540,6 @@
       "outfit": "Farb- und Stylingkonzepte von den Schultern aufwärts für eine polierte Porträtdarstellung, abgestimmt auf deine Merkmale.",
       "aging": "Sanfte Vorschau gesunden Alterns, nur zur Information.",
       "default": "Visual-Konzept."
-    },
-    "about": {
-      "hair": {
-        "link": "Über diese Frisuren",
-        "tooltipTitle": "Über diese Frisuren",
-        "tooltipP1": "Wir bieten eine Auswahl an Frisuren mit unterschiedlichen visuellen Effekten. Nicht alle sollen die Attraktivität maximieren. Manche betonen Einzigartigkeit oder zielen auf eine bestimmte Ästhetik ab.",
-        "tooltipP2": "Ziel ist zu zeigen, wie verschiedene Frisuren an dir aussehen, damit du die wählen kannst, die am besten zu deinen Vorlieben passt."
-      },
-      "outfit": {
-        "link": "Über diese Outfits",
-        "tooltipTitle": "Über diese Outfits",
-        "tooltipP1": "Wir bieten eine Auswahl an Outfit-Stilen mit unterschiedlichen visuellen Effekten. Nicht alle sollen die Attraktivität maximieren. Manche betonen Einzigartigkeit oder zielen auf eine bestimmte Ästhetik ab.",
-        "tooltipP2": "Ziel ist zu zeigen, wie verschiedene Outfits an dir aussehen, damit du das wählen kannst, was am besten zu deinen Vorlieben passt."
-      },
-      "aging": {
-        "link": "Mehr erfahren",
-        "tooltipTitle": "Über gesundes Altern",
-        "tooltipP1": "Diese Vorschauen zeigen eine sanfte Visualisierung gesunden Alterns basierend auf deinem Porträt. Sie veranschaulichen, wie subtile Veränderungen mit der Zeit aussehen könnten — nicht jedes Detail ist exakt.",
-        "tooltipP2": "Nur zu Bildungszwecken. Dies ist keine medizinische Prognose und keine Vorhersage, wie du altern wirst."
-      }
     },
     "about": {
       "hair": {
@@ -2625,6 +2605,342 @@
         "approachable": "Zugänglich",
         "clean": "Klar",
         "textured": "Texturiert"
+      }
+    },
+    "styles": {
+      "fallbackTitle": "Stilvorschau",
+      "fallbackExplanation": "Dieser Look ist auf deine Gesichtsform und Haarlinie abgestimmt und hält den Gesamteindruck gepflegt.",
+      "hair": {
+        "angular_fringe": {
+          "title": "Eckiger Pony",
+          "explanation": "Ein eckiger Pony setzt stärkere Linien an der Stirn und hält die Seiten sauber für einen modernen Look."
+        },
+        "balanced_side_part": {
+          "title": "Ausgewogener Seitenscheitel",
+          "explanation": "Ein ausgewogener Seitenscheitel mit kontrolliertem mittellangen Volumen wirkt gepflegt und neutral."
+        },
+        "buzz_crew_cut": {
+          "title": "Buzz- und Crew Cut",
+          "explanation": "Ein kurzer Buzz oder Crew Cut mit klaren Kanten ist pflegeleicht und lässt die Gesichtszüge klar sichtbar."
+        },
+        "chin_bob_horizontal": {
+          "title": "Kinn-Bob mit horizontalem Volumen",
+          "explanation": "Ein kinnlanger Bob mit weichem horizontalem Volumen mindert eine lange Silhouette."
+        },
+        "chin_bob_neutral": {
+          "title": "Kinnlanger weicher Bob",
+          "explanation": "Ein kinnlanger weicher Bob mit horizontalem Volumen mindert eine lange Silhouette."
+        },
+        "chin_length_neutral": {
+          "title": "Kinnlanger weicher Schnitt",
+          "explanation": "Ein kinnlanger weicher Schnitt bringt unten Balance ohne Schläfen-Bulk."
+        },
+        "chin_length_soft_bob": {
+          "title": "Kinnlanger weicher Bob",
+          "explanation": "Ein kinnlanger weicher Bob bringt untere Balance ohne Schläfen-Bulk."
+        },
+        "chin_length_textured_cut": {
+          "title": "Kinnlanger texturierter Schnitt",
+          "explanation": "Ein kinnlanger texturierter Schnitt bringt unten kontrollierte Balance ohne Schläfen-Bulk."
+        },
+        "classic_taper_side_part": {
+          "title": "Klassischer Taper (Seitenscheitel)",
+          "explanation": "Ein klassischer Taper mit Seitenscheitel hält das Framing ordentlich und beruhigt die Proportionen."
+        },
+        "crown_lift_soft_layers": {
+          "title": "Weiche Stufen mit Kronen-Lift",
+          "explanation": "Weiche Stufen mit Kronen-Lift bringen Höhe ohne stark geschlechtsspezifischen Schnitt."
+        },
+        "crown_volume_long_layers": {
+          "title": "Kronenvolumen, lange Stufen",
+          "explanation": "Lange Stufen mit Kronen-Lift bringen Höhe und strecken rondere Gesichtsformen."
+        },
+        "curtain_bangs_medium": {
+          "title": "Vorhangpony mittellang",
+          "explanation": "Mittellanges Haar mit weichen Curtain Bangs rahmt die Stirn sanft ohne schwere Masse."
+        },
+        "curtain_bangs_side_volume_soft": {
+          "title": "Vorhangpony mit weichem Seitenvolumen",
+          "explanation": "Curtain Bangs mit weichem Seitenvolumen bringen Breite und halten den Oberkopf kontrolliert."
+        },
+        "curtain_bangs_soft": {
+          "title": "Weicher Vorhangpony",
+          "explanation": "Weiche Curtain Bangs mit mittlerer Länge weichen Stirnlinien und Kanten auf."
+        },
+        "curtain_fringe": {
+          "title": "Vorhangpony",
+          "explanation": "Ein Curtain Fringe mit weicher Trennung rahmt die Stirn sanft und bringt zugängliche Bewegung ohne schwere Masse."
+        },
+        "curtain_fringe_neutral": {
+          "title": "Vorhangpony",
+          "explanation": "Ein Curtain Fringe mit weicher Trennung rahmt die Stirn sanft für die meisten Gesichtsformen."
+        },
+        "curtain_fringe_side_volume": {
+          "title": "Vorhangpony (seitliches Volumen)",
+          "explanation": "Ein Curtain Fringe mit Seitenvolumen bringt Breite und hält den Oberkopf kontrolliert."
+        },
+        "curtain_fringe_soft_neutral": {
+          "title": "Weicher Vorhangpony",
+          "explanation": "Ein weicher Curtain Fringe mit mittlerer Länge weicht Stirnlinien auf."
+        },
+        "curtain_side_volume_neutral": {
+          "title": "Vorhangpony mit weichem Seitenvolumen",
+          "explanation": "Ein Curtain Fringe mit weichem Seitenvolumen hält den Oberkopf kontrolliert."
+        },
+        "face_framing_layers_soft": {
+          "title": "Weiche gesichtsumrahmende Stufen",
+          "explanation": "Weiche face-framing Stufen mischen Ecken und erzeugen eine sanftere Gesamtlinie."
+        },
+        "face_framing_neutral_layers": {
+          "title": "Gesichtsumrahmende Stufen",
+          "explanation": "Face-framing Stufen mischen Ecken in eine weichere Gesamtform."
+        },
+        "fringe_width_neutral": {
+          "title": "Weicher Pony mit Seitenvolumen",
+          "explanation": "Ein weicher Pony mit Seitenvolumen verkürzt optisch die Länge und bringt Breite."
+        },
+        "high_fade_pompadour": {
+          "title": "Pompadour mit hohem Fade",
+          "explanation": "Ein High-Fade Pompadour mit erhöhtem Frontvolumen und klarem Taper betont die Vertikale und wirkt gepflegt."
+        },
+        "layered_medium_length": {
+          "title": "Stufige mittlere Länge",
+          "explanation": "Mittlere Länge mit stufiger Bewegung mischt Ecken und erzeugt eine weichere Gesamtform um den Kiefer."
+        },
+        "layered_medium_texture": {
+          "title": "Mittlere texturierte Stufen",
+          "explanation": "Mittlere texturierte Stufen bringen Bewegung, ohne den Stil zu scharf wirken zu lassen."
+        },
+        "lob_soft_height": {
+          "title": "Weicher Lob mit leichter Höhe",
+          "explanation": "Ein weicher Lob mit leichter Kronenhöhe und klaren Spitzen für einen längeren Gesichts-Eindruck."
+        },
+        "long_face_framing_layers": {
+          "title": "Lange gesichtsumrahmende Stufen",
+          "explanation": "Lange face-framing Stufen streifen Wangen und Kiefer für eine weichere, feminine Silhouette."
+        },
+        "long_layers_neutral_lift": {
+          "title": "Lange Stufen mit dezentem Lift",
+          "explanation": "Lange Stufen mit dezentem Kronen-Lift strecken ein runderes Gesicht in einem neutralen Stil."
+        },
+        "long_layers_with_lift": {
+          "title": "Lange Stufen mit Lift",
+          "explanation": "Langes stufiges Haar mit Kronen-Lift und auslaufenden Spitzen mindert Rundheit weich."
+        },
+        "low_fade_soft_textured_top": {
+          "title": "Low Fade (weicher texturierter Oberkopf)",
+          "explanation": "Ein Low Fade mit weichem texturiertem Oberkopf bleibt ordentlich und vermeidet Extra-Höhe."
+        },
+        "low_taper_soft_top": {
+          "title": "Low Taper (weicher Oberkopf)",
+          "explanation": "Ein Low Taper mit weicherer Oberkopf-Textur hält Struktur und mindert kantige Boxigkeit."
+        },
+        "medium_layers_neutral": {
+          "title": "Mittlere weiche Stufen",
+          "explanation": "Mittlere weiche Stufen mindern Boxigkeit und bleiben unisex."
+        },
+        "medium_layers_soft_corners": {
+          "title": "Mittlere Stufen, weiche Kanten",
+          "explanation": "Mittleres stufiges Haar mit weichen Spitzen mindert Boxigkeit um das Gesicht."
+        },
+        "medium_soft_layers": {
+          "title": "Mittlere weiche Stufen",
+          "explanation": "Mittlere weiche Stufen mit natürlicher Bewegung erzeugen eine ausgewogene, unisex Silhouette."
+        },
+        "medium_soft_layers_fem": {
+          "title": "Mittlere weiche Stufen",
+          "explanation": "Mittlere weiche Stufen mit natürlicher Bewegung halten eine sanfte feminine Silhouette."
+        },
+        "medium_wavy_layers": {
+          "title": "Mittlere Wellenstufen",
+          "explanation": "Mittlere Wellenstufen bringen ausgewogene Textur und eine breitere Silhouette ohne zu viel Höhe."
+        },
+        "rounded_bob": {
+          "title": "Runder Bob",
+          "explanation": "Ein runder Bob mit geschwungenen Spitzen weicht eine starke Kieferlinie auf und bleibt gepflegt."
+        },
+        "rounded_soft_bob": {
+          "title": "Runder weicher Bob",
+          "explanation": "Ein runder weicher Bob mit geschwungenen Spitzen weicht eine starke Kieferlinie auf."
+        },
+        "shoulder_soft_layers": {
+          "title": "Schulterlange weiche Stufen",
+          "explanation": "Schulterlange weiche Stufen mit lockerer Bewegung und genderneutralem Framing."
+        },
+        "shoulder_waves_balance": {
+          "title": "Schulterlange Wellen (Balance)",
+          "explanation": "Schulterlange weiche Wellen bringen untere Balance und sanfte Breite."
+        },
+        "shoulder_waves_neutral": {
+          "title": "Schulterlange weiche Wellen",
+          "explanation": "Schulterlange weiche Wellen bringen untere Gesichtsbalance."
+        },
+        "side_part_classic": {
+          "title": "Klassischer Seitenscheitel",
+          "explanation": "Ein klassischer Seitenscheitel mit ausgewogener Länge und kontrolliertem Volumen ergibt eine gepflegte Silhouette für die meisten Gesichtsproportionen."
+        },
+        "side_part_height": {
+          "title": "Seitenscheitel mit Höhe",
+          "explanation": "Ein Seitenscheitel mit Extra-Höhe oben mindert Rundheit und stärkt die wahrgenommene Gesichtsstruktur."
+        },
+        "side_part_soft_width": {
+          "title": "Weicher Seitenscheitel mit Breite",
+          "explanation": "Ein weicher Seitenscheitel mit volleren Seiten gleicht die Gesichtsproportion aus."
+        },
+        "side_part_width_neutral": {
+          "title": "Seitenscheitel mit volleren Seiten",
+          "explanation": "Ein Seitenscheitel mit volleren Seiten gleicht die Gesichtsproportion aus."
+        },
+        "side_part_with_width": {
+          "title": "Seitenscheitel (mit Breite)",
+          "explanation": "Ein Seitenscheitel mit Extra-Breite an den Seiten gleicht längere Gesichtsformen aus."
+        },
+        "side_swept_bangs_height": {
+          "title": "Seitlich gestrichener Pony mit Höhe",
+          "explanation": "Seitlich gestrichener Pony mit Oberkopf-Volumen betont die Vertikale bei runderen Gesichtern."
+        },
+        "side_swept_fringe_height": {
+          "title": "Seitlich gestrichener Pony mit Höhe",
+          "explanation": "Ein seitlich gestrichener Pony mit Oberkopf-Volumen betont die Vertikale."
+        },
+        "side_swept_layers_balance": {
+          "title": "Seitlich gestrichene Stufen (Balance)",
+          "explanation": "Seitlich gestrichene mittlere Stufen balancieren Mittelgesichtsbreite und rahmen den Kiefer sanft."
+        },
+        "side_swept_medium_layers": {
+          "title": "Seitlich gestrichene mittlere Stufen",
+          "explanation": "Seitlich gestrichene mittlere Stufen verteilen Gewicht ausgewogen um Mittelgesicht und Kiefer."
+        },
+        "side_swept_neutral_layers": {
+          "title": "Seitlich gestrichene mittlere Stufen",
+          "explanation": "Seitlich gestrichene mittlere Stufen balancieren Mittelgesichtsbreite und rahmen den Kiefer."
+        },
+        "side_swept_undercut": {
+          "title": "Seitlich gestrichener Undercut",
+          "explanation": "Ein seitlich gestrichener Undercut mit weicher Textur hält Kanten scharf, ohne hart zu wirken."
+        },
+        "slick_back": {
+          "title": "Nach hinten gestrichen",
+          "explanation": "Ein glatter Slick Back mit klarer Führung von den Seiten nach oben wirkt sauber, strukturiert und klar männlich."
+        },
+        "soft_bangs_width": {
+          "title": "Weicher Pony mit Breite",
+          "explanation": "Weicher Pony mit Seitenvolumen verkürzt optisch die Länge und bringt Breite bei länglichen Gesichtern."
+        },
+        "soft_curtain_bangs_heart": {
+          "title": "Weicher Vorhangpony",
+          "explanation": "Weiche Curtain Bangs nehmen Stirnbetonung und halten einen femininen Rahmen."
+        },
+        "soft_curtain_fringe": {
+          "title": "Weicher Vorhangpony",
+          "explanation": "Ein weicher Curtain Fringe rahmt die Stirn sanft und nimmt Betonung von einer breiteren oberen Gesichtsfläche."
+        },
+        "soft_curtain_neutral": {
+          "title": "Weicher Vorhangpony",
+          "explanation": "Ein weicher Curtain Fringe nimmt Stirnbetonung sanft zurück."
+        },
+        "soft_layered_bob": {
+          "title": "Weicher stufiger Bob",
+          "explanation": "Ein weicher stufiger Bob mit sanfter Bewegung schmeichelt ausgewogenen Proportionen und hält die Spitzen klar."
+        },
+        "soft_pixie_with_height": {
+          "title": "Weicher Pixie mit Höhe",
+          "explanation": "Ein weicher Pixie mit texturierter Kronenhöhe streckt das Gesicht und bleibt feminin."
+        },
+        "soft_side_part_feminine": {
+          "title": "Weicher Seitenscheitel",
+          "explanation": "Ein weicher Seitenscheitel mit gepflegtem mittellangen Volumen wirkt raffiniert und feminin."
+        },
+        "soft_textured_top": {
+          "title": "Weicher texturierter Oberkopf",
+          "explanation": "Ein weicher texturierter Oberkopf mit klar auslaufenden Seiten bleibt ordentlich ohne starken Barbershop-Look."
+        },
+        "soft_updo_framing": {
+          "title": "Weiche Hochsteckfrisur mit Rahmensträhnen",
+          "explanation": "Eine weich gesteckte Hochsteckfrisur mit Framing-Strähnen bleibt elegant und zugänglich."
+        },
+        "soft_waves_jaw": {
+          "title": "Weiche Wellen am Kiefer",
+          "explanation": "Weiche Wellen um den Kiefer weichen kantige Ecken für eine sanftere eckige Silhouette auf."
+        },
+        "soft_waves_neutral": {
+          "title": "Weiche Wellen",
+          "explanation": "Weiche Wellen mit natürlicher Trennung weichen kantige Linien am Kiefer auf."
+        },
+        "textured_crop": {
+          "title": "Texturierter Crop",
+          "explanation": "Ein kurzer Textured Crop bringt kontrollierte Bewegung oben, während sauber auslaufende Seiten die Silhouette scharf und pflegeleicht halten."
+        },
+        "textured_crop_soft_fringe": {
+          "title": "Texturierter Crop (weicher Pony)",
+          "explanation": "Ein Textured Crop mit weichem Pony weicht gerade Stirnlinien auf und hält den Schnitt insgesamt ordentlich."
+        },
+        "textured_forward_fringe": {
+          "title": "Texturierter Vorwärts-Pony",
+          "explanation": "Ein texturierter Vorwärts-Pony balanciert Proportionen optisch und hält den Look natürlich."
+        },
+        "textured_fringe_horizontal_volume": {
+          "title": "Texturierter Pony (horizontales Volumen)",
+          "explanation": "Ein texturierter Pony mit horizontalem Volumen verkürzt optisch die Länge und bringt Breite bei länglichen Gesichtern."
+        },
+        "textured_lob_height": {
+          "title": "Texturierter Lob mit Höhe",
+          "explanation": "Ein texturierter Lob mit dezentem Kronen-Lift wirkt optisch länger ohne harte Linien."
+        },
+        "textured_lob_jaw_balance": {
+          "title": "Texturierter Lob (Kiefer-Balance)",
+          "explanation": "Ein texturierter Lob mit weichen Spitzen balanciert einen schmaleren Kiefer optisch."
+        },
+        "textured_lob_neutral": {
+          "title": "Texturierter weicher Lob",
+          "explanation": "Ein texturierter weicher Lob mit Spitzen, die einen schmaleren Kiefer optisch ausgleichen."
+        },
+        "textured_quiff": {
+          "title": "Texturierter Quiff",
+          "explanation": "Ein Textured Quiff mit Lift am Scheitel und auslaufenden Seiten bringt Höhe und wirkt bei runderen Gesichtsformen länger."
+        },
+        "textured_top_height": {
+          "title": "Texturierter Oberkopf mit Höhe",
+          "explanation": "Ein texturierter Oberkopf mit Kronen-Lift und weich auslaufenden Seiten streckt rondere Gesichter."
+        },
+        "tousled_waves": {
+          "title": "Lockere Wellen",
+          "explanation": "Leichte, lockere Wellen mit natürlicher Trennung weichen den Kiefer-Eindruck auf und wirken natürlich."
+        },
+        "undercut_volume_top": {
+          "title": "Undercut mit Volumen oben",
+          "explanation": "Ein Undercut mit Volumen oben streckt das Gesicht und schärft die Seiten für eine klarere Silhouette."
+        },
+        "wavy_shoulder_layers": {
+          "title": "Wellige Schulterstufen",
+          "explanation": "Wellige schulterlange Stufen bringen horizontales Volumen ohne Extra-Höhe."
+        },
+        "wavy_shoulder_neutral": {
+          "title": "Wellige Schulterstufen",
+          "explanation": "Wellige Schulterstufen bringen horizontales Volumen ohne Extra-Höhe."
+        }
+      },
+      "outfit": {
+        "casual_everyday": {
+          "title": "Lässiger Alltag",
+          "explanation": "Ein klares Tee oder schlichtes Top hält den Look zugänglich für Wochenende und Alltag."
+        },
+        "minimalist_monochrome": {
+          "title": "Minimalistisch monochrom",
+          "explanation": "Einfache tonale Layer in zurückhaltender Palette halten Linien klar, damit die Gesichtszüge im Fokus bleiben."
+        },
+        "professional": {
+          "title": "Business / Professionell",
+          "explanation": "Ein maßvoller Blazer oder ein strukturiertes Top wirkt gepflegt und office-tauglich und hält den Fokus auf deinem Gesicht."
+        },
+        "smart_casual": {
+          "title": "Business-leger",
+          "explanation": "Ein weiches Knit oder ein sauberes Shirt mit leichter Jacke wirkt verfeinert und entspannt, ideal für den Alltag."
+        },
+        "textured_layered": {
+          "title": "Texturiert geschichtet",
+          "explanation": "Ein Cardigan oder leichtes Layering bringt dezente Tiefe, ohne mit dem Gesicht zu konkurrieren."
+        }
       }
     }
   }

@@ -492,7 +492,7 @@
     padding-top: var(--site-navbar-offset);
   }
 
-  /* Standalone pages (/chat, /ai-visuals) — matches ReportModal spacers */
+  /* Standalone pages (/chat, /visuals) — matches ReportModal spacers */
   .standalone-page-shell {
     position: fixed;
     inset: 0;

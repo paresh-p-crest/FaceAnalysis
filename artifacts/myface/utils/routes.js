@@ -8,7 +8,7 @@ export const ROUTES = {
   authReset: '/auth/reset',
   analysis: '/analysis',
   report: '/report',
-  aiVisuals: '/ai-visuals',
+  aiVisuals: '/visuals',
   chat: '/chat',
   /** Customer home (overview). Admin tabs live under `/dashboard/admin-*`. */
   dashboard: '/dashboard',
@@ -85,6 +85,7 @@ export const ANALYSIS_STEPS = {
 
 const LEGACY_REDIRECTS = {
   '/admin': adminTabToPath('overview'),
+  '/ai-visuals': ROUTES.aiVisuals,
 }
 
 const LOCALE_PREFIX = /^\/(en|de)(?=\/|$)/

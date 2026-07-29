@@ -171,7 +171,7 @@ Prompt-side rules also live in `text_ai_service` (`STRICT_NON_SURGICAL_RULES`, `
 | **Branded PDF (primary)** | Browser `utils/reportPdf.js` (jsPDF) using `cvReport` + protocol narratives + front photo. Chin PROFILE plates stay center-cover; convexity/E-line guides snap to the profile silhouette edge. Cheek ANALYSIS overlays use DB MediaPipe landmarks via `utils/cheekGuides.js` (notebook midface construction). Reference fixtures under `fixtures/`. |
 | **Backend PDF (fallback)** | `GET /api/assessments/{id}/pdf` → ReportLab (`report_pdf.py`) from markdown — used when the UI has no front photo |
 | **PDF gate** | `report_status.is_pdf_allowed_status` — only `approved` / `published` (or always if dev auto-approve) |
-| **AI visuals** | On-demand `POST .../ai-visuals` (hair / outfit / aging) — **not** part of create |
+| **AI visuals** | On-demand `POST .../visuals` (hair / outfit / aging) — **not** part of create |
 | **Section formatters** | `report_sections.py` for admin, assistant tools, markdown fallbacks |
 
 ### Stage 7 — Beauty Assistant (report-grounded)
@@ -244,7 +244,7 @@ POST /api/assessments  (assessments.py)
        ├─ CvReportView / ProtocolReport
        ├─ downloadMyFacePdf (jsPDF)     [primary PDF]
        ├─ GET .../pdf (ReportLab)       [fallback]
-       ├─ POST .../ai-visuals           [optional]
+       ├─ POST .../visuals              [optional]
        └─ Beauty Assistant tools        [conversations]
 ```
 

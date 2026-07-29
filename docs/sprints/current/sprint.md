@@ -5,6 +5,8 @@
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
 ## In-Flight Tasks
+- [x] Fix ConfirmDialog busy spinner insertBefore on delete (stable opacity slot + deferred close) (status: completed)
+- [x] Fix admin tab removeChild — drop RouteContent pathname key remount (status: completed)
 - [x] Fix root build TS5083 — drop stale lib/* tsconfig references; fix auth/reset import depth (status: completed)
 - [x] Fix DE protocol featurePrimary MISSING_MESSAGE (prefer protocolModel keys; skip t() when has=false) (status: completed)
 - [x] Admin panel refresh/delete busy icons: opacity-toggle slot (fix insertBefore NotFoundError) (status: completed)
@@ -177,6 +179,7 @@
 - [x] `scripts/rerun_skin_analysis.py` — in-place LAB skin refresh for one assessment (`analysis.cvReport.skin` only; `--dry-run`) (status: completed)
 - [x] Pipeline retry & recovery: stale `running` reclaim, admin resume/full modal, stage skip checks, structured logging (status: completed)
 - [x] German protocol narrative translation: post-hoc DE LLM chain, nested `contentDe`/`.de` JSONB, `pickLocalizedNarratives`, locale-aware admin edit + PDF (ADR-042) (status: completed)
+- [x] AI Visuals DE titles/explanations + `/visuals` page/API paths; plan Summary rule in industry-practices §9 (status: completed)
 - [ ] Narrative Norwood staging: surface shape-based Hamilton–Norwood reasoning in hair report text (deferred from ADR-032 scope; CV metric already shape-based per ADR-028) (status: planned)
 - [ ] Run backend compile gates and smoke tests for Milestone 1 (status: planned)
 - [ ] Verify frontend build states for questionnaire and uploads (status: planned)

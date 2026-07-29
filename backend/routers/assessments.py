@@ -945,7 +945,7 @@ async def post_assessment_ai_narrative(
     return serialize_assessment(updated or existing)
 
 
-@router.post("/assessments/{assessment_id}/ai-visuals")
+@router.post("/assessments/{assessment_id}/visuals")
 async def post_assessment_ai_visuals(
     assessment_id: str,
     req: AssessmentVisualsRequest,

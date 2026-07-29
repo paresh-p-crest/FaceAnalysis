@@ -2,7 +2,7 @@
 """End-to-end AI visuals test: generate, persist to DB, reload assessment.
 
 Mirrors the normal UI flow:
-  POST /api/assessments/{id}/ai-visuals  →  ai_visuals JSONB on assessment row
+  POST /api/assessments/{id}/visuals  →  ai_visuals JSONB on assessment row
   GET  /api/assessments/{id}             →  aiVisuals.variants[].imageSrc
 
 Usage:
@@ -222,7 +222,7 @@ def main() -> int:
         print(line)
 
     if args.dry_run:
-        print("[SKIP] --dry-run: not calling POST ai-visuals")
+        print("[SKIP] --dry-run: not calling POST visuals")
         return 0
 
     has_key = bool(os.environ.get("OPENAI_API_KEY", "").strip())
@@ -230,17 +230,17 @@ def main() -> int:
     if not has_key:
         print("[WARN] generation will likely return status=blocked without an API key")
 
-    print(f"[RUN] POST ai-visuals variants={args.variants} (may take 1–3 min)...")
+    print(f"[RUN] POST visuals variants={args.variants} (may take 1–3 min)...")
     status, generated = request(
         args.base_url,
-        f"/api/assessments/{aid}/ai-visuals",
+        f"/api/assessments/{aid}/visuals",
         method="POST",
         payload={"variants": args.variants},
         token=token,
         timeout=300,
     )
     if status != 200:
-        print(f"[FAIL] POST ai-visuals HTTP {status}: {generated}")
+        print(f"[FAIL] POST visuals HTTP {status}: {generated}")
         return 1
 
     ai_visuals = generated.get("aiVisuals") or {}

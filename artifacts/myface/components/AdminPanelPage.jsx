@@ -237,7 +237,8 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
           setError(translateApiError(err, tErrors))
         } finally {
           setDeletingId('')
-          setConfirmState(null)
+          // Defer close so ConfirmDialog spinner opacity settles before unmount.
+          queueMicrotask(() => setConfirmState(null))
         }
       },
     })
@@ -267,7 +268,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
           setError(translateApiError(err, tErrors))
         } finally {
           setDeletingId('')
-          setConfirmState(null)
+          queueMicrotask(() => setConfirmState(null))
         }
       },
     })

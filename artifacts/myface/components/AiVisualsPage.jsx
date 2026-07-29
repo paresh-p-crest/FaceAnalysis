@@ -16,7 +16,7 @@ import { ReportDocumentLayout } from './report/ReportDocumentLayout'
 import { AI_VISUAL_NAV_GROUPS } from './report/reportNavConfig'
 import { useApp } from './providers/AppProvider'
 
-/** Standalone `/ai-visuals` — independent of the report modal. */
+/** Standalone `/visuals` — independent of the report modal. */
 export default function AiVisualsPage({ onStartAssessment, user = null }) {
   const t = useTranslations('AiVisuals')
   const tErrors = useTranslations('Errors')

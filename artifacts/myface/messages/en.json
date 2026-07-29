@@ -562,9 +562,15 @@
       },
       "priorityFeatures": "Priority features to improve",
       "miniCards": {
-        "skin": { "title": "Skin Analysis" },
-        "hair": { "title": "Hair Analysis" },
-        "eyes": { "title": "Eye Analysis" }
+        "skin": {
+          "title": "Skin Analysis"
+        },
+        "hair": {
+          "title": "Hair Analysis"
+        },
+        "eyes": {
+          "title": "Eye Analysis"
+        }
       },
       "phases": {
         "phase01": {
@@ -2555,26 +2561,6 @@
         "tooltipP2": "For educational purposes only. This is not a medical forecast or a prediction of how you will age."
       }
     },
-    "about": {
-      "hair": {
-        "link": "About those hairstyles",
-        "tooltipTitle": "About those hairstyle",
-        "tooltipP1": "We provided a range of hairstyles that produce different visual effects. Not all are intended to maximize attractiveness. Some emphasize distinctiveness or aim for a specific aesthetic.",
-        "tooltipP2": "The purpose is to show how different hairstyles look on you, allowing you to select the one that best aligns with your preferences."
-      },
-      "outfit": {
-        "link": "About those outfits",
-        "tooltipTitle": "About those outfits",
-        "tooltipP1": "We provided a range of outfit styles that produce different visual effects. Not all are intended to maximize attractiveness. Some emphasize distinctiveness or aim for a specific aesthetic.",
-        "tooltipP2": "The purpose is to show how different outfits look on you, allowing you to select the one that best aligns with your preferences."
-      },
-      "aging": {
-        "link": "Learn more",
-        "tooltipTitle": "About healthy aging",
-        "tooltipP1": "These previews show a gentle, healthy-aging visualization based on your portrait. They illustrate how subtle changes might look over time — not every detail is meant to be exact.",
-        "tooltipP2": "For educational purposes only. This is not a medical forecast or a prediction of how you will age."
-      }
-    },
     "panel": {
       "recommended": "Recommended",
       "explanation": "Explanation",
@@ -2619,6 +2605,342 @@
         "approachable": "Approachable",
         "clean": "Clean",
         "textured": "Textured"
+      }
+    },
+    "styles": {
+      "fallbackTitle": "Style preview",
+      "fallbackExplanation": "This style is selected to balance face shape, hairline, and overall facial harmony.",
+      "hair": {
+        "angular_fringe": {
+          "title": "Angular Fringe",
+          "explanation": "An angular fringe creates stronger forehead lines while keeping the sides clean for a modern, intentional look."
+        },
+        "balanced_side_part": {
+          "title": "Balanced Side Part",
+          "explanation": "A balanced side part with controlled mid-length volume suits a polished neutral look."
+        },
+        "buzz_crew_cut": {
+          "title": "Buzz/Crew Cut",
+          "explanation": "A short buzz or crew cut with tight edges is low-maintenance and keeps facial features clearly visible."
+        },
+        "chin_bob_horizontal": {
+          "title": "Chin Bob (Horizontal)",
+          "explanation": "A chin-length bob with soft horizontal volume reduces a long silhouette."
+        },
+        "chin_bob_neutral": {
+          "title": "Chin Soft Bob",
+          "explanation": "A chin-length soft bob with horizontal volume reduces a long silhouette."
+        },
+        "chin_length_neutral": {
+          "title": "Chin-Length Soft Cut",
+          "explanation": "A chin-length soft cut adds balance lower down without temple bulk."
+        },
+        "chin_length_soft_bob": {
+          "title": "Chin-Length Soft Bob",
+          "explanation": "A chin-length soft bob adds lower-face balance without temple bulk."
+        },
+        "chin_length_textured_cut": {
+          "title": "Chin-Length Textured Cut",
+          "explanation": "A chin-length textured cut adds controlled balance lower down without looking bulky at the temples."
+        },
+        "classic_taper_side_part": {
+          "title": "Classic Taper (Side Part)",
+          "explanation": "A classic taper with a side part keeps framing tidy and calms facial proportions."
+        },
+        "crown_lift_soft_layers": {
+          "title": "Crown Lift Soft Layers",
+          "explanation": "Soft layers with crown lift add height without a strongly gendered cut."
+        },
+        "crown_volume_long_layers": {
+          "title": "Crown Volume Long Layers",
+          "explanation": "Long layers with crown lift add height and elongate rounder face shapes."
+        },
+        "curtain_bangs_medium": {
+          "title": "Curtain Bangs Medium",
+          "explanation": "Medium length with soft curtain bangs gently frames the forehead without heavy bulk."
+        },
+        "curtain_bangs_side_volume_soft": {
+          "title": "Curtain Bangs (Side Volume)",
+          "explanation": "Curtain bangs with soft side volume add width while keeping the top controlled."
+        },
+        "curtain_bangs_soft": {
+          "title": "Soft Curtain Bangs",
+          "explanation": "Soft curtain bangs with medium length ease forehead lines and soften angles."
+        },
+        "curtain_fringe": {
+          "title": "Curtain Fringe",
+          "explanation": "A curtain fringe with soft separation gently frames the forehead and adds approachable movement without heavy bulk."
+        },
+        "curtain_fringe_neutral": {
+          "title": "Curtain Fringe",
+          "explanation": "A curtain fringe with soft separation gently frames the forehead for most face shapes."
+        },
+        "curtain_fringe_side_volume": {
+          "title": "Curtain Fringe (Side Volume)",
+          "explanation": "A curtain fringe with side volume adds width while keeping the top controlled."
+        },
+        "curtain_fringe_soft_neutral": {
+          "title": "Soft Curtain Fringe",
+          "explanation": "A soft curtain fringe with medium length eases forehead lines."
+        },
+        "curtain_side_volume_neutral": {
+          "title": "Curtain Fringe (Side Volume)",
+          "explanation": "A curtain fringe with soft side volume keeps the top controlled."
+        },
+        "face_framing_layers_soft": {
+          "title": "Face-Framing Soft Layers",
+          "explanation": "Face-framing soft layers blend corners and create a gentler overall outline."
+        },
+        "face_framing_neutral_layers": {
+          "title": "Face-Framing Layers",
+          "explanation": "Face-framing layers blend corners into a softer overall shape."
+        },
+        "fringe_width_neutral": {
+          "title": "Soft Fringe With Width",
+          "explanation": "A soft fringe with side volume visually shortens length and adds width."
+        },
+        "high_fade_pompadour": {
+          "title": "High-Fade Pompadour",
+          "explanation": "A high-fade pompadour with elevated front volume and a crisp taper adds vertical emphasis and polish."
+        },
+        "layered_medium_length": {
+          "title": "Layered Medium Length",
+          "explanation": "Medium length with layered movement blends corners and creates a softer overall shape around the jaw."
+        },
+        "layered_medium_texture": {
+          "title": "Medium Textured Layers",
+          "explanation": "Medium textured layers add movement without making the style look overly sharp."
+        },
+        "lob_soft_height": {
+          "title": "Soft Lob With Height",
+          "explanation": "A soft lob with slight crown lift and clean ends for a taller face read."
+        },
+        "long_face_framing_layers": {
+          "title": "Long Face-Framing Layers",
+          "explanation": "Long face-framing layers skim the cheeks and jaw for a softer, feminine silhouette."
+        },
+        "long_layers_neutral_lift": {
+          "title": "Long Layers With Lift",
+          "explanation": "Long layers with subtle crown lift elongate a rounder face in a neutral style."
+        },
+        "long_layers_with_lift": {
+          "title": "Long Layers With Lift",
+          "explanation": "Long layered hair with crown lift and tapered ends reduces roundness softly."
+        },
+        "low_fade_soft_textured_top": {
+          "title": "Low Fade (Soft Textured Top)",
+          "explanation": "A low fade with a soft textured top stays neat while avoiding extra vertical height."
+        },
+        "low_taper_soft_top": {
+          "title": "Low Taper (Soft Top)",
+          "explanation": "A low taper with softer top texture keeps structure while reducing boxiness around the face."
+        },
+        "medium_layers_neutral": {
+          "title": "Medium Soft Layers",
+          "explanation": "Medium soft layers reduce boxiness while staying unisex."
+        },
+        "medium_layers_soft_corners": {
+          "title": "Medium Layers (Soft Corners)",
+          "explanation": "Medium layered hair with soft ends reduces boxiness around the face."
+        },
+        "medium_soft_layers": {
+          "title": "Medium Soft Layers",
+          "explanation": "Medium soft layers with natural movement create a balanced, unisex silhouette."
+        },
+        "medium_soft_layers_fem": {
+          "title": "Medium Soft Layers",
+          "explanation": "Medium soft layers with natural movement keep a gentle feminine silhouette."
+        },
+        "medium_wavy_layers": {
+          "title": "Medium Wavy Layers",
+          "explanation": "Medium wavy layers add balanced texture and a wider-looking silhouette without excess height."
+        },
+        "rounded_bob": {
+          "title": "Rounded Bob",
+          "explanation": "A rounded bob with curved ends softens a strong jawline while staying polished."
+        },
+        "rounded_soft_bob": {
+          "title": "Rounded Soft Bob",
+          "explanation": "A rounded soft bob with curved ends softens a strong jawline."
+        },
+        "shoulder_soft_layers": {
+          "title": "Shoulder Soft Layers",
+          "explanation": "Shoulder-length soft layers with easy movement and gender-neutral framing."
+        },
+        "shoulder_waves_balance": {
+          "title": "Shoulder Waves (Balance)",
+          "explanation": "Shoulder-length soft waves add lower-face balance and gentle width."
+        },
+        "shoulder_waves_neutral": {
+          "title": "Shoulder Soft Waves",
+          "explanation": "Shoulder-length soft waves add lower-face balance."
+        },
+        "side_part_classic": {
+          "title": "Side Part Classic",
+          "explanation": "A classic side part with balanced length and controlled volume gives a polished silhouette that suits most face proportions."
+        },
+        "side_part_height": {
+          "title": "Side Part With Height",
+          "explanation": "A side part with extra height on top reduces roundness and improves perceived facial structure."
+        },
+        "side_part_soft_width": {
+          "title": "Soft Side Part With Width",
+          "explanation": "A soft side part with fuller sides creates a more even face proportion."
+        },
+        "side_part_width_neutral": {
+          "title": "Side Part With Soft Width",
+          "explanation": "A side part with fuller sides creates a more even face proportion."
+        },
+        "side_part_with_width": {
+          "title": "Side Part (With Width)",
+          "explanation": "A side part with extra side width creates a more even face proportion on longer shapes."
+        },
+        "side_swept_bangs_height": {
+          "title": "Side-Swept Bangs With Height",
+          "explanation": "Side-swept bangs with top volume create vertical emphasis on rounder faces."
+        },
+        "side_swept_fringe_height": {
+          "title": "Side-Swept Fringe With Height",
+          "explanation": "A side-swept fringe with top volume creates vertical emphasis."
+        },
+        "side_swept_layers_balance": {
+          "title": "Side-Swept Layers (Balance)",
+          "explanation": "Side-swept medium layers balance mid-face width and frame the jaw gently."
+        },
+        "side_swept_medium_layers": {
+          "title": "Side-Swept Medium Layers",
+          "explanation": "Side-swept medium layers create balanced weight around the mid-face and jaw for heart-shaped proportions."
+        },
+        "side_swept_neutral_layers": {
+          "title": "Side-Swept Medium Layers",
+          "explanation": "Side-swept medium layers balance mid-face width and frame the jaw."
+        },
+        "side_swept_undercut": {
+          "title": "Side-Swept Undercut",
+          "explanation": "A side-swept undercut with blended texture keeps edges sharp without looking harsh on angular faces."
+        },
+        "slick_back": {
+          "title": "Slick Back",
+          "explanation": "A sleek slick-back with disciplined side-to-top flow creates a clean, structured finish with a strong masculine read."
+        },
+        "soft_bangs_width": {
+          "title": "Soft Bangs With Width",
+          "explanation": "Soft bangs with side volume visually shorten length and add width for oblong faces."
+        },
+        "soft_curtain_bangs_heart": {
+          "title": "Soft Curtain Bangs",
+          "explanation": "Soft curtain bangs reduce forehead emphasis while keeping a feminine frame."
+        },
+        "soft_curtain_fringe": {
+          "title": "Soft Curtain Fringe",
+          "explanation": "A soft curtain fringe gently frames the forehead and reduces emphasis on a wider upper face."
+        },
+        "soft_curtain_neutral": {
+          "title": "Soft Curtain Fringe",
+          "explanation": "A soft curtain fringe gently reduces forehead emphasis."
+        },
+        "soft_layered_bob": {
+          "title": "Soft Layered Bob",
+          "explanation": "A soft layered bob with gentle movement flatters balanced proportions while keeping ends clean."
+        },
+        "soft_pixie_with_height": {
+          "title": "Soft Pixie With Height",
+          "explanation": "A soft pixie with textured crown height elongates the face while staying feminine."
+        },
+        "soft_side_part_feminine": {
+          "title": "Soft Side Part",
+          "explanation": "A soft side part with polished mid-length volume gives a refined feminine read."
+        },
+        "soft_textured_top": {
+          "title": "Soft Textured Top",
+          "explanation": "A soft textured top with clean tapered sides stays neat without a heavy barbershop read."
+        },
+        "soft_updo_framing": {
+          "title": "Soft Updo Framing",
+          "explanation": "A soft loosely gathered updo with face-framing pieces keeps the look elegant and approachable."
+        },
+        "soft_waves_jaw": {
+          "title": "Soft Waves (Jaw Softening)",
+          "explanation": "Soft waves around the jaw ease angular corners for a gentler square-face silhouette."
+        },
+        "soft_waves_neutral": {
+          "title": "Soft Waves",
+          "explanation": "Soft waves with natural separation ease angular lines around the jaw."
+        },
+        "textured_crop": {
+          "title": "Textured Crop",
+          "explanation": "A short textured crop adds controlled movement on top while clean tapered sides keep the silhouette sharp and easy to maintain."
+        },
+        "textured_crop_soft_fringe": {
+          "title": "Textured Crop (Soft Fringe)",
+          "explanation": "A textured crop with a soft fringe eases straight forehead lines while keeping the overall cut neat."
+        },
+        "textured_forward_fringe": {
+          "title": "Textured Forward Fringe",
+          "explanation": "A textured forward fringe balances proportions visually while keeping the overall look natural."
+        },
+        "textured_fringe_horizontal_volume": {
+          "title": "Textured Fringe (Horizontal Volume)",
+          "explanation": "A textured fringe with horizontal volume visually reduces length and adds width for oblong faces."
+        },
+        "textured_lob_height": {
+          "title": "Textured Lob With Height",
+          "explanation": "A textured lob with subtle crown lift gives a taller face read without harsh lines."
+        },
+        "textured_lob_jaw_balance": {
+          "title": "Textured Lob (Jaw Balance)",
+          "explanation": "A textured lob with soft ends visually balances a narrower jaw."
+        },
+        "textured_lob_neutral": {
+          "title": "Textured Soft Lob",
+          "explanation": "A textured soft lob with ends that visually balance a narrower jaw."
+        },
+        "textured_quiff": {
+          "title": "Textured Quiff",
+          "explanation": "A textured quiff with lift at the crown and tapered sides adds height and elongates rounder face shapes."
+        },
+        "textured_top_height": {
+          "title": "Textured Top With Height",
+          "explanation": "A textured top with crown lift and softly tapered sides elongates rounder faces."
+        },
+        "tousled_waves": {
+          "title": "Tousled Waves",
+          "explanation": "Light tousled waves with natural separation soften the jawline impression while keeping movement natural."
+        },
+        "undercut_volume_top": {
+          "title": "Undercut Volume Top",
+          "explanation": "An undercut with volume on top elongates the face and sharpens the sides for a more structured silhouette."
+        },
+        "wavy_shoulder_layers": {
+          "title": "Wavy Shoulder Layers",
+          "explanation": "Wavy shoulder-length layers add horizontal volume without extra height."
+        },
+        "wavy_shoulder_neutral": {
+          "title": "Wavy Shoulder Layers",
+          "explanation": "Wavy shoulder layers add horizontal volume without extra height."
+        }
+      },
+      "outfit": {
+        "casual_everyday": {
+          "title": "Casual Everyday",
+          "explanation": "A clean tee or simple top keeps the look approachable for weekend and everyday presentation."
+        },
+        "minimalist_monochrome": {
+          "title": "Minimalist Monochrome",
+          "explanation": "Simple tonal layers in a restrained palette keep lines clean so facial features stay the focal point."
+        },
+        "professional": {
+          "title": "Professional/Business",
+          "explanation": "A tailored blazer or structured top reads polished and office-appropriate while keeping the portrait focus on your face."
+        },
+        "smart_casual": {
+          "title": "Smart-Casual",
+          "explanation": "A soft knit or neat shirt with a light jacket feels refined but relaxed — ideal for everyday portrait polish."
+        },
+        "textured_layered": {
+          "title": "Textured Layered",
+          "explanation": "A cardigan or light layering piece adds subtle depth without competing with the face."
+        }
       }
     }
   }

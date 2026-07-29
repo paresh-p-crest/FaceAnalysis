@@ -6,12 +6,18 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Added
+- **AI Visuals DE style catalogs** — Hair/outfit titles + explanations in `AiVisuals.styles.*` (en/de), keyed by `styleId`; UI uses `resolveStyleDisplayCopy` (never English explanation prose on `de`).
+- **Agent plan Summary rule** — `docs/industry-practices.md` §9 + `AGENTS.md` pointer: every implementation plan must open with a thorough Summary.
 - **Retry narrative translations (locale-scoped)** — Admin `POST /api/assessments/{id}/narrative-translations` with `{ "locale": "de" }` force-retrieves DE for features/closing/phases/executive without regenerating EN. Protocol edit dock: **Retry German translations** when UI is `de` (+ hint to switch to EN for EN regen); when UI is `en`, hint to switch to DE for DE retry. CLI: `scripts/rerun_narrative_translations.py <id> --language de`.
 - **CV report German locale (ADR-043)** — `CvReport.labels` wired at display via `useCvLabel` / `translateClassification`; panel classifiers return stable keys. Feature panels render localized `featureNarratives` via `FeatureProseBlock`. Nose/lips/cheek/hair metric slides and tables moved to `Report.*` i18n keys.
 ### Changed
+- **AI Visuals DE style titles** — Germanized 21 hair + 2 outfit catalog titles that still duplicated English (e.g. `Textured Crop` → `Texturierter Crop`, `Curtain Fringe` → `Vorhangpony`, `Smart Casual` → `Business-leger`); salon loanwords (Crop, Fade, Bob, Undercut) kept per §8 policy.
+- **Visuals public paths** — Page `/ai-visuals` → `/visuals` (legacy redirect); `POST /api/assessments/{id}/ai-visuals` → `…/visuals`. Media keys `assessments/{id}/ai-visuals/…` and JSONB `aiVisuals` unchanged.
 - **DE narrative translation (ADR-044)** — Features, closing, treatment phases, and executive content translate as plain text per field (`chat_text_completion`); Python reassembles DE JSON. Removed structured JSON DE blobs and `chat_json_completion` `/plain` fallback. EN generation stays structured.
 - **Treatment phases EN keys** — Normalize `Phase 01` / `phase_01` aliases to `phase01` before validate; system prompt requires exact `phase01`/`phase02`/`phase03` keys.
 ### Fixed
+- **ConfirmDialog delete `insertBefore` NotFoundError** — Confirm button keeps a stable `Loader2` opacity slot (never mount/unmount Lucide mid-commit). Admin delete report/user closes the dialog via `queueMicrotask` after clearing busy state.
+- **Admin tab switch `removeChild` NotFoundError** — `RouteContent` no longer keys children on `pathname`; Users → Overview (and other admin tabs) update `activeTab` in place instead of remounting the whole page tree.
 - **Root `npm run build` TS5083** — Cleared stale `tsconfig.json` project references to missing `lib/db`, `lib/api-client-react`, and `lib/api-zod` (packages not present in this repo).
 - **Password reset page imports** — `app/[locale]/auth/reset/page.jsx` used 3-level relative paths; needs 4 (`../../../../`) like `dashboard/[section]`.
 - **DE protocol `Report.featurePrimary.*` MISSING_MESSAGE spam** — Overview chips now read `protocolModel.featurePrimary.*` directly. Helper only resolves that path (never probes missing `Report.featurePrimary.*`). `createReportTranslator.has` added for PDF. Hard-refresh if console still shows old stack at line 315.

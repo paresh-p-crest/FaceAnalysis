@@ -1,17 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { Image, CircleHelp, Loader2, Sparkles, X } from 'lucide-react'
-import { resolveStylePanelCopy } from '../utils/aiVisualStyleCopy'
+import { resolveStyleDisplayCopy, resolveStylePanelCopy } from '../utils/aiVisualStyleCopy'
 import { coercePhotoUrl } from '../utils/assessmentPhotos'
-
-/** Title-case each alphabetic run (Professional/Business, Smart-Casual). */
-function titleCaseLabel(value) {
-  return String(value || '').replace(/[A-Za-z]+/g, (word) => (
-    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-  ))
-}
 
 function ImagePreviewModal({ src, title, onClose, closeLabel }) {
   useEffect(() => {
@@ -277,8 +270,9 @@ function StylePanelAside({
   onGenerateStyle,
   className = '',
 }) {
+  const locale = useLocale()
   const panel = resolveStylePanelCopy(type, variant)
-  const displayTitle = type === 'outfit' ? titleCaseLabel(variant.title) : variant.title
+  const { title: displayTitle, explanation } = resolveStyleDisplayCopy(type, variant, t, locale)
   const attrLabel = (key) => (t.has(`panel.attrs.${key}`) ? t(`panel.attrs.${key}`) : key)
   const attrValue = (raw) => (t.has(`panel.values.${raw}`) ? t(`panel.values.${raw}`) : raw)
 
@@ -324,7 +318,7 @@ function StylePanelAside({
             <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               {t('panel.explanation')}
             </p>
-            <p className="text-sm leading-relaxed text-ink-muted">{panel.explanation}</p>
+            <p className="text-sm leading-relaxed text-ink-muted">{explanation}</p>
           </div>
         </>
       ) : null}
@@ -365,6 +359,7 @@ function StyleSuggestionList({
   regeneratingStyleId = null,
   onGenerateStyle = null,
 }) {
+  const locale = useLocale()
   if (!variants.length) {
     return (
       <div className="rounded-2xl border border-dashed border-surface-border bg-surface-warm dark:bg-surface-raised p-10 text-center">
@@ -381,7 +376,7 @@ function StyleSuggestionList({
     <div className="space-y-8">
       {variants.map((variant) => {
         const afterSrc = coercePhotoUrl(variant.imageSrc)
-        const displayTitle = type === 'outfit' ? titleCaseLabel(variant.title) : variant.title
+        const { title: displayTitle } = resolveStyleDisplayCopy(type, variant, t, locale)
         const hasCompare = Boolean(useCompare && beforeSrc && afterSrc)
         const hasAfterOnly = Boolean(!useCompare && afterSrc)
 

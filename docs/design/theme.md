@@ -167,7 +167,7 @@ Used on all stages except **landing (questionnaire welcome)**, **questionnaire**
 | Content gap | `--site-navbar-gap`: `0.75rem` mobile · `1rem` from `sm` up (top only) |
 | Page offset | `.site-navbar-offset` — `padding-top: var(--site-navbar-offset)` |
 | Report modal | Explicit spacers: navbar-height clear + mint `--site-navbar-gap` strip |
-| Standalone tools | `/chat` and `/ai-visuals` use `StandalonePageShell` — mint surface, `report-shell-inner` gutters, white `report-view-layout` card |
+| Standalone tools | `/chat` and `/visuals` use `StandalonePageShell` — mint surface, `report-shell-inner` gutters, white `report-view-layout` card |
 | Inner row | `.site-navbar-inner` — full width; `.site-navbar-cluster` left-aligns logo + links |
 | Customer links | Report · AI Visuals · Chat Assistant (left of bar); History/Billing removed from navbar (use dashboard KPIs) |
 | Active link | Brand liquid-glass pill (`site-navbar-link-active`) — low-opacity teal frost (~4–10% brand), heavy blur, brand-dark label |
@@ -175,13 +175,13 @@ Used on all stages except **landing (questionnaire welcome)**, **questionnaire**
 | Mobile | Hamburger opens `.site-navbar-mobile-panel`; Escape to close |
 | Report actions | PDF + admin review actions in navbar whenever the report modal is open (any route, e.g. admin review); Share on overview header |
 
-**Visibility:** `AppShell` shows the navbar on `/report`, `/ai-visuals`, `/chat`, `/dashboard`, `/history`, `/billing`, admin tabs, and `/payment-success`. Questionnaire and `/analysis/*` stay chromeless.
+**Visibility:** `AppShell` shows the navbar on `/report`, `/visuals`, `/chat`, `/dashboard`, `/history`, `/billing`, admin tabs, and `/payment-success`. Questionnaire and `/analysis/*` stay chromeless.
 
 **Page width:** Page surface is mint (`--color-surface: #eef6f3`). Dashboard/admin **hero is full-bleed** (`.dashboard-hero-band--bleed`) flush under the navbar. Lower sections use full width with `px-4 sm:px-6 lg:px-8` gutters. Cards/panels use glass (`bg-white/55–70` + backdrop blur).
 
 **Customer home:** Default authenticated route is `/report` (`CustomerHome`). Ready submitted assessment → open report modal; submitted pending → `AnalysisPreparing` `variant="home"`; in-progress draft (photos only) → **Continue upload**; empty → questionnaire CTA; unpaid → Stripe Checkout; Stripe return → `PaymentSuccessPage` with **Start Face Analysis**. Photo-only drafts are excluded from `GET /my/assessments`.
 
-**Standalone tools:** `/ai-visuals` and `/chat` use `StandalonePageShell` — mint surface + `report-shell-inner` gutters (`px-4 sm:px-6 lg:px-8`), then white `report-view-layout` card (same as report). Chat uses a floating pill composer inside the card. Generate/Regenerate on AI Visuals is **admin-only**.
+**Standalone tools:** `/visuals` and `/chat` use `StandalonePageShell` — mint surface + `report-shell-inner` gutters (`px-4 sm:px-6 lg:px-8`), then white `report-view-layout` card (same as report). Chat uses a floating pill composer inside the card. Generate/Regenerate on Visuals is **admin-only**.
 
 **Report chrome:** Report has no secondary header bar (`REPORT` / `#ref` / close). PDF lives in the site navbar while the report modal is open; admin review actions (Edit PDF narrative, Edit After Image, Approve) share that navbar row and only render for admins on unapproved assessments. Share is on the overview header only (protocol meta · centered MyFace · Share). Mint gap under navbar via ReportModal spacers.
 

@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { ImagePlus, Loader2, Save, Sparkles, X } from 'lucide-react'
 import {
   generateAssessmentVisuals,
   generateProjectedAfter,
   updateAssessmentAdminReview,
 } from '../utils/apiClient'
+import { resolveStyleDisplayCopy } from '../utils/aiVisualStyleCopy'
 import { resolveProjectedAfterUrl } from '../utils/projectedAfter'
 import { normalizeReportStatus } from '../utils/reportWorkflow'
 import { translateApiError } from '../utils/translateApiError'
@@ -63,6 +64,8 @@ export default function AdminReviewPanel({
   onSaved,
 }) {
   const t = useTranslations('Admin.reviewPanel')
+  const tAiVisuals = useTranslations('AiVisuals')
+  const locale = useLocale()
   const tErrors = useTranslations('Errors')
   const [adminNotes, setAdminNotes] = useState(assessment?.adminNotes || '')
   const [projectedAfter, setProjectedAfter] = useState(assessment?.projectedAfter || null)
@@ -247,7 +250,10 @@ export default function AdminReviewPanel({
                   {visualVariants.map((variant) => {
                     const styleId = variant.styleId
                     const thisBusy = regeneratingStyleId === styleId
-                    const title = variant.title || styleId || t('sectionVisuals')
+                    const type = variant.type === 'outfit' ? 'outfit' : variant.type === 'hair' ? 'hair' : null
+                    const title = type
+                      ? resolveStyleDisplayCopy(type, variant, tAiVisuals, locale).title
+                      : (variant.title || styleId || t('sectionVisuals'))
                     const typeLabel = t.has(`visualType.${variant.type}`)
                       ? t(`visualType.${variant.type}`)
                       : variant.type
