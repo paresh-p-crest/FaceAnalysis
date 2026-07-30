@@ -18,7 +18,7 @@ export MPLBACKEND="${MPLBACKEND:-Agg}"
 
 ARTIFACT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$ARTIFACT_DIR/../.." 2>/dev/null && pwd || echo "/home/runner/workspace")"
-PORT="${PORT:-3000}"
+WEB_PORT="${WEB_PORT:-${PORT:-3000}}"
 
 echo "[myface] Resolved ARTIFACT_DIR: ${ARTIFACT_DIR}" >&1
 echo "[myface] Resolved WORKSPACE_ROOT: ${WORKSPACE_ROOT}" >&1
@@ -29,19 +29,19 @@ export PYTHONPATH="$WORKSPACE_ROOT:$WORKSPACE_ROOT/.pythonlibs/lib/python3.11/si
 
 PYTHON_BIN="$(command -v python3 || command -v python || echo python)"
 
-echo "[myface] Launcher starting production services on port ${PORT}..." >&1
+echo "[myface] Launcher starting production services on port ${WEB_PORT}..." >&1
 
 cd "$ARTIFACT_DIR"
-echo "[myface] Launching Next.js server on 0.0.0.0:${PORT}..." >&1
+echo "[myface] Launching Next.js server on 0.0.0.0:${WEB_PORT}..." >&1
 
 if [ -f "./node_modules/.bin/next" ]; then
-  ./node_modules/.bin/next start -p "$PORT" --hostname 0.0.0.0 &
+  ./node_modules/.bin/next start -p "$WEB_PORT" --hostname 0.0.0.0 &
 elif [ -f "$WORKSPACE_ROOT/node_modules/.bin/next" ]; then
-  "$WORKSPACE_ROOT/node_modules/.bin/next" start -p "$PORT" --hostname 0.0.0.0 &
+  "$WORKSPACE_ROOT/node_modules/.bin/next" start -p "$WEB_PORT" --hostname 0.0.0.0 &
 elif [ -f "$WORKSPACE_ROOT/node_modules/next/dist/bin/next" ]; then
-  node "$WORKSPACE_ROOT/node_modules/next/dist/bin/next" start -p "$PORT" --hostname 0.0.0.0 &
+  node "$WORKSPACE_ROOT/node_modules/next/dist/bin/next" start -p "$WEB_PORT" --hostname 0.0.0.0 &
 else
-  npx next start -p "$PORT" --hostname 0.0.0.0 &
+  npx next start -p "$WEB_PORT" --hostname 0.0.0.0 &
 fi
 NEXT_PID=$!
 
