@@ -20,10 +20,15 @@ echo "[myface] Launcher starting production services on port ${PORT}..." >&1
 
 cd "$ARTIFACT_DIR"
 echo "[myface] Launching Next.js server on 0.0.0.0:${PORT}..." >&1
+
 if [ -f "./node_modules/.bin/next" ]; then
   ./node_modules/.bin/next start -p "$PORT" --hostname 0.0.0.0 &
+elif [ -f "$WORKSPACE_ROOT/node_modules/.bin/next" ]; then
+  "$WORKSPACE_ROOT/node_modules/.bin/next" start -p "$PORT" --hostname 0.0.0.0 &
+elif [ -f "$WORKSPACE_ROOT/node_modules/next/dist/bin/next" ]; then
+  node "$WORKSPACE_ROOT/node_modules/next/dist/bin/next" start -p "$PORT" --hostname 0.0.0.0 &
 else
-  pnpm exec next start -p "$PORT" --hostname 0.0.0.0 &
+  npx next start -p "$PORT" --hostname 0.0.0.0 &
 fi
 NEXT_PID=$!
 

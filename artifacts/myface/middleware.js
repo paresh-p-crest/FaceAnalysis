@@ -57,7 +57,7 @@ function isExplicitHealthProbe(request) {
 export default function middleware(request) {
   const { pathname } = request.nextUrl
   if (
-    request.method === 'GET' &&
+    (request.method === 'GET' || request.method === 'HEAD') &&
     (pathname === '/healthz' || (pathname === '/' && isExplicitHealthProbe(request)))
   ) {
     return NextResponse.json({ ok: true }, { status: 200 })
