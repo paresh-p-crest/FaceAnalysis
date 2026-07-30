@@ -1,6 +1,7 @@
 modules = ["bash", "nix", "nodejs-20", "postgresql-16", "python-3.11", "web"]
 
 [deployment]
+run = ["bash", "artifacts/myface/start-prod.sh"]
 router = "application"
 deploymentTarget = "gce"
 
