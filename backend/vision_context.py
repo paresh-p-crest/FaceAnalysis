@@ -135,7 +135,6 @@ def load_poses_as_image_parts(
     pose_ids: list[str],
     photos_meta: Optional[dict] = None,
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    """Load specific poses as OpenAI image_url parts (when vision enabled)."""
     if not openai_vision_narrative_enabled() or not assessment_id:
         return [], []
     loaded: list[str] = []
@@ -153,6 +152,13 @@ def load_poses_as_image_parts(
                     "detail": "low",
                 },
             }
+        )
+    if loaded:
+        logger.info(
+            "Vision context attached %d pose photo(s) [%s] for assessment %s",
+            len(loaded),
+            ", ".join(loaded),
+            assessment_id,
         )
     return loaded, parts
 
