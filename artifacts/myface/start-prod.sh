@@ -3,7 +3,9 @@ set -e
 
 # Unbuffer outputs for Replit Reserved VM deployment log streaming
 export PYTHONUNBUFFERED=1
-export NODE_PRESERVE_SYMLINKS=1
+# pnpm dependencies use symlinked package directories; preserving the symlink
+# path makes Node miss next-intl's transitive runtime dependencies.
+unset NODE_PRESERVE_SYMLINKS
 export MPLBACKEND="${MPLBACKEND:-Agg}"
 
 ARTIFACT_DIR="$(cd "$(dirname "$0")" && pwd)"
