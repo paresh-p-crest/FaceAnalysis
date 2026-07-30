@@ -6,6 +6,10 @@ run = "bash artifacts/myface/start-prod.sh"
 router = "application"
 deploymentTarget = "gce"
 
+[[ports]]
+localPort = 3000
+externalPort = 80
+
 [workflows]
 runButton = "Project"
 
