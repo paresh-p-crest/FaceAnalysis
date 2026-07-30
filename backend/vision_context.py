@@ -32,14 +32,26 @@ POSE_LABELS = {
 }
 
 
+_OPENROUTER_VISION_MODELS = frozenset(
+    {
+        "openai/gpt-5-mini",
+    }
+)
+
+
 def openai_vision_narrative_enabled() -> bool:
-    """Vision attachments only when text LLM is OpenAI and not explicitly disabled."""
+    """Vision attachments when LLM provider is OpenAI or an allowlisted OpenRouter model."""
     flag = os.environ.get("OPENAI_VISION_NARRATIVE", "1").strip().lower()
     if flag in ("0", "false", "off", "no"):
         return False
-    if resolve_llm_provider() != "openai":
-        return False
-    return bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    provider = resolve_llm_provider()
+    if provider == "openai":
+        return bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    if provider == "openrouter":
+        model = (os.environ.get("OPENROUTER_MODEL") or "").strip()
+        if model in _OPENROUTER_VISION_MODELS:
+            return bool(os.environ.get("OPENROUTER_API_KEY", "").strip())
+    return False
 
 
 def poses_for_feature(feature_id: str) -> list[str]:

@@ -946,3 +946,22 @@ ADR-020 routes all OpenRouter structured completions through `json_object`. Some
 - Operators on OpenRouter can get stricter EN structured outputs without switching `LLM_PROVIDER` to OpenAI.
 - Allowlist must be updated when new OpenRouter models are verified to support strict schema mode.
 - ADR-020 remains in force for non-allowlisted OpenRouter models.
+
+---
+
+## ADR-046: OpenRouter vision narratives with streamlined pose mapping
+Date: 2026-07-30  
+Status: accepted  
+
+### Context
+`openai_vision_narrative_enabled()` in `vision_context.py` hard-checked `LLM_PROVIDER == "openai"`, which prevented vision-capable models on OpenRouter (such as `openai/gpt-5-mini`) from receiving pose image attachments during narrative generation. Additionally, some features sent 2 to 3 pose images per call, increasing payload size and latency.
+
+### Decision
+1. **OpenRouter vision gate**: `openai_vision_narrative_enabled()` returns true for `LLM_PROVIDER=openai` (with valid `OPENAI_API_KEY`) and for `LLM_PROVIDER=openrouter` when `OPENROUTER_MODEL` is in an explicit vision allowlist (`_OPENROUTER_VISION_MODELS = frozenset({"openai/gpt-5-mini"})`) with valid `OPENROUTER_API_KEY`.
+2. **Streamlined pose mapping (`FEATURE_VISION_POSES`)**: All narrative features send exactly **1 pose image** (`front` or `smile`), with **ears** as the sole exception receiving **2 images** (`front` + `rightProfile`).
+
+### Consequences
+- OpenRouter deployments using `openai/gpt-5-mini` automatically attach compressed base64 pose JPEGs to narrative prompts.
+- Reduced payload sizes and latency across all vision-enriched narrative generation calls.
+- Allowlist must be updated when new OpenRouter models are verified to support strict schema mode.
+- ADR-020 remains in force for non-allowlisted OpenRouter models.

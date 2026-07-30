@@ -73,20 +73,20 @@ PROTOCOL_FEATURE_IDS = (
 # Features that receive structured LLM narratives (protocol PDF pages + interactive smile).
 FEATURE_NARRATIVE_IDS = PROTOCOL_FEATURE_IDS + ("smile",)
 
-# Dynamic OpenAI Vision pose mapping for feature narratives (only when LLM_PROVIDER=openai).
-# Hair is the exception: front + top-of-head. Other features use the views that match the report.
+# Dynamic OpenAI/OpenRouter Vision pose mapping for feature narratives.
+# Streamlined: 1 image globally per feature, with ears as the exception (front + right profile).
 FEATURE_VISION_POSES: dict[str, tuple[str, ...]] = {
-    "hair": ("front", "topHead"),
+    "hair": ("front",),
     "eyes": ("front",),
-    "nose": ("front", "rightProfile"),
-    "cheeks": ("front", "left45", "right45"),
-    "jaw": ("front", "rightProfile"),
-    "lips": ("front", "smile"),
-    "chin": ("front", "rightProfile"),
+    "nose": ("front",),
+    "cheeks": ("front",),
+    "jaw": ("front",),
+    "lips": ("front",),
+    "chin": ("front",),
     "skin": ("front",),
     "neck": ("front",),
-    "ears": ("front", "leftProfile", "rightProfile"),
-    "smile": ("smile", "front"),
+    "ears": ("front", "rightProfile"),
+    "smile": ("smile",),
 }
 
 STAGES = {
