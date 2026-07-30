@@ -16,9 +16,12 @@ export PYTHONUNBUFFERED=1
 unset NODE_PRESERVE_SYMLINKS
 export MPLBACKEND="${MPLBACKEND:-Agg}"
 
-ARTIFACT_DIR="$(cd "$(dirname "$0")" && pwd)"
-WORKSPACE_ROOT="$(cd "$ARTIFACT_DIR/../.." && pwd)"
+ARTIFACT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(cd "$ARTIFACT_DIR/../.." 2>/dev/null && pwd || echo "/home/runner/workspace")"
 PORT="${PORT:-3000}"
+
+echo "[myface] Resolved ARTIFACT_DIR: ${ARTIFACT_DIR}" >&1
+echo "[myface] Resolved WORKSPACE_ROOT: ${WORKSPACE_ROOT}" >&1
 
 export MPLCONFIGDIR="${MPLCONFIGDIR:-$WORKSPACE_ROOT/.cache/matplotlib}"
 mkdir -p "$MPLCONFIGDIR"
