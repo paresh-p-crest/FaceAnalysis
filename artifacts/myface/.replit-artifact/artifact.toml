@@ -15,7 +15,7 @@ run = "pnpm --filter @workspace/myface run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/myface", "run", "build" ]
-run = [ "bash", "artifacts/myface/start-prod.sh" ]
+run = [ "pnpm", "--filter", "@workspace/myface", "run", "start:prod" ]
 
 [services.env]
 PORT = "3000"

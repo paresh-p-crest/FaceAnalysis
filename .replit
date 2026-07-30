@@ -2,7 +2,7 @@ modules = ["bash", "nix", "nodejs-20", "postgresql-16", "python-3.11", "web"]
 
 [deployment]
 router = "application"
-deploymentTarget = "cloudrun"
+deploymentTarget = "gce"
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
