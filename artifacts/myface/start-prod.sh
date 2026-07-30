@@ -1,38 +1,41 @@
 #!/bin/bash
 set -e
 
-# Start Next.js first so port 3000 binds ASAP for Replit Reserved VM & Autoscale health probes.
-# Unbuffer output streams so logs appear immediately in Replit Deployment console.
+# Unbuffer outputs for Replit Reserved VM deployment log streaming
+export PYTHONUNBUFFERED=1
+export NODE_PRESERVE_SYMLINKS=1
+export MPLBACKEND="${MPLBACKEND:-Agg}"
 
 ARTIFACT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$ARTIFACT_DIR/../.." && pwd)"
 PORT="${PORT:-3000}"
 
-export PYTHONUNBUFFERED=1
-export NODE_PRESERVE_SYMLINKS=1
-export MPLBACKEND="${MPLBACKEND:-Agg}"
 export MPLCONFIGDIR="${MPLCONFIGDIR:-$WORKSPACE_ROOT/.cache/matplotlib}"
 mkdir -p "$MPLCONFIGDIR"
+export PYTHONPATH="$WORKSPACE_ROOT:$WORKSPACE_ROOT/.pythonlibs/lib/python3.11/site-packages:${PYTHONPATH:-}"
 
-echo "[myface] Launcher starting production services on port ${PORT}..."
+PYTHON_BIN="$(command -v python3 || command -v python || echo python)"
 
-# 1. Start Next.js first to open public PORT 3000 ASAP for health probes
+echo "[myface] Launcher starting production services on port ${PORT}..." >&1
+
 cd "$ARTIFACT_DIR"
-echo "[myface] Starting Next.js server on 0.0.0.0:${PORT}..."
-./node_modules/.bin/next start -p "$PORT" --hostname 0.0.0.0 &
+echo "[myface] Launching Next.js server on 0.0.0.0:${PORT}..." >&1
+if [ -f "./node_modules/.bin/next" ]; then
+  ./node_modules/.bin/next start -p "$PORT" --hostname 0.0.0.0 &
+else
+  pnpm exec next start -p "$PORT" --hostname 0.0.0.0 &
+fi
 NEXT_PID=$!
 
-# 2. Start FastAPI backend on port 8000
 cd "$WORKSPACE_ROOT"
-echo "[myface] Starting FastAPI backend on 0.0.0.0:8000..."
-python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --no-access-log &
+echo "[myface] Launching FastAPI backend on 0.0.0.0:8000 using ${PYTHON_BIN}..." >&1
+"$PYTHON_BIN" -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --no-access-log &
 BACKEND_PID=$!
 
 cleanup() {
-  echo "[myface] Terminating background production services..."
+  echo "[myface] Terminating background production services..." >&1
   kill "$NEXT_PID" "$BACKEND_PID" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
-# Prefer waiting on Next (public surface); if it exits, tear down.
 wait "$NEXT_PID"
