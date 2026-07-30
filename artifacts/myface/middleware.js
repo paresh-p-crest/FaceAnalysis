@@ -56,7 +56,10 @@ function isExplicitHealthProbe(request) {
 
 export default function middleware(request) {
   const { pathname } = request.nextUrl
-  if (pathname === '/' && request.method === 'GET' && isExplicitHealthProbe(request)) {
+  if (
+    request.method === 'GET' &&
+    (pathname === '/healthz' || (pathname === '/' && isExplicitHealthProbe(request)))
+  ) {
     return NextResponse.json({ ok: true }, { status: 200 })
   }
 
@@ -71,5 +74,5 @@ export default function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/((?!api|healthz|_next|_vercel|.*\\..*).*)'],
+  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)'],
 }
