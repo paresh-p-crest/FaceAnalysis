@@ -1,6 +1,14 @@
 #!/bin/bash
 set -e
 
+echo "==================================================" >&1
+echo "=== MYFACE RESERVED VM DEPLOYMENT LAUNCHER OK ===" >&1
+echo "==================================================" >&1
+echo "[myface] Boot time: $(date)" >&1
+echo "[myface] Current working dir: $(pwd)" >&1
+echo "[myface] User: $(whoami)" >&1
+echo "==================================================" >&1
+
 # Unbuffer outputs for Replit Reserved VM deployment log streaming
 export PYTHONUNBUFFERED=1
 # pnpm dependencies use symlinked package directories; preserving the symlink
