@@ -32,14 +32,26 @@ POSE_LABELS = {
 }
 
 
+_OPENROUTER_VISION_MODELS = frozenset(
+    {
+        "openai/gpt-5-mini",
+    }
+)
+
+
 def openai_vision_narrative_enabled() -> bool:
-    """Vision attachments only when text LLM is OpenAI and not explicitly disabled."""
+    """Vision attachments when LLM provider is OpenAI or an allowlisted OpenRouter model."""
     flag = os.environ.get("OPENAI_VISION_NARRATIVE", "1").strip().lower()
     if flag in ("0", "false", "off", "no"):
         return False
-    if resolve_llm_provider() != "openai":
-        return False
-    return bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    provider = resolve_llm_provider()
+    if provider == "openai":
+        return bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    if provider == "openrouter":
+        model = (os.environ.get("OPENROUTER_MODEL") or "").strip()
+        if model in _OPENROUTER_VISION_MODELS:
+            return bool(os.environ.get("OPENROUTER_API_KEY", "").strip())
+    return False
 
 
 def poses_for_feature(feature_id: str) -> list[str]:
@@ -123,7 +135,6 @@ def load_poses_as_image_parts(
     pose_ids: list[str],
     photos_meta: Optional[dict] = None,
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    """Load specific poses as OpenAI image_url parts (when vision enabled)."""
     if not openai_vision_narrative_enabled() or not assessment_id:
         return [], []
     loaded: list[str] = []
@@ -141,6 +152,13 @@ def load_poses_as_image_parts(
                     "detail": "low",
                 },
             }
+        )
+    if loaded:
+        logger.info(
+            "Vision context attached %d pose photo(s) [%s] for assessment %s",
+            len(loaded),
+            ", ".join(loaded),
+            assessment_id,
         )
     return loaded, parts
 
