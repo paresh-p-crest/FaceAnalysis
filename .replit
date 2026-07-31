@@ -1,8 +1,8 @@
-run = "echo GCE_ALIVE_TEST && sleep 5 && bash artifacts/myface/start-prod.sh"
+run = "bash artifacts/myface/start-prod.sh"
 modules = ["bash", "nix", "nodejs-20", "postgresql-16", "python-3.11", "web"]
 
 [deployment]
-run = "echo GCE_ALIVE_TEST && sleep 5 && bash artifacts/myface/start-prod.sh"
+run = "bash artifacts/myface/start-prod.sh"
 router = "application"
 deploymentTarget = "gce"
 

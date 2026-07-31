@@ -34,23 +34,22 @@ function isExplicitHealthProbe(request) {
   if (dest === 'document' || dest === 'iframe' || dest === 'embed') return false
   if (accept.includes('text/html') || accept.includes('text/x-component')) return false
 
-  // Browser / WebView UAs — never short-circuit (covers Agent Preview Chromium).
-  if (/mozilla|chrome|safari|firefox|edg\/|opera|crios|fxios/i.test(ua)) return false
+  // Search Engine & Social Media Crawlers — always serve real app HTML for SEO/unfurling.
+  if (/googlebot|bingbot|yandex|baiduspider|facebookexternalhit|twitterbot|slackbot|discordbot|linkedinbot|whatsapp/i.test(ua)) return false
 
-  // Replit product UAs that are NOT Autoscale healthchecks (Preview / Agent / Port Authority).
-  if (/replit/i.test(ua) && !/health|kube-probe|googlehc/i.test(ua)) return false
+  // Replit internal preview / port authority requests (not probes) — serve real app.
+  if (/replit/i.test(ua) && !/health|probe|metasidecar/i.test(ua)) return false
 
-  // Known automated probe UAs (Autoscale / k8s / curl smoke).
+  // Known automated probe UAs (Replit metasidecar / Go-http-client / K8s / CloudRun / Uptime).
   if (
-    /kube-probe|googlehc|healthcheck|uptime|pingdom|go-http-client|wget\/|curl\//i.test(ua)
+    /kube-probe|googlehc|healthcheck|metasidecar|uptime|pingdom|go-http-client|wget\/|curl\//i.test(ua)
   ) {
     return true
   }
 
-  // Explicit JSON preference from a non-browser client (monitors).
-  if (accept.includes('application/json')) return true
+  // Explicit JSON preference from a non-browser monitoring client.
+  if (accept.includes('application/json') && !accept.includes('text/html')) return true
 
-  // Default: serve the real app. Never guess from empty or star-only Accept alone.
   return false
 }
 

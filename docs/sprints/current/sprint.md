@@ -5,6 +5,7 @@
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
 ## In-Flight Tasks
+- [x] Auth page: remove lone "Sign in" tab pill left after signup removal (status: completed)
 - [x] Sign-In Only mode: comment out signup end-to-end (backend `/api/auth/register` + `_send_signup_welcome`, `authClient.register()`, AuthForm register tab/name fields/"New here?" toggle) (status: completed)
 - [x] Complete Payment System Removal (ADR-048) — Removed payment gates, paywalls, and admin payments tab; retained 2-analysis package cap, admin approval gate, and inert payments table (status: completed)
 - [x] Fix ConfirmDialog busy spinner insertBefore on delete (stable opacity slot + deferred close) (status: completed)
