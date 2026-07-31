@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Changed
+- **Auth page: removed lone "Sign in" tab pill** — After signup was commented out (Sign-In Only), the tab switcher rendered a single inert "Sign in" tab; removed the whole switcher from `AuthForm.jsx` so the email/password form is the only content under the heading.
 - **Sign-In Only mode — signup commented out (temporary)** — `POST /api/auth/register` handler, `RegisterRequest` model, and `_send_signup_welcome()` commented out in `backend/routers/auth.py` (endpoint now 405s); `register()` export commented out in `artifacts/myface/utils/authClient.js`; `AuthForm.jsx` locked to login-only (register tab, first/last name fields, and "New here? Sign up" toggle removed). Existing admin-bootstrap (`ensure_user`) and login/password-reset flows unchanged. Re-enable by uncommenting the marked blocks.
 ### Added
 - **Complete Payment System Removal (ADR-048)** — Removed Stripe/PayPal payment requirements end-to-end. All authenticated users have unrestricted access to start facial analysis, view narrative reports, and download executive PDF reports. Removed `_require_payment_or_admin()` and 402 HTTP status codes from assessment endpoints. Removed payment gates, paywall screens (`billingLocked`), payment KPI tiles, and customer billing pages. Removed Payments tab from Admin Panel and Admin Navbar. The 2-analysis package cap (`MAX_SUBMITTED_ASSESSMENTS_PER_USER = 2`), admin report approval gate, and `Payment` database table (inert archive) remain intact.

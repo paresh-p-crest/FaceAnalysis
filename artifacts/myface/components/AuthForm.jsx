@@ -209,7 +209,10 @@ export default function AuthForm({ onAuthenticated }) {
             </p>
           </div>
 
-          {/* Signup temporarily disabled (Sign-In Only). Register tab removed:
+          {/* Signup temporarily disabled (Sign-In Only). Tab switcher removed —
+              it had only one remaining tab. To re-enable registration, restore the
+              two-tab switcher here (login/register), the name fields below, and
+              register() in handleSubmit:
               {[
                 ['login', t('signIn')],
                 ['register', t('signUp')],
@@ -223,14 +226,6 @@ export default function AuthForm({ onAuthenticated }) {
                   {label}
                 </button>
               ))} */}
-          <div className="flex gap-1 p-1 rounded-xl bg-surface-warm dark:bg-surface-raised border border-surface-border">
-            <button
-              type="button"
-              className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all bg-white dark:bg-surface-card text-brand shadow-soft border border-surface-border"
-            >
-              {t('signIn')}
-            </button>
-          </div>
 
           <div className="space-y-3">
             {/* Signup temporarily disabled (Sign-In Only). First/last name fields removed:
