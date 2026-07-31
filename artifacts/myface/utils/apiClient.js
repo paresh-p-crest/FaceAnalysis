@@ -469,31 +469,15 @@ export async function checkBackendHealth() {
 }
 
 export async function fetchPaymentConfig() {
-  const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/config`)
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_PAYMENT_CONFIG_FAILED)
-  return data
+  return {}
 }
 
-export async function fetchMyPayments(limit = 20) {
-  const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/my?limit=${limit}`, {
-    headers: authHeaders(),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_PAYMENTS_FAILED)
-  return data.items || []
+export async function fetchMyPayments() {
+  return []
 }
 
-export async function fetchAdminPayments(limit = 50) {
-  const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments?limit=${limit}`, {
-    headers: authHeaders(),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_PAYMENTS_FAILED)
-  return data.items || []
+export async function fetchAdminPayments() {
+  return []
 }
 
 export async function fetchAdminUsers(limit = 100) {
@@ -506,64 +490,20 @@ export async function fetchAdminUsers(limit = 100) {
   return data.items || []
 }
 
-export async function createStripeCheckout(payload = {}) {
-  const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/stripe/checkout`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-    },
-    body: JSON.stringify(payload),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throwApiError(res, data, ERROR_KEYS.STRIPE_CHECKOUT_FAILED)
-  return data
+export async function createStripeCheckout() {
+  return {}
 }
 
-export async function confirmStripeCheckout(sessionId) {
-  const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/stripe/confirm`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-    },
-    body: JSON.stringify({ sessionId }),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throwApiError(res, data, ERROR_KEYS.STRIPE_CONFIRM_FAILED)
-  return data
+export async function confirmStripeCheckout() {
+  return {}
 }
 
-export async function createPayPalOrder(payload = {}) {
-  const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/paypal/orders`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-    },
-    body: JSON.stringify(payload),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throwApiError(res, data, ERROR_KEYS.PAYPAL_CHECKOUT_FAILED)
-  return data
+export async function createPayPalOrder() {
+  return {}
 }
 
-export async function capturePayPalOrder(orderId) {
-  const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/payments/paypal/capture`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-    },
-    body: JSON.stringify({ orderId }),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throwApiError(res, data, ERROR_KEYS.PAYPAL_CAPTURE_FAILED)
-  return data
+export async function capturePayPalOrder() {
+  return {}
 }
 
 export async function deleteAdminUser(userId) {

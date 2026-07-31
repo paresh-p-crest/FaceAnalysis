@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Eye, EyeOff, Loader2, X } from 'lucide-react'
-import { login, register, requestPasswordReset } from '../utils/authClient'
+import { login, requestPasswordReset } from '../utils/authClient'
+// Signup temporarily disabled — re-import register() from '../utils/authClient' to re-enable.
 import { BrandLogo } from './BrandLogo'
 import { LocaleSwitcher } from './LocaleSwitcher'
 
@@ -138,9 +139,6 @@ function ForgotPasswordModal({ open, initialEmail = '', onClose, t }) {
 
 export default function AuthForm({ onAuthenticated }) {
   const t = useTranslations('Auth')
-  const [mode, setMode] = useState('login')
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -148,19 +146,19 @@ export default function AuthForm({ onAuthenticated }) {
   const [error, setError] = useState('')
   const [forgotOpen, setForgotOpen] = useState(false)
 
-  const isRegister = mode === 'register'
+  // Signup temporarily disabled (Sign-In Only mode). To re-enable: restore the mode state
+  // (setMode('login'/'register')), the register tab buttons, first/last name fields, and the
+  // register() import + call — see the commented blocks below.
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setBusy(true)
     setError('')
     try {
-      const user = isRegister
-        ? await register({ firstName, lastName, email, password })
-        : await login(email, password)
+      const user = await login(email, password)
       onAuthenticated(user)
     } catch (err) {
-      setError(isRegister ? (err.message || t('authFailed')) : t('loginError'))
+      setError(t('loginError'))
     } finally {
       setBusy(false)
     }
@@ -179,10 +177,10 @@ export default function AuthForm({ onAuthenticated }) {
             {t('sidebarBadge')}
           </div>
           <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight whitespace-pre-line">
-            {isRegister ? t('sidebarTitleSignUp') : t('sidebarTitleSignIn')}
+            {t('sidebarTitleSignIn')}
           </h1>
           <p className="text-sm text-slate-300 leading-relaxed max-w-xl pl-[1px] pr-[1px] mr-[40px]">
-            {isRegister ? t('sidebarDescriptionSignUp') : t('sidebarDescriptionSignIn')}
+            {t('sidebarDescriptionSignIn')}
           </p>
         </div>
       </div>
@@ -204,64 +202,43 @@ export default function AuthForm({ onAuthenticated }) {
         >
           <div>
             <h1 className="font-display text-[30px] sm:text-4xl font-bold text-ink leading-tight tracking-tight">
-              {isRegister ? t('createAccount') : t('signIn')}
+              {t('signIn')}
             </h1>
             <p className="text-ink-muted text-sm leading-relaxed mt-3">
-              {isRegister ? t('signUpSubtitle') : t('signInSubtitle')}
+              {t('signInSubtitle')}
             </p>
           </div>
 
+          {/* Signup temporarily disabled (Sign-In Only). Register tab removed:
+              {[
+                ['login', t('signIn')],
+                ['register', t('signUp')],
+              ].map(([id, label]) => (
+                <button key={id} type="button" onClick={() => { setMode(id); setError('') }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    mode === id
+                      ? 'bg-white dark:bg-surface-card text-brand shadow-soft border border-surface-border'
+                      : 'text-ink-muted hover:text-ink-secondary'
+                  }`}>
+                  {label}
+                </button>
+              ))} */}
           <div className="flex gap-1 p-1 rounded-xl bg-surface-warm dark:bg-surface-raised border border-surface-border">
-            {[
-              ['login', t('signIn')],
-              ['register', t('signUp')],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => { setMode(id); setError('') }}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  mode === id
-                    ? 'bg-white dark:bg-surface-card text-brand shadow-soft border border-surface-border'
-                    : 'text-ink-muted hover:text-ink-secondary'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+            <button
+              type="button"
+              className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all bg-white dark:bg-surface-card text-brand shadow-soft border border-surface-border"
+            >
+              {t('signIn')}
+            </button>
           </div>
 
           <div className="space-y-3">
-            {isRegister && (
-              <div className="grid sm:grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                    {t('firstName')}
-                  </span>
-                  <input
-                    type="text"
-                    autoComplete="given-name"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="input-field"
-                    required
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                    {t('lastName')}
-                  </span>
-                  <input
-                    type="text"
-                    autoComplete="family-name"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="input-field"
-                    required
-                  />
-                </label>
-              </div>
-            )}
+            {/* Signup temporarily disabled (Sign-In Only). First/last name fields removed:
+                {isRegister && (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    ... firstName / lastName inputs ...
+                  </div>
+                )} */}
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
                 {t('email')}
@@ -283,21 +260,19 @@ export default function AuthForm({ onAuthenticated }) {
                 >
                   {t('password')}
                 </label>
-                {!isRegister && (
-                  <button
-                    type="button"
-                    onClick={() => setForgotOpen(true)}
-                    className="w-fit shrink-0 p-0 text-[10px] font-semibold uppercase tracking-wider text-brand hover:underline"
-                  >
-                    {t('forgotPassword')}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setForgotOpen(true)}
+                  className="w-fit shrink-0 p-0 text-[10px] font-semibold uppercase tracking-wider text-brand hover:underline"
+                >
+                  {t('forgotPassword')}
+                </button>
               </div>
               <div className="relative">
                 <input
                   id="auth-password"
                   type={showPassword ? 'text' : 'password'}
-                  autoComplete={isRegister ? 'new-password' : 'current-password'}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="input-field pr-11"
@@ -334,17 +309,13 @@ export default function AuthForm({ onAuthenticated }) {
               </>
             ) : (
               <>
-                <span className="flex-1 text-left">{isRegister ? t('signUp') : t('signInCta')}</span>
+                <span className="flex-1 text-left">{t('signInCta')}</span>
                 <span className="text-white/40 mr-4">|</span>
                 <span>→</span>
               </>
             )}
           </button>
         </form>
-
-        <p className="text-ink-muted text-center mt-4 text-[12px]">
-          {isRegister ? t('switchToSignInHint') : t('switchToSignUpHint')}
-        </p>
       </div>
 
       <ForgotPasswordModal

@@ -53,13 +53,11 @@ def _mount_routers(app: FastAPI) -> None:
     from .routers.auth import router as auth_router
     from .routers.media import router as media_router
     from .routers.notifications import router as notifications_router
-    from .routers.payments import router as payments_router
 
     app.include_router(auth_router)
     app.include_router(assessments_router)
     app.include_router(assistant_router)
     app.include_router(media_router)
-    app.include_router(payments_router)
     app.include_router(notifications_router)
     _routers_mounted = True
     logger.info("API routers mounted")

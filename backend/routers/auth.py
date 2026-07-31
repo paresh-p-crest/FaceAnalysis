@@ -50,9 +50,9 @@ class AuthRequest(BaseModel):
     password: str
 
 
-class RegisterRequest(AuthRequest):
-    firstName: str
-    lastName: str
+# class RegisterRequest(AuthRequest):
+#     firstName: str
+#     lastName: str
 
 
 class AuthResponse(BaseModel):
@@ -112,42 +112,44 @@ def _client_ip(request: Request) -> str:
     return "unknown"
 
 
-async def _send_signup_welcome(*, user: dict) -> None:
-    try:
-        await send_email(
-            to=user["email"],
-            template="signup_confirmation",
-            data={
-                "firstName": user.get("firstName") or "",
-                "loginUrl": f"{public_app_url()}/auth",
-            },
-            user_id=user.get("id"),
-        )
-    except Exception as exc:
-        logger.warning("Signup welcome email task failed: %s", exc)
+# Signup is temporarily disabled — Sign-In Only mode (see CHANGELOG). Keep the
+# endpoint commented out so it 405s; re-enable by uncommenting the block below.
+# async def _send_signup_welcome(*, user: dict) -> None:
+#     try:
+#         await send_email(
+#             to=user["email"],
+#             template="signup_confirmation",
+#             data={
+#                 "firstName": user.get("firstName") or "",
+#                 "loginUrl": f"{public_app_url()}/auth",
+#             },
+#             user_id=user.get("id"),
+#         )
+#     except Exception as exc:
+#         logger.warning("Signup welcome email task failed: %s", exc)
 
 
-@router.post("/register", response_model=AuthResponse)
-async def register(req: RegisterRequest):
-    if not is_db_configured():
-        raise HTTPException(status_code=503, detail="Database not configured")
-    email, password = _validate_auth_request(req)
-    first_name = req.firstName.strip()
-    last_name = req.lastName.strip()
-    if len(first_name) < 1 or len(last_name) < 1:
-        raise HTTPException(status_code=400, detail="First and last name are required")
-    try:
-        user = await create_user(
-            email=email,
-            password_hash=hash_password(password),
-            first_name=first_name,
-            last_name=last_name,
-            role="user",
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    asyncio.create_task(_send_signup_welcome(user=user))
-    return {"token": create_access_token(user), "user": user}
+# @router.post("/register", response_model=AuthResponse)
+# async def register(req: RegisterRequest):
+#     if not is_db_configured():
+#         raise HTTPException(status_code=503, detail="Database not configured")
+#     email, password = _validate_auth_request(req)
+#     first_name = req.firstName.strip()
+#     last_name = req.lastName.strip()
+#     if len(first_name) < 1 or len(last_name) < 1:
+#         raise HTTPException(status_code=400, detail="First and last name are required")
+#     try:
+#         user = await create_user(
+#             email=email,
+#             password_hash=hash_password(password),
+#             first_name=first_name,
+#             last_name=last_name,
+#             role="user",
+#         )
+#     except ValueError as exc:
+#         raise HTTPException(status_code=409, detail=str(exc))
+#     asyncio.create_task(_send_signup_welcome(user=user))
+#     return {"token": create_access_token(user), "user": user}
 
 
 @router.post("/login", response_model=AuthResponse)

@@ -72,9 +72,6 @@ def test_media_route_gates_soft_deleted_assessment_keys():
     assert "get_assessment_by_id" in helper
 
 
-def test_payment_fallback_active_only():
-    src = inspect.getsource(payments.user_has_completed_payment)
-    assert "deleted_at" in src
 
 
 def test_pipeline_aborts_when_assessment_gone():

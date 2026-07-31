@@ -197,10 +197,6 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     return visibleAssessments.filter((item) => normalizeReportStatus(item.status) === reportFilter)
   }, [visibleAssessments, reportFilter])
 
-  const paidCount = payments.filter((payment) =>
-    ['paid', 'complete', 'completed'].includes(String(payment.status).toLowerCase())
-  ).length
-
   const clientUsers = users.filter((item) => item.role !== 'admin')
 
   const handleStatusChange = async (assessmentId, status) => {
@@ -432,13 +428,12 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
           <>
             {activeTab === 'overview' && (
               <div className="space-y-6">
-                <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {[
                     ['users', clientUsers.length, Users],
                     ['reports', reportStats.total, FileText],
                     ['pendingReview', reportStats.pending_review, ShieldCheck],
                     ['approved', reportStats.approved, BarChart3],
-                    ['payments', paidCount, CreditCard],
                   ].map(([key, value, Icon]) => (
                     <div key={key} className="dashboard-card flex flex-col gap-3">
                       <span className="dashboard-icon-well-stat self-start">
@@ -582,45 +577,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
               </section>
             )}
 
-            {activeTab === 'payments' && (
-              <section className="dashboard-panel overflow-hidden">
-                <div className="px-5 py-4 sm:px-6 border-b border-landing-divider">
-                  <h2 className="text-lg font-semibold text-ink tracking-tight">{t('payments.title')}</h2>
-                  <p className="text-xs text-ink-muted mt-0.5">{t('payments.subtitle')}</p>
-                </div>
-                {payments.length === 0 ? (
-                  <div className="p-8"><EmptyState title={t('payments.emptyTitle')} text={t('payments.emptyText')} /></div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-surface-warm dark:bg-surface-raised text-left text-xs text-ink-muted">
-                        <tr>
-                          <th className="px-5 py-3 font-semibold">{t('payments.columns.client')}</th>
-                          <th className="px-5 py-3 font-semibold">{t('payments.columns.provider')}</th>
-                          <th className="px-5 py-3 font-semibold">{t('payments.columns.amount')}</th>
-                          <th className="px-5 py-3 font-semibold">{t('payments.columns.status')}</th>
-                          <th className="px-5 py-3 font-semibold">{t('payments.columns.date')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {payments.map((payment) => (
-                          <tr key={payment.id} className="border-t border-surface-border">
-                            <td className="px-5 py-3">
-                              <p className="font-medium text-ink">{displayName(userById[payment.userId], t)}</p>
-                              <p className="text-xs text-ink-muted">{userById[payment.userId]?.email || payment.userId || '—'}</p>
-                            </td>
-                            <td className="px-5 py-3 capitalize">{payment.provider}</td>
-                            <td className="px-5 py-3 font-display font-semibold text-brand">{money(payment.amountCents, payment.currency)}</td>
-                            <td className="px-5 py-3"><StatusBadge status={payment.status} t={t} /></td>
-                            <td className="px-5 py-3 text-ink-muted">{formatHistoryDate(payment.createdAt)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </section>
-            )}
+
 
           </>
         )}

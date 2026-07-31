@@ -7,7 +7,6 @@ import { ChevronDown, ChevronRight, CreditCard, KeyRound, Menu, UserPen } from '
 export const SETTINGS_NAV_ITEMS = [
   { id: 'account', labelKey: 'nav.account', icon: UserPen },
   { id: 'password', labelKey: 'nav.password', icon: KeyRound },
-  { id: 'billing', labelKey: 'nav.billing', icon: CreditCard },
 ]
 
 function NavRow({ item, active, onSelect, label }) {

@@ -165,8 +165,6 @@ export default function DashboardPage({
   const [error, setError] = useState('')
 
   const canLoad = !!user && isBackendApiEnabled()
-  const billingLocked = accessReady && !hasAnalysisAccess
-  const lockedClass = billingLocked ? 'opacity-60 pointer-events-none' : ''
 
   const load = async () => {
     if (!canLoad) return
@@ -279,7 +277,7 @@ export default function DashboardPage({
       descriptor: t('kpiReportsDesc'),
       emphasize: false,
       onClick: onHistory,
-      disabled: billingLocked,
+      disabled: false,
     },
     {
       key: 'score',
@@ -290,20 +288,9 @@ export default function DashboardPage({
       emphasize: true,
       onClick: openBestScore,
       disabled:
-        billingLocked ||
-        (bestScoreAssessment &&
-          userReportReady(bestScoreAssessment) &&
-          openingReportId === bestScoreAssessment.id),
-    },
-    {
-      key: 'payments',
-      icon: Wallet,
-      label: t('kpiPayments'),
-      value: paidCount,
-      descriptor: t('kpiPaymentsDesc'),
-      emphasize: false,
-      onClick: onBilling,
-      disabled: false,
+        bestScoreAssessment &&
+        userReportReady(bestScoreAssessment) &&
+        openingReportId === bestScoreAssessment.id,
     },
   ]
 
@@ -340,8 +327,7 @@ export default function DashboardPage({
               <button
                 type="button"
                 onClick={onStartAssessment}
-                disabled={billingLocked}
-                className="btn-primary disabled:opacity-50"
+                className="btn-primary"
               >
                 <Sparkles className="h-4 w-4" />
                 {t('startNewAnalysis')}
@@ -353,7 +339,7 @@ export default function DashboardPage({
             </div>
           </div>
 
-          <div className="grid w-full max-w-md grid-cols-3 gap-3">
+          <div className="grid w-full max-w-md grid-cols-2 gap-3">
             {kpis.map((kpi) => {
               const Icon = kpi.icon
               return (
@@ -395,32 +381,13 @@ export default function DashboardPage({
           </div>
         )}
 
-        {billingLocked && (
-          <section
-            className="rounded-3xl border border-brand/30 bg-brand-50/70 p-6 sm:p-8 backdrop-blur-md"
-            aria-labelledby="billing-required-heading"
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-brand mb-2">
-              {t('billingRequiredEyebrow')}
-            </p>
-            <h2 id="billing-required-heading" className="font-serif text-2xl sm:text-3xl text-ink tracking-tight">
-              {t('billingRequiredTitle')}
-            </h2>
-            <p className="mt-2 text-sm sm:text-base text-ink-secondary leading-relaxed max-w-2xl">
-              {t('billingRequiredDesc')}
-            </p>
-            <button type="button" onClick={onBilling} className="btn-primary mt-5">
-              <Wallet className="w-4 h-4" />
-              {t('billingRequiredCta')}
-            </button>
-          </section>
-        )}
+
 
         {!isBackendApiEnabled() ? (
           <EmptyState title={t('backendRequiredTitle')} text={t('backendRequiredText')} />
         ) : (
           <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-            <div className={`space-y-6 ${lockedClass}`}>
+            <div className="space-y-6">
               <div className="dashboard-panel overflow-hidden">
                 <div className="grid gap-0 lg:grid-cols-[1fr_auto]">
                   <div className="p-7 space-y-5">
@@ -576,8 +543,8 @@ export default function DashboardPage({
               </div>
             </div>
 
-            <div className={`space-y-6 ${billingLocked ? 'opacity-90' : ''}`}>
-              <div className={`dashboard-panel p-6 space-y-5 ${lockedClass}`}>
+            <div className="space-y-6">
+              <div className="dashboard-panel p-6 space-y-5">
                 <div>
                   <h3 className="text-[15px] font-semibold text-ink">{t('harmonyTitle')}</h3>
                   <p className="text-[12px] text-ink-muted">{t('overallHarmonyDesc')}</p>
@@ -618,7 +585,7 @@ export default function DashboardPage({
                 )}
               </div>
 
-              <div className={`dashboard-panel p-6 space-y-4 ${lockedClass}`}>
+              <div className="dashboard-panel p-6 space-y-4">
                 <h3 className="text-[15px] font-semibold text-ink">{t('reviewPipeline')}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-surface-border bg-surface-warm p-4">
@@ -640,67 +607,7 @@ export default function DashboardPage({
                 </div>
               </div>
 
-              <div
-                className={`dashboard-panel p-6 space-y-4 ${
-                  billingLocked ? 'ring-2 ring-brand/15 border-brand/35' : ''
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-[15px] font-semibold text-ink">{t('payments')}</h3>
-                    <p className="text-[12px] text-ink-muted">
-                      {billingLocked ? t('billingRequiredPaymentsDesc') : t('paymentsDesc')}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onBilling}
-                    className={`!py-1.5 !px-3 !text-[12px] ${
-                      billingLocked ? 'btn-primary' : 'btn-ghost'
-                    }`}
-                  >
-                    <CreditCard className="h-3.5 w-3.5" />
-                    {billingLocked ? t('billingRequiredCta') : t('billing')}
-                  </button>
-                </div>
 
-                {!latestPayment ? (
-                  <EmptyState title={t('noPaymentsTitle')} text={t('noPaymentsText')} />
-                ) : (
-                  <div className="rounded-2xl border border-surface-border bg-surface-warm p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[13px] font-medium text-ink">{t('assessmentCredit')}</p>
-                        <p className="text-[11.5px] text-ink-muted flex items-center gap-1">
-                          <Clock3 className="h-3 w-3" aria-hidden />
-                          {formatHistoryDate(latestPayment.createdAt)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[15px] font-semibold tabular-nums text-ink">
-                          {money(latestPayment.amountCents, latestPayment.currency)}
-                        </p>
-                        <span
-                          className="dashboard-status-chip mt-1"
-                          data-state={
-                            ['paid', 'complete', 'completed'].includes(
-                              String(latestPayment.status).toLowerCase(),
-                            )
-                              ? 'ready'
-                              : 'pending'
-                          }
-                        >
-                          {['paid', 'complete', 'completed'].includes(
-                            String(latestPayment.status).toLowerCase(),
-                          )
-                            ? t('ready')
-                            : t('paymentPendingReview')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </section>
         )}

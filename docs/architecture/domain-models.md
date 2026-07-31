@@ -75,7 +75,8 @@ Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolW
 
 ---
 
-## 3. Table: `payments`
+## 3. Table: `payments` (Archived / Read-Only, ADR-048)
+*Note: Retained in database schema as an inert archive table. No new payment records are written.*
 | Column | Type |
 |---|---|
 | `id` | `UUID` PK |

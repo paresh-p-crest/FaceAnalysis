@@ -12,10 +12,10 @@ export const ROUTES = {
   chat: '/chat',
   /** Customer home (overview). Admin tabs live under `/dashboard/admin-*`. */
   dashboard: '/dashboard',
-  paymentSuccess: '/payment-success',
+  paymentSuccess: '/dashboard',
   exampleResult: '/example-result',
   history: '/history',
-  billing: '/billing',
+  billing: '/dashboard',
   settings: '/settings',
 }
 
@@ -24,9 +24,7 @@ export const NAVBAR_PATHS = new Set([
   ROUTES.aiVisuals,
   ROUTES.chat,
   ROUTES.dashboard,
-  ROUTES.paymentSuccess,
   ROUTES.history,
-  ROUTES.billing,
   ROUTES.settings,
 ])
 
@@ -36,9 +34,7 @@ export const PROTECTED_PATHS = new Set([
   ROUTES.aiVisuals,
   ROUTES.chat,
   ROUTES.dashboard,
-  ROUTES.paymentSuccess,
   ROUTES.history,
-  ROUTES.billing,
   ROUTES.settings,
   ROUTES.analysis,
 ])

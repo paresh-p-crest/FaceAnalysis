@@ -134,37 +134,7 @@ export function AnalysisEligibilityGate({
     )
   }
 
-  if (billingLocked) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-surface px-4">
-        <div className="max-w-lg w-full rounded-3xl border border-brand/30 bg-white p-8 text-center shadow-card">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand mb-2">
-            {t('billingEyebrow')}
-          </p>
-          <h1 className="font-serif text-2xl sm:text-3xl text-ink tracking-tight mb-2">
-            {t('billingTitle')}
-          </h1>
-          <p className="text-sm text-ink-secondary leading-relaxed mb-6">
-            {t('billingDesc')}
-          </p>
-          {(billingMessage || checkoutError) && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 text-left">
-              {checkoutError || billingMessage}
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={handleCheckout}
-            disabled={checkoutBusy}
-            className="btn-primary disabled:opacity-50"
-          >
-            {checkoutBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-            {checkoutBusy ? t('checkoutBusy') : t('billingCta')}
-          </button>
-        </div>
-      </div>
-    )
-  }
+
 
   if (limitReached) {
     return (

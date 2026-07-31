@@ -60,7 +60,6 @@ from ..photo_storage import (
     photos_map_to_urls,
     save_all_poses,
 )
-from ..repositories.payment_repository import user_has_completed_payment
 from ..repositories.user_repository import get_user_by_id
 from ..email_service import public_app_url, send_email
 from ..serialization import to_json_safe
@@ -199,14 +198,6 @@ def _can_access_assessment(existing: dict, current_user: Optional[dict]) -> bool
         return False
     return current_user.get("role") == "admin" or current_user.get("id") == existing.get("userId")
 
-
-async def _require_payment_or_admin(current_user: dict) -> None:
-    """Analysis entry is payment-gated (admins bypass)."""
-    if current_user.get("role") != "admin" and not await user_has_completed_payment(current_user["id"]):
-        raise HTTPException(
-            status_code=402,
-            detail="Payment required before starting analysis.",
-        )
 
 
 def _score_line(label: str, data: Optional[dict]) -> Optional[str]:
@@ -369,12 +360,6 @@ async def post_assessment(
             detail="Database not configured. Set DATABASE_URL in backend environment.",
         )
 
-    if current_user.get("role") != "admin" and not await user_has_completed_payment(current_user["id"]):
-        raise HTTPException(
-            status_code=402,
-            detail="Payment required before starting analysis.",
-        )
-
     existing_scan = await get_assessment_by_user_scan(current_user["id"], req.scanId) if req.scanId else None
     if existing_scan:
         await require_assessment_slot(current_user, assessment_id=existing_scan["id"])
@@ -460,15 +445,11 @@ async def post_assessment_draft(
     req: AssessmentDraftRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Create (or reuse) a draft assessment so validated poses can be uploaded to the
-    active media backend before the user submits. Idempotent by (user, scanId)."""
     if not is_db_configured():
         raise HTTPException(
             status_code=503,
             detail="Database not configured. Set DATABASE_URL in backend environment.",
         )
-    await _require_payment_or_admin(current_user)
-
     existing_scan = await get_assessment_by_user_scan(current_user["id"], req.scanId) if req.scanId else None
     if existing_scan:
         await require_assessment_slot(current_user, assessment_id=existing_scan["id"])
@@ -568,7 +549,6 @@ async def post_assessment_submit(
     """Finalize a draft: verify required poses, persist answers, enqueue the pipeline."""
     if not is_db_configured():
         raise HTTPException(status_code=503, detail="Database not configured.")
-    await _require_payment_or_admin(current_user)
 
     existing = await get_assessment_by_id(assessment_id)
     if not existing:

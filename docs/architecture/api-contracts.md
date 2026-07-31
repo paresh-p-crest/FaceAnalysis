@@ -17,6 +17,7 @@ Liveness / readiness for uptime monitors and load balancers. `HEAD` returns the 
 
 ### `POST /api/auth/register`
 Creates a new client account.
+> **Status: DISABLED (temporarily commented out).** Platform is Sign-In Only mode. The handler in `backend/routers/auth.py` is commented out, so this route is **not registered** and returns `404 Not Found`. The `register()` client helper in `artifacts/myface/utils/authClient.js` and the register tab/fields in `AuthForm.jsx` are also commented out. Re-enable by uncommenting the marked blocks.
 - **Auth:** None
 - **Request Body:**
   ```json
@@ -468,96 +469,10 @@ Sends a message to the Beauty Assistant (ReAct agent with report tools; max 3 to
 
 ---
 
-## Payments Domain
+## Payments Domain (Deprecated / Removed)
 
-### `GET /api/payments/config`
-Check which payment gateways are configured on the backend.
-- **Auth:** None
-- **Response Shape (200 OK):**
-  ```json
-  {
-    "stripe": { "configured": true },
-    "paypal": { "configured": false }
-  }
-  ```
-
-### `GET /api/payments/my`
-Retrieves billing transaction list for logged-in user.
-- **Auth:** Private (User)
-- **Response Shape (200 OK):** List of payment transaction records.
-
-### `POST /api/payments/stripe/checkout`
-Builds Stripe payment checkout portal.
-- **Auth:** Private (User)
-- **Request Body:**
-  ```json
-  {
-    "assessmentId": "60c72b2f9b1d8e2568cf2002"
-  }
-  ```
-- **Response Shape (200 OK):**
-  ```json
-  {
-    "sessionId": "cs_test_...",
-    "checkoutUrl": "https://checkout.stripe.com/..."
-  }
-  ```
-
-### `POST /api/payments/stripe/confirm`
-Client-side confirmation after Stripe Checkout redirect (idempotent with webhook).
-- **Auth:** Private (User)
-- **Request Body:**
-  ```json
-  {
-    "sessionId": "cs_test_..."
-  }
-  ```
-- **Response Shape (200 OK):**
-  ```json
-  {
-    "payment": {
-      "id": "...",
-      "status": "paid",
-      "provider": "stripe",
-      "providerRef": "cs_test_..."
-    }
-  }
-  ```
-
-### `POST /api/payments/stripe/webhook`
-Listens to Stripe API callback hooks.
-- **Auth:** None (secured via signing secret check)
-- **Response Shape (200 OK):** `{"ok": true}`
-
-### Stripe post-payment routing (frontend)
-
-After checkout, Stripe redirects to `{PUBLIC_APP_URL}/?payment=stripe-success&session_id={CHECKOUT_SESSION_ID}` (cancel: `/?payment=stripe-cancel`). Defaults are set in `backend/routers/payments.py` when `successUrl` / `cancelUrl` are omitted.
-
-**Client journey (Stripe):**
-1. Unpaid user starts checkout from `/report` paywall via `POST /api/payments/stripe/checkout` → browser redirect to Stripe. (Customer `/billing` product UI is deprecated.)
-2. On success return, `AppProvider` bootstrap reads query params, stores `session_id` in `localStorage` (`myface_payment_session_id`), sets `paymentReturn`, and routes to `/report`.
-3. `/report` renders `PaymentSuccessPage` while `paymentReturn` is set; it confirms via `POST /api/payments/stripe/confirm`, unlocks analysis access, and shows **Start Face Analysis**. Visits to `/billing` redirect to `/report`.
-4. Webhook `checkout.session.completed` may mark the payment `paid` before or after client confirm (both paths are idempotent).
-5. **Start Face Analysis** clears the payment session and starts the analysis flow (`/analysis`). Cancelled checkout returns to `/report` paywall.
-
-**PayPal:** Backend exposes `POST /api/payments/paypal/orders` and `POST /api/payments/paypal/capture` with return URL `/?payment=paypal-success`, but the frontend does not yet handle PayPal return or call capture.
-
-### `POST /api/payments/paypal/orders`
-Initiates PayPal transaction process.
-- **Auth:** Private (User)
-- **Request Body:**
-  ```json
-  {
-    "assessmentId": "60c72b2f9b1d8e2568cf2002"
-  }
-  ```
-- **Response Shape (200 OK):** Order creation record containing link details.
-
-### `POST /api/payments/paypal/capture`
-Captures PayPal transaction funds after confirmation.
-- **Auth:** Private (User)
-- **Request Body:**
-  ```json
+> [!NOTE]
+> Per **ADR-048**, all payment requirements, Stripe/PayPal payment gating, and `/api/payments/*` API routes have been removed from active system operation. All authenticated users are granted unrestricted analysis and report access without payment. Historical payment schema tables remain in the database as an inert archive.
   {
     "orderId": "PAYPAL-ORDER-12345"
   }

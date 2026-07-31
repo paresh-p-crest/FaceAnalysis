@@ -39,9 +39,10 @@ async function authRequest(path, body) {
   return data.user
 }
 
-export function register({ firstName, lastName, email, password }) {
-  return authRequest('/api/auth/register', { firstName, lastName, email, password })
-}
+// Signup temporarily disabled — Sign-In Only mode. Uncomment to re-enable.
+// export function register({ firstName, lastName, email, password }) {
+//   return authRequest('/api/auth/register', { firstName, lastName, email, password })
+// }
 
 export function login(email, password) {
   return authRequest('/api/auth/login', { email, password })

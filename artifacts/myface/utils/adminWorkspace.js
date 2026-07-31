@@ -1,9 +1,8 @@
 /** Which admin workspace resources each tab needs. */
 export const ADMIN_TAB_RESOURCES = {
-  overview: ['assessments', 'users', 'payments'],
+  overview: ['assessments', 'users'],
   users: ['users'],
   review: ['assessments'],
-  payments: ['payments'],
 }
 
 export function resourcesForAdminTab(tab) {

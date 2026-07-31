@@ -5,7 +5,10 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Changed
+- **Sign-In Only mode — signup commented out (temporary)** — `POST /api/auth/register` handler, `RegisterRequest` model, and `_send_signup_welcome()` commented out in `backend/routers/auth.py` (endpoint now 405s); `register()` export commented out in `artifacts/myface/utils/authClient.js`; `AuthForm.jsx` locked to login-only (register tab, first/last name fields, and "New here? Sign up" toggle removed). Existing admin-bootstrap (`ensure_user`) and login/password-reset flows unchanged. Re-enable by uncommenting the marked blocks.
 ### Added
+- **Complete Payment System Removal (ADR-048)** — Removed Stripe/PayPal payment requirements end-to-end. All authenticated users have unrestricted access to start facial analysis, view narrative reports, and download executive PDF reports. Removed `_require_payment_or_admin()` and 402 HTTP status codes from assessment endpoints. Removed payment gates, paywall screens (`billingLocked`), payment KPI tiles, and customer billing pages. Removed Payments tab from Admin Panel and Admin Navbar. The 2-analysis package cap (`MAX_SUBMITTED_ASSESSMENTS_PER_USER = 2`), admin report approval gate, and `Payment` database table (inert archive) remain intact.
 - **AI Visuals DE style catalogs** — Hair/outfit titles + explanations in `AiVisuals.styles.*` (en/de), keyed by `styleId`; UI uses `resolveStyleDisplayCopy` (never English explanation prose on `de`).
 - **Agent plan Summary rule** — `docs/industry-practices.md` §9 + `AGENTS.md` pointer: every implementation plan must open with a thorough Summary.
 - **Retry narrative translations (locale-scoped)** — Admin `POST /api/assessments/{id}/narrative-translations` with `{ "locale": "de" }` force-retrieves DE for features/closing/phases/executive without regenerating EN. Protocol edit dock: **Retry German translations** when UI is `de` (+ hint to switch to EN for EN regen); when UI is `en`, hint to switch to DE for DE retry. CLI: `scripts/rerun_narrative_translations.py <id> --language de`.

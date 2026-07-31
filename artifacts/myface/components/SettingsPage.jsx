@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { changePassword, updateProfile } from '../utils/authClient'
 import { translateApiError } from '../utils/translateApiError'
-import BillingPage from './BillingPage'
 import { StandalonePageShell } from './StandalonePageShell'
 import { SettingsDocumentLayout } from './settings/SettingsDocumentLayout'
 
@@ -214,13 +213,6 @@ export default function SettingsPage({ user, onUserUpdated }) {
             {t('savePassword')}
           </button>
         </form>
-      </>
-    )
-  } else {
-    panel = (
-      <>
-        <SettingsPanelHeader title={t('billingTitle')} description={t('billingDesc')} />
-        <BillingPage user={user} embedded />
       </>
     )
   }

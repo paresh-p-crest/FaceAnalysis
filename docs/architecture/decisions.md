@@ -965,3 +965,26 @@ Status: accepted
 - Reduced payload sizes and latency across all vision-enriched narrative generation calls.
 - Allowlist must be updated when new OpenRouter models are verified to support strict schema mode.
 - ADR-020 remains in force for non-allowlisted OpenRouter models.
+
+---
+
+## ADR-048: Complete Removal of Payment System and Payment Gating
+Date: 2026-07-31  
+Status: accepted  
+
+### Context
+MyFace originally required payment (Stripe/PayPal) before users could run facial analysis, view reports, or download executive PDF deliverables. The payment requirement created friction, and business requirements shifted to provide free, unrestricted access to the facial analysis engine for all authenticated users while maintaining user package assessment limits (`MAX_SUBMITTED_ASSESSMENTS_PER_USER = 2`) and admin report approval workflows.
+
+### Decision
+1. **Unrestricted Access**: All authenticated users are granted immediate access to create assessment drafts, upload photos, run computer vision analysis, view narrative reports, and download executive PDFs without any payment requirement.
+2. **Backend Gate Removal**: `_require_payment_or_admin()` and HTTP 402 ("Payment required before starting analysis") errors are removed from assessment endpoints (`backend/routers/assessments.py`).
+3. **Backend Payment Router**: Payment API router (`backend/routers/payments.py`) and repository (`backend/repositories/payment_repository.py`) are unmounted and unused.
+4. **Database Archival**: The `Payment` model (`backend/models.py`) and existing database schema remain intact as an inert archive table. No database tables are dropped.
+5. **Frontend Paywall Removal**: Payment utilities (`paymentAccess.js`), billing pages (`/billing`, `/payment-success`), `billingLocked` paywall cards (`AnalysisEligibilityGate.jsx`, `CustomerAssessmentGate.jsx`), billing banners (`DashboardPage.jsx`), and settings billing tabs (`SettingsNavSidebar.jsx`) are removed or redirected to `/dashboard`.
+6. **Admin Panel Cleanup**: The Payments tab and payment statistics are removed from the Admin Panel (`AdminPanelPage.jsx`) and Admin Navbar (`SiteNavbar.jsx`). Admin workspace now focuses strictly on Overview, Users, and Review.
+7. **Preserved Controls**: The per-user 2-analysis package cap (`MAX_SUBMITTED_ASSESSMENTS_PER_USER = 2` in `backend/assessment_limits.py`) and admin report approval requirement (`status: approved`/`published`) remain strictly enforced.
+
+### Consequences
+- Authenticated users experience zero payment friction when submitting photos and creating reports.
+- Simplified frontend navigation and codebase without payment state tracking or Stripe/PayPal checkout integration.
+- Database records for historical payments are preserved in the inert `payments` table.

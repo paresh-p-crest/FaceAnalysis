@@ -74,12 +74,7 @@ def main() -> int:
         status, reports = request(args.base_url, "/api/my/assessments?limit=3", token=token)
         passed.append(check("my assessments", status == 200 and isinstance(reports.get("items"), list), f"count={len(reports.get('items', []))}"))
 
-        status, payments = request(args.base_url, "/api/payments/my?limit=3", token=token)
-        passed.append(check("my payments", status == 200 and isinstance(payments.get("items"), list), f"count={len(payments.get('items', []))}"))
 
-        status, config = request(args.base_url, "/api/payments/config")
-        providers = config.get("stripe", {}).get("configured"), config.get("paypal", {}).get("configured")
-        passed.append(check("payment config", status == 200, f"stripe={providers[0]} paypal={providers[1]}"))
 
         status, admin_probe = request(
             args.base_url,

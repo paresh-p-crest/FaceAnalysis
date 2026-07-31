@@ -140,7 +140,6 @@ const ADMIN_TAB_ICONS = {
   overview: LayoutDashboard,
   users: Users,
   review: FileText,
-  payments: CreditCard,
 }
 
 function ReportNavbarActions({ toolbar, tReport, className = '', showLabels = true }) {
@@ -294,7 +293,7 @@ export function SiteNavbar({
         icon: FileText,
         href: ROUTES.report,
         active: pathname === ROUTES.report,
-        disabled: billingLocked,
+        disabled: false,
         emphasize: false,
       },
       {
@@ -303,7 +302,7 @@ export function SiteNavbar({
         icon: Sparkles,
         href: ROUTES.aiVisuals,
         active: pathname === ROUTES.aiVisuals,
-        disabled: billingLocked,
+        disabled: false,
       },
       {
         key: 'chatAssistant',
@@ -311,7 +310,7 @@ export function SiteNavbar({
         icon: MessageCircle,
         href: ROUTES.chat,
         active: pathname === ROUTES.chat,
-        disabled: billingLocked,
+        disabled: false,
       },
     ]
   }, [

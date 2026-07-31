@@ -449,33 +449,8 @@ export function AppProvider({ children }) {
 
   const refreshAnalysisAccess = useCallback(async (forUser) => {
     const subject = forUser ?? userRef.current
-    if (!subject || subject.role === 'admin') {
-      setHasAnalysisAccess(true)
-      setAccessReady(true)
-      return
-    }
-    if (!isBackendApiEnabled()) {
-      setHasAnalysisAccess(false)
-      setAccessReady(true)
-      accessCheckedOnceRef.current = true
-      return
-    }
-    if (!accessCheckedOnceRef.current) {
-      setAccessReady(false)
-    }
-    try {
-      const allowed = await withTimeout(
-        userHasAnalysisAccess(subject),
-        DEFAULT_FETCH_TIMEOUT_MS,
-        'Payment access check timed out',
-      )
-      setHasAnalysisAccess(allowed)
-    } catch {
-      setHasAnalysisAccess(false)
-    } finally {
-      accessCheckedOnceRef.current = true
-      setAccessReady(true)
-    }
+    setHasAnalysisAccess(!!subject)
+    setAccessReady(true)
   }, [])
 
   // Never strand the UI if auth/access checks hang (cold backend, stale Stripe session, etc.)
@@ -712,7 +687,7 @@ export function AppProvider({ children }) {
     goTo(ROUTES.auth)
   }, [goTo])
 
-  const startNewAnalysis = useCallback(async () => {
+  const startNewAnalysis = useCallback(() => {
     if (!user) {
       goTo(ROUTES.auth)
       return
@@ -721,39 +696,25 @@ export function AppProvider({ children }) {
       goTo(adminTabToPath('overview'))
       return
     }
-    try {
-      const hasAccess = await userHasAnalysisAccess(user)
-      if (!hasAccess) {
-        setBillingMessage('Payment is required before starting a new facial analysis.')
-        setHasAnalysisAccess(false)
-        goTo(ROUTES.dashboard)
-        return
-      }
-      // Package limit is enforced on /analysis (AnalysisEligibilityGate + backend 403).
-      // Do not send limit-reached users to /report — there may be no active report to open.
-      setBillingMessage('')
-      clearAnalysisDraft(user.id)
-      draftRestoreAttemptedRef.current = true
-      setAnswers(INITIAL_ANSWERS)
-      setPhotos(EMPTY_PHOTOS)
-      setAnalysis(null)
-      setCloudAssessment(null)
-      setHistoryId(null)
-      if (reportModalOpen) closeReportModal()
-      const sid = createHistoryId()
-      activeScanIdRef.current = sid
-      setScanId(sid)
-      setDraftAssessmentId(null)
-      draftPromiseRef.current = null
-      setSubmitError('')
-      trackEvent('assessment_start')
-      setQuestionnaireStartAtEnd(false)
-      goTo(ROUTES.analysis)
-      setAnalysisStep(ANALYSIS_STEPS.QUESTIONNAIRE)
-    } catch {
-      setBillingMessage('We could not verify payment access. Please check billing before starting analysis.')
-      goTo(ROUTES.dashboard)
-    }
+    setBillingMessage('')
+    clearAnalysisDraft(user.id)
+    draftRestoreAttemptedRef.current = true
+    setAnswers(INITIAL_ANSWERS)
+    setPhotos(EMPTY_PHOTOS)
+    setAnalysis(null)
+    setCloudAssessment(null)
+    setHistoryId(null)
+    if (reportModalOpen) closeReportModal()
+    const sid = createHistoryId()
+    activeScanIdRef.current = sid
+    setScanId(sid)
+    setDraftAssessmentId(null)
+    draftPromiseRef.current = null
+    setSubmitError('')
+    trackEvent('assessment_start')
+    setQuestionnaireStartAtEnd(false)
+    goTo(ROUTES.analysis)
+    setAnalysisStep(ANALYSIS_STEPS.QUESTIONNAIRE)
   }, [user, goTo, reportModalOpen, closeReportModal])
 
   const startAnalysisAfterPayment = useCallback(() => {
