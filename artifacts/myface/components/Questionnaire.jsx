@@ -1,5 +1,6 @@
 'use client'
 
+import { ChevronLeft } from 'lucide-react'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import {
@@ -17,6 +18,37 @@ import { BrandLogo } from './BrandLogo'
 import { AnalysisFlowHeader } from './analysis/AnalysisFlowHeader'
 import './Questionnaire.css'
 
+function AutoResizeTextarea({ value, onChange, placeholder, className, autoFocus }) {
+  const ref = useRef(null)
+
+  const adjustHeight = () => {
+    const el = ref.current
+    if (el) {
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    }
+  }
+
+  useEffect(() => {
+    adjustHeight()
+  }, [value])
+
+  return (
+    <textarea
+      ref={ref}
+      autoFocus={autoFocus}
+      rows={1}
+      value={value}
+      onChange={(e) => {
+        onChange(e)
+        adjustHeight()
+      }}
+      placeholder={placeholder}
+      className={className}
+    />
+  )
+}
+
 function isQuestionAnswerComplete(question, answers) {
   if (!question) return false
   const val = answers[question.key]
@@ -27,7 +59,6 @@ function isQuestionAnswerComplete(question, answers) {
     case 'multi_select':
       return val && val.length > 0
     case 'text':
-      return val !== undefined && val !== null && String(val).trim().length > 0
     case 'textarea':
       if (question.key === 'additionalNotes') return true
       return val !== undefined && val !== null && String(val).trim().length > 0
@@ -173,11 +204,12 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
   return (
     <div className="min-h-screen flex bg-white dark:bg-slate-900 animate-fade-up">
 
-      <div className="w-full lg:w-[40%] flex flex-col justify-between p-6 sm:p-16 bg-white dark:bg-slate-950 border-r border-surface-border">
+      <div className="w-full lg:w-[40%] flex flex-col justify-between p-6 sm:px-10 sm:py-16 bg-white dark:bg-slate-950 border-r border-surface-border">
 
         <AnalysisFlowHeader
           backLabel={t('common.back')}
           onBack={handlePrev}
+          backWithChevron
           trailing={(
             <div className="flex items-center gap-1.5 text-xs font-bold font-mono">
               <span className="px-2.5 py-1 rounded bg-[#5e9f8b] text-white">
@@ -285,12 +317,11 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
             )}
 
             {currentQuestion.type === 'text' && (
-              <input
-                type="text"
+              <AutoResizeTextarea
                 value={answers[currentQuestion.key] || ''}
                 onChange={(e) => set(currentQuestion.key, e.target.value)}
                 placeholder={currentQuestion.placeholderKey ? t(currentQuestion.placeholderKey) : undefined}
-                className="w-full bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-xl rounded-none outline-none transition-all"
+                className="w-full bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-xl rounded-none outline-none transition-all resize-none leading-relaxed overflow-hidden"
               />
             )}
 
@@ -318,25 +349,23 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
                   )
                 })}
                 {answers[currentQuestion.key] === 'yes' && (
-                  <input
-                    type="text"
+                  <AutoResizeTextarea
                     autoFocus
                     value={answers[`${currentQuestion.key}Details`] || ''}
                     onChange={(e) => setDetailsText(currentQuestion.key, e.target.value)}
                     placeholder={t('common.pleaseProvideDetails')}
-                    className="w-full mt-2 bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-base rounded-none outline-none transition-all"
+                    className="w-full mt-2 bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-base rounded-none outline-none transition-all resize-none leading-relaxed overflow-hidden"
                   />
                 )}
               </div>
             )}
 
             {currentQuestion.type === 'textarea' && (
-              <textarea
-                rows={2}
+              <AutoResizeTextarea
                 value={answers[currentQuestion.key] || ''}
                 onChange={(e) => set(currentQuestion.key, e.target.value)}
                 placeholder={currentQuestion.placeholderKey ? t(currentQuestion.placeholderKey) : undefined}
-                className="w-full bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-lg rounded-none outline-none transition-all resize-none leading-normal"
+                className="w-full bg-transparent border-t-0 border-r-0 border-l-0 border-b border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-0 focus:border-[#5e9f8b] dark:focus:border-[#5e9f8b] py-3 px-0 text-xl rounded-none outline-none transition-all resize-none leading-relaxed overflow-hidden"
               />
             )}
 
@@ -346,18 +375,20 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
         <div className="flex items-center gap-4">
           <button
             onClick={handlePrev}
-            className="flex-1 flex items-center justify-center border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 py-3 rounded-[50px] text-sm font-medium transition-all"
+            className="flex-1 flex items-center justify-start gap-2.5 px-6 py-3 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded-[50px] text-sm font-medium transition-all"
           >
-            {t('common.back')}
+            <ChevronLeft className="w-4 h-4 shrink-0" aria-hidden />
+            <span className="text-slate-300 dark:text-slate-700">|</span>
+            <span>{t('common.back').replace(/^←\s*/, '')}</span>
           </button>
 
           <button
             onClick={handleNext}
             disabled={!isQuestionComplete()}
-            className="flex-1 flex items-center bg-[#5e9f8b] hover:bg-[#548f7d] text-white px-6 py-3 rounded-[50px] text-sm font-medium tracking-[-0.03px] transition-all shadow-sm disabled:opacity-40 disabled:pointer-events-none"
+            className="flex-1 flex items-center justify-end gap-2.5 bg-[#5e9f8b] hover:bg-[#548f7d] text-white px-6 py-3 rounded-[50px] text-sm font-medium tracking-[-0.03px] transition-all shadow-sm disabled:opacity-40 disabled:pointer-events-none"
           >
-            <span className="flex-1 text-left">{t('common.next')}</span>
-            <span className="text-white/40 mr-4">|</span>
+            <span>{t('common.next')}</span>
+            <span className="text-white/40">|</span>
             <span>→</span>
           </button>
         </div>

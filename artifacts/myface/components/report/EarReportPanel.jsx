@@ -102,7 +102,7 @@ export function EarReportPanel({
           <img
             src={heroImage}
             alt={t('ears.imageAlt')}
-            className="max-h-48 w-auto object-contain rounded-xl"
+            className="h-48 w-48 aspect-square object-cover rounded-xl"
           />
         </FeatureHeroFrame>
       )}

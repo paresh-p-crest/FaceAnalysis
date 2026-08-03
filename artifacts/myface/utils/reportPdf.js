@@ -1990,7 +1990,7 @@ function drawProtocolDashboardPage1(doc, ctx) {
     : null
   const splitLeadingNum = (text) => {
     if (text == null) return null
-    // Keep trailing + with the number (e.g. "468+ points")
+    // Keep trailing + with the number (e.g. "170+ points")
     const m = String(text).match(/^(\d[\d,]*\+?)(.*)$/)
     if (!m) return [{ text: String(text), brand: false }]
     const parts = [{ text: m[1], brand: true }]

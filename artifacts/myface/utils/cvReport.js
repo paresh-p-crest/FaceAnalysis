@@ -1484,22 +1484,20 @@ function proportionRatios(landmarks) {
 }
 
 async function buildNasoAuralVisual(photos, faceCrop, nasoAuralOverlay) {
-  const profileSrc = photos?.rightProfile
+  let profileSrc = photos?.rightProfile
+  let photoSource = 'rightProfile'
+  if (!profileSrc && photos?.leftProfile) {
+    profileSrc = photos.leftProfile
+    photoSource = 'leftProfile'
+  }
   if (!profileSrc) {
     return { imageSrc: faceCrop, overlay: nasoAuralOverlay, photoSource: 'front' }
   }
-
-  try {
-    const mpProfile = await analyzeWithMediaPipe(profileSrc)
-    const overlay = buildNasoAuralOverlay(mpProfile.landmarks, 'rightProfile')
-    return {
-      imageSrc: profileSrc,
-      overlay: overlay || nasoAuralOverlay,
-      photoSource: 'rightProfile',
-      overlaySpace: 'image',
-    }
-  } catch {
-    return { imageSrc: faceCrop, overlay: nasoAuralOverlay, photoSource: 'front' }
+  return {
+    imageSrc: profileSrc,
+    overlay: nasoAuralOverlay,
+    photoSource: photoSource,
+    overlaySpace: 'image',
   }
 }
 

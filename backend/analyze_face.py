@@ -54,8 +54,9 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
     elif hair_data and not cv_report.get("hair"):
         cv_report["hair"] = hair_data
 
+    feature_crops = cv_report.get("featureCrops") or {}
     # Profile cephalometrics prefer silhouette landmarks at 90° when extractable
-    cv_report["profile"] = build_profile_report(views, photos)
+    cv_report["profile"] = build_profile_report(views, photos, feature_crops)
     primary = cv_report.get("profile", {}).get("primary")
     if primary:
         meas = primary.get("measurements", {})

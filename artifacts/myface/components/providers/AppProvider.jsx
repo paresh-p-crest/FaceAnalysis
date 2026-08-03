@@ -524,6 +524,9 @@ export function AppProvider({ children }) {
   }, [pathname])
 
   useEffect(() => {
+    // Reset the flow whenever we navigate away from /analysis.
+    // IMPORTANT: do NOT reset here while still on /analysis — that would cause
+    // a flash of Welcome/Questionnaire before the router transition commits.
     if (pathname !== ROUTES.analysis && analysisStep !== ANALYSIS_STEPS.WELCOME) {
       resetAnalysisFlow()
     }
@@ -765,9 +768,12 @@ export function AppProvider({ children }) {
   }, [hydrateFromCloudAssessment, openReportModal, resetAnalysisFlow, goTo])
 
   const handlePreparingDashboard = useCallback(() => {
-    resetAnalysisFlow()
+    // Navigate FIRST — the pathname useEffect will reset analysisStep once
+    // /analysis unmounts. Calling resetAnalysisFlow() here first would flip
+    // analysisStep to WELCOME while AnalysisFlow is still rendered, causing
+    // a brief flash of the Welcome screen before the route transition.
     goTo(ROUTES.dashboard)
-  }, [resetAnalysisFlow, goTo])
+  }, [goTo])
 
   const logout = useCallback(() => {
     if (user?.id) clearAnalysisDraft(user.id)

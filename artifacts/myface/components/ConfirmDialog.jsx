@@ -60,18 +60,21 @@ export default function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={loading}
-            className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50 ${
+            className={`inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50 ${
               danger ? 'bg-red-600 hover:bg-red-700' : 'bg-brand hover:bg-brand-dark'
             }`}
           >
             {/* Stable slot — never mount/unmount Lucide mid-commit (insertBefore NotFoundError). */}
             <span
-              className="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+              className="inline-flex h-4 shrink-0 items-center justify-center overflow-hidden transition-all duration-150"
+              style={{
+                width: loading ? '16px' : '0px',
+                marginRight: loading ? '8px' : '0px',
+                opacity: loading ? 1 : 0,
+              }}
               aria-hidden={!loading}
             >
-              <Loader2
-                className={`h-4 w-4 animate-spin ${loading ? 'opacity-100' : 'opacity-0'}`}
-              />
+              <Loader2 className="h-4 w-4 animate-spin" />
             </span>
             {resolvedConfirmLabel}
           </button>

@@ -240,7 +240,7 @@ export function ProportionsSection({
       (typeof active?.imageSrc === 'string' && /profile/i.test(active.imageSrc))
     )
   const activeImageSrc = useProfileEar
-    ? (active?.imageSrc || photos?.rightProfile || photos?.leftProfile)
+    ? (active?.photoSource === 'leftProfile' ? photos?.leftProfile : (active?.imageSrc || photos?.rightProfile || photos?.leftProfile))
     : (faceCropSrc || active?.imageSrc || proportions.imageSrc)
   const overlay = resolveOverlay(
     activeTab,

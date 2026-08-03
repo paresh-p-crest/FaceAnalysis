@@ -686,7 +686,7 @@ export const DASHBOARD_MINI_CARDS = [
 ]
 
 /** MediaPipe Face Mesh landmark count shown on the protocol dashboard KPI. */
-export const DASHBOARD_EVALUATED_POINTS = '468+'
+export const DASHBOARD_EVALUATED_POINTS = '170+'
 
 /** Coerce CV values to short preview text (avoid "[object Object]"). */
 function asPreviewText(value) {
@@ -1104,7 +1104,7 @@ export function buildProtocolDashboardData({ cvReport, metrics, answers, eyeAnal
   const overall = cvReport?.overall || {}
   const faceAge = metrics?.visualAge ?? overall?.visualAge ?? null
   const overallScore = resolveOverallHarmonyScore({ cvReport, metrics })
-  // Protocol dashboard cites MediaPipe Face Mesh density (468 landmarks).
+  // Protocol dashboard cites MediaPipe Face Mesh density (170 landmarks).
   const evaluatedPoints = cvReport ? DASHBOARD_EVALUATED_POINTS : null
 
   const radarScores = {

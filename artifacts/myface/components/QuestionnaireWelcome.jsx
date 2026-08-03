@@ -1,5 +1,6 @@
 'use client'
 
+import { ChevronLeft } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { AnalysisFlowHeader } from './analysis/AnalysisFlowHeader'
 import { BrandLogo } from './BrandLogo'
@@ -42,6 +43,7 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
           leading={<BrandLogo size="lg" className="questionnaire-welcome__mobile-logo" />}
           backLabel={onBackToDashboard ? t('backToDashboard') : null}
           onBack={onBackToDashboard}
+          backWithChevron
           backClassName="questionnaire-welcome__back"
         />
 
@@ -52,8 +54,9 @@ export default function QuestionnaireWelcome({ onBegin, onBackToDashboard }) {
                 <button
                   type="button"
                   onClick={onBackToDashboard}
-                  className="questionnaire-welcome__mobile-back mb-7"
+                  className="questionnaire-welcome__mobile-back mb-7 flex items-center gap-1"
                 >
+                  <ChevronLeft className="w-4 h-4 shrink-0" aria-hidden />
                   {t('backToDashboard')}
                 </button>
               )}

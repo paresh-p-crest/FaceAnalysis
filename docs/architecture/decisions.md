@@ -987,4 +987,4 @@ MyFace originally required payment (Stripe/PayPal) before users could run facial
 ### Consequences
 - Authenticated users experience zero payment friction when submitting photos and creating reports.
 - Simplified frontend navigation and codebase without payment state tracking or Stripe/PayPal checkout integration.
-- Database records for historical payments are preserved in the inert `payments` table.
+- Database records for historical payments are preserved in the inert `payments` table.

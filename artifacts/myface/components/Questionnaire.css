@@ -71,8 +71,9 @@
 .analysis-flow-header__right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
+  margin-right: -12px;
 }
 
 .analysis-flow-header__back {

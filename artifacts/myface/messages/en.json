@@ -1,6 +1,6 @@
 {
   "Metadata": {
-    "title": "MyFace - Facial Analysis",
+    "title": "MyFace App | Precise Facial Analysis for More Attractiveness",
     "description": "Precise facial analysis for aesthetic insights and personalized recommendations."
   },
   "Nav": {
@@ -123,7 +123,7 @@
     "subtitle": "Review assessments, track scores, and open your latest facial analysis report.",
     "welcomeBack": "Welcome · {name}",
     "heroTitle": "Your <harmony>harmony</harmony> report, refined.",
-    "heroSubtitle": "Every assessment is scored against 468+ facial landmarks by our clinical model, then reviewed by a licensed dermatologist before it reaches you.",
+    "heroSubtitle": "Every assessment is scored against 170+ facial landmarks by our clinical model, then reviewed by a licensed dermatologist before it reaches you.",
     "hipaaNotice": "HIPAA-aligned storage",
     "startNewAnalysis": "Start new analysis",
     "loadFailed": "Could not load dashboard",
@@ -139,7 +139,7 @@
     "kpiPaymentsDesc": "Completed payments",
     "scientificAnalysis": "Scientific analysis",
     "attractivenessTitle": "Attractiveness & facial harmony",
-    "attractivenessDesc": "Face scanned against 468+ landmarks. Scores reflect symmetry, golden-ratio proportions, and structural balance. Open the report for the full assessment.",
+    "attractivenessDesc": "Face scanned against 170+ landmarks. Scores reflect symmetry, golden-ratio proportions, and structural balance. Open the report for the full assessment.",
     "openLatestReport": "Open latest report",
     "opening": "Opening…",
     "inPreparation": "In preparation",
@@ -153,7 +153,7 @@
     "stepQuestionnaire": "Questionnaire",
     "stepQuestionnaireDesc": "Clinical intake",
     "stepPhotoScan": "Photo Scan",
-    "stepPhotoScanDesc": "468+ landmarks",
+    "stepPhotoScanDesc": "170+ landmarks",
     "stepReport": "Report",
     "stepReportDesc": "Harmony metrics",
     "recentAssessments": "Recent assessments",
@@ -1657,7 +1657,7 @@
   },
   "Questionnaire": {
     "welcome": {
-      "backToDashboard": "← Back to Dashboard",
+      "backToDashboard": "Back to Dashboard",
       "title": "Your personalized facial analysis starts here",
       "description": "Answer a few quick questions so we can tailor your report to your goals, skin concerns, and demographics. Then upload a photo to begin your facial analysis.",
       "statsLandmarks": "Facial landmarks",
@@ -1670,7 +1670,7 @@
       "sidebarDescription": "Please answer the following questions to help us customize your MyFace journey."
     },
     "common": {
-      "back": "← Back",
+      "back": "Back",
       "next": "Next",
       "yes": "Yes",
       "no": "No",

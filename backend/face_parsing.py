@@ -60,7 +60,7 @@ POSE_SPECIFIC_FEATURES = frozenset({"lips", "smile", "ears"})
 # Face composite for `skin`: all parsed face parts except hair and accessories.
 SKIN_FACE_LABEL_IDS = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17]
 
-EAR_LABEL_IDS = [8, 9]
+EAR_LABEL_IDS = [8, 9, 15]
 
 MASK_BACKGROUND_RGB = (255, 255, 255)
 
@@ -112,7 +112,11 @@ def segment_image(image_rgb: np.ndarray) -> np.ndarray:
     return labels
 
 
-def _bbox_from_mask(mask: np.ndarray, pad: int = 4) -> Optional[tuple[int, int, int, int]]:
+def _bbox_from_mask(
+    mask: np.ndarray,
+    pad: int = 4,
+    make_square: bool = False,
+) -> Optional[tuple[int, int, int, int]]:
     ys, xs = np.where(mask)
     if len(xs) == 0:
         return None
@@ -123,6 +127,33 @@ def _bbox_from_mask(mask: np.ndarray, pad: int = 4) -> Optional[tuple[int, int, 
     y1 = max(0, y1 - pad)
     x2 = min(w - 1, x2 + pad)
     y2 = min(h - 1, y2 + pad)
+
+    if make_square:
+        box_w = x2 - x1 + 1
+        box_h = y2 - y1 + 1
+        side = max(box_w, box_h)
+        side = min(side, w, h)
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+
+        x1 = cx - side // 2
+        x2 = x1 + side - 1
+        if x1 < 0:
+            x2 = min(w - 1, x2 - x1)
+            x1 = 0
+        elif x2 >= w:
+            x1 = max(0, x1 - (x2 - (w - 1)))
+            x2 = w - 1
+
+        y1 = cy - side // 2
+        y2 = y1 + side - 1
+        if y1 < 0:
+            y2 = min(h - 1, y2 - y1)
+            y1 = 0
+        elif y2 >= h:
+            y1 = max(0, y1 - (y2 - (h - 1)))
+            y2 = h - 1
+
     return x1, y1, x2, y2
 
 
@@ -276,19 +307,21 @@ def extract_smile_crop_from_smile_pose(smile_bytes: bytes) -> dict[str, dict[str
 
 
 def extract_profile_ear_crop(pose_bytes: bytes, pose_id: str) -> Optional[dict[str, Any]]:
-    """SegFormer ear mask on a profile pose (white bg)."""
+    """SegFormer ear crop on a profile pose (square unmasked photo slice with uniform pad + extra bottom)."""
     rgb, labels = run_face_parsing_on_image(pose_bytes)
     combined = np.zeros(labels.shape, dtype=bool)
     for lid in EAR_LABEL_IDS:
         combined |= labels == lid
-    masked = _masked_crop_jpeg(rgb, combined, pad=24)
-    if not masked:
+    bbox = _bbox_from_mask(combined, pad=40, make_square=True)
+    if not bbox:
         return None
-    jpeg_bytes, bbox = masked
     x1, y1, x2, y2 = bbox
+    # Extra bottom padding to reveal earlobe / jaw area below the ear
+    y2 = min(rgb.shape[0] - 1, y2 + 10)
+    jpeg_bytes = _crop_jpeg(rgb, (x1, y1, x2, y2))
     return {
         "bbox": [x1, y1, x2, y2],
-        "labels": [LABEL_MAP[lid] for lid in EAR_LABEL_IDS],
+        "labels": [LABEL_MAP[lid] for lid in EAR_LABEL_IDS if lid in LABEL_MAP],
         "jpegBytes": jpeg_bytes,
         "sourcePose": pose_id,
         "sourceMethod": "segformer_ears",

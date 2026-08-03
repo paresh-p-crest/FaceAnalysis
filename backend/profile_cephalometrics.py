@@ -145,29 +145,43 @@ def _merge_profile_points(
     return merged, "facemesh+silhouette_ears"
 
 
-def build_naso_aural_proportion_overlay(pts: dict) -> dict:
-    """report-style ear/nose height brackets for ProportionFeatureOverlay (image 0–100).
-
-    Short horizontal ticks at the ear and nose columns (not full-width guides) so the
-    mapping stays readable on profile photos.
-    """
-    ear_x = _pct_x((pts["earTop"]["x"] + pts["earBottom"]["x"]) / 2)
-    nose_x = _pct_x((pts["noseTop"]["x"] + pts["noseBottom"]["x"]) / 2)
+def build_naso_aural_proportion_overlay(pts: dict, facing_right: bool = True) -> dict:
+    """report-style ear/nose height brackets for ProportionFeatureOverlay (image 0–100)."""
     ear_top_y = _pct_y(pts["earTop"]["y"])
     ear_bot_y = _pct_y(pts["earBottom"]["y"])
     nose_top_y = _pct_y(pts["noseTop"]["y"])
     nose_bot_y = _pct_y(pts["noseBottom"]["y"])
-    tick = 7.0
+
+    ear_x_min = _pct_x(pts["earTop"]["x"])
+    nose_x = _pct_x((pts["noseTop"]["x"] + pts["noseBottom"]["x"]) / 2)
+
+    offset = 3.0
+    cap_len = 1.5
+
+    if facing_right:
+        caliper_x = max(0.0, ear_x_min - offset)
+        cap_x_start = max(0.0, caliper_x - cap_len)
+        cap_x_end = caliper_x
+        dash_start = caliper_x
+        dash_end = 100.0
+    else:
+        caliper_x = min(100.0, ear_x_min + offset)
+        cap_x_start = caliper_x
+        cap_x_end = min(100.0, caliper_x + cap_len)
+        dash_start = 0.0
+        dash_end = caliper_x
 
     return {
         "horizontal": [
-            {"y": ear_top_y, "x1": ear_x - tick, "x2": ear_x + tick},
-            {"y": ear_bot_y, "x1": ear_x - tick, "x2": ear_x + tick},
-            {"y": nose_top_y, "x1": nose_x - tick, "x2": nose_x + tick},
-            {"y": nose_bot_y, "x1": nose_x - tick, "x2": nose_x + tick},
+            {"y": ear_top_y, "x1": dash_start, "x2": dash_end},
+            {"y": ear_bot_y, "x1": dash_start, "x2": dash_end},
+            {"y": nose_top_y, "x1": dash_start, "x2": dash_end},
+            {"y": nose_bot_y, "x1": dash_start, "x2": dash_end},
+            {"y": ear_top_y, "x1": cap_x_start, "x2": cap_x_end},
+            {"y": ear_bot_y, "x1": cap_x_start, "x2": cap_x_end},
         ],
         "segments": [
-            {"x1": ear_x, "y1": ear_top_y, "x2": ear_x, "y2": ear_bot_y},
+            {"x1": caliper_x, "y1": ear_top_y, "x2": caliper_x, "y2": ear_bot_y},
             {"x1": nose_x, "y1": nose_top_y, "x2": nose_x, "y2": nose_bot_y},
         ],
     }
@@ -287,6 +301,7 @@ def analyze_profile(
     landmarks: Optional[list] = None,
     pose_id: str = "rightProfile",
     image_bytes: Optional[bytes] = None,
+    ear_bbox: Optional[list] = None,
 ) -> Optional[dict]:
     mesh_pts = _profile_landmarks(landmarks, pose_id) if landmarks else None
     sil_pts = extract_profile_silhouette_points(image_bytes) if image_bytes else None
@@ -298,6 +313,20 @@ def analyze_profile(
     if not facing:
         facing = "right" if pose_id == "rightProfile" else "left"
 
+    if ear_bbox and image_bytes:
+        try:
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(image_bytes))
+            w, h = img.size
+            if w > 0 and h > 0:
+                x1, y1, x2, y2 = ear_bbox
+                rear_x = x1 / w if facing == "right" else x2 / w
+                pts["earTop"] = {"x": rear_x, "y": y1 / h, "z": 0.0}
+                pts["earBottom"] = {"x": rear_x, "y": y2 / h, "z": 0.0}
+        except Exception:
+            pass
+
     convexity = _facial_convexity(pts)
     e_line = _e_line_lip_distances(pts)
     naso_aural = _naso_aural_ratio(pts)
@@ -307,7 +336,7 @@ def analyze_profile(
     profile_gonial = _profile_gonial_angle(pts)
     chin_proj = _chin_projection_norm(pts, facing)
     ear_protrusion = round(abs(pts["earBottom"]["x"] - pts["pogonion"]["x"]), 4)
-    naso_overlay = build_naso_aural_proportion_overlay(pts)
+    naso_overlay = build_naso_aural_proportion_overlay(pts, facing_right=(facing == "right"))
 
     return {
         "poseId": pose_id,
@@ -348,12 +377,22 @@ def analyze_profile(
 def build_profile_report(
     views: dict,
     photos: Optional[dict] = None,
+    feature_crops: Optional[dict] = None,
 ) -> dict:
     photos = photos or {}
     right45 = views.get("right45", {})
     left45 = views.get("left45", {})
     right = views.get("rightProfile", {})
     left = views.get("leftProfile", {})
+
+    def _get_bbox(pose: str) -> Optional[list]:
+        if not feature_crops:
+            return None
+        key = "earsRight" if pose == "rightProfile" else "earsLeft"
+        crop = feature_crops.get(key)
+        if isinstance(crop, dict):
+            return crop.get("bbox")
+        return None
 
     right45_lm = right45.get("landmarks", []) if right45.get("success") else []
     left45_lm = left45.get("landmarks", []) if left45.get("success") else []
@@ -377,21 +416,21 @@ def build_profile_report(
 
     primary = None
     if primary_pose == "right45":
-        primary = analyze_profile(right45_lm or None, "right45", right45_bytes)
+        primary = analyze_profile(right45_lm or None, "right45", right45_bytes, _get_bbox("right45"))
     elif primary_pose == "rightProfile":
-        primary = analyze_profile(right_lm or None, "rightProfile", right_bytes)
+        primary = analyze_profile(right_lm or None, "rightProfile", right_bytes, _get_bbox("rightProfile"))
     elif primary_pose == "left45":
-        primary = analyze_profile(left45_lm or None, "left45", left45_bytes)
+        primary = analyze_profile(left45_lm or None, "left45", left45_bytes, _get_bbox("left45"))
     elif primary_pose == "leftProfile":
-        primary = analyze_profile(left_lm or None, "leftProfile", left_bytes)
+        primary = analyze_profile(left_lm or None, "leftProfile", left_bytes, _get_bbox("leftProfile"))
 
     left_analysis = (
-        analyze_profile(left_lm or None, "leftProfile", left_bytes)
+        analyze_profile(left_lm or None, "leftProfile", left_bytes, _get_bbox("leftProfile"))
         if (left_lm or left_bytes)
         else None
     )
     right_analysis = (
-        analyze_profile(right_lm or None, "rightProfile", right_bytes)
+        analyze_profile(right_lm or None, "rightProfile", right_bytes, _get_bbox("rightProfile"))
         if (right_lm or right_bytes)
         else None
     )

@@ -4,7 +4,7 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
-## In-Flight Tasks
+- [x] Unmasked Square Ear Photo Crop — Updated `extract_profile_ear_crop` and `_bbox_from_mask` (`face_parsing.py`) to extract 1:1 square crops directly from unmasked profile photos with minimal padding (`pad=8`); updated `EarReportPanel.jsx` (`aspect-square object-cover`); added unit test `test_extract_profile_ear_crop_is_square_unmasked_photo` (status: completed)
 - [x] Auth page: remove lone "Sign in" tab pill left after signup removal (status: completed)
 - [x] Sign-In Only mode: comment out signup end-to-end (backend `/api/auth/register` + `_send_signup_welcome`, `authClient.register()`, AuthForm register tab/name fields/"New here?" toggle) (status: completed)
 - [x] Complete Payment System Removal (ADR-048) — Removed payment gates, paywalls, and admin payments tab; retained 2-analysis package cap, admin approval gate, and inert payments table (status: completed)

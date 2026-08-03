@@ -56,7 +56,7 @@ function ErrorPanel({ title, message }) {
 function getCvLabel(analysis, metrics) {
   if (analysis?.cvEngine === 'local-cv') return 'MediaPipe + OpenCV (free)'
   if (analysis?.cvEngine === 'mediapipe+opencv') {
-    return `MediaPipe (${metrics?.landmarkCount || 478} pts) + OpenCV`
+    return `MediaPipe (${metrics?.landmarkCount || 170} pts) + OpenCV`
   }
   return '—'
 }

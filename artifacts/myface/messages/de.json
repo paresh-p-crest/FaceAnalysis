@@ -1,6 +1,6 @@
 {
   "Metadata": {
-    "title": "MyFace - Gesichtsanalyse",
+    "title": "MyFace App | Präzise Gesichtsanalyse für mehr Attraktivität",
     "description": "Präzise Gesichtsanalyse für ästhetische Einblicke und persönliche Empfehlungen."
   },
   "Nav": {
@@ -123,7 +123,7 @@
     "subtitle": "Prüf Analysen, verfolge Scores und öffne deinen neuesten Gesichtsanalyse-Bericht.",
     "welcomeBack": "Willkommen · {name}",
     "heroTitle": "Dein <harmony>Harmonie</harmony>-Bericht, verfeinert.",
-    "heroSubtitle": "Jede Analyse bewertet unser klinisches Modell anhand von über 468 Messpunkten. Danach prüft ein zugelassener Dermatologe den Bericht, bevor er bei dir ankommt.",
+    "heroSubtitle": "Jede Analyse bewertet unser klinisches Modell anhand von über 170 Messpunkten. Danach prüft ein zugelassener Dermatologe den Bericht, bevor er bei dir ankommt.",
     "hipaaNotice": "HIPAA-konforme Speicherung",
     "startNewAnalysis": "Neue Analyse starten",
     "loadFailed": "Dashboard konnte nicht geladen werden",
@@ -139,7 +139,7 @@
     "kpiPaymentsDesc": "Abgeschlossene Zahlungen",
     "scientificAnalysis": "Wissenschaftliche Analyse",
     "attractivenessTitle": "Attraktivität und Gesichtsharmonie",
-    "attractivenessDesc": "Dein Gesicht wird mit über 468 Messpunkten erfasst. Die Scores spiegeln Symmetrie, Goldener-Schnitt-Proportionen und strukturelle Balance wider. Im Bericht findest du die vollständige Bewertung.",
+    "attractivenessDesc": "Dein Gesicht wird mit über 170 Messpunkten erfasst. Die Scores spiegeln Symmetrie, Goldener-Schnitt-Proportionen und strukturelle Balance wider. Im Bericht findest du die vollständige Bewertung.",
     "openLatestReport": "Neuesten Bericht öffnen",
     "opening": "Wird geöffnet…",
     "inPreparation": "In Vorbereitung",
@@ -153,7 +153,7 @@
     "stepQuestionnaire": "Fragebogen",
     "stepQuestionnaireDesc": "Klinische Aufnahme",
     "stepPhotoScan": "Foto-Scan",
-    "stepPhotoScanDesc": "Über 468 Messpunkte",
+    "stepPhotoScanDesc": "Über 170 Messpunkte",
     "stepReport": "Bericht",
     "stepReportDesc": "Harmonie-Metriken",
     "recentAssessments": "Letzte Analysen",
@@ -1657,7 +1657,7 @@
   },
   "Questionnaire": {
     "welcome": {
-      "backToDashboard": "← Zurück zum Dashboard",
+      "backToDashboard": "Zurück zum Dashboard",
       "title": "Starte deine Gesichtsanalyse",
       "description": "Beantworte einige kurze Fragen, damit wir deinen Bericht auf deine Ziele, Hautthemen und persönlichen Merkmale abstimmen können. Lade anschliessend ein Foto hoch, um deine Gesichtsanalyse zu starten.",
       "statsLandmarks": "Messpunkte",
@@ -1670,7 +1670,7 @@
       "sidebarDescription": "Beantworte die folgenden Fragen, damit wir deine MyFace-Analyse optimal auf dich abstimmen können."
     },
     "common": {
-      "back": "← Zurück",
+      "back": "Zurück",
       "next": "Weiter",
       "yes": "Ja",
       "no": "Nein",

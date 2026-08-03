@@ -10,6 +10,7 @@ from backend.face_parsing import (
     RECT_CROP_FEATURES,
     extract_feature_crops,
     extract_lips_crop_from_front_landmarks,
+    extract_profile_ear_crop,
 )
 
 
@@ -111,3 +112,22 @@ def test_empty_labels_omitted():
     image = np.zeros((h, w, 3), dtype=np.uint8)
     labels = np.zeros((h, w), dtype=np.int32)
     assert extract_feature_crops(labels, image) == {}
+
+
+def test_extract_profile_ear_crop_is_square_unmasked_photo(monkeypatch):
+    h, w = 200, 200
+    rgb = np.full((h, w, 3), 100, dtype=np.uint8)
+    labels = np.zeros((h, w), dtype=np.int32)
+    # Ear mask taller than wide (y: 60..140, x: 80..110)
+    labels[60:140, 80:110] = 8
+    rgb[60:140, 80:110] = (220, 180, 140)
+
+    monkeypatch.setattr("backend.face_parsing.run_face_parsing_on_image", lambda bytes_data: (rgb, labels))
+
+    res = extract_profile_ear_crop(b"fake_jpeg", "leftProfile")
+    assert res is not None
+    crop = _decode_jpeg(res["jpegBytes"])
+    assert crop.shape[0] == crop.shape[1]  # Must be exact 1:1 square
+    # Corner pixel should be original background (100), not forced white (255)
+    assert crop[0, 0, 0] == 100
+

@@ -391,7 +391,7 @@ export default function PhotoUpload({
       <div className="w-full lg:w-[380px] shrink-0 bg-white dark:bg-surface-card lg:border-r border-surface-border flex flex-col">
 
         {/* Fixed Header */}
-        <div className="px-7 pt-7 pb-4 shrink-0 space-y-4">
+        <div className="px-8 pt-8 pb-4 shrink-0 space-y-4">
           <AnalysisFlowHeader
             backLabel={t('backToRequirements')}
             onBack={onBack}
