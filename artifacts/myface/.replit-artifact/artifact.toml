@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/healthz"
 title = "MyFace"
 version = "1.0.0"
 id = "artifacts/myface"
