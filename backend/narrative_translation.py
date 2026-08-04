@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 NARRATIVE_TRANSLATION_SYSTEM_PROMPT = (
     "Translate to German. Write per Du-form. Make sure it doesn't sound "
     "AI-generated. Do not use long hyphens, en dashes, or em dashes. "
+    "Do not use semicolons (';'). Keep the phrasing natural, simple, and human-like. "
     "Preserve medical/technical terms. Output only the translation, no preamble."
 )
 

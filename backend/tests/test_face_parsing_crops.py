@@ -127,7 +127,7 @@ def test_extract_profile_ear_crop_is_square_unmasked_photo(monkeypatch):
     res = extract_profile_ear_crop(b"fake_jpeg", "leftProfile")
     assert res is not None
     crop = _decode_jpeg(res["jpegBytes"])
-    assert crop.shape[0] == crop.shape[1]  # Must be exact 1:1 square
+    assert crop.shape[0] == crop.shape[1] + 10  # 40px uniform square pad + 10px extra lower pad
     # Corner pixel should be original background (100), not forced white (255)
     assert crop[0, 0, 0] == 100
 

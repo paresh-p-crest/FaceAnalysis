@@ -76,8 +76,12 @@ NO_TECH_JARGON_RULES = (
     "(e.g. 'forehead exposure', 'hair density', 'relative strength', 'temple inclination')."
 )
 
+NO_SEMICOLONS_RULE = (
+    "PUNCTUATION: Do not use semicolons (';'). Keep the phrasing natural, simple, and human-like."
+)
+
 _ASSISTANT_STYLE_RULES = (
-    "\n\n" + ASSISTANT_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES
+    "\n\n" + ASSISTANT_VOICE_RULES + "\n" + NO_TECH_JARGON_RULES + "\n" + NO_SEMICOLONS_RULE
 )
 
 _NARRATIVE_STYLE_RULES = (
@@ -87,6 +91,8 @@ _NARRATIVE_STYLE_RULES = (
     + NO_TECH_JARGON_RULES
     + "\n"
     + NO_SCORES_IN_REPORT_PROSE
+    + "\n"
+    + NO_SEMICOLONS_RULE
 )
 
 # Deprecated alias — narrative modules should use _NARRATIVE_STYLE_RULES / NARRATIVE_VOICE_RULES.

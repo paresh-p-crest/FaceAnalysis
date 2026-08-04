@@ -59,6 +59,7 @@ from .recommendation_rules import (
 from .text_ai_service import (
     NARRATIVE_VOICE_RULES,
     NO_SCORES_IN_REPORT_PROSE,
+    NO_SEMICOLONS_RULE,
     NO_TECH_JARGON_RULES,
     STRICT_NON_SURGICAL_RULES,
     cv_report_summary_for_narrative,
