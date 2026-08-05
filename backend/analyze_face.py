@@ -160,7 +160,7 @@ def run_local_cv_path(
 
     landmarks = front_view["landmarks"]
     image_stats = analyze_image_stats(photo_bytes)
-    metrics = compute_metrics_from_landmarks(landmarks, answers, image_stats)
+    metrics = compute_metrics_from_landmarks(landmarks, answers, image_stats, image_bytes=photo_bytes)
     eye_analysis = analyze_eyes(landmarks, photo_bytes)
     cv_report = build_cv_report(landmarks, photo_bytes, metrics, photos, answers)
     brow_metrics = (cv_report.get("eyebrows") or {}).get("metrics") or {}

@@ -100,3 +100,18 @@ def test_dimorphism_grow_beard_fallback_masculine():
     assert report["overallScore"] >= 40
     for f in report["features"]:
         assert f["score"] >= 40
+
+
+def test_dimorphism_predicted_gender_override():
+    landmarks = _landmarks_squareish()
+    # Answers say feminine, but predicted_gender says masculine -> masculine preference wins
+    report = dimorphism_metrics(landmarks, None, {"genderPreference": "feminine"}, predicted_gender="masculine")
+    assert report["overallScore"] >= 40
+    for f in report["features"]:
+        assert f["score"] >= 40
+
+    # Answers say masculine, but predicted_gender says feminine -> feminine preference wins
+    report_fem = dimorphism_metrics(landmarks, None, {"genderPreference": "masculine"}, predicted_gender="feminine")
+    assert report_fem["overallScore"] <= 59
+    assert "masculine" not in report_fem["overallLabel"].lower()
+

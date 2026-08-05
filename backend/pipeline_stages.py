@@ -7,7 +7,7 @@ import logging
 from typing import Any, Optional
 
 from .dev_config import dev_auto_approve_reports
-from .face_parsing_metrics import compute_parsing_metrics
+from .face_parsing_metrics import compute_facial_thirds_lines, compute_parsing_metrics
 from .media_storage import assessment_key, get_media_storage, public_url_for_key
 from .photo_storage import (
     apply_photo_urls_to_cv_report,
@@ -166,6 +166,8 @@ async def run_parsing_stage(assessment: dict, *, force: bool = False) -> dict:
         h, w = image_rgb.shape[:2]
         crops_data = await asyncio.to_thread(extract_feature_crops, labels, image_rgb)
         metrics = compute_parsing_metrics(landmarks, w, h, labels)
+        if ft := compute_facial_thirds_lines(labels, landmarks, w, h):
+            metrics["facialThirds"] = ft
 
         if landmarks:
             try:
@@ -241,6 +243,35 @@ async def run_parsing_stage(assessment: dict, *, force: bool = False) -> dict:
         fp["lastError"] = None
         fp["updatedAt"] = _utcnow_iso()
         await update_assessment_feature_parsing(assessment_id, fp)
+
+        # Patch existing cvReport so Proportionality and Overall scores use SegFormer
+        if cv_report := analysis.get("cvReport"):
+            from .cv_report import overall_label, overall_score, proportions_from_landmarks
+
+            combined_metrics = dict(analysis.get("metrics") or {})
+            if "facialThirds" in metrics:
+                combined_metrics["facialThirds"] = metrics["facialThirds"]
+            new_prop = proportions_from_landmarks(landmarks, combined_metrics)
+            if new_prop.get("score"):
+                if "proportions" not in cv_report:
+                    cv_report["proportions"] = {}
+                cv_report["proportions"]["score"] = new_prop.get("score")
+                cv_report["proportions"]["scoreLabel"] = new_prop.get("label")
+                cv_report["proportions"]["upperThird"] = new_prop.get("upperThird")
+                cv_report["proportions"]["middleThird"] = new_prop.get("middleThird")
+                cv_report["proportions"]["lowerThird"] = new_prop.get("lowerThird")
+                cv_report["proportions"]["explanation"] = new_prop.get("explanation")
+                cv_report["proportions"]["explanationDe"] = new_prop.get("explanationDe")
+                cv_report["proportions"]["summary"] = (
+                    f"{new_prop['upperThird']}/{new_prop['middleThird']}/{new_prop['lowerThird']} thirds ratio."
+                )
+
+                eye_analysis = analysis.get("eyeAnalysis")
+                ov = overall_score(cv_report, eye_analysis, combined_metrics)
+                cv_report["overall"] = {"score": ov, "scoreLabel": overall_label(ov)}
+
+                analysis["cvReport"] = cv_report
+                await update_assessment_analysis(assessment_id, analysis)
     except Exception as exc:
         logger.exception("Face parsing failed for %s", assessment_id)
         fp["status"] = "failed"

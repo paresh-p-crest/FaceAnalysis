@@ -4,6 +4,7 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
+- [x] MiVOLO v2 Age Estimation Model Swap — Replaced InsightFace `buffalo_l` age model in `backend/age_estimation.py` with `iitolstykh/mivolo_v2` via HuggingFace `transformers` while preserving the exact function signature and `[14, 70]` clamp contract (status: completed)
 - [x] Unmasked Square Ear Photo Crop — Updated `extract_profile_ear_crop` and `_bbox_from_mask` (`face_parsing.py`) to extract 1:1 square crops directly from unmasked profile photos with minimal padding (`pad=8`); updated `EarReportPanel.jsx` (`aspect-square object-cover`); added unit test `test_extract_profile_ear_crop_is_square_unmasked_photo` (status: completed)
 - [x] Auth page: remove lone "Sign in" tab pill left after signup removal (status: completed)
 - [x] Sign-In Only mode: comment out signup end-to-end (backend `/api/auth/register` + `_send_signup_welcome`, `authClient.register()`, AuthForm register tab/name fields/"New here?" toggle) (status: completed)
@@ -184,8 +185,10 @@
 - [x] German protocol narrative translation: post-hoc DE LLM chain, nested `contentDe`/`.de` JSONB, `pickLocalizedNarratives`, locale-aware admin edit + PDF (ADR-042) (status: completed)
 - [x] AI Visuals DE titles/explanations + `/visuals` page/API paths; plan Summary rule in industry-practices §9 (status: completed)
 - [ ] Narrative Norwood staging: surface shape-based Hamilton–Norwood reasoning in hair report text (deferred from ADR-032 scope; CV metric already shape-based per ADR-028) (status: planned)
-- [ ] Run backend compile gates and smoke tests for Milestone 1 (status: planned)
-- [ ] Verify frontend build states for questionnaire and uploads (status: planned)
+- [x] Run backend compile gates and smoke tests for Milestone 1 (status: completed)
+- [x] Verify frontend build states for questionnaire and uploads (status: completed)
+- [x] Integrate MiVOLO v2 joint age and gender estimation, routing predicted visual gender into dimorphism metrics engine (status: completed)
+- [x] Resolve dashboard Overview image placeholder (Projected Image Pending) and disclaimer string update (status: completed)
 - [ ] Optional BiSeNet upgrade for hair mask (future — not env-gated)
 
 ## Blockers & Decisions

@@ -988,3 +988,23 @@ MyFace originally required payment (Stripe/PayPal) before users could run facial
 - Authenticated users experience zero payment friction when submitting photos and creating reports.
 - Simplified frontend navigation and codebase without payment state tracking or Stripe/PayPal checkout integration.
 - Database records for historical payments are preserved in the inert `payments` table.
+
+---
+
+## ADR-049: InsightFace Age Estimation & 5-Year Age Range Presentation
+Date: 2026-08-04  
+Status: accepted  
+
+### Context
+`visualAge` in `backend/opencv_metrics.py` was hardcoded to `28`, which flowed into the report dashboard's `FacialAgePanel`, executive summaries, and AI aging stack. Point predictions for visual age are inherently noisy and carry a Mean Absolute Error (MAE) of ~4.1 years.
+
+### Decision
+1. **InsightFace Model Integration**: Create `backend/age_estimation.py` as a soft-failing, lazy-loaded singleton wrapper around `insightface.app.FaceAnalysis(name="buffalo_l", allowed_modules=["detection", "genderage"])`. If `insightface` is missing or model initialization fails, the function returns `None` without crashing the CV pipeline.
+2. **5-Year Range Bucketing**: Convert predicted visual age to a 5-year range (e.g., $28 \rightarrow (25, 30) \rightarrow \text{"25-30"}$) using integer bucket division `lo = (visual_age // 5) * 5`, `hi = lo + 5`.
+3. **API Contracts & Backward Compatibility**: `metrics["visualAge"]` retains the exact predicted integer (or `28` fallback), while `metrics["visualAgeRange"]` (`[25, 30]`) and `metrics["visualAgeRangeLabel"]` (`"25-30"`) are added to the metrics dictionary.
+4. **Prediction Disclaimer**: Display components (`FacialAgePanel.jsx`, `ExecutiveSummary.jsx`) render the 5-year age range and append an explicit prediction disclaimer (*"AI-estimated, not a clinical measurement."* / *"KI-geschätzt, keine klinische Messung."*).
+
+### Consequences
+- Reports display realistic AI visual age estimates rather than a static placeholder.
+- Presenting a 5-year range covers model MAE (~4.1 years) and prevents over-interpretation of point predictions.
+- Model availability failures fall back cleanly without breaking assessment generation.

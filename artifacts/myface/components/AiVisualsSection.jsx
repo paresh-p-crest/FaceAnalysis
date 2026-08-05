@@ -464,6 +464,12 @@ function agingYears(variant) {
 }
 
 function parseVisualAge(value) {
+  if (typeof value === 'string' && value.includes('-')) {
+    const parts = value.split('-').map(Number)
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      return Math.round((parts[0] + parts[1]) / 2)
+    }
+  }
   const n = Number(value)
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null
 }

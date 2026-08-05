@@ -9,7 +9,27 @@ import cv2
 import numpy as np
 from typing import Optional
 
+from .age_estimation import estimate_visual_age, estimate_visual_age_and_gender
 from .face_crop import lm, dist
+
+
+def visual_age_range(visual_age: Optional[int]) -> Optional[tuple[int, int]]:
+    """Round visual age to nearest 5-year bucket (e.g. 28 -> (25, 30), 23 -> (20, 25)).
+
+    ponytail: InsightFace genderage has a Mean Absolute Error (MAE) of ~4.1 years.
+    A confidence-interval bucket or model calibration is the potential upgrade path.
+    """
+    if visual_age is None:
+        return None
+    lo = (visual_age // 5) * 5
+    return (lo, lo + 5)
+
+
+def visual_age_range_label(visual_age: Optional[int]) -> Optional[str]:
+    r = visual_age_range(visual_age)
+    if not r:
+        return None
+    return f"{r[0]}-{r[1]}"
 
 
 def analyze_image_stats(image_bytes: bytes) -> dict:
@@ -83,16 +103,22 @@ def landmarks_to_overlay(landmarks: list) -> list:
     return [{"id": i, "x": lm_pt["x"], "y": lm_pt["y"], "z": lm_pt["z"]} for i, lm_pt in enumerate(landmarks)]
 
 
-def compute_metrics_from_landmarks(landmarks: list, answers: Optional[dict] = None, image_stats: Optional[dict] = None) -> dict:
+def compute_metrics_from_landmarks(
+    landmarks: list,
+    answers: Optional[dict] = None,
+    image_stats: Optional[dict] = None,
+    image_bytes: Optional[bytes] = None,
+) -> dict:
     """Compute facial metrics from MediaPipe landmarks — exact port of JS version.
 
-    Returns dict with symmetry, proportionality, averageness, jawlineAngle, etc.
+    Returns dict with symmetry, proportionality, averageness, jawlineAngle, visualAgeRange, etc.
     """
     fallback = {
         "symmetry": "85.0", "proportionality": "82.0", "averageness": "78.0",
         "jawlineAngle": "120", "eyebrowTilt": "3.5", "nasalAngle": "95",
         "canthalTilt": "4.8", "upperThird": "0.33", "middleThird": "0.34",
-        "lowerThird": "0.33", "visualAge": 28, "harmonyScore": "84",
+        "lowerThird": "0.33", "visualAge": 28, "visualAgeRange": [25, 30],
+        "visualAgeRangeLabel": "25-30", "harmonyScore": "84",
         "source": "mediapipe",
     }
 
@@ -161,9 +187,12 @@ def compute_metrics_from_landmarks(landmarks: list, answers: Optional[dict] = No
         brightness * 0.07
     ))
 
-    # Visual age estimate from proportions
-    face_ratio = dist(jaw_pts(landmarks)) if False else face_w / (face_h or 0.3)
-    visual_age = 28  # baseline
+    # Visual age & gender estimate from MiVOLO v2 model (with 28 fallback)
+    mivolo_res = estimate_visual_age_and_gender(image_bytes) if image_bytes else None
+    visual_age = mivolo_res["age"] if mivolo_res else 28
+    visual_gender = mivolo_res["gender"] if mivolo_res else None
+    age_r = visual_age_range(visual_age)
+    age_label = visual_age_range_label(visual_age)
 
     return {
         **fallback,
@@ -175,8 +204,11 @@ def compute_metrics_from_landmarks(landmarks: list, answers: Optional[dict] = No
         "canthalTilt": str(canthal_tilt),
         "eyebrowTilt": str(eyebrow_tilt),
         "jawlineAngle": jawline_angle,
-        "harmonyScore": str(harmony),
+        "overallScore": harmony,
         "visualAge": visual_age,
+        "visualAgeRange": list(age_r) if age_r else [25, 30],
+        "visualAgeRangeLabel": age_label or "25-30",
+        "visualGender": visual_gender,
         "source": "mediapipe",
     }
 

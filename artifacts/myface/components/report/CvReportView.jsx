@@ -219,8 +219,8 @@ export function CvReportView({
   }
 
   // Proportions (report-style tabbed ratio view)
-  if (activeId === 'proportions' && cvReport?.proportions?.ratios) {
-    return <ProportionsSection proportions={cvReport.proportions} landmarks={landmarks} photo={photo} photos={photos} />
+  if (activeId === 'proportions' && cvReport?.proportions) {
+    return <ProportionsSection proportions={cvReport.proportions} landmarks={landmarks} photo={photo} photos={photos} featureParsing={featureParsing} />
   }
 
   // Nose

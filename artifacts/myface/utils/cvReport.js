@@ -1294,7 +1294,25 @@ function symmetryExplanation(score, label, regions = []) {
   )
 }
 
-function facialThirdsFromLandmarks(landmarks) {
+function facialThirdsFromLandmarks(landmarks, metrics) {
+  if (metrics?.facialThirds) {
+    const ft = metrics.facialThirds
+    if (ft.hairlineY != null && ft.eyebrowY != null && ft.noseBaseY != null && ft.chinY != null) {
+      const faceH = ft.chinY - ft.hairlineY
+      if (faceH > 0.05) {
+        let upper = (ft.eyebrowY - ft.hairlineY) / faceH
+        let middle = (ft.noseBaseY - ft.eyebrowY) / faceH
+        let lower = (ft.chinY - ft.noseBaseY) / faceH
+        const sum = upper + middle + lower
+        if (sum > 0.01) {
+          upper /= sum
+          middle /= sum
+          lower /= sum
+        }
+        return { upper, middle, lower }
+      }
+    }
+  }
   if (!landmarks?.length) return null
   const forehead = lm(landmarks, 10)
   const chin = lm(landmarks, 152)
@@ -1346,7 +1364,7 @@ function thirdsExplanation(upper, middle, lower) {
 function proportionsFromLandmarks(landmarks, metrics) {
   // Always measure thirds from the same landmarks as the proportion overlay
   // (10 → brow 105/334 → subnasale 2 → chin 152). Ignore legacy mouth-based metrics.
-  const fromLm = facialThirdsFromLandmarks(landmarks)
+  const fromLm = facialThirdsFromLandmarks(landmarks, metrics)
   if (!fromLm) {
     return {
       score: null,

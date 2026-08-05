@@ -263,3 +263,101 @@ def compute_parsing_metrics(
         if raw_key in raw:
             out[feature_id] = raw[raw_key]
     return out
+
+
+def compute_facial_thirds_lines(
+    labels: np.ndarray,
+    landmarks: list[dict],
+    image_width: int,
+    image_height: int,
+) -> Optional[dict[str, float]]:
+    """Compute hairline, eyebrow, nose base, and chin Y lines normalized 0.0-1.0.
+
+    Uses column-scan hair boundary detection (Savitzky-Golay smoothed) and label centroids.
+    Returns None if hair + eye labels are missing (< 2% pixels).
+    """
+    if labels is None or getattr(labels, "size", 0) == 0 or image_height <= 0 or image_width <= 0:
+        return None
+
+    hair_mask = (labels == 13)
+    eye_mask = (labels == 4) | (labels == 5)
+    total_pixels = labels.size
+    hair_ratio = np.count_nonzero(hair_mask) / total_pixels
+    eye_ratio = np.count_nonzero(eye_mask) / total_pixels
+
+    if hair_ratio < 0.005 and eye_ratio < 0.001:
+        return None
+
+    import scipy.signal
+
+    eye_ys = []
+    if landmarks:
+        lm_map = _lm_dict(landmarks)
+        if 33 in lm_map and 263 in lm_map:
+            eye_ys.extend([lm_map[33][1], lm_map[263][1]])
+    if not eye_ys:
+        eye_y_indices, _ = np.where(eye_mask)
+        if len(eye_y_indices) > 0:
+            eye_ys.append(float(np.mean(eye_y_indices) / image_height))
+
+    eye_level_y = float(np.mean(eye_ys)) if eye_ys else 0.4
+    eye_level_px = int(eye_level_y * image_height)
+
+    hairline_ys_px = []
+    for x in range(image_width):
+        column = hair_mask[:eye_level_px, x]
+        hair_pixels = np.where(column)[0]
+        if len(hair_pixels) > 0:
+            hairline_ys_px.append(float(hair_pixels.max()))
+
+    if hairline_ys_px:
+        window = min(len(hairline_ys_px) if len(hairline_ys_px) % 2 == 1 else len(hairline_ys_px) - 1, 31)
+        if window >= 5:
+            smoothed = scipy.signal.savgol_filter(hairline_ys_px, window_length=window, polyorder=2)
+            hairline_y = float(np.median(smoothed) / image_height)
+        else:
+            hairline_y = float(np.median(hairline_ys_px) / image_height)
+    else:
+        if landmarks:
+            lm_map = _lm_dict(landmarks)
+            hairline_y = float(lm_map[10][1]) if 10 in lm_map else 0.15
+        else:
+            hairline_y = 0.15
+
+    brow_mask = (labels == 6) | (labels == 7)
+    brow_y_indices, _ = np.where(brow_mask)
+    if len(brow_y_indices) > 0:
+        eyebrow_y = float(np.mean(brow_y_indices) / image_height)
+    elif landmarks:
+        lm_map = _lm_dict(landmarks)
+        eyebrow_y = float((lm_map[105][1] + lm_map[334][1]) / 2.0)
+    else:
+        eyebrow_y = 0.35
+
+    nose_mask = (labels == 2)
+    nose_y_indices, _ = np.where(nose_mask)
+    if len(nose_y_indices) > 0:
+        nose_base_y = float(nose_y_indices.max() / image_height)
+    elif landmarks:
+        lm_map = _lm_dict(landmarks)
+        nose_base_y = float(lm_map[2][1])
+    else:
+        nose_base_y = 0.60
+
+    skin_mask = (labels == 1) | (labels == 12)
+    skin_y_indices, _ = np.where(skin_mask)
+    if len(skin_y_indices) > 0:
+        chin_y = float(skin_y_indices.max() / image_height)
+    elif landmarks:
+        lm_map = _lm_dict(landmarks)
+        chin_y = float(lm_map[152][1])
+    else:
+        chin_y = 0.85
+
+    return {
+        "hairlineY": round(hairline_y, 4),
+        "eyebrowY": round(eyebrow_y, 4),
+        "noseBaseY": round(nose_base_y, 4),
+        "chinY": round(chin_y, 4),
+    }
+

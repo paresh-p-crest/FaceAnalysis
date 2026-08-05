@@ -125,7 +125,6 @@ export function computeMetricsFromLandmarks(landmarks, answers, imageStats = {})
     upperThird,
     middleThird,
     lowerThird,
-    visualAge: 24 + Math.round((1 - sharpness / 100) * 12),
     harmonyScore: String(harmonyScore),
     source: 'mediapipe+opencv',
     landmarkCount: landmarks.length,

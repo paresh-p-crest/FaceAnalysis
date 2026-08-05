@@ -860,6 +860,7 @@ def dimorphism_metrics(
     landmarks: list,
     metrics: Optional[dict] = None,
     answers: Optional[dict] = None,
+    predicted_gender: Optional[str] = None,
 ) -> dict:
     jaw_l = lm(landmarks, 234)
     jaw_r = lm(landmarks, 454)
@@ -988,7 +989,10 @@ def dimorphism_metrics(
     overall_raw = round(weighted_sum / weight_total)
 
     from .visual_style_banks import resolve_style_preference
-    preference = resolve_style_preference(answers)
+    if predicted_gender in ("masculine", "feminine"):
+        preference = predicted_gender
+    else:
+        preference = resolve_style_preference(answers)
 
     def display_for(raw: int) -> tuple[int, str, bool]:
         """Clamp display score/label to Moderate or preferred side."""
@@ -2406,7 +2410,9 @@ def build_cv_report(landmarks: list, image_bytes: bytes, metrics: Optional[dict]
             "photoSource": "front",
         },
         "skin": skin,
-        "dimorphism": dimorphism_metrics(landmarks, metrics, answers),
+        "dimorphism": dimorphism_metrics(
+            landmarks, metrics, answers, predicted_gender=metrics.get("visualGender") if metrics else None
+        ),
         "averageness": averageness_metrics(landmarks, metrics, answers),
     }
 

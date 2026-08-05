@@ -130,6 +130,7 @@ export function ExecutiveSummary({
   canDownloadPdf = true,
 }) {
   const t = useTranslations('Report')
+  const tPdf = useTranslations('Pdf')
   const locale = useLocale()
   const localized = useMemo(
     () => pickLocalizedNarratives({ aiNarrative, protocolNarrative }, locale, { t }),
@@ -335,24 +336,10 @@ export function ExecutiveSummary({
             <div className="relative rounded-xl overflow-hidden aspect-[3/4] bg-surface-warm border border-surface-border">
               {afterSrc ? (
                 <img src={afterSrc} alt={t('executiveSummary.projectedAlt')} className="w-full h-full object-cover" />
-              ) : photo ? (
-                <PhotoLandmarkFrame
-                  src={photo}
-                  alt={t('executiveSummary.landmarksAlt')}
-                  fit="cover"
-                  className="opacity-90 h-full"
-                  overlay={
-                    landmarks?.length > 0 ? (
-                      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                        {landmarks.map((pt) => (
-                          <circle key={pt.id} cx={pt.x * 100} cy={pt.y * 100} r="0.28" fill="#5e9f8b" className="opacity-85" />
-                        ))}
-                      </svg>
-                    ) : null
-                  }
-                />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-ink-muted text-xs">{t('executiveSummary.potentialScan')}</div>
+                <div className="w-full h-full flex items-center justify-center text-ink-muted text-[11px] font-medium text-center p-4">
+                  {tPdf('projectedImagePending')}
+                </div>
               )}
               <span className="absolute bottom-2 left-2 rounded-full bg-brand px-2 py-0.5 text-[8px] font-bold uppercase text-white">
                 {t('executiveSummary.potential')}
@@ -364,7 +351,10 @@ export function ExecutiveSummary({
             <p className="text-[9px] font-bold uppercase tracking-wider text-ink-muted mb-2">
               {t('executiveSummary.facialAge')}
             </p>
-            <FacialAgePanel faceAge={dash.faceAge} t={t} />
+            <FacialAgePanel faceAge={dash.faceAge} ageRange={dash.visualAgeRangeLabel} t={t} />
+            <p className="text-[9px] text-ink-muted mt-2">
+              {t('executiveSummary.facialAgeDisclaimer')}
+            </p>
           </div>
 
           <div className="grid grid-rows-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)] gap-4 flex-1 min-h-[360px]">

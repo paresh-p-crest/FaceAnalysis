@@ -48,3 +48,9 @@ torch==2.13.0+cpu
 torchvision==0.28.0+cpu
 transformers>=4.40.0
 accelerate>=0.30.0
+
+setuptools>=70.0.0
+# --- MiVOLO v2 Age Estimation ---
+# Auto-downloads iitolstykh/mivolo_v2 model via HuggingFace transformers on first run
+# Vendored wheel avoids build-isolation & setup.py compilation issues on Replit deployments
+./backend/wheels/mivolo-0.6.0.dev0-py3-none-any.whl

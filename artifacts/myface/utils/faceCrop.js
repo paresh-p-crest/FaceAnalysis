@@ -136,7 +136,20 @@ export function proportionLinesInCrop(landmarks, box) {
 }
 
 /** Facial third guides in full-image % space (matches front photo after URL binding). */
-export function proportionLinesInImage(landmarks) {
+export function proportionLinesInImage(landmarks, parsingLines) {
+  if (
+    parsingLines?.hairlineY != null &&
+    parsingLines?.eyebrowY != null &&
+    parsingLines?.noseBaseY != null &&
+    parsingLines?.chinY != null
+  ) {
+    return {
+      hair: parsingLines.hairlineY * 100,
+      brow: parsingLines.eyebrowY * 100,
+      nose: parsingLines.noseBaseY * 100,
+      chin: parsingLines.chinY * 100,
+    }
+  }
   const browY = (lm(landmarks, 105).y + lm(landmarks, 334).y) / 2
   return {
     hair: lm(landmarks, 10).y * 100,

@@ -164,11 +164,13 @@ export function ProportionsSection({
   landmarks = null,
   photo = null,
   photos = null,
+  featureParsing = null,
 }) {
   const t = useTranslations('Report')
   const locale = useLocale()
   const cvLabel = useCvLabel()
-  const [activeTab, setActiveTab] = useState('nasoAural')
+  const ratioTabs = RATIO_TABS.filter((tab) => proportions?.ratios?.[tab.id])
+  const [activeTab, setActiveTab] = useState(ratioTabs[0]?.id || 'nasoAural')
 
   const frontSrc = photos?.front || photo || null
   const [faceCropSrc, setFaceCropSrc] = useState(null)
@@ -205,14 +207,16 @@ export function ProportionsSection({
     }
   }, [landmarks, proportions?.faceBox])
 
+  const parsingLines = featureParsing?.metrics?.facialThirds || null
+
   const liveThirdLines = useMemo(() => {
-    if (!landmarks?.length) return null
+    if (!landmarks?.length && !parsingLines) return null
     try {
-      return proportionLinesInImage(landmarks)
+      return proportionLinesInImage(landmarks, parsingLines)
     } catch {
       return null
     }
-  }, [landmarks])
+  }, [landmarks, parsingLines])
 
   const liveNasoOral = useMemo(() => {
     if (!landmarks?.length) return null
@@ -229,9 +233,9 @@ export function ProportionsSection({
     }
   }, [landmarks, t])
 
-  if (!proportions?.ratios) return null
+  if (!proportions) return null
 
-  const ratios = proportions.ratios
+  const ratios = proportions?.ratios || {}
   const active = ratios[activeTab]
   const useProfileEar =
     activeTab === 'nasoAural' && (
@@ -330,35 +334,39 @@ export function ProportionsSection({
         />
       )}
 
-      <ReportSectionHeading
-        title={t('proportions.perFeatureTitle')}
-        accent={t('proportions.perFeatureAccent')}
-        subtitle={t('proportions.perFeatureSubtitle')}
-      />
+      {ratioTabs.length > 0 && (
+        <>
+          <ReportSectionHeading
+            title={t('proportions.perFeatureTitle')}
+            accent={t('proportions.perFeatureAccent')}
+            subtitle={t('proportions.perFeatureSubtitle')}
+          />
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {RATIO_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`rounded-xl border p-4 text-left transition-all ${
-              activeTab === tab.id
-                ? 'border-brand bg-brand-50 dark:bg-brand/10 shadow-sm'
-                : 'border-surface-border bg-white dark:bg-surface-card hover:border-brand/30'
-            }`}
-          >
-            <p className="report-view-mono-label mb-2 font-medium leading-tight">
-              {t(`proportions.ratioTabs.${tab.id}.ratioLabel`)}
-            </p>
-            <p className={`text-base font-display font-semibold ${
-              activeTab === tab.id ? 'text-brand' : 'text-ink'
-            }`}>
-              {t(`proportions.ratioTabs.${tab.id}.label`)}
-            </p>
-          </button>
-        ))}
-      </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {ratioTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`rounded-xl border p-4 text-left transition-all ${
+                  activeTab === tab.id
+                    ? 'border-brand bg-brand-50 dark:bg-brand/10 shadow-sm'
+                    : 'border-surface-border bg-white dark:bg-surface-card hover:border-brand/30'
+                }`}
+              >
+                <p className="report-view-mono-label mb-2 font-medium leading-tight">
+                  {t(`proportions.ratioTabs.${tab.id}.ratioLabel`)}
+                </p>
+                <p className={`text-base font-display font-semibold ${
+                  activeTab === tab.id ? 'text-brand' : 'text-ink'
+                }`}>
+                  {t(`proportions.ratioTabs.${tab.id}.label`)}
+                </p>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {active && (
         <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-6">
