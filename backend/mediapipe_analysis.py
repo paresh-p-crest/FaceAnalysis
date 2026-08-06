@@ -53,6 +53,8 @@ def analyze_with_mediapipe(image_bytes: bytes) -> dict:
         ValueError: If no face detected.
     """
     # Decode image from bytes
+    if not image_bytes:
+        raise ValueError("Could not decode image")
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img is None:

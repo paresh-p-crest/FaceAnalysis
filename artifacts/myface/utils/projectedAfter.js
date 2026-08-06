@@ -1,8 +1,10 @@
 /** Resolve persisted full-face projected AFTER URL from assessment payload. */
 
+import { mediaUrl } from './apiClient'
+
 export function resolveProjectedAfterUrl(projectedAfter) {
   if (!projectedAfter || projectedAfter.status !== 'ready') return null
-  return projectedAfter.full?.publicUrl || null
+  return mediaUrl(projectedAfter.full?.publicUrl || null)
 }
 
 /**

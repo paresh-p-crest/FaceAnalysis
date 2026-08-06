@@ -21,6 +21,7 @@ import { getCheekAnalysisBox } from './cheekGuides'
 const PREVIEW_BG = { r: 232, g: 238, b: 244 }
 import { projectionStrengths } from './anthropometrics'
 import { warpHorizontal, pathFromIndices, strokePath, healRegion, addNoiseOverlay } from './projectionCanvas'
+import { mediaUrl } from './apiClient'
 
 const NOSE_INDICES = [1, 2, 98, 327, 48, 278, 44, 274, 6, 197, 195, 5, 4]
 const MOUTH = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146]
@@ -988,7 +989,7 @@ export async function normalizeToJpegDataUrl(src) {
   if (typeof url !== 'string' || !url.trim()) {
     throw new Error('Invalid image source for PDF')
   }
-  const img = await loadImage(url)
+  const img = await loadImage(mediaUrl(url))
   const canvas = document.createElement('canvas')
   canvas.width = img.width
   canvas.height = img.height

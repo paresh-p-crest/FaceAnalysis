@@ -6,14 +6,11 @@ import {
   LEFT_BROW,
   bboxFromIndices,
   mergeBboxes,
-  bboxEyesRegion,
   bboxBrowsRegion,
 } from './faceCrop'
 
 const LEFT_LOWER_LID = [33, 133, 157, 158, 159, 160, 173]
 const RIGHT_LOWER_LID = [362, 263, 385, 386, 387, 388, 390]
-const LEFT_UNDER = [111, 117, 118, 119, 120, 121]
-const RIGHT_UNDER = [340, 346, 347, 348, 349, 350]
 
 function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y)
@@ -88,18 +85,6 @@ function classifyExposure(ratio) {
   return 'Low'
 }
 
-function classifySclera(whiteness) {
-  if (whiteness > 175) return 'Natural White'
-  if (whiteness > 145) return 'Slightly dull'
-  return 'Yellow-tinged'
-}
-
-function classifyUnderEye(brightness) {
-  if (brightness > 140) return 'Good'
-  if (brightness > 110) return 'Moderate'
-  return 'Shadowed'
-}
-
 function lowerLidBending(landmarks, indices) {
   const pts = indices.map((i) => lm(landmarks, i))
   const inner = pts[0]
@@ -118,14 +103,6 @@ function curvatureLabel(k) {
   if (k >= 0.84) return 'Within the common curvature range'
   if (k >= 0.76) return 'Slightly flatter than the common curvature range'
   return 'Noticeably flatter than typical'
-}
-
-function buildExplanation(metrics) {
-  return [
-    `Your eyes show ${metrics.eyeTilt.toLowerCase()} canthal tilt with ${metrics.eyelidExposure.toLowerCase()} eyelid exposure.`,
-    `Sclera reads as ${metrics.scleraColor.toLowerCase()} with ${metrics.underEyeHealth.toLowerCase()} under-eye appearance.`,
-    `Lower eyelid curvature (${metrics.lowerLidCurvature}) is ${metrics.curvatureDescription.toLowerCase()} — typical bending range is 0.76–0.92.`,
-  ].join(' ')
 }
 
 export function computeEyeMetricsFromLandmarks(landmarks) {
@@ -167,32 +144,6 @@ export function computeEyeMetricsFromLandmarks(landmarks) {
     scleraColor: 'Natural White',
     underEyeHealth: 'Moderate',
   }
-}
-
-export async function analyzeEyes(landmarks, imageSrc) {
-  const eyesBox = bboxEyesRegion(landmarks)
-  const leftBox = bboxFromIndices(landmarks, LEFT_EYE, 0.03)
-  const rightBox = bboxFromIndices(landmarks, RIGHT_EYE, 0.03)
-
-  const leftUnderBox = bboxFromIndices(landmarks, LEFT_UNDER, 0.015)
-  const rightUnderBox = bboxFromIndices(landmarks, RIGHT_UNDER, 0.015)
-  leftUnderBox.h *= 1.3
-  rightUnderBox.h *= 1.3
-
-  const [eyesCrop, leftSclera, rightSclera, leftUnder, rightUnder] = await Promise.all([
-    cropNormalized(imageSrc, eyesBox),
-    sampleRegionStats(imageSrc, leftBox),
-    sampleRegionStats(imageSrc, rightBox),
-    sampleRegionStats(imageSrc, leftUnderBox),
-    sampleRegionStats(imageSrc, rightUnderBox),
-  ])
-
-  const metrics = computeEyeMetricsFromLandmarks(landmarks)
-  metrics.scleraColor = classifySclera((leftSclera.whiteness + rightSclera.whiteness) / 2)
-  metrics.underEyeHealth = classifyUnderEye((leftUnder.brightness + rightUnder.brightness) / 2)
-  metrics.explanation = buildExplanation(metrics)
-
-  return { eyesCrop, eyesBox, metrics }
 }
 
 export async function analyzeBrowsCrop(landmarks, imageSrc) {

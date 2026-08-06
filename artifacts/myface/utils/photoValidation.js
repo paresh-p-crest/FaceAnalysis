@@ -14,6 +14,15 @@
  * 10. Face occupies sufficient area
  * 11. Image resolution adequate
  *
+ * Per-pose strictness model:
+ *  • front           — all 11 checks enforced (error on any failure)
+ *  • left45/right45  — all meaningful checks enforced (face must be detectable; wrong pose → fail)
+ *  • smile           — same as 45° but neutral expression is skipped (open mouth expected)
+ *  • leftProfile/rightProfile — canvas quality always enforced; MediaPipe face detection is
+ *                               lenient (reliably fails at 90°); correctPose + faceSize still
+ *                               flagged when landmarks are available
+ *  • topHead         — same leniency as full profiles
+ *
  * Returns { overall: 'pass'|'warn'|'fail', checks: Array<{name, pass, message, severity}> }
  */
 
@@ -28,17 +37,27 @@ async function getLandmarker() {
   const vision = await FilesetResolver.forVisionTasks(
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
   )
-  landmarker = await FaceLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath:
-        'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-      delegate: 'GPU',
-    },
-    runningMode: 'IMAGE',
-    numFaces: 1,
-    outputFaceBlendshapes: false,
-    outputFacialTransformationMatrixes: false,
-  })
+  const createLandmarker = (delegate) =>
+    FaceLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        delegate,
+      },
+      runningMode: 'IMAGE',
+      numFaces: 1,
+      outputFaceBlendshapes: false,
+      outputFacialTransformationMatrixes: true,
+    })
+
+  // GPU is primary; MediaPipe Tasks throws at createFromOptions when WebGL is
+  // unavailable (no built-in retry), so fall back to CPU and log it.
+  try {
+    landmarker = await createLandmarker('GPU')
+  } catch (err) {
+    console.warn('[MediaPipe] GPU delegate unavailable, falling back to CPU:', err)
+    landmarker = await createLandmarker('CPU')
+  }
   return landmarker
 }
 
@@ -54,10 +73,12 @@ function loadImage(src) {
   })
 }
 
-function imageToCanvas(img, maxW = 640) {
-  const scale = Math.min(1, maxW / img.width)
-  const w = Math.round(img.width * scale)
-  const h = Math.round(img.height * scale)
+function imageToCanvas(img) {
+  // ponytail: no downscale cap, so canvas checks (brightness/blur/glasses) run on the
+  // exact pixels the backend validates at submit (FE uploads the original file bytes).
+  // If a future feature validates live video frames, reintroduce a maxW cap there instead.
+  const w = img.width
+  const h = img.height
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
@@ -68,6 +89,37 @@ function imageToCanvas(img, maxW = 640) {
 
 function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+/**
+ * Extract Euler angles (degrees) from a MediaPipe 4×4 column-major transformation matrix.
+ *
+ * Layout (column-major → flat index):
+ *   [0]  [4]  [8]  [12]   →   r00  r01  r02  tx
+ *   [1]  [5]  [9]  [13]   →   r10  r11  r12  ty
+ *   [2]  [6]  [10] [14]   →   r20  r21  r22  tz
+ *   [3]  [7]  [11] [15]   →   0    0    0    1
+ *
+ * Convention: ZYX Euler (yaw around Y, pitch around X, roll around Z).
+ * MediaPipe coord system: +X right, +Y up, +Z toward camera.
+ *
+ * @param {number[]} m  16-element flat array from result.facialTransformationMatrixes[0].data
+ * @returns {{ yaw: number, pitch: number, roll: number }}  All values in degrees.
+ */
+function matrixToEulerAngles(m) {
+  // Rotation sub-matrix elements (column-major indexing)
+  const r10 = m[1], r11 = m[5], r12 = m[9]
+  const r00 = m[0],            r02 = m[8]
+                                 const r22 = m[10]
+
+  // Yaw (Y-axis rotation → left/right head turn)
+  const yaw   = Math.atan2(r02, r22) * (180 / Math.PI)
+  // Pitch (X-axis rotation → up/down tilt; used for topHead detection)
+  const pitch = Math.asin(Math.max(-1, Math.min(1, -r12))) * (180 / Math.PI)
+  // Roll (Z-axis rotation → head tilt sideways)
+  const roll  = Math.atan2(r10, r11) * (180 / Math.PI)
+
+  return { yaw, pitch, roll }
 }
 
 /* ──────────────────────────────────────────────
@@ -88,20 +140,126 @@ function checkFaceCount(result) {
   return { name: 'faceDetected', pass: true, messageKey: 'Photo.validation.faceDetected.ok', severity: 'ok' }
 }
 
+/** Pose label i18n keys (shared between primary and fallback paths) */
+const POSE_LABEL_KEYS = {
+  front:        'Photo.validation.expectedPose.front',
+  smile:        'Photo.validation.expectedPose.smile',
+  left45:       'Photo.validation.expectedPose.left45',
+  right45:      'Photo.validation.expectedPose.right45',
+  leftProfile:  'Photo.validation.expectedPose.leftProfile',
+  rightProfile: 'Photo.validation.expectedPose.rightProfile',
+  topHead:      'Photo.validation.expectedPose.topHead',
+}
+
 /**
  * Check 2: Correct pose for the selected angle.
  *
  * Uses the nose-tip position relative to the face bounding box to estimate yaw.
  * Nose landmark 1, face edges landmarks 234 (person's right) and 454 (person's left).
+ * HYBRID STRATEGY (confirmed by photo_pose_validation.ipynb):
+ *
+ * • front / smile / left45 / right45 / topHead
+ *     → PRIMARY: yaw/pitch from facialTransformationMatrixes (3D, physically meaningful,
+ *       camera/lens-independent). Falls back to noseRatio if the matrix is absent.
  *
  * noseRatio = (nose.x - leftEdge.x) / (rightEdge.x - leftEdge.x)
  *   0.0 → extreme right turn (person's right), 1.0 → extreme left turn (person's left)
  *   0.5 → frontal
+ * • leftProfile / rightProfile (90° side views)
+ *     → ALWAYS noseRatio (2D heuristic). At ≥ 90° MediaPipe frequently returns no
+ *       transformation matrix because it can't fit a full 3D face model to a side profile.
+ *       The noseRatio formula was already reliably accurate for these two poses.
+ *
+ * Degree thresholds (3D path) — calibrate against real uploads before locking:
+ *   front / smile : |yaw| ≤ 15°
+ *   right45       : yaw ∈ [+15°, +60°]  (positive yaw = subject's right side toward camera)
+ *   left45        : yaw ∈ [−60°, −15°]
+ *   topHead       : pitch ≤ −25°  (head pitched forward, camera looks at crown)
+ *
+ * noseRatio bands (2D path, profiles only):
+ *   rightProfile  : noseRatio > 0.75
+ *   leftProfile   : noseRatio < 0.25
+ *
+ * NOTE: left/right refer to the subject's own left/right (as if you were facing them),
+ * not the camera's left/right — confirmed against real capture data on 2026-08-04;
+ * the original positive-yaw-is-left assumption was backwards.
+ *
+ * @param {object[]} landmarks   MediaPipe face landmarks array
+ * @param {object|null} matrix   result.facialTransformationMatrixes[0] (or null)
+ * @param {string} expectedPose  One of the pose IDs above
  */
-function checkPose(landmarks, expectedPose) {
-  const nose = landmarks[1]
-  const leftEdge = landmarks[234]   // person's right cheek
-  const rightEdge = landmarks[454]  // person's left cheek
+function checkPose(landmarks, matrix, expectedPose) {
+  const severity = expectedPose === 'topHead' ? 'warning' : 'error'
+
+  // ── Full-profile poses: always use noseRatio (3D matrix unreliable at 90°) ──
+  // Skip the matrix path entirely for these two and fall through to the noseRatio block.
+  const isFullProfile = expectedPose === 'leftProfile' || expectedPose === 'rightProfile'
+
+  // ── Primary path: 3D transformation matrix (non-profile poses only) ──────
+  const matrixData = matrix?.data
+  const hasMatrix  = !isFullProfile && Array.isArray(matrixData) && matrixData.length === 16
+
+  if (hasMatrix) {
+    const { yaw, pitch } = matrixToEulerAngles(matrixData)
+
+    const detectedClass = (() => {
+      if (yaw >= 60)  return 'rightProfile'
+      if (yaw <= -60) return 'leftProfile'
+      if (yaw >= 15)  return 'right45'
+      if (yaw <= -15) return 'left45'
+      return 'front'
+    })()
+
+    // Calibration helper — uncomment to log real yaw/pitch against reference photos:
+    // console.log(`[Pose Validation 3D] Detected: ${detectedClass} (yaw: ${yaw.toFixed(1)}°, pitch: ${pitch.toFixed(1)}°) | Expected: ${expectedPose}`)
+
+    const inBand = (() => {
+      switch (expectedPose) {
+        case 'front':
+        case 'smile':    return Math.abs(yaw) <= 15
+        case 'right45':  return yaw >= 15  && yaw <= 60   // notebook: > 15° yaw = subject's right side to camera
+        case 'left45':   return yaw >= -60 && yaw <= -15  // notebook: < -15° yaw = subject's left side to camera
+        case 'topHead':  return pitch <= -25              // notebook threshold
+        default:         return Math.abs(yaw) <= 15
+      }
+    })()
+
+    if (!inBand) {
+      const detectedKey = (() => {
+        if (expectedPose === 'topHead') return 'Photo.validation.detectedPose.frontFacing'
+        if (detectedClass === 'leftProfile') return 'Photo.validation.detectedPose.leftProfile'
+        if (detectedClass === 'rightProfile') return 'Photo.validation.detectedPose.rightProfile'
+        if (detectedClass === 'left45') return 'Photo.validation.detectedPose.left45'
+        if (detectedClass === 'right45') return 'Photo.validation.detectedPose.right45'
+        return 'Photo.validation.detectedPose.frontFacing'
+      })()
+
+      return {
+        name: 'correctPose',
+        pass: false,
+        messageKey: 'Photo.validation.correctPose.wrong',
+        messageValues: { detected: detectedKey, expected: POSE_LABEL_KEYS[expectedPose] ?? POSE_LABEL_KEYS.front },
+        severity,
+      }
+    }
+
+    return {
+      name: 'correctPose',
+      pass: true,
+      messageKey: 'Photo.validation.correctPose.ok',
+      messageValues: { pose: POSE_LABEL_KEYS[expectedPose] },
+      severity: 'ok',
+    }
+  }
+
+  // ── 2D noseRatio path: profiles (always) + fallback for non-profiles ──────
+  // leftProfile / rightProfile always land here (3D matrix unreliable at 90°).
+  // front / smile / 45° / topHead reach here only if the matrix was absent.
+  // noseRatio = (nose.x − leftEdge.x) / faceWidth
+  //   0.0 → extreme left turn (subject's left side to camera), 0.5 → frontal, 1.0 → extreme right turn
+  const nose      = landmarks[1]
+  const leftEdge  = landmarks[234]
+  const rightEdge = landmarks[454]
   const faceWidth = dist(leftEdge, rightEdge)
 
   if (faceWidth < 0.01) {
@@ -112,27 +270,35 @@ function checkPose(landmarks, expectedPose) {
 
   // Define acceptable ranges per pose
   // noseRatio: 0 = nose far left of image, 0.5 = center, 1 = nose far right of image
+  const detectedClass2D = noseRatio > 0.75 ? 'rightProfile'
+    : noseRatio < 0.25 ? 'leftProfile'
+    : noseRatio > 0.58 ? 'right45'
+    : noseRatio < 0.42 ? 'left45'
+    : 'front'
+
+  // Calibration helper — uncomment to log real noseRatio against reference photos:
+  // console.log(`[Pose Validation 2D] Detected: ${detectedClass2D} (noseRatio: ${noseRatio.toFixed(3)}) | Expected: ${expectedPose}`)
+
+  // Bands are non-overlapping. NOTE: sensitivity varies with camera/lens so boundaries
+  // are best confirmed against real captures rather than guessed.
   const poseRanges = {
-    front:        { min: 0.35, max: 0.65, labelKey: 'Photo.validation.expectedPose.front' },
-    leftProfile:  { min: 0.45, max: 1.0,  labelKey: 'Photo.validation.expectedPose.leftProfile' },
-    rightProfile: { min: 0.0,  max: 0.55, labelKey: 'Photo.validation.expectedPose.rightProfile' },
-    left45:       { min: 0.35, max: 0.85, labelKey: 'Photo.validation.expectedPose.left45' },
-    right45:      { min: 0.15, max: 0.65, labelKey: 'Photo.validation.expectedPose.right45' },
-    smile:        { min: 0.30, max: 0.70, labelKey: 'Photo.validation.expectedPose.smile' },
-    topHead:      { min: 0.20, max: 0.80, labelKey: 'Photo.validation.expectedPose.topHead' },
+    front:        { min: 0.42, max: 0.58, labelKey: POSE_LABEL_KEYS.front },
+    right45:      { min: 0.58, max: 0.75, labelKey: POSE_LABEL_KEYS.right45 },
+    left45:       { min: 0.25, max: 0.42, labelKey: POSE_LABEL_KEYS.left45 },
+    rightProfile: { min: 0.75, max: 1.0,  labelKey: POSE_LABEL_KEYS.rightProfile },
+    leftProfile:  { min: 0.0,  max: 0.25, labelKey: POSE_LABEL_KEYS.leftProfile },
+    smile:        { min: 0.42, max: 0.58, labelKey: POSE_LABEL_KEYS.smile },
+    topHead:      { min: 0.20, max: 0.80, labelKey: POSE_LABEL_KEYS.topHead },
   }
 
-  const range = poseRanges[expectedPose] || poseRanges.front
+  const range   = poseRanges[expectedPose] || poseRanges.front
   const inRange = noseRatio >= range.min && noseRatio <= range.max
 
-  // Non-front poses use 'warning' instead of 'error' since they're optional
-  const severity = expectedPose === 'front' ? 'error' : 'warning'
-
   if (!inRange) {
-    const detectedKey = noseRatio > 0.62
-      ? 'Photo.validation.detectedPose.leftProfile'
-      : noseRatio < 0.38
-        ? 'Photo.validation.detectedPose.rightProfile'
+    const detectedKey = noseRatio > 0.58
+      ? 'Photo.validation.detectedPose.rightProfile'
+      : noseRatio < 0.42
+        ? 'Photo.validation.detectedPose.leftProfile'
         : 'Photo.validation.detectedPose.frontFacing'
     return {
       name: 'correctPose',
@@ -142,6 +308,7 @@ function checkPose(landmarks, expectedPose) {
       severity,
     }
   }
+
   return { name: 'correctPose', pass: true, messageKey: 'Photo.validation.correctPose.ok', messageValues: { pose: range.labelKey }, severity: 'ok' }
 }
 
@@ -621,65 +788,75 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
   const img = await loadImage(dataUrl)
   const { ctx, w, h } = imageToCanvas(img)
 
-  const isFront = poseId === 'front'
-  const isSmile = poseId === 'smile'
-  const isNonFront = !isFront // profile, 45°, smile, topHead
+  const isFront    = poseId === 'front'
+  const isSmile    = poseId === 'smile'
+  const isTopHead  = poseId === 'topHead'
+  // Full 90° profiles — MediaPipe genuinely struggles to detect faces at this angle
+  const isProfile  = poseId === 'leftProfile' || poseId === 'rightProfile'
+  // 45° angles — MediaPipe reliably detects faces; treat more like front
+  const isAngle45  = poseId === 'left45' || poseId === 'right45'
+  const isNonFront = !isFront
 
   // ── Canvas-only checks (always run) ──
-  const brightness = checkBrightness(ctx, w, h)
-  const blur = checkBlur(ctx, w, h)
-
-  const canvasChecks = [brightness, blur]
+  const brightness  = checkBrightness(ctx, w, h)
+  const blur        = checkBlur(ctx, w, h)
+  const dimensions  = checkDimensions(img)
+  const canvasChecks = [brightness, blur, dimensions]
 
   // ── MediaPipe checks ──
   let mpChecks = []
   try {
-    const detector = await getLandmarker()
-    const result = detector.detect(img)
-
+    const detector  = await getLandmarker()
+    const result    = detector.detect(img)
     const faceCount = result.faceLandmarks?.length || 0
 
     if (faceCount === 0) {
-      if (isNonFront) {
-        // MediaPipe often can't detect faces in profile/angle shots — pass with info
+      if (isProfile || isTopHead) {
+        // Full profile / top-of-head: MediaPipe reliably misses at 90°+ — treat as inconclusive,
+        // not a failure, so legitimate profile shots aren't incorrectly blocked.
         mpChecks.push({
           name: 'faceDetected',
           pass: true,
           messageKey: 'Photo.validation.faceDetected.limitedAngle',
           severity: 'info',
         })
-        // Skip all other landmark checks since no landmarks available
+        // No landmarks available — skip landmark checks
       } else {
+        // Front, 45°, smile: face must be detectable at these angles; treat as hard failure
         mpChecks.push(checkFaceCount(result))
       }
     } else {
-      // Face detected — run face count check
+      // Face detected — run face count check for all poses
       mpChecks.push(checkFaceCount(result))
 
       if (faceCount === 1) {
         const lm = result.faceLandmarks[0]
 
-        // Pose check (always runs — has different ranges per pose)
-        mpChecks.push(checkPose(lm, poseId))
+        // ── Pose direction (always runs when face detected — per-pose noseRatio ranges) ──
+        const matrix = result.facialTransformationMatrixes?.[0] ?? null
+        mpChecks.push(checkPose(lm, matrix, poseId))
 
-        // Expression check — skip for smile, relax for profile/angle
+        // ── Neutral expression ──
         if (isSmile) {
+          // Smile pose: open/smiling mouth is expected
           mpChecks.push({
             name: 'neutralExpression',
             pass: true,
             messageKey: 'Photo.validation.neutralExpression.smileExpected',
             severity: 'ok',
           })
-        } else if (isNonFront) {
+        } else if (isProfile || isTopHead) {
+          // Full profile / top-of-head: expression landmark reliability is lower — downgrade to info
           const exp = checkExpression(lm)
-          exp.severity = 'info'
-          mpChecks.push(exp)
+          mpChecks.push({ ...exp, severity: 'info' })
         } else {
+          // Front and 45°: enforce neutral expression
           mpChecks.push(checkExpression(lm))
         }
 
-        // Eyes open check — relax for profile angles (one eye may be hidden)
-        if (isNonFront) {
+        // ── Eyes open ──
+        if (isProfile || isTopHead) {
+          // One eye is hidden in full profiles — skip
           mpChecks.push({
             name: 'eyesOpen',
             pass: true,
@@ -687,11 +864,13 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
             severity: 'info',
           })
         } else {
+          // Front, 45°, smile: both eyes visible — enforce
           mpChecks.push(checkEyesOpen(lm))
         }
 
-        // Hair check — skip for topHead / non-front poses where hair at back/side is expected
+        // ── Hair covering ──
         if (isNonFront) {
+          // Hair at back/side is expected in non-front poses — skip
           mpChecks.push({
             name: 'hairClear',
             pass: true,
@@ -702,8 +881,9 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
           mpChecks.push(checkHairCovering(lm))
         }
 
-        // Face centered — relax for profile/angle poses (face is naturally offset)
+        // ── Face centered ──
         if (isNonFront) {
+          // Face is naturally offset in profile/angle/top shots — skip centering check
           mpChecks.push({
             name: 'faceCentered',
             pass: true,
@@ -714,10 +894,12 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
           mpChecks.push(checkFaceCentered(lm))
         }
 
+        // ── Face size (enforced for ALL poses) ──
         mpChecks.push(checkFaceSize(lm))
 
-        // Glasses uses both canvas context and landmarks — soften for profile poses
-        if (isNonFront) {
+        // ── Glasses ──
+        if (isProfile || isTopHead) {
+          // Glasses detection is unreliable from side/top angles — skip
           mpChecks.push({
             name: 'noGlasses',
             pass: true,
@@ -725,53 +907,71 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
             severity: 'info',
           })
         } else {
+          // Front, 45°, smile: glasses are visible and should be detected
           mpChecks.push(checkGlasses(ctx, w, h, lm))
         }
       }
     }
-  } catch {
-    // MediaPipe failed — still run canvas checks but note the limitation
-    if (isNonFront) {
-      mpChecks.push({
-        name: 'mediaPipe',
-        pass: true,
-        messageKey: 'Photo.validation.mediaPipe.unavailableAngle',
-        severity: 'info',
-      })
-    } else {
-      mpChecks.push({
-        name: 'mediaPipe',
-        pass: true,
-        messageKey: 'Photo.validation.mediaPipe.error',
-        severity: 'info',
-      })
-    }
+  } catch (err) {
+    // A thrown exception means the model failed to load/run entirely — no face checks
+    // ran at all. This is NOT the same as "MediaPipe ran fine but found no face at an
+    // extreme angle" (that case is handled above with a legitimate pass+info). Here we
+    // have zero information about the photo, so it must not be treated as a pass —
+    // otherwise a network/model failure would silently bypass every face-based check.
+    console.error('[Photo Validation] MediaPipe detection failed:', err)
+    mpChecks.push({
+      name: 'mediaPipe',
+      pass: false,
+      messageKey: isNonFront
+        ? 'Photo.validation.mediaPipe.unavailableAngle'
+        : 'Photo.validation.mediaPipe.error',
+      severity: 'error',
+    })
   }
 
   const checks = [...canvasChecks, ...mpChecks]
 
-  // Overall result:
-  // For non-front poses: only fail on canvas errors (brightness, blur), not landmark errors
-  // For front pose: any error → fail
-  let hasError, hasWarning
-  if (isNonFront) {
-    // Only canvas checks can cause failure for non-front poses
-    hasError = canvasChecks.some((c) => c.severity === 'error' && !c.pass)
-    hasWarning = canvasChecks.some((c) => c.severity === 'warning' && !c.pass)
-    // Also check landmark errors but only from checks that actually ran (not "limited" ones)
-    const landmarkErrors = mpChecks.filter((c) => {
-      if (c.severity !== 'error' || c.pass) return false
-      const skipKeys = new Set([
-        'Photo.validation.faceDetected.limitedAngle',
-        'Photo.validation.eyesOpen.limitedAngle',
-        'Photo.validation.hairClear.skippedTopHead',
-      ])
-      return !skipKeys.has(c.messageKey)
-    })
-    hasError = hasError || landmarkErrors.length > 0
+  // ── Overall result ──
+  let hasError = false
+  let hasWarning = false
+
+  // Message keys that represent auto-passed / inconclusive checks — exclude from overall scoring
+  const INCONCLUSIVE_KEYS = new Set([
+    'Photo.validation.faceDetected.limitedAngle',
+    'Photo.validation.eyesOpen.limitedAngle',
+    'Photo.validation.hairClear.skippedTopHead',
+    'Photo.validation.correctPose.inconclusive',
+    'Photo.validation.neutralExpression.inconclusive',
+    'Photo.validation.hairClear.inconclusive',
+  ])
+
+  if (isFront) {
+    // Front: every single check counts — strictest mode
+    hasError   = checks.some((c) => !c.pass && c.severity === 'error')
+    hasWarning = checks.some((c) => !c.pass && c.severity === 'warning')
+
+  } else if (isAngle45 || isSmile) {
+    // 45° and smile: MediaPipe detects faces reliably — enforce all meaningful checks.
+    // Inconclusive/auto-pass checks are excluded so a no-face result on a 45° shot still errors.
+    for (const c of checks) {
+      if (c.pass || INCONCLUSIVE_KEYS.has(c.messageKey)) continue
+      if (c.severity === 'error')   hasError   = true
+      if (c.severity === 'warning') hasWarning = true
+    }
+
   } else {
-    hasError = checks.some((c) => c.severity === 'error' && !c.pass)
-    hasWarning = checks.some((c) => c.severity === 'warning' && !c.pass)
+    // Full profile (leftProfile, rightProfile) and topHead:
+    // Canvas errors always count. For landmark checks: include errors from checks that
+    // actually ran (not auto-passed), and include correctPose + faceSize warnings
+    // so a wrong-direction photo is still flagged even when no face was detected.
+    hasError   = canvasChecks.some((c) => !c.pass && c.severity === 'error')
+    hasWarning = canvasChecks.some((c) => !c.pass && c.severity === 'warning')
+
+    for (const c of mpChecks) {
+      if (c.pass || INCONCLUSIVE_KEYS.has(c.messageKey)) continue
+      if (c.severity === 'error')   hasError   = true
+      if (c.severity === 'warning') hasWarning = true
+    }
   }
 
   return {

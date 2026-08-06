@@ -56,10 +56,19 @@ def test_compute_facial_thirds_lines():
     assert "chinY" in result
     assert 0.0 <= result["hairlineY"] < result["eyebrowY"] < result["noseBaseY"] < result["chinY"] <= 1.0
 
-    # Verify proportions_from_landmarks uses the SegFormer metrics
+    # Verify proportions_from_landmarks actually uses the SegFormer metrics,
+    # not the MediaPipe fallback (synthetic thirds differ from _sample_landmarks).
     prop = proportions_from_landmarks(landmarks, {"facialThirds": result})
     assert prop.get("score") is not None
-    assert "upperThird" in prop
-    assert "middleThird" in prop
-    assert "lowerThird" in prop
+    u = float(prop["upperThird"])
+    m = float(prop["middleThird"])
+    l = float(prop["lowerThird"])
+    assert abs(u + m + l - 1.0) < 0.01
+    # Synthetic labels: hair 0.05-0.20, brow ~0.33, nose ~0.55, chin ~0.90
+    assert abs(u - (0.33 - 0.20) / (0.90 - 0.20)) < 0.05  # upper ~0.19
+    assert abs(m - (0.55 - 0.33) / (0.90 - 0.20)) < 0.05  # middle ~0.31
+    assert abs(l - (0.90 - 0.55) / (0.90 - 0.20)) < 0.05  # lower ~0.50
+    # MediaPipe path alone would give a different upper third (~0.30), so this
+    # fails if the function regresses to ignoring the metrics argument.
+    assert u < 0.26
 

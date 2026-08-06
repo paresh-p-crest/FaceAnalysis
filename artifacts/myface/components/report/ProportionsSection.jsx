@@ -14,6 +14,7 @@ import {
   noseAlae,
 } from '../../utils/faceCrop'
 import { cropNormalized } from '../../utils/eyeAnalysis'
+import { mediaUrl } from '../../utils/apiClient'
 
 const RATIO_PARTS = {
   nasoAural: { primary: 'ear', secondary: 'nose' },
@@ -179,7 +180,7 @@ export function ProportionsSection({
   useEffect(() => {
     let cancelled = false
     async function run() {
-      const src = frontSrc || (typeof proportions?.imageSrc === 'string' ? proportions.imageSrc : null)
+      const src = frontSrc || (typeof proportions?.imageSrc === 'string' ? mediaUrl(proportions.imageSrc) : null)
       if (!src || !landmarks?.length) {
         if (!cancelled) setFaceCropSrc(null)
         return
@@ -244,8 +245,8 @@ export function ProportionsSection({
       (typeof active?.imageSrc === 'string' && /profile/i.test(active.imageSrc))
     )
   const activeImageSrc = useProfileEar
-    ? (active?.photoSource === 'leftProfile' ? photos?.leftProfile : (active?.imageSrc || photos?.rightProfile || photos?.leftProfile))
-    : (faceCropSrc || active?.imageSrc || proportions.imageSrc)
+    ? (active?.photoSource === 'leftProfile' ? photos?.leftProfile : (mediaUrl(active?.imageSrc) || photos?.rightProfile || photos?.leftProfile))
+    : (faceCropSrc || mediaUrl(active?.imageSrc) || mediaUrl(proportions.imageSrc))
   const overlay = resolveOverlay(
     activeTab,
     active,
@@ -257,12 +258,12 @@ export function ProportionsSection({
     photos?.front ||
     photo ||
     (typeof proportions.imageSrc === 'string' && proportions.overlaySpace === 'image'
-      ? proportions.imageSrc
+      ? mediaUrl(proportions.imageSrc)
       : null) ||
     (typeof proportions.imageSrc === 'string' && /\/front(\.|$|\?)/.test(proportions.imageSrc)
-      ? proportions.imageSrc
+      ? mediaUrl(proportions.imageSrc)
       : null) ||
-    proportions.imageSrc
+    mediaUrl(proportions.imageSrc)
 
   const overviewLines =
     liveThirdLines ||

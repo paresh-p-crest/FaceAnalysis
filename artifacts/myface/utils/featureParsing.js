@@ -1,5 +1,7 @@
 /** Resolve SegFormer parsing crops + metrics for interactive Features Analysis. */
 
+import { mediaUrl } from './apiClient'
+
 function humanizeMetricKey(key) {
   return String(key)
     .replace(/_mm$/, ' (est. mm)')
@@ -28,6 +30,8 @@ function withCacheBust(url, featureParsing) {
 }
 
 export function resolveFeatureHero(featureId, cvSection, featureParsing) {
+  let result = null
+  let fromParsing = false
   if (featureParsing?.status === 'ready') {
     // Ears: single left-profile crop only (not dual L/R heroes).
     if (featureId === 'ears') {
@@ -35,13 +39,21 @@ export function resolveFeatureHero(featureId, cvSection, featureParsing) {
         featureParsing?.crops?.earsLeft?.publicUrl ||
         featureParsing?.crops?.ears?.leftPublicUrl ||
         featureParsing?.crops?.ears?.publicUrl
-      if (left) return withCacheBust(left, featureParsing)
+      if (left) {
+        result = left
+        fromParsing = true
+      }
     }
     const parsingCrop = featureParsing?.crops?.[featureId]?.publicUrl
-    if (parsingCrop) return withCacheBust(parsingCrop, featureParsing)
+    if (!result && parsingCrop) {
+      result = parsingCrop
+      fromParsing = true
+    }
   }
-  if (cvSection?.crop) return cvSection.crop
-  return cvSection?.imageSrc || null
+  if (!result && cvSection?.crop) result = cvSection.crop
+  if (!result) result = cvSection?.imageSrc || null
+  if (!result) return null
+  return mediaUrl(fromParsing ? withCacheBust(result, featureParsing) : result)
 }
 
 /** @deprecated Prefer resolveFeatureHero('ears') — kept for any leftover dual-profile callers. */

@@ -26,6 +26,7 @@ import { AI_VISUAL_TYPE_BY_SECTION_ID } from './reportNavConfig'
 import { ReportSectionHeading, ReportMetricCard, ReportExplanationCard } from './ReportSectionHeading'
 import { AssessmentGridLayout, FeatureAnalysisPage } from './FeatureAnalysisPage'
 import { resolveFeatureHero } from '../../utils/featureParsing'
+import { mediaUrl } from '../../utils/apiClient'
 import { pickLocalizedCvText, useCvLabel, SYMMETRY_REGION_LABEL_KEY } from '../../utils/cvReportLocale'
 
 export function CvReportView({
@@ -109,7 +110,7 @@ export function CvReportView({
           subtitle={t('faceShape.subtitle')}
         />
         <AssessmentGridLayout
-          photo={photo || fs.imageSrc}
+          photo={photo || mediaUrl(fs.imageSrc)}
           photoOverlay={useSvgOverlay ? <FaceShapeOverlay overlay={fs.overlay} /> : null}
           photoFit="contain"
           rightCards={
@@ -154,7 +155,7 @@ export function CvReportView({
           subtitle={t('symmetry.subtitle')}
         />
         <AssessmentGridLayout
-          photo={s.imageSrc}
+          photo={mediaUrl(s.imageSrc)}
           photoOverlay={
             s.symmetryDots ? (
               <SymmetryOverlay dots={s.symmetryDots} midline={s.symmetryMidline} />
@@ -272,8 +273,8 @@ export function CvReportView({
     const j = cvReport.jaw
     const jawSrc =
       j.photoSource === 'rightProfile'
-        ? j.imageSrcFront || j.imageSrc
-        : j.imageSrc || j.imageSrcFront
+        ? mediaUrl(j.imageSrcFront || j.imageSrc)
+        : mediaUrl(j.imageSrc || j.imageSrcFront)
     return (
       <JawReportPanel
         jaw={j}
@@ -288,8 +289,8 @@ export function CvReportView({
     const c = cvReport.chin
     const chinSrc =
       c.photoSource === 'rightProfile'
-        ? c.imageSrcFront || c.imageSrc
-        : c.imageSrc || c.imageSrcFront
+        ? mediaUrl(c.imageSrcFront || c.imageSrc)
+        : mediaUrl(c.imageSrc || c.imageSrcFront)
     const chinHero = resolveFeatureHero('chin', c, featureParsing) || chinSrc
     return (
       <ChinReportPanel
@@ -319,7 +320,7 @@ export function CvReportView({
       <HairReportPanel
         hair={h}
         featureParsing={featureParsing}
-        imageSrc={h.imageSrc}
+        imageSrc={mediaUrl(h.imageSrc)}
       />
     )
   }
@@ -331,7 +332,7 @@ export function CvReportView({
       <SmileReportPanel
         smile={s}
         featureParsing={featureParsing}
-        imageSrc={s.imageSrc}
+        imageSrc={mediaUrl(s.imageSrc)}
       />
     )
   }
@@ -343,7 +344,7 @@ export function CvReportView({
       <NeckReportPanel
         neck={n}
         featureParsing={featureParsing}
-        imageSrc={n.imageSrc}
+        imageSrc={mediaUrl(n.imageSrc)}
       />
     )
   }
@@ -354,9 +355,9 @@ export function CvReportView({
     const photosMap = photos || cvReport?.photos
     const earHero =
       resolveFeatureHero('ears', e, featureParsing) ||
-      e.imageSrcLeft ||
-      photosMap?.leftProfile ||
-      e.imageSrc
+      mediaUrl(e.imageSrcLeft) ||
+      mediaUrl(photosMap?.leftProfile) ||
+      mediaUrl(e.imageSrc)
 
     return (
       <EarReportPanel

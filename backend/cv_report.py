@@ -1341,25 +1341,42 @@ def proportions_from_landmarks(landmarks: list, metrics: Optional[dict] = None) 
             "explanationDe": expl_de.PROPORTIONS_THIRDS_UNAVAILABLE_DE,
         }
 
-    forehead = lm(landmarks, 10)
-    chin = lm(landmarks, 152)
-    subnasale = lm(landmarks, 2)
-    brow_y = (lm(landmarks, 105)["y"] + lm(landmarks, 334)["y"]) / 2
-    face_h = chin["y"] - forehead["y"]
-    if face_h <= 0.05:
-        return {
-            "score": None,
-            "upperThird": None,
-            "middleThird": None,
-            "lowerThird": None,
-            "label": None,
-            "explanation": "Facial thirds could not be measured from landmarks.",
-            "explanationDe": expl_de.PROPORTIONS_THIRDS_UNAVAILABLE_DE,
-        }
+    upper = None
+    middle = None
+    lower = None
+    if metrics and "facialThirds" in metrics:
+        ft = metrics["facialThirds"]
+        if "hairlineY" in ft and "eyebrowY" in ft and "noseBaseY" in ft and "chinY" in ft:
+            h_y = ft["hairlineY"]
+            b_y = ft["eyebrowY"]
+            n_y = ft["noseBaseY"]
+            c_y = ft["chinY"]
+            face_h = c_y - h_y
+            if face_h > 0.05:
+                upper = (b_y - h_y) / face_h
+                middle = (n_y - b_y) / face_h
+                lower = (c_y - n_y) / face_h
 
-    upper = (brow_y - forehead["y"]) / face_h
-    middle = (subnasale["y"] - brow_y) / face_h
-    lower = (chin["y"] - subnasale["y"]) / face_h
+    if upper is None or middle is None or lower is None:
+        forehead = lm(landmarks, 10)
+        chin = lm(landmarks, 152)
+        subnasale = lm(landmarks, 2)
+        brow_y = (lm(landmarks, 105)["y"] + lm(landmarks, 334)["y"]) / 2
+        face_h = chin["y"] - forehead["y"]
+        if face_h <= 0.05:
+            return {
+                "score": None,
+                "upperThird": None,
+                "middleThird": None,
+                "lowerThird": None,
+                "label": None,
+                "explanation": "Facial thirds could not be measured from landmarks.",
+                "explanationDe": expl_de.PROPORTIONS_THIRDS_UNAVAILABLE_DE,
+            }
+        upper = (brow_y - forehead["y"]) / face_h
+        middle = (subnasale["y"] - brow_y) / face_h
+        lower = (chin["y"] - subnasale["y"]) / face_h
+
     total = upper + middle + lower
     if total > 0.01:
         upper /= total

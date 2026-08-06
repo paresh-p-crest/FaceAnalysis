@@ -7,6 +7,7 @@ import { changePassword, updateProfile } from '../utils/authClient'
 import { translateApiError } from '../utils/translateApiError'
 import { StandalonePageShell } from './StandalonePageShell'
 import { SettingsDocumentLayout } from './settings/SettingsDocumentLayout'
+import { MyPhotosPanel } from './settings/MyPhotosPanel'
 
 function Field({ label, children }) {
   return (
@@ -215,11 +216,18 @@ export default function SettingsPage({ user, onUserUpdated }) {
         </form>
       </>
     )
+  } else if (activeSection === 'photos') {
+    panel = (
+      <>
+        <SettingsPanelHeader title={t('photosTitle')} description={t('photosDesc')} />
+        <MyPhotosPanel />
+      </>
+    )
   }
 
   return (
     <StandalonePageShell>
-      <SettingsDocumentLayout activeId={activeSection} onSelect={setActiveSection}>
+      <SettingsDocumentLayout activeId={activeSection} onSelect={setActiveSection} user={user}>
         {panel}
       </SettingsDocumentLayout>
     </StandalonePageShell>

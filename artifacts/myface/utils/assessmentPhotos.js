@@ -1,18 +1,18 @@
-import { getApiBaseUrl } from './apiClient'
+import { getApiBaseUrl, mediaUrl } from './apiClient'
 
 /** Coerce photo metadata or string to a usable URL (never `[object Object]`). */
 export function coercePhotoUrl(value) {
+  let result = null
   if (!value) return null
   if (typeof value === 'string') {
     const trimmed = value.trim()
-    return trimmed || null
+    result = trimmed || null
+  } else if (typeof value === 'object') {
+    if (typeof value.publicUrl === 'string' && value.publicUrl.trim()) result = value.publicUrl.trim()
+    else if (typeof value.url === 'string' && value.url.trim()) result = value.url.trim()
+    else if (typeof value.src === 'string' && value.src.trim()) result = value.src.trim()
   }
-  if (typeof value === 'object') {
-    if (typeof value.publicUrl === 'string' && value.publicUrl.trim()) return value.publicUrl.trim()
-    if (typeof value.url === 'string' && value.url.trim()) return value.url.trim()
-    if (typeof value.src === 'string' && value.src.trim()) return value.src.trim()
-  }
-  return null
+  return mediaUrl(result)
 }
 
 /** Front photo URL from a cloud assessment GET or list payload. */
@@ -35,7 +35,7 @@ export function resolveAssessmentFrontPhoto(assessment) {
 function canonicalFrontPhotoUrl(assessmentId) {
   if (!assessmentId) return null
   const base = getApiBaseUrl().replace(/\/$/, '')
-  return `${base}/api/media/assessments/${assessmentId}/front.jpg`
+  return mediaUrl(`${base}/api/media/assessments/${assessmentId}/front.jpg`)
 }
 
 /** Front photo URL — baseline for AI visual comparisons (hair/outfit/aging). */

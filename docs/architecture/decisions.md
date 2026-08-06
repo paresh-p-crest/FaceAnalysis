@@ -1008,3 +1008,96 @@ Status: accepted
 - Reports display realistic AI visual age estimates rather than a static placeholder.
 - Presenting a 5-year range covers model MAE (~4.1 years) and prevents over-interpretation of point predictions.
 - Model availability failures fall back cleanly without breaking assessment generation.
+
+---
+
+## ADR-050: 3D Euler-Angle Pose Detection via facialTransformationMatrixes
+Date: 2026-08-04  
+Status: accepted  
+
+### Context
+The photo-upload validation in `artifacts/myface/utils/photoValidation.js` previously detected head pose (front, left45, right45, leftProfile, rightProfile, topHead) using a 2D noseRatio heuristic: `(nose.x − leftEdge.x) / faceWidth`. This ratio is a non-linear projection of 3D rotation onto 2D image space. Its sensitivity to yaw depends on camera focal length, subject distance, and individual face geometry, making stable threshold calibration impossible without an exhaustive per-camera reference set. The `topHead` pose was particularly problematic: it reused the yaw (X-axis) ratio when the relevant physical signal is pitch (head tilted forward, crown toward camera).
+
+### Decision
+1. **Enable matrix output**: `outputFacialTransformationMatrixes: true` in `getLandmarker()`. MediaPipe computes this internally regardless; enabling output costs zero additional CPU/GPU.
+2. **Helper `matrixToEulerAngles(m)`**: A pure-math (~12-line) ZYX Euler decomposition of MediaPipe's 4×4 column-major camera-space rotation matrix, returning yaw (Y-axis, left/right), pitch (X-axis, up/down), and roll (Z-axis, tilt) in degrees.
+3. **`checkPose` primary path**: When `result.facialTransformationMatrixes[0]` is present and well-formed (16 floats), pose is determined from degree bands on yaw (all non-topHead poses) or pitch (topHead). Degree bands map 1-to-1 to physical head rotation and are camera/lens-independent.
+4. **Hybrid routing**: `leftProfile` / `rightProfile` hard-route to the 2D noseRatio path — the transformation matrix is unreliable at ≥90° (often absent for side profiles, notebook-confirmed); front/smile/45°/topHead use the 3D yaw/pitch primary path.
+5. **Fallback path**: If the matrix is absent or malformed, the original noseRatio heuristic runs unchanged, guaranteeing zero regression on older cached model versions or edge-case detection failures.
+6. **`POSE_LABEL_KEYS` constant**: Deduplicates the i18n key strings shared between both paths.
+7. **Dynamic delegate (GPU→CPU)**: `getLandmarker()` requests the GPU delegate first; on WebGL creation failure it retries with CPU and logs a `console.warn`. One-shot image inference makes either delegate imperceptible.
+8. **Calibration gate**: A commented-out `console.log` is left in place to log real `yawDeg`/`pitchDeg` values against reference photos before production thresholds are locked.
+
+### Consequences
+- Pose detection accuracy is decoupled from camera intrinsics and subject distance.
+- `topHead` now uses the correct axis (pitch) instead of a widened yaw band.
+- Roll is extracted and available for a future head-tilt warning without additional model changes.
+- Degree thresholds must be calibrated once against real uploads per pose before production release.
+- Fallback to noseRatio ensures no hard-failure regression if the matrix is unavailable.
+- GPU-first delegate needs one `console.warn` when WebGL is unavailable; fp16 jitter may shift yaw/pitch slightly, so degree bands should be re-validated against a couple of real uploads before locking.
+
+---
+
+## ADR-051: Sclera Color Detection via Geometric Iris Exclusion
+Date: 2026-08-04  
+Status: accepted  
+
+### Context
+Sclera color classification in `backend/eye_analysis.py` averaged the entire eye bounding box, which includes the dark iris/pupil, lashes, and lid skin. That pulled brightness/whiteness down regardless of the true sclera color and classified nearly every face as yellow-tinged. A color-only "whitish" filter was insufficient on its own: a light/desaturated iris (common with brown eyes under warm light, and light blue/grey/hazel eyes in general) passes the same thresholds as real sclera. Redness classification used a fixed absolute threshold, which fires on any warm-lit photo (the brightest, least-saturated sclera pixels read redness ~18-20 under warm indoor light while skin reads ~40-90), and the "Slightly blue" / "Brown or dark spots" categories fired on ordinary lash-shadow/limbal-ring noise rather than a real blue tint or pigmented spot.
+
+### Decision
+1. **`sample_sclera_stats()`**: Sample only the low-saturation/high-value "white" pixels inside the eye-contour polygon, geometrically excluding a circle over the iris (from MediaPipe's 478-point iris landmarks when present, else a box-width-fraction estimate), a circle around the inner-canthus caruncle (naturally pink tissue that passes the whitish filter), with a bright-quartile fallback when the mask is too small. Hue is accumulated as a saturation-weighted circular vector.
+2. **`combine_sclera_stats()`**: Plain-average brightness/whiteness/redness/saturation across both eyes; hue resolved from the summed weighted vector (avoids the 0/179 hue wraparound bug of naive averaging).
+3. **`_classify_sclera(stats, skin_redness)`**: The red/pink gate is skin-relative — sclera redness compared to under-eye skin redness from the same photo (`redness > 10 and ratio > 0.75`, absolute `redness > 14` only as a no-skin fallback), making it lighting-invariant since white balance shifts sclera and skin together. Yellow requires a real hue signal (16–50) AND saturation ≥ 18 AND brightness > 80. Outputs are now exactly four categories: `Natural White`, `Off-white / Slightly gray-white`, `Yellow`, `Red or pink`.
+4. **Frontend label sync**: `cvReportLocale.js` maps the four categories; `en.json`/`de.json` carry `naturalWhite`/`offWhite`/`yellow`/`redOrPink` labels. The dead client-side `classifySclera`/`analyzeEyes` in `eyeAnalysis.js` was removed (unused — the backend is the analysis source of truth).
+
+### Consequences
+- Sclera reads on genuinely off-white/grey eyes no longer drift to "Red or pink" under warm lighting.
+- Light-iris contamination of the sample is excluded geometrically, not just by color.
+- Four stable categories align frontend and backend strings end-to-end.
+- Thresholds (red ratio 0.75, hue 16–50, sat 18) were tuned against the colleague's real photos — treat as calibration candidates and re-validate against local uploads.
+
+---
+
+## ADR-052: Backend Photo Content Validation as Server-Side Double-Guard
+Date: 2026-08-06  
+Status: accepted  
+
+### Context
+Photo validation existed only in the frontend (`artifacts/myface/utils/photoValidation.js`, an 11-check gate run at upload time). A determined client can bypass it, and nothing re-validates the stored originals at submit. The backend previously checked only pose presence (`validate_required_poses`), not content.
+
+### Decision
+1. **Mirror the 11 frontend checks** in `backend/photo_validation.py` as a coarse server-side double-guard: resolution, brightness, sharpness, neutral expression, eyes open, face centered, face size, hair clear, correct pose, glasses, face detected. Reuses `analyze_with_mediapipe` and `analyze_image_stats` — no new CV pipeline.
+2. **Coarse thresholds only**: the backend rejects only clear-cut failures (brightness only very-dark/overexposed extremes, sharpness only the very-blurry band, pose bands widened ±~0.07, faceSize only the <0.06 tier, expression/eyes-open only the hard-error bands) so a photo that already passed the frontend is never rejected at submit. The frontend remains the fine-grained gate. Each lenient threshold carries a `ponytail:` note naming the FE threshold it guards.
+3. **Pose check is noseRatio-only**: Python MediaPipe FaceMesh does not expose `facialTransformationMatrixes` (a JS Tasks-only API), so the 3D yaw/pitch path cannot be replicated server-side. The backend `correctPose` uses the same 2D bands for all poses.
+4. **Submit-time hook**: `post_assessment_submit` in `backend/routers/assessments.py` runs `validate_photos_content` against the stored original bytes (same multipart bytes the frontend validated — pixels match exactly, no re-encode) and raises `HTTPException(400)` with the failed checks on any error-severity failure. Upload-time validation intentionally skipped — one MediaPipe run per photo at submit only.
+5. **Response shape**: `{ check, pass, severity, message }` per photo, renderable with the existing `translateValidationMessage` keys.
+
+### Consequences
+- Bypassed frontend validation can no longer smuggle garbage photos into analysis.
+- The backend never rejects a photo the frontend accepted (coarse guard, same-image bytes).
+- Backend `correctPose` is weaker than frontend pose detection (noseRatio vs 3D matrix) — acceptable for a double-guard; closes when Python MediaPipe exposes the matrix API.
+- Submit adds one MediaPipe + check pass per photo against the final set.
+
+---
+
+## ADR-053: Authenticated Media Serving with Short-Lived Signed URL Tokens
+Date: 2026-08-06  
+Status: accepted  
+
+### Context
+All user-uploaded photos were served publicly by `GET /api/media/assessments/{id}/{pose}.jpg` — anyone with a URL (or a harvested ID) could view another user's photos, and the "My Photos" settings tab needed an owner-only catalog. Browsers cannot attach `Authorization: Bearer` headers to `<img>` tags, so session auth alone cannot gate image rendering.
+
+### Decision
+1. **User-scoped signed media token**: new `GET /api/media/token` (auth-required) mints an HMAC-SHA256-signed token over `{sub, role, exp}` with a ~1 day TTL (`MEDIA_TOKEN_TTL_SECONDS = 86400`), using the same scheme and secret domain as `create_access_token`. One token covers all of the user's media; it is not scoped per object key.
+2. **Query-param delivery**: the frontend appends the token as `?token=` to media URLs at render time via a single `mediaUrl()` helper. Non-media URLs (data:/blob:/external) pass through untouched.
+3. **Owner-or-admin enforcement in `get_media`**: for assessment-namespaced keys, the endpoint resolves identity from the `Authorization: Bearer` session or the `?token=` payload, then rejects (404) unless the requester owns the assessment (`userId` match) or is an admin. Soft-deleted assessments already 404 (existing behavior). Non-assessment keys keep the historical public behavior.
+4. **Transition flag**: `MEDIA_AUTH_REQUIRED` (default off). While off, token-less assessment media still serves for backward compatibility; the FE token wiring ships in the same change set so the flag can be flipped on with no broken window.
+5. **FE token lifecycle**: module-level in-memory cache with expiry, lazy-fetched and deduped; nothing persisted to disk, so page reload triggers one cheap refetch and logout/tab-close leaves no residue.
+6. **Catalog without a backend change**: the My Photos tab builds the 7 canonical pose URLs per assessment from the existing `GET /api/my/assessments` list (`id` + `createdAt`) and probes them in parallel, skipping 404s (poses never uploaded, soft-deleted assessments) via `Promise.allSettled`.
+
+### Consequences
+- Assessment photos are private to the owner and admins once `MEDIA_AUTH_REQUIRED` is on; URL guessing yields 404.
+- The token is replayable against `/api/media/*` for ~1 day but cannot be replayed against `/api/*` (different signature domain) and carries no new privileges beyond what the session already grants.
+- Every media-backed value must pass through `mediaUrl()` (or a resolver that does) — missed sites silently 404 once enforcement is on; a grep audit guards this.
+- The 7-URL probe costs 7 requests per assessment (capped at 100 assessments) — acceptable for personal accounts; a dedicated catalog endpoint is the upgrade path if that ever grows.

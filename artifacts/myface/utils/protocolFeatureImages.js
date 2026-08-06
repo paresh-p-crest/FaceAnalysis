@@ -17,6 +17,7 @@ import {
   getCropBox,
   normalizeToJpegDataUrl,
 } from './aestheticProjection'
+import { mediaUrl } from './apiClient'
 import { buildCheekAnalysisGuides, getCheekAnalysisBox } from './cheekGuides'
 import { analyzeWithMediaPipe } from './mediapipeAnalysis'
 import {
@@ -61,10 +62,10 @@ export function afterCropKeyForFeature(featureId) {
 }
 
 function asImageUrl(value) {
-  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'string' && value.trim()) return mediaUrl(value.trim())
   if (value && typeof value === 'object') {
     const u = value.publicUrl || value.url || value.src
-    if (typeof u === 'string' && u.trim()) return u.trim()
+    if (typeof u === 'string' && u.trim()) return mediaUrl(u.trim())
   }
   return null
 }
@@ -353,7 +354,7 @@ export async function resolveProfileBeforeImage({ photos, cvReport, featureId = 
   }
 
   const nasoAural = cvReport?.proportions?.ratios?.nasoAural
-  const nasoSrc = typeof nasoAural?.imageSrc === 'string' ? nasoAural.imageSrc : null
+  const nasoSrc = typeof nasoAural?.imageSrc === 'string' ? mediaUrl(nasoAural.imageSrc) : null
   if (nasoSrc) {
     return { src: nasoSrc, isRealProfile: true }
   }

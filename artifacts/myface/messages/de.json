@@ -283,7 +283,8 @@
     "nav": {
       "account": "Kontoinfo",
       "password": "Passwort",
-      "billing": "Abrechnung"
+      "billing": "Abrechnung",
+      "photos": "Meine Fotos"
     },
     "billingTitle": "Abrechnung",
     "billingDesc": "Checkout und Zahlungsverlauf für dein MyFace-Konto.",
@@ -291,6 +292,11 @@
     "accountDesc": "Aktualisiere deinen Namen und deine E-Mail-Adresse.",
     "passwordTitle": "Passwort",
     "passwordDesc": "Ändere dein Anmeldepasswort.",
+    "photosTitle": "Meine Fotos",
+    "photosDesc": "Sieh dir die Fotos an, die du bei deinen Analysen hochgeladen hast. Möchtest du ein Bild entfernen, schreib uns eine E-Mail und wir löschen es für dich.",
+    "photosEmpty": "Noch keine Fotos. Deine hochgeladenen Fotos erscheinen hier.",
+    "photosError": "Deine Fotos konnten nicht geladen werden. Bitte versuch es erneut.",
+    "download": "Foto herunterladen",
     "currentPassword": "Aktuelles Passwort",
     "newPassword": "Neues Passwort",
     "confirmPassword": "Neues Passwort bestätigen",
@@ -1086,7 +1092,10 @@
         "definitionLabel": "Definition",
         "neckJawRatio": "Hals-/Kieferbreiten-Verhältnis",
         "lengthLabel": "Länge",
-        "agingLabel": "Alterung"
+        "agingLabel": "Alterung",
+        "headPosture": "Kopfhaltung",
+        "shoulderSpan": "Schulterbreite",
+        "transitionAngle": "Übergangswinkel"
       }
     },
     "nose": {
@@ -2396,8 +2405,9 @@
       "positiveUpturned": "Positiv (aufwärts)",
       "negativeDownturned": "Negativ (abwärts)",
       "naturalWhite": "Natürlich weiß",
-      "slightlyDull": "Leicht stumpf",
-      "yellowTinged": "Gelblich",
+      "offWhite": "Off-white / Leicht grauweiß",
+      "yellow": "Gelb",
+      "redOrPink": "Rot oder rosa",
       "shadowed": "Geschattet",
       "good": "Gut",
       "upturned": "Aufwärts",

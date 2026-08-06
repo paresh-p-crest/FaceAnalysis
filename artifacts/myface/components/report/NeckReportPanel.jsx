@@ -55,11 +55,11 @@ export function NeckReportPanel({
       neckWidthMm: widthNum,
       neckJawRatio: ratioNum,
       widthClass: classifyNeckWidth(widthNum, n.neckWidthClass),
-      definitionClass: 'N/A',
-      lengthClass: 'N/A',
+      definitionClass: toCvLabelKey(n.jawNeckTransition) || 'N/A',
+      lengthClass: toCvLabelKey(n.neckLengthClass) || 'N/A',
       agingClass: 'N/A',
     }
-  }, [featureParsing, n.neckWidthClass])
+  }, [featureParsing, n])
 
   const segmentation = t('common.segmentationBased')
   const computed = t('common.computed')
@@ -115,11 +115,16 @@ export function NeckReportPanel({
     },
     { label: t('neck.metrics.widthClass'), value: metrics.widthClass },
     { label: t('neck.metrics.definitionLabel'), value: metrics.definitionClass },
+    { label: t('neck.metrics.transitionAngle'), value: n.jawNeckAngle != null ? `${n.jawNeckAngle}°` : null },
+    { label: t('neck.metrics.headPosture'), value: n.headPosture || null },
   ]
   const right = [
     { label: t('neck.metrics.neckJawRatio'), value: fmt(metrics.neckJawRatio) },
     { label: t('neck.metrics.lengthLabel'), value: metrics.lengthClass },
     { label: t('neck.metrics.agingLabel'), value: metrics.agingClass },
+    ...(n.shoulderWidthPct != null
+      ? [{ label: t('neck.metrics.shoulderSpan'), value: `${n.shoulderWidthPct}% IPD` }]
+      : []),
   ]
 
   return (

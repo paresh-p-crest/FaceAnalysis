@@ -14,7 +14,7 @@ from ..auth import get_current_user, get_optional_current_user, require_admin
 from ..config import PHOTO_POSES
 from ..database import is_db_configured
 from ..media_storage import assessment_key, get_media_storage, media_key_from_ref
-from ..photo_validation import validate_required_poses
+from ..photo_validation import validate_photos_content, validate_required_poses
 from ..ai_access import require_paid_ai_access
 from ..protocol_service import (
     enrich_assessment_nl_content,
@@ -89,6 +89,27 @@ def _normalize_cv_provider(provider: str) -> str:
     if provider in ("openai", "local", ""):
         return "local"
     return provider
+
+
+async def _submit_photo_content_failures(photos: dict) -> list[dict]:
+    """Load each stored photo's original bytes and run the coarse content
+    checks (backend/photo_validation.py). Runs in a thread — MediaPipe does
+    one pass per photo. Returns error-severity failures, if any."""
+    media = get_media_storage()
+    items: list[tuple[str, bytes]] = []
+    for pose_id, meta in photos.items():
+        if not isinstance(meta, dict):
+            continue
+        rel = meta.get("relativePath")
+        key = media_key_from_ref(str(rel)) if rel else None
+        if not key:
+            continue
+        data = await asyncio.to_thread(media.get_bytes, key)
+        if data:
+            items.append((pose_id, data))
+    if not items:
+        return []
+    return await asyncio.to_thread(validate_photos_content, items)
 
 router = APIRouter(prefix="/api", tags=["assessments"])
 logger = logging.getLogger(__name__)
@@ -575,6 +596,16 @@ async def post_assessment_submit(
         raise HTTPException(
             status_code=400,
             detail=f"Missing required photo poses: {', '.join(missing)}",
+        )
+
+    # Server-side double-guard: re-run the frontend's photo content checks on
+    # the stored original bytes (same pixels the FE validated — multipart, no
+    # re-encode) before enqueueing the pipeline.
+    content_failures = await _submit_photo_content_failures(photos)
+    if content_failures:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "Photo content validation failed", "failures": content_failures},
         )
 
     await require_assessment_slot(current_user, assessment_id=assessment_id)

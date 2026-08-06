@@ -283,7 +283,8 @@
     "nav": {
       "account": "Account Info",
       "password": "Password",
-      "billing": "Billing"
+      "billing": "Billing",
+      "photos": "My Photos"
     },
     "billingTitle": "Billing",
     "billingDesc": "Checkout and payment history for your MyFace account.",
@@ -291,6 +292,11 @@
     "accountDesc": "Update your name and email address.",
     "passwordTitle": "Password",
     "passwordDesc": "Change your sign-in password.",
+    "photosTitle": "My Photos",
+    "photosDesc": "View and manage the photos you've uploaded across your assessments. To remove any image, email us and we'll take it down for you.",
+    "photosEmpty": "No photos yet. Your uploaded photos will appear here.",
+    "photosError": "Could not load your photos. Please try again.",
+    "download": "Download photo",
     "currentPassword": "Current password",
     "newPassword": "New password",
     "confirmPassword": "Confirm new password",
@@ -1086,7 +1092,10 @@
         "definitionLabel": "Definition",
         "neckJawRatio": "Neck / Jaw Width Ratio",
         "lengthLabel": "Length",
-        "agingLabel": "Aging"
+        "agingLabel": "Aging",
+        "headPosture": "Head Posture",
+        "shoulderSpan": "Shoulder Span",
+        "transitionAngle": "Transition Angle"
       }
     },
     "nose": {
@@ -2396,8 +2405,9 @@
       "positiveUpturned": "Positive (upturned)",
       "negativeDownturned": "Negative (downturned)",
       "naturalWhite": "Natural White",
-      "slightlyDull": "Slightly dull",
-      "yellowTinged": "Yellow-tinged",
+      "offWhite": "Off-white / Slightly gray-white",
+      "yellow": "Yellow",
+      "redOrPink": "Red or pink",
       "shadowed": "Shadowed",
       "good": "Good",
       "upturned": "Upturned",

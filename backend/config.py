@@ -89,6 +89,11 @@ FEATURE_VISION_POSES: dict[str, tuple[str, ...]] = {
     "smile": ("smile",),
 }
 
+# Media auth token TTL (~1 day)
+MEDIA_TOKEN_TTL_SECONDS = int(os.environ.get("MEDIA_TOKEN_TTL_SECONDS", "86400") or "86400")
+# Transition flag: when True, token-less assessment media keys return 404
+MEDIA_AUTH_REQUIRED = os.environ.get("MEDIA_AUTH_REQUIRED", "false").lower() == "true"
+
 STAGES = {
     "LANDING": "landing",
     "QUESTIONNAIRE": "questionnaire",

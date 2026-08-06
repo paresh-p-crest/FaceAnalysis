@@ -18,7 +18,7 @@ import {
   isReportModalHostPath,
 } from '../../utils/routes'
 import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser, saveSession } from '../../utils/authClient'
-import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMyAssessments, fetchMyAssessmentsWithQuota, isFullCloudAssessment, submitAssessment } from '../../utils/apiClient'
+import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMediaToken, fetchMyAssessments, fetchMyAssessmentsWithQuota, isFullCloudAssessment, mediaUrl, submitAssessment } from '../../utils/apiClient'
 import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
@@ -324,14 +324,14 @@ export function AppProvider({ children }) {
     const stored = assessment?.photos || {}
     const hydrated = { ...EMPTY_PHOTOS }
     Object.entries(stored).forEach(([poseId, meta]) => {
-      if (meta?.publicUrl) hydrated[poseId] = meta.publicUrl
+      if (meta?.publicUrl) hydrated[poseId] = mediaUrl(meta.publicUrl)
     })
     const report = assessment?.analysis?.cvReport
     const reportPhotos = report?.photos || {}
     Object.entries(reportPhotos).forEach(([poseId, url]) => {
-      if (url && !hydrated[poseId]) hydrated[poseId] = url
+      if (url && !hydrated[poseId]) hydrated[poseId] = mediaUrl(url)
     })
-    if (!hydrated.front) hydrated.front = getCloudAssessmentPhoto(assessment)
+    if (!hydrated.front) hydrated.front = mediaUrl(getCloudAssessmentPhoto(assessment))
     return hydrated
   }
 
@@ -505,6 +505,14 @@ export function AppProvider({ children }) {
       cancelled = true
     }
   }, [authReady, user, paymentReturn, refreshAnalysisAccess])
+
+  useEffect(() => {
+    if (!authReady) return
+    if (!user) return
+    // Prewarm the signed media token so <img> renders aren't the first paint
+    // behind MEDIA_AUTH_REQUIRED. Failure is swallowed — mediaUrl() retries lazily.
+    fetchMediaToken().catch(() => {})
+  }, [authReady, user?.id])
 
   useEffect(() => {
     if (!authReady) return

@@ -217,9 +217,9 @@ export function SymmetryOverlay({ dots, midline = null }) {
       preserveAspectRatio="none"
     >
       <line
-        x1={top.x}
+        x1={mx}
         y1={top.y}
-        x2={bot.x}
+        x2={mx}
         y2={bot.y}
         stroke="rgba(255,255,255,0.95)"
         strokeWidth="0.45"

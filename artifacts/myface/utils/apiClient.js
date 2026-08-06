@@ -36,6 +36,7 @@ export const ERROR_KEYS = {
   PAYPAL_CHECKOUT_FAILED: 'paypalCheckoutFailed',
   PAYPAL_CAPTURE_FAILED: 'paypalCaptureFailed',
   DELETE_USER_FAILED: 'deleteUserFailed',
+  LOAD_MEDIA_TOKEN_FAILED: 'loadMediaTokenFailed',
 }
 
 function apiError(code, detail = null, status = null) {
@@ -78,6 +79,67 @@ function getAuthToken() {
 function authHeaders() {
   const token = getAuthToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+// --- Authenticated media serving -------------------------------------------------
+// Media URLs (/api/media/...) are owner-or-admin only once MEDIA_AUTH_REQUIRED is on.
+// <img> tags can't send Authorization headers, so media is accessed via a short-lived
+// user-scoped signed token appended as ?token= at render time. The token is cached
+// module-level (no storage on disk); page reload lazily refetches it (one request).
+
+const MEDIA_TOKEN_RENEW_BUFFER_MS = 60_000
+
+let _mediaToken = null
+let _mediaTokenExpiresAt = 0
+let _mediaTokenPromise = null
+
+async function doFetchMediaToken() {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/media/token`, {
+    headers: { ...authHeaders(), 'Cache-Control': 'no-cache' },
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_MEDIA_TOKEN_FAILED)
+  _mediaToken = data.token
+  _mediaTokenExpiresAt = new Date(data.expiresAt).getTime() || Date.now()
+  return _mediaToken
+}
+
+/** Mint (or reuse) the user-scoped media token. In-flight calls are deduped. */
+export function fetchMediaToken() {
+  const now = Date.now()
+  if (_mediaToken && _mediaTokenExpiresAt > now + MEDIA_TOKEN_RENEW_BUFFER_MS) {
+    return Promise.resolve(_mediaToken)
+  }
+  if (!_mediaTokenPromise) {
+    _mediaTokenPromise = doFetchMediaToken().catch((err) => {
+      _mediaTokenPromise = null
+      throw err
+    })
+  }
+  return _mediaTokenPromise
+}
+
+function getCachedMediaToken() {
+  return _mediaToken && _mediaTokenExpiresAt > Date.now() ? _mediaToken : null
+}
+
+/**
+ * Append the signed media token to a media URL for <img>/fetch use.
+ * Non-media URLs (data:, blob:, external) pass through untouched.
+ */
+export function mediaUrl(url) {
+  if (typeof url !== 'string' || !url) return url
+  if (!url.includes('/api/media/') || url.includes('token=')) return url
+  const token = getCachedMediaToken()
+  if (!token) {
+    // First call before the token lands: kick the fetch; callers that await
+    // fetchMediaToken() first (e.g. the photo catalog) always get a token.
+    fetchMediaToken().catch(() => {})
+    return url
+  }
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}token=${encodeURIComponent(token)}`
 }
 
 /**
@@ -222,6 +284,55 @@ export async function fetchMyAssessmentDraft() {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_MY_ASSESSMENTS_FAILED)
   return data.item || null
+}
+
+const CATALOG_POSE_IDS = [
+  'front',
+  'leftProfile',
+  'rightProfile',
+  'left45',
+  'right45',
+  'smile',
+  'topHead',
+]
+
+/**
+ * Every uploaded pose across the user's assessments, newest assessment first.
+ * Probes the 7 canonical /api/media URLs per assessment; missing poses (never
+ * uploaded) 404 and are skipped silently.
+ */
+export async function fetchMyPhotoCatalog({ limit = 20 } = {}) {
+  await fetchMediaToken()
+  const { items } = await fetchMyAssessmentsWithQuota(limit)
+  const base = getApiBaseUrl().replace(/\/$/, '')
+  const tasks = (items || []).flatMap((assessment) => {
+    const id = assessment?.id
+    if (!id) return []
+    const date = assessment.createdAt || null
+    return CATALOG_POSE_IDS.map((poseId) => {
+      const url = `${base}/api/media/assessments/${id}/${poseId}.jpg`
+      return fetch(url, { headers: authHeaders() })
+        .then(async (res) => {
+          if (!res.ok) return null
+          const blob = await res.blob()
+          if (!blob.size) return null
+          return {
+            assessmentId: id,
+            poseId,
+            url,
+            format: (blob.type || 'image/jpeg').split('/')[1] || 'jpg',
+            sizeBytes: blob.size,
+            date,
+          }
+        })
+        .catch(() => null)
+    })
+  })
+  const settled = await Promise.allSettled(tasks)
+  return settled
+    .filter((r) => r.status === 'fulfilled' && r.value)
+    .map((r) => r.value)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
 }
 
 export async function fetchAdminAssessments(limit = 50) {

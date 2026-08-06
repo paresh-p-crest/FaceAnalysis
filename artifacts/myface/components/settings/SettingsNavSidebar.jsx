@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { ChevronDown, ChevronRight, CreditCard, KeyRound, Menu, UserPen } from 'lucide-react'
+import { ChevronDown, ChevronRight, CreditCard, Images, KeyRound, Menu, UserPen } from 'lucide-react'
 
 export const SETTINGS_NAV_ITEMS = [
   { id: 'account', labelKey: 'nav.account', icon: UserPen },
   { id: 'password', labelKey: 'nav.password', icon: KeyRound },
+  { id: 'photos', labelKey: 'nav.photos', icon: Images, adminHidden: true },
 ]
 
 function NavRow({ item, active, onSelect, label }) {
@@ -25,13 +26,15 @@ function NavRow({ item, active, onSelect, label }) {
   )
 }
 
-export function SettingsNavSidebar({ activeId, onSelect }) {
+export function SettingsNavSidebar({ activeId, onSelect, user }) {
   const t = useTranslations('Settings')
   const [mobileOpen, setMobileOpen] = useState(false)
 
+  const navItems = SETTINGS_NAV_ITEMS.filter((item) => !(item.adminHidden && user?.role === 'admin'))
+
   const activeItem = useMemo(
-    () => SETTINGS_NAV_ITEMS.find((item) => item.id === activeId) || SETTINGS_NAV_ITEMS[0],
-    [activeId],
+    () => navItems.find((item) => item.id === activeId) || navItems[0],
+    [activeId, navItems],
   )
   const activeLabel = t(activeItem.labelKey)
 
@@ -42,7 +45,7 @@ export function SettingsNavSidebar({ activeId, onSelect }) {
 
   const navBody = (
     <div className="settings-nav-scroll flex-1 space-y-1 min-h-0 overflow-y-auto pr-1">
-      {SETTINGS_NAV_ITEMS.map((item) => (
+      {navItems.map((item) => (
         <NavRow
           key={item.id}
           item={item}
