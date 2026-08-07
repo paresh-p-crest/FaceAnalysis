@@ -1982,7 +1982,7 @@
     "generateProjectedAfterFailed": "Failed to generate projected AFTER image",
     "generateVisualsFailed": "Failed to generate visuals",
     "loadAssistantFailed": "Failed to load assistant conversation",
-    "assistantUnavailable": "Beauty Assistant is not working right now. Please try again later.",
+    "assistantUnavailable": "Chat Assistant is not working right now. Please try again later.",
     "downloadPdfFailed": "Failed to download report PDF",
     "loadPaymentConfigFailed": "Failed to load payment configuration",
     "loadPaymentsFailed": "Failed to load payments",
@@ -2449,9 +2449,9 @@
     }
   },
   "Assistant": {
-    "title": "Beauty Assistant",
+    "title": "Chat Assistant",
     "groundedBadge": "Grounded with your data",
-    "needsBackend": "Beauty Assistant needs a backend-saved assessment to load.",
+    "needsBackend": "Chat Assistant needs a backend-saved assessment to load.",
     "needsReport": "Complete a facial analysis first to chat about your latest report.",
     "loadFailed": "Could not load assistant",
     "unavailable": "Assistant unavailable",
@@ -2461,7 +2461,7 @@
     "placeholder": "Ask about your report...",
     "placeholderShort": "Ask anything",
     "placeholderSending": "Type your next question…",
-    "inputAria": "Message Beauty Assistant",
+    "inputAria": "Message Chat Assistant",
     "sending": "Sending",
     "send": "Send",
     "suggestions": {

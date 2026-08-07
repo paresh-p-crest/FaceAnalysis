@@ -10,7 +10,7 @@
     "billing": "Abrechnung",
     "report": "Bericht",
     "aiVisuals": "Visuals",
-    "chatAssistant": "Chat-Assistent",
+    "chatAssistant": "Chat Assistant",
     "account": "Konto",
     "settings": "Einstellungen",
     "signOut": "Abmelden",
@@ -1982,7 +1982,7 @@
     "generateProjectedAfterFailed": "Projiziertes AFTER-Bild konnte nicht erzeugt werden",
     "generateVisualsFailed": "Visuals konnten nicht erzeugt werden",
     "loadAssistantFailed": "Assistenten-Gespräch konnte nicht geladen werden",
-    "assistantUnavailable": "Beauty Assistant funktioniert gerade nicht. Versuch es später erneut.",
+    "assistantUnavailable": "Chat Assistant funktioniert gerade nicht. Versuch es später erneut.",
     "downloadPdfFailed": "Berichts-PDF konnte nicht heruntergeladen werden",
     "loadPaymentConfigFailed": "Zahlungskonfiguration konnte nicht geladen werden",
     "loadPaymentsFailed": "Zahlungen konnten nicht geladen werden",
@@ -2449,9 +2449,9 @@
     }
   },
   "Assistant": {
-    "title": "Beauty Assistant",
+    "title": "Chat Assistant",
     "groundedBadge": "Basierend auf deinen Daten",
-    "needsBackend": "Beauty Assistant braucht eine im Backend gespeicherte Analyse zum Laden.",
+    "needsBackend": "Chat Assistant braucht eine im Backend gespeicherte Analyse zum Laden.",
     "needsReport": "Schließe zuerst eine Gesichtsanalyse ab, um über deinen neuesten Bericht zu chatten.",
     "loadFailed": "Assistent konnte nicht geladen werden",
     "unavailable": "Assistent nicht verfügbar",
@@ -2461,7 +2461,7 @@
     "placeholder": "Frag zu deinem Bericht...",
     "placeholderShort": "Frag irgendetwas",
     "placeholderSending": "Schreib deine nächste Frage…",
-    "inputAria": "Nachricht an Beauty Assistant",
+    "inputAria": "Nachricht an Chat Assistant",
     "sending": "Wird gesendet",
     "send": "Senden",
     "suggestions": {
