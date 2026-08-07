@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Changed
+- **Locale preference persists across browser restarts** — `NEXT_LOCALE` cookie is now configured with a 1-year `maxAge` in [`i18n/routing.js`](file:///C:/Users/JayRabari/Documents/FacialAnalysis/artifacts/myface/i18n/routing.js) (`localeCookie`), so the navbar language choice survives a full browser close. Each switch already overwrites the cookie via `LocaleSwitcher`, so the stored preference updates automatically.
 - **My Photos tab hidden for admins** — The "My Photos" nav item is now filtered out of the Settings sidebar when `user.role === 'admin'` (`SettingsNavSidebar.jsx`), so admins only see Account/Password. The photos panel and its catalog fetch stay client-only.
 ### Added
 - **My Photos settings tab (ADR-053)** — New "My Photos" tab in Settings lists every uploaded photo across assessments, grouped by assessment date, with pose label, format/size, and a download button. The frontend builds the 7 canonical pose URLs per assessment from the existing `GET /api/my/assessments` list and probes them in parallel, skipping missing poses silently.
