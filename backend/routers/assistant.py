@@ -82,11 +82,18 @@ async def post_assistant_message(
     conversation = await get_or_create_conversation(assessment_id=assessment_id, user_id=current_user["id"])
     messages = conversation.get("messages") or []
 
+    # Persist the user message immediately (receipt time) so created_at reflects
+    # real chronology; the assistant reply is persisted only after generation.
+    await append_messages(
+        conversation_id=conversation["id"],
+        messages=[{"role": "user", "content": req.message}],
+    )
+
     result = await asyncio.to_thread(
         run_assistant_agent,
         question=req.message,
         assessment=assessment,
-        history=messages,
+        history=messages,  # pre-persist snapshot — the new user message is the `question` param
         session_summary=conversation.get("sessionSummary"),
         summary_at_user_count=int(conversation.get("summaryAtUserCount") or 0),
     )
@@ -96,14 +103,12 @@ async def post_assistant_message(
             assessment_id,
             result.get("error") or "empty content",
         )
+        # The user message stays in history — the question is not lost on failure.
         raise HTTPException(status_code=503, detail=ASSISTANT_UNAVAILABLE)
 
     updated = await append_messages(
         conversation_id=conversation["id"],
-        messages=[
-            {"role": "user", "content": req.message},
-            {"role": "assistant", "content": result["content"]},
-        ],
+        messages=[{"role": "assistant", "content": result["content"]}],
     )
 
     if result.get("session_summary") and result.get("should_refresh_summary"):

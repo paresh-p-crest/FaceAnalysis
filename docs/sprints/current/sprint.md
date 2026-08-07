@@ -4,6 +4,7 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
+- [x] Chat Assistant message order fix — persist user message on receipt and assistant reply after generation (two `append_messages` calls) so `created_at` reflects real chronology; failed AI calls keep the question in history (status: completed)
 - [x] MiVOLO v2 Age Estimation Model Swap — Replaced InsightFace `buffalo_l` age model in `backend/age_estimation.py` with `iitolstykh/mivolo_v2` via HuggingFace `transformers` while preserving the exact function signature and `[14, 70]` clamp contract (status: completed)
 - [x] Unmasked Square Ear Photo Crop — Updated `extract_profile_ear_crop` and `_bbox_from_mask` (`face_parsing.py`) to extract 1:1 square crops directly from unmasked profile photos with minimal padding (`pad=8`); updated `EarReportPanel.jsx` (`aspect-square object-cover`); added unit test `test_extract_profile_ear_crop_is_square_unmasked_photo` (status: completed)
 - [x] Auth page: remove lone "Sign in" tab pill left after signup removal (status: completed)

@@ -95,6 +95,8 @@ Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolW
 
 **conversation_messages:** `conversation_id` FK CASCADE; `role` enum `user`\|`assistant`; `content`; `created_at`. API still returns embedded `messages[]` on the conversation document shape.
 
+**Write pattern (persist-as-you-go):** the assistant router appends the user message on receipt and the assistant reply only after generation (two separate `append_messages` calls), so `created_at` ordering reflects real chronology — no schema change.
+
 ---
 
 ## 5. Table: `app_settings`
