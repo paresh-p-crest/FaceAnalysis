@@ -4,6 +4,7 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
+- [x] Ear landmarker CV integration (ADR-054) — `backend/ear_analysis.py` letterbox-368 infer + outlier repair + vertical/horizontal/slant; additive `cvReport.ears.sides` merge from `_enrich_cv_report`; unit tests; domain-models + CHANGELOG (status: completed)
 - [x] Navbar gates Visuals/Chat until report approved — `hasReadyReport` flag in AppProvider (refreshed on login/user change + `latestAssessmentEpoch`), `CustomerAssessmentGate` syncs it after list load / preparing Refresh, `SiteNavbar` omits AI Visuals + Chat Assistant for customers until a report is ready; Report always shown; admins unchanged (status: completed)
 - [x] MiVOLO v2 Age Estimation Model Swap — Replaced InsightFace `buffalo_l` age model in `backend/age_estimation.py` with `iitolstykh/mivolo_v2` via HuggingFace `transformers` while preserving the exact function signature and `[14, 70]` clamp contract (status: completed)
 - [x] Unmasked Square Ear Photo Crop — Updated `extract_profile_ear_crop` and `_bbox_from_mask` (`face_parsing.py`) to extract 1:1 square crops directly from unmasked profile photos with minimal padding (`pad=8`); updated `EarReportPanel.jsx` (`aspect-square object-cover`); added unit test `test_extract_profile_ear_crop_is_square_unmasked_photo` (status: completed)

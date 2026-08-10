@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Added
+- **Ear landmarker in CV stage (ADR-054)** — New [`backend/ear_analysis.py`](backend/ear_analysis.py) lazy-loads `models/ear_landmarker.pth` (env `EAR_LANDMARKER_PATH`), auto-downloads from the flame-head-tracker GitHub release when missing (`EAR_LANDMARKER_URL` / `EAR_LANDMARKER_AUTO_DOWNLOAD`), letterboxes each available profile to 368, decodes contour landmarks 0–19, repairs outliers, and merges additive `earLandmarkSource` + `sides.{left,right}` (normalized landmarks, regions, vertical/horizontal/slant measurements) into `cvReport.ears` from `_enrich_cv_report` without overwriting FaceMesh `earSize` / protrusion fields. Soft-fails when download/load or profiles fail.
 ### Changed
 - **Navbar gates Visuals / Chat until a report is approved** — The customer navbar now omits AI Visuals and Chat Assistant (Report stays) until at least one submitted assessment is report-ready (`userReportReady`: `approved`/`published`). `AppProvider` exposes `hasReadyReport`, refreshed on login/user change and `latestAssessmentEpoch`; `CustomerAssessmentGate` keeps it in sync after dashboard loads and the preparing Refresh. Admins unchanged; direct URLs to `/visuals`/`/chat` still show their existing empty states.
 - **Chat Assistant rename** — User-facing "Beauty Assistant" copy renamed to "Chat Assistant" in `Assistant.title` / `Assistant.needsBackend` / `Assistant.inputAria` and the `assistantUnavailable` error string in `en.json` and `de.json`. Component code and internal identifiers (`beautyAssistant` key, `ChatAssistant` component) are unchanged.

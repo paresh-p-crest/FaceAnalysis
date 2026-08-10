@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from typing import Optional
+import logging
 
 from .opencv_metrics import analyze_image_stats, compute_metrics_from_landmarks, landmarks_to_overlay
 from .eye_analysis import analyze_eyes, assemble_eyes_region
@@ -11,7 +12,10 @@ from .profile_cephalometrics import build_profile_report, _naso_aural_explanatio
 from .quarter_analysis import build_quarter_report
 from .smile_analysis import analyze_smile_photo
 from .hair_analysis import analyze_hair_photo
+from .ear_analysis import analyze_profile_ears
 from . import cv_report_explanations_de as expl_de
+
+logger = logging.getLogger(__name__)
 
 
 def _fail_result(error: str, provider: str, cv_engine: str) -> dict:
@@ -134,6 +138,14 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
                 naso["overlaySpace"] = "image"
             ratios = {**ratios, "nasoAural": naso}
             cv_report["proportions"] = {**cv_report["proportions"], "ratios": ratios}
+
+    # Additive ear landmarker (profile contours) — never overwrites FaceMesh earSize etc.
+    try:
+        ear_lm = analyze_profile_ears(photos)
+        if ear_lm:
+            cv_report["ears"] = {**(cv_report.get("ears") or {}), **ear_lm}
+    except Exception as exc:
+        logger.warning("Ear landmarker enrichment skipped: %s", exc)
 
     poses_analyzed = multi_view.get("posesAnalyzed", [])
     cv_report["meta"] = {

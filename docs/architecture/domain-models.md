@@ -58,6 +58,33 @@ Indexes: unique `email`, `role`.
 ### Analysis JSON (`analysis`)
 Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolWarnings`, etc. (see prior MediaPipe/`cvReport` documentation). Stored as JSONB — not normalized into metric tables.
 
+#### `cvReport.ears` (FaceMesh + optional ear landmarker)
+
+FaceMesh junction proxies still populate the existing panel fields (`earSize`, `earSizeClass`, `earSymmetry`, `sizeDifference`, `protrusion`, `earProtrusion`, `earPosition`, scores/explanations). When profile photos are present, `_enrich_cv_report` loads `models/ear_landmarker.pth` (or `EAR_LANDMARKER_PATH`) — auto-downloading from `EAR_LANDMARKER_URL` when missing unless `EAR_LANDMARKER_AUTO_DOWNLOAD=false` — and **merges** an additive landmarker payload without overwriting those keys (ADR-054):
+
+| Key | Meaning |
+|-----|---------|
+| `earLandmarkSource` | `"ear_landmarker"` when the module ran |
+| `sides.left` / `sides.right` | Per-profile result keyed by anatomical side (`leftProfile` / `rightProfile`) |
+
+Each side object:
+
+| Field | Notes |
+|-------|--------|
+| `poseId` | `leftProfile` \| `rightProfile` |
+| `status` | `ready` \| `skipped` \| `failed` |
+| `reason` | e.g. `pose_missing`, `edge_collapse`, `decode_error`, `inference_error` |
+| `imageSize` | `[W, H]` full profile pixels |
+| `landmarks` | 20× `{id, x, y}` with **0–1 normalized** coords in full-image space |
+| `regions` | `helix: 2–12`, `lobe: 13–18`, `tragus: [19,0,1]` |
+| `measurements` | `verticalHeightNorm/Px`, `horizontalWidthNorm/Px`, `slantHeightNorm/Px`, `softBottomFrac`, `helixTop`, `lobeBottom`, `lobeLeft` (norm = px / height for vertical+slant, / width for horizontal) |
+| `confidences` | Per-point heatmap peak values |
+| `edgeCollapseFrac` | Fraction of points near input border; `> 0.25` → `failed` (no landmarks merged) |
+| `repairedIndices` | Contour indices snapped by neighbor-midpoint repair |
+| `mirrored` | `true` if right-profile retry used a horizontal flip |
+
+No DB migration — JSONB only. EarReportPanel overlay UI is a follow-up; SegFormer ear crops stay for hero imagery.
+
 ### Generated text (latest-only)
 | Surface | Column / table | Locale |
 |---------|----------------|--------|

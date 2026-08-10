@@ -1101,3 +1101,27 @@ All user-uploaded photos were served publicly by `GET /api/media/assessments/{id
 - The token is replayable against `/api/media/*` for ~1 day but cannot be replayed against `/api/*` (different signature domain) and carries no new privileges beyond what the session already grants.
 - Every media-backed value must pass through `mediaUrl()` (or a resolver that does) — missed sites silently 404 once enforcement is on; a grep audit guards this.
 - The 7-URL probe costs 7 requests per assessment (capped at 100 assessments) — acceptable for personal accounts; a dedicated catalog endpoint is the upgrade path if that ever grows.
+
+---
+
+## ADR-054: Ear Landmarker in CV Stage (Additive Profile Contours)
+Date: 2026-08-10  
+Status: accepted  
+
+### Context
+Production ear metrics (`ear_metrics` in `backend/cv_report.py`) use FaceMesh junction proxies (234/454) plus silhouette naso-aural. A dedicated `ear_landmarker.pth` (onnx2torch GraphModule, 55 heatmap channels, contour 0–19) was proven in a research notebook but unwired. Parsing-stage SegFormer ear crops are for hero imagery only and must not gate measurements.
+
+### Decision
+1. **CV-stage enrichment**: `backend/ear_analysis.py` runs from `_enrich_cv_report` after `build_profile_report`, on available `leftProfile` / `rightProfile` photo bytes.
+2. **Full-image letterbox**: No ear crop for v1 — pad profile RGB to square, resize **368**, `/255` NHWC — matching the working notebook / tracker path.
+3. **Decode + repair**: Upsample heatmaps → Gaussian σ=2.5 → argmax channels 0–19; `repair_contour_outliers` (both adjacent edges > 3× median → neighbor midpoint). `edgeCollapseFrac > 0.25` → side `status: failed` (no landmarks); optional one-shot horizontal flip retry when the first pass collapses.
+4. **Additive JSON schema**: Merge `{ earLandmarkSource, sides }` under `cvReport.ears` without overwriting FaceMesh `earSize` / `sizeDifference` / protrusion fields. Landmarks stored **0–1 normalized** in full-profile image space. Weights at `models/ear_landmarker.pth` with `EAR_LANDMARKER_PATH` override.
+5. **Auto-download**: If the weights file is missing, fetch from the flame-head-tracker GitHub release (`EAR_LANDMARKER_URL`, default release asset URL) into the resolved path on first use. Disable with `EAR_LANDMARKER_AUTO_DOWNLOAD=false`. Soft-fail (FaceMesh ears unchanged) if download or load fails.
+6. **Out of scope (follow-up)**: EarReportPanel measurement overlays; replacing SegFormer ear heroes; forcing naso-aural onto landmarker height.
+
+### Consequences
+- First CV run may download ~170MB then lazy-load the checkpoint (singleton); subsequent assessments reuse disk + memory.
+- Right-profile orientation mismatch is mitigated by edge-collapse + mirror retry, not by always flipping.
+- Panel UI can consume `sides.*.landmarks` / `measurements` later without a schema migration.
+- FaceMesh ear sizing remains the interactive contract until IPD-relative landmarker sizing is validated.
+- Offline / air-gapped deploys must pre-place the `.pth` or set `EAR_LANDMARKER_AUTO_DOWNLOAD=false`.
