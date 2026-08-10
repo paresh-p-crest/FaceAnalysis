@@ -49,7 +49,7 @@ export function CustomerAssessmentGate({
   const t = useTranslations('Home')
   const tLimit = useTranslations('AnalysisLimit')
   const tErrors = useTranslations('Errors')
-  const { latestAssessmentEpoch } = useApp()
+  const { latestAssessmentEpoch, setHasReadyReport } = useApp()
   const loadingMessage = loadingLabel ?? t('loadingDashboard')
   const [submittedItems, setSubmittedItems] = useState([])
   const [submittedCount, setSubmittedCount] = useState(0)
@@ -88,6 +88,8 @@ export function CustomerAssessmentGate({
       setSubmittedItems(submitted)
       setSubmittedCount(page.submittedCount)
       setDraftItem(draft)
+      // Keep the navbar gate in sync with fresh data (e.g. preparing Refresh after approval).
+      setHasReadyReport(submitted.some(userReportReady))
     } catch (err) {
       if (cancelled()) return
       setError(translateApiError(err, tErrors))

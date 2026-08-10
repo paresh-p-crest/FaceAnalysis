@@ -70,6 +70,8 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   const [hasAnalysisAccess, setHasAnalysisAccess] = useState(false)
+  /** True once the user has at least one submitted assessment that is report-ready (approved/published). */
+  const [hasReadyReport, setHasReadyReport] = useState(false)
   const [accessReady, setAccessReady] = useState(false)
   const [returnPath, setReturnPath] = useState(ROUTES.dashboard)
   const [billingMessage, setBillingMessage] = useState('')
@@ -453,6 +455,20 @@ export function AppProvider({ children }) {
     setAccessReady(true)
   }, [])
 
+  const refreshHasReadyReport = useCallback(async () => {
+    if (!userRef.current || !isBackendApiEnabled()) {
+      setHasReadyReport(false)
+      return
+    }
+    try {
+      const items = await fetchMyAssessments(20)
+      const submitted = (Array.isArray(items) ? items : []).filter(isAssessmentSubmitted)
+      setHasReadyReport(submitted.some(userReportReady))
+    } catch {
+      // Transient failure — keep last known value so the navbar doesn't flap.
+    }
+  }, [])
+
   // Never strand the UI if auth/access checks hang (cold backend, stale Stripe session, etc.)
   useEffect(() => {
     if (authReady && accessReady) return undefined
@@ -523,6 +539,15 @@ export function AppProvider({ children }) {
     }
     refreshAnalysisAccess()
   }, [authReady, user?.id, user?.role, refreshAnalysisAccess])
+
+  // Keep hasReadyReport fresh on login and whenever assessments are rebound/deleted (epoch bump).
+  useEffect(() => {
+    if (!authReady || !user) {
+      setHasReadyReport(false)
+      return
+    }
+    refreshHasReadyReport()
+  }, [authReady, user?.id, latestAssessmentEpoch, refreshHasReadyReport])
 
   useEffect(() => {
     if (!bootstrappedRef.current) return
@@ -1039,6 +1064,8 @@ export function AppProvider({ children }) {
     user,
     authReady,
     hasAnalysisAccess,
+    hasReadyReport,
+    setHasReadyReport,
     accessReady,
     refreshAnalysisAccess,
     answers,
@@ -1112,7 +1139,7 @@ export function AppProvider({ children }) {
     handlePreparingDashboard,
     resetAnalysisFlow,
   }), [
-    user, authReady, hasAnalysisAccess, accessReady, refreshAnalysisAccess,
+    user, authReady, hasAnalysisAccess, hasReadyReport, accessReady, refreshAnalysisAccess,
     answers, photos, analysis, historyId, dismissPaymentReturn, clearPaymentSession, grantPaidAccess, returnPath,
     billingMessage, paymentReturn, logoutConfirmOpen, scanId,
     adminWorkspace,
