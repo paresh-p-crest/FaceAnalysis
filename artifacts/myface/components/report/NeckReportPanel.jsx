@@ -105,7 +105,7 @@ export function NeckReportPanel({
     { label: t('neck.width'), value: metrics.widthClass },
     { label: t('neck.definition'), value: metrics.definitionClass },
     { label: t('neck.length'), value: metrics.lengthClass },
-    { label: t('neck.aging'), value: metrics.agingClass },
+    { label: t('neck.transitionAngle'), value: n.jawNeckAngle != null ? `${n.jawNeckAngle}°` : null },
   ]
 
   const left = [

@@ -29,6 +29,14 @@ function classifyCheekPosition(ratio) {
   return 'average'
 }
 
+function classifyCheekProminence(ratio) {
+  if (ratio == null || Number.isNaN(Number(ratio))) return null
+  const r = Number(ratio)
+  if (r > 0.85) return 'Prominent'
+  if (r < 0.75) return 'Flat'
+  return 'Moderate'
+}
+
 function classifyCheekFullness(ratio) {
   if (ratio == null || Number.isNaN(Number(ratio))) return null
   const r = Number(ratio)
@@ -77,7 +85,7 @@ export function CheekReportPanel({
       widthClass: classifyMalarWidth(malarRatio),
       positionClass: classifyCheekPosition(positionAvg),
       fullnessClass: classifyCheekFullness(malarRatio),
-      heightClass: 'N/A',
+      prominenceClass: classifyCheekProminence(malarRatio),
     }
   }, [featureParsing])
 
@@ -142,7 +150,7 @@ export function CheekReportPanel({
     { label: t('cheek.width'), value: metrics.widthClass },
     { label: t('cheek.position'), value: metrics.positionClass },
     { label: t('cheek.fullness'), value: metrics.fullnessClass },
-    { label: t('cheek.height'), value: metrics.heightClass },
+    { label: t('cheek.prominence'), value: metrics.prominenceClass },
   ]
 
   const left = [

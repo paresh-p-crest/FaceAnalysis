@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Fixed
+- **Preview card N/A replacements** — Swapped empty summary cards: Brow Virility → Brow Thickness, Lip Health → Philtrum Proportion, Cheekbone Height → Cheekbone Prominence, Teeth Exposure → Lip Balance, Teeth Color → Nasolabial Fold, Neck Aging → Transition Angle. Bottom "All metrics" tables unchanged.
+
 ### Added
 - **Prototypicality Shape Analysis face diagram** — Report panel renders a minimal canonical Bézier SVG from MediaPipe landmarks via `artifacts/myface/utils/faceDiagramRenderer.js` (port of `face_diagram_renderer.py` Step 7a): portrait aspect correction, open jaw U, filled brows, hollow nose tip, white background. Replaces dense sage edge-mesh lines. Test: `node artifacts/myface/scripts/test-face-diagram-renderer.js`.
 - **Standalone MediaPipe face-diagram SVG renderer** — [`face_diagram_renderer.py`](face_diagram_renderer.py): open temple→chin U (no forehead arc); portrait aspect correction for SVG; `--image` also writes a photo overlay PNG (`*_overlay.png`). Supports JSON / template / `--self-test` / `--serve`. Not wired into report pipeline yet.

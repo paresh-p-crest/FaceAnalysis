@@ -217,6 +217,7 @@
 - [x] Verify frontend build states for questionnaire and uploads (status: completed)
 - [x] Integrate MiVOLO v2 joint age and gender estimation, routing predicted visual gender into dimorphism metrics engine (status: completed)
 - [x] Resolve dashboard Overview image placeholder (Projected Image Pending) and disclaimer string update (status: completed)
+- [x] Preview card N/A replacements — Brow Virility→Thickness, Lip Health→Philtrum Proportion, Cheekbone Height→Prominence, Teeth Exposure→Lip Balance, Teeth Color→Nasolabial Fold, Neck Aging→Transition Angle (status: completed)
 - [ ] Optional BiSeNet upgrade for hair mask (future — not env-gated)
 
 ## Blockers & Decisions

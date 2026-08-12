@@ -86,7 +86,7 @@ export function JawReportPanel({ jaw, featureParsing, imageSrc = null }) {
       definitionClass: classifyDefinition(riseMm, j.mandibularDefinition),
       widthClass: classifyWidth(widthMm, j.jawWidthClass),
       shapeClass: classifyShape(avgNum),
-      angleClass: avgNum != null ? String(Math.round(avgNum)) : null,
+      angleClass: avgNum != null ? `${Math.round(avgNum)}°` : null,
     }
   }, [featureParsing, j.mandibularDefinition, j.jawWidthClass, j.jawAngle])
 

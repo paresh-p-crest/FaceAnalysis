@@ -214,7 +214,7 @@ export function BrowReportPanel({
           <div className="grid grid-cols-2 gap-3">
             <SummaryLabelCard label={t('brow.position')} value={textOrNull(m.position)} />
             <SummaryLabelCard label={t('brow.tilt')} value={textOrNull(m.tilt)} />
-            <SummaryLabelCard label={t('brow.virility')} value={textOrNull(m.virility)} />
+            <SummaryLabelCard label={t('brow.thickness')} value={textOrNull(m.thickness)} />
             <SummaryLabelCard label={t('brow.shape')} value={textOrNull(m.shape)} />
           </div>
           <DetailCarousel slides={slides} />

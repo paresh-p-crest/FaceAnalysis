@@ -870,6 +870,7 @@
       "position": "Eyebrow Position",
       "tilt": "Eyebrow Tilt",
       "virility": "Eyebrow Virility",
+      "thickness": "Brow Thickness",
       "shape": "Eyebrow Shape",
       "slides": {
         "peak": {
@@ -1040,6 +1041,8 @@
       "smileShape": "Smile Shape",
       "teethExposure": "Teeth Exposure",
       "teethColor": "Teeth Color",
+      "lipBalance": "Lip Balance",
+      "nasolabialFold": "Nasolabial Fold",
       "slides": {
         "upper": {
           "titleLead": "Upper Smile Arc",
@@ -1076,6 +1079,7 @@
       "definition": "Neck Definition",
       "length": "Neck Length",
       "aging": "Neck Aging",
+      "transitionAngle": "Transition Angle",
       "slides": {
         "width": {
           "titleLead": "Neck Width",
@@ -1154,6 +1158,7 @@
       "width": "Lip Width",
       "proportions": "Lip Proportions",
       "health": "Lip Health",
+      "philtrumProportion": "Philtrum Proportion",
       "slides": {
         "mouthWidth": {
           "titleLead": "Mouth Width",
@@ -1230,6 +1235,7 @@
       "position": "Cheekbone Position",
       "fullness": "Cheek Fullness",
       "height": "Cheekbone Height",
+      "prominence": "Cheekbone Prominence",
       "slides": {
         "malar": {
           "titleLead": "Malar Width",

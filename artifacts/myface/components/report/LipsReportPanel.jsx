@@ -54,6 +54,13 @@ function classifyProportions(cupidDeg) {
   return 'moderateArch'
 }
 
+function classifyPhiltrum(philtrumMm) {
+  if (!Number.isFinite(philtrumMm)) return null
+  if (philtrumMm < 12) return 'Shorter philtrum'
+  if (philtrumMm > 16) return 'Longer philtrum'
+  return 'Proportionate'
+}
+
 function buildLipMetrics(lips, featureParsing) {
   const mouthMm = parsingValue(featureParsing, 'mouth_width_mm')
   const philtrumMm = parsingValue(featureParsing, 'philtrum_length_mm')
@@ -66,7 +73,7 @@ function buildLipMetrics(lips, featureParsing) {
     fullnessLabel: classifyFullness(mouthMm, lips.fullness),
     widthLabel: classifyWidth(mouthMm) || toCvLabelKey(lips.fullness),
     proportionsLabel: classifyProportions(cupidDeg),
-    healthLabel: 'N/A',
+    philtrumLabel: classifyPhiltrum(philtrumMm),
   }
 }
 
@@ -183,7 +190,7 @@ export function LipsReportPanel({ lips, featureParsing = null }) {
             <SummaryLabelCard label={t('lips.fullness')} value={metrics.fullnessLabel} />
             <SummaryLabelCard label={t('lips.width')} value={metrics.widthLabel} />
             <SummaryLabelCard label={t('lips.proportions')} value={metrics.proportionsLabel} />
-            <SummaryLabelCard label={t('lips.health')} value={metrics.healthLabel} />
+            <SummaryLabelCard label={t('lips.philtrumProportion')} value={metrics.philtrumLabel} />
           </div>
           <DetailCarousel slides={slides} />
         </div>

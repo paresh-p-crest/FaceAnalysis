@@ -870,6 +870,7 @@
       "position": "Brauenposition",
       "tilt": "Brauenneigung",
       "virility": "Brauenstärke",
+      "thickness": "Brauendicke",
       "shape": "Brauenform",
       "slides": {
         "peak": {
@@ -1040,6 +1041,8 @@
       "smileShape": "Lächelform",
       "teethExposure": "Zahnexposition",
       "teethColor": "Zahnfarbe",
+      "lipBalance": "Lippenbalance",
+      "nasolabialFold": "Nasolabialfalte",
       "slides": {
         "upper": {
           "titleLead": "Oberer Lächelbogen",
@@ -1076,6 +1079,7 @@
       "definition": "Halsdefinition",
       "length": "Halslänge",
       "aging": "Halsalterung",
+      "transitionAngle": "Übergangswinkel",
       "slides": {
         "width": {
           "titleLead": "Halsbreite",
@@ -1154,6 +1158,7 @@
       "width": "Lippenbreite",
       "proportions": "Lippenproportionen",
       "health": "Lippensundheit",
+      "philtrumProportion": "Philtrum-Proportion",
       "slides": {
         "mouthWidth": {
           "titleLead": "Mundbreite",
@@ -1230,6 +1235,7 @@
       "position": "Wangenknochen-Position",
       "fullness": "Wangenfülle",
       "height": "Wangenknochen-Höhe",
+      "prominence": "Wangenknochen-Prominenz",
       "slides": {
         "malar": {
           "titleLead": "Malarbreite",

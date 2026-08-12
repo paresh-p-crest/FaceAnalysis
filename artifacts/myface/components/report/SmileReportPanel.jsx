@@ -32,6 +32,16 @@ function classifyMouthWidth(widthMm, cvClass) {
   return 'balanced'
 }
 
+function classifyLipBalance(v) {
+  const s = toCvLabelKey(v)
+  return s || null
+}
+
+function classifyNasolabialFold(v) {
+  const s = toCvLabelKey(v)
+  return s || null
+}
+
 function classifySmileShape(upperArc, cvCurvature) {
   if (Number.isFinite(upperArc)) {
     if (upperArc > 0.1) return 'stronglyUpturned'
@@ -68,8 +78,8 @@ export function SmileReportPanel({
       smileWidthMm: widthNum,
       mouthWidthClass: classifyMouthWidth(widthNum, s.mouthWidthClass),
       smileShapeClass: classifySmileShape(upperNum, s.curvature),
-      teethExposureClass: 'N/A',
-      teethColorClass: 'N/A',
+      lipBalanceClass: classifyLipBalance(s.lipBalance),
+      nasolabialFoldClass: classifyNasolabialFold(s.nasolabialFold),
     }
   }, [featureParsing, s.mouthWidthClass, s.curvature])
 
@@ -133,8 +143,8 @@ export function SmileReportPanel({
   const cards = [
     { label: t('smile.mouthWidth'), value: metrics.mouthWidthClass },
     { label: t('smile.smileShape'), value: metrics.smileShapeClass },
-    { label: t('smile.teethExposure'), value: metrics.teethExposureClass },
-    { label: t('smile.teethColor'), value: metrics.teethColorClass },
+    { label: t('smile.lipBalance'), value: metrics.lipBalanceClass },
+    { label: t('smile.nasolabialFold'), value: metrics.nasolabialFoldClass },
   ]
 
   const left = [
