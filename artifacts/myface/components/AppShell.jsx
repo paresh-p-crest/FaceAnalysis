@@ -55,8 +55,7 @@ export function AppShell({ children }) {
     const pendingReview = adminWorkspace.assessments.filter(
       (item) => normalizeReportStatus(item.status) === 'pending_review',
     ).length
-    const clientUsers = adminWorkspace.users.filter((item) => item.role !== 'admin').length
-    return { review: pendingReview, users: clientUsers }
+    return { review: pendingReview }
   })()
 
   return (

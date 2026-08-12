@@ -281,7 +281,7 @@ export function SiteNavbar({
         icon: ADMIN_TAB_ICONS[tab],
         href: adminTabToPath(tab),
         active: !reportModalOpen && activeAdminTab === tab,
-        badge: tab === 'review' ? adminNavBadges?.review : tab === 'users' ? adminNavBadges?.users : undefined,
+        badge: tab === 'review' ? adminNavBadges?.review : undefined,
         onClick: closeReportIfOpen,
       }))
     }

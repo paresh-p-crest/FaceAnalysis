@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Changed
+- **Admin navbar** — Removed user-count badge from the Users tab; pending-review badge on Review tab unchanged.
+
 ### Fixed
 - **Preview card N/A replacements** — Swapped empty summary cards: Brow Virility → Brow Thickness, Lip Health → Philtrum Proportion, Cheekbone Height → Cheekbone Prominence, Teeth Exposure → Lip Balance, Teeth Color → Nasolabial Fold, Neck Aging → Transition Angle. Bottom "All metrics" tables unchanged.
 
