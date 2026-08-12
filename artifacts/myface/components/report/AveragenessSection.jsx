@@ -6,7 +6,7 @@ import { PrototypicalityShapeAnalysis } from './PrototypicalityShapeAnalysis'
 import { prototypicalityRangeLabel } from '../../utils/prototypicalityWireframe'
 import { pickLocalizedCvText, useCvLabel } from '../../utils/cvReportLocale'
 
-export function AveragenessSection({ averageness, landmarks }) {
+export function AveragenessSection({ averageness, landmarks, photo }) {
   const t = useTranslations('Report')
   const locale = useLocale()
   const cvLabel = useCvLabel()
@@ -34,9 +34,9 @@ export function AveragenessSection({ averageness, landmarks }) {
         subtitle={t('averageness.subtitle')}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 report-view-metric-card p-5 sm:p-6">
-          <PrototypicalityShapeAnalysis landmarks={landmarks} averageness={averageness} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:items-start">
+        <div className="lg:col-span-2 report-view-metric-card px-5 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-3">
+          <PrototypicalityShapeAnalysis landmarks={landmarks} averageness={averageness} photo={photo} />
         </div>
 
         <div className="flex flex-col gap-4">

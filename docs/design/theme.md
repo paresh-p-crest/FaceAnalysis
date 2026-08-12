@@ -169,7 +169,7 @@ Used on all stages except **landing (questionnaire welcome)**, **questionnaire**
 | Report modal | Explicit spacers: navbar-height clear + mint `--site-navbar-gap` strip |
 | Standalone tools | `/chat` and `/visuals` use `StandalonePageShell` — mint surface, `report-shell-inner` gutters, white `report-view-layout` card |
 | Inner row | `.site-navbar-inner` — full width; `.site-navbar-cluster` left-aligns logo + links |
-| Customer links | Report · AI Visuals · Chat Assistant (left of bar); History/Billing removed from navbar (use dashboard KPIs) |
+| Customer links | Report always; AI Visuals + Chat Assistant only once a submitted report is approved/ready (left of bar); History/Billing removed from navbar (use dashboard KPIs) |
 | Active link | Brand liquid-glass pill (`site-navbar-link-active`) — low-opacity teal frost (~4–10% brand), heavy blur, brand-dark label |
 | Controls | `.site-navbar-pill` account + language; `.site-navbar-btn` brand fill |
 | Mobile | Hamburger opens `.site-navbar-mobile-panel`; Escape to close |

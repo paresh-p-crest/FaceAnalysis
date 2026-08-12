@@ -759,6 +759,8 @@
       "yourProportion": "Your Proportion",
       "idealProportion": "Ideal Proportion",
       "facialProportionsAlt": "Facial proportions",
+      "nasoAuralUnavailable": "Ear height measurement isn’t available for this analysis. Re-run the analysis to generate the ear landmarker metrics.",
+      "nasoAuralUnavailableDetail": "Older reports (or runs where the ear model didn’t finish) don’t include reliable ear-vs-nose guides, so the overlay and ratio are hidden to avoid showing incorrect points.",
       "ratioTabs": {
         "nasoAural": {
           "label": "Ear",
@@ -854,7 +856,8 @@
       "protrusionDepth": "Protrusion depth",
       "protrusionDepthTooltip": "Z-depth measurement of ear protrusion from the facial plane.",
       "verticalPosition": "Vertical position",
-      "verticalPositionTooltip": "Ear vertical alignment relative to facial features. Mid-set ears align with brow-to-nose base."
+      "verticalPositionTooltip": "Ear vertical alignment relative to facial features. Mid-set ears align with brow-to-nose base.",
+      "verticalHeight": "Vertical height"
     },
     "featureReport": {
       "subtitle": "Facial landmark balance from your photos"
@@ -1137,6 +1140,7 @@
         "widthClass": "Width Classification",
         "nasalHeight": "Nasal Height",
         "nasoCanthalRatio": "Naso-Canthal Ratio",
+        "nasoAuralRatio": "Naso-Aural Ratio",
         "shapeClass": "Shape Classification",
         "tipClass": "Tip Classification"
       }
@@ -1748,8 +1752,20 @@
       "useDemoPhotos": "Use demo photos",
       "loadingDemoPhotos": "Loading demo photos…",
       "posesUploaded": "Poses Uploaded ({uploaded}/{total})",
-      "uploadActivePose": "Upload — {pose}",
+      "uploadActivePose": "Upload: {pose}",
       "required": "Required",
+      "poseDirectionHeading": "Pose direction",
+      "photoQualityHeading": "Photo quality",
+      "poseConventionNote": "Left and right refer to your own sides, the side of your face visible to the camera.",
+      "poseInstructions": {
+        "front": "Look straight at the camera",
+        "leftProfile": "Turn fully to your left, show your left ear and cheek",
+        "rightProfile": "Turn fully to your right, show your right ear and cheek",
+        "left45": "Turn approximately 45° to your left",
+        "right45": "Turn approximately 45° to your right",
+        "smile": "Look straight at the camera and smile naturally",
+        "topHead": "Tilt your head down to show the crown and hairline"
+      },
       "checking": "Checking…",
       "continue": "Continue",
       "activePose": "Active Pose",
@@ -1767,6 +1783,10 @@
       "checkPhotoReupload": "Check photo & re-upload",
       "qualityCheckFailed": "This photo did not pass the quality checks.",
       "uploadFailed": "Upload failed. Re-upload to retry.",
+      "uploadErrorLabel": "Upload error",
+      "validationErrorLabel": "Photo check failed",
+      "validationWarningsTitle": "Quality notes",
+      "statusUploadedWithWarnings": "Uploaded, review notes",
       "demoLoadFailed": "Could not load demo photos",
       "demoImage": "Demo image",
       "statusUploaded": "Uploaded",
@@ -1804,11 +1824,11 @@
       },
       "leftProfile": {
         "label": "Left Profile",
-        "hint": "Left side profile — full face from the left"
+        "hint": "Left side profile, full face from the left"
       },
       "rightProfile": {
         "label": "Right Profile",
-        "hint": "Right side profile — full face from the right"
+        "hint": "Right side profile, full face from the right"
       },
       "left45": {
         "label": "Left 45°",
@@ -1820,28 +1840,44 @@
       },
       "smile": {
         "label": "Smile",
-        "hint": "Smile naturally showing teeth — for smile shape & teeth analysis"
+        "hint": "Smile naturally showing teeth, for smile shape and teeth analysis"
       },
       "topHead": {
         "label": "Top of Head",
-        "hint": "Tilt head down showing top of head & hairline — for hair density analysis"
+        "hint": "Tilt head down showing top of head and hairline, for hair density analysis"
       }
     },
     "validation": {
       "faceDetected": {
-        "none": "No face detected — face the camera directly",
-        "multiple": "{count} faces detected — only one person allowed",
+        "none": "No face detected, face the camera directly",
+        "multiple": "{count} faces detected, only one person allowed",
         "ok": "Face detected",
-        "limitedAngle": "Face detection limited for this angle — proceeding"
+        "limitedAngle": "Face detection limited for this angle, proceeding"
+      },
+      "faceRequired": {
+        "topHead": "No face detected. Tilt your head down so your face and the top of your head are both visible"
+      },
+      "faceConfirm": {
+        "topHeadVerified": "Top-down angle confirmed",
+        "topHeadUnconfirmed": "Top-down angle could not be independently confirmed"
+      },
+      "hairMask": {
+        "missing": "Top of head is not properly visible. Tilt your head down so the crown and hairline show clearly",
+        "weak": "Top of head is not clear enough. Fill more of the frame with the crown and hairline",
+        "scattered": "Hair region looks incomplete. Retake with the crown centered and well lit",
+        "ok": "Top of head visible",
+        "unavailable": "Hair visibility check unavailable, try again"
       },
       "correctPose": {
         "inconclusive": "Pose check inconclusive",
-        "wrong": "Face is {detected} — expected {expected}",
+        "wrong": "Face is {detected}, expected {expected}",
         "ok": "Pose: {pose}"
       },
       "detectedPose": {
         "leftProfile": "left profile",
         "rightProfile": "right profile",
+        "left45": "left 45°",
+        "right45": "right 45°",
         "frontFacing": "front-facing"
       },
       "expectedPose": {
@@ -1855,32 +1891,32 @@
       },
       "neutralExpression": {
         "inconclusive": "Expression check inconclusive",
-        "mouthOpen": "Mouth appears open — please use a neutral expression",
-        "nonNeutral": "Expression appears non-neutral — please relax your face",
+        "mouthOpen": "Mouth appears open, please use a neutral expression",
+        "nonNeutral": "Expression appears non-neutral, please relax your face",
         "ok": "Expression neutral",
         "smileExpected": "Smile expression expected"
       },
       "eyesOpen": {
-        "closed": "Eyes appear closed — please keep eyes open",
-        "squinting": "Eyes may be squinting — try opening them fully",
+        "closed": "Eyes appear closed, please keep eyes open",
+        "squinting": "Eyes may be squinting, try opening them fully",
         "ok": "Eyes open",
         "limitedAngle": "Eye check limited for this angle"
       },
       "noGlasses": {
-        "detected": "Glasses detected — please remove for best results",
-        "possible": "Possible glasses detected — remove if possible",
+        "detected": "Glasses detected, please remove for best results",
+        "possible": "Possible glasses detected, remove if possible",
         "ok": "No glasses detected"
       },
       "hairClear": {
         "inconclusive": "Hair check inconclusive",
-        "covering": "Hair may be covering forehead — please clear hair from face",
-        "partial": "Hair may partially cover your face — push hair back if possible",
-        "foreheadCovered": "Forehead appears partially covered — ensure hair is away from face",
+        "covering": "Hair may be covering forehead, please clear hair from face",
+        "partial": "Hair may partially cover your face, push hair back if possible",
+        "foreheadCovered": "Forehead appears partially covered, ensure hair is away from face",
         "ok": "Hair clear",
         "skippedTopHead": "Hair check skipped for top-of-head photo"
       },
       "faceCentered": {
-        "offCenter": "Face is {direction} — center your face in the frame",
+        "offCenter": "Face is {direction}, center your face in the frame",
         "left": "left",
         "right": "right",
         "tooHigh": "too high",
@@ -1888,14 +1924,14 @@
         "ok": "Face centered"
       },
       "faceSize": {
-        "tooSmall": "Face is too small — move closer to the camera",
-        "small": "Face is small — try moving closer for better accuracy",
+        "tooSmall": "Face is too small, move closer to the camera",
+        "small": "Face is small, try moving closer for better accuracy",
         "ok": "Face size OK"
       },
       "brightness": {
-        "veryDark": "Image is very dark — use better lighting",
-        "dark": "Image is dark — improve lighting",
-        "overexposed": "Image is overexposed — reduce brightness",
+        "veryDark": "Image is very dark, use better lighting",
+        "dark": "Image is dark, improve lighting",
+        "overexposed": "Image is overexposed, reduce brightness",
         "bright": "Image is slightly bright",
         "ok": "Brightness OK"
       },
@@ -1905,12 +1941,12 @@
         "ok": "Sharpness OK"
       },
       "resolution": {
-        "tooSmall": "Too small ({width}×{height}) — use {minPx}px+",
+        "tooSmall": "Too small ({width}×{height}), use {minPx}px+",
         "ok": "Resolution OK"
       },
       "mediaPipe": {
         "unavailableAngle": "Advanced checks unavailable for this angle",
-        "error": "Advanced checks unavailable — MediaPipe error"
+        "error": "Advanced checks unavailable, MediaPipe error"
       }
     }
   },
@@ -2156,6 +2192,7 @@
         "open": "Open",
         "opening": "Opening…",
         "delete": "Delete",
+        "retry": "Retry",
         "pipelineRunning": "Processing…"
       },
       "errors": {

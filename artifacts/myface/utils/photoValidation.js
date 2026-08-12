@@ -21,22 +21,31 @@
  *  • leftProfile/rightProfile — canvas quality always enforced; MediaPipe face detection is
  *                               lenient (reliably fails at 90°); correctPose + faceSize still
  *                               flagged when landmarks are available
- *  • topHead         — same leniency as full profiles
+ *  • topHead         — Hair Segmenter is primary (mask coverage + coherence);
+ *                      Face Landmarker is optional confirmation (pitch when a face
+ *                      is found soft-warns if not top-down; no-face + strong hair
+ *                      → warn and allow upload)
  *
  * Returns { overall: 'pass'|'warn'|'fail', checks: Array<{name, pass, message, severity}> }
  */
 
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+import { FaceLandmarker, FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision'
 
-/* ── MediaPipe singleton ── */
+const VISION_WASM =
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+
+/* ── MediaPipe singletons ── */
 
 let landmarker = null
+let hairSegmenter = null
+
+async function getVision() {
+  return FilesetResolver.forVisionTasks(VISION_WASM)
+}
 
 async function getLandmarker() {
   if (landmarker) return landmarker
-  const vision = await FilesetResolver.forVisionTasks(
-    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
-  )
+  const vision = await getVision()
   const createLandmarker = (delegate) =>
     FaceLandmarker.createFromOptions(vision, {
       baseOptions: {
@@ -59,6 +68,30 @@ async function getLandmarker() {
     landmarker = await createLandmarker('CPU')
   }
   return landmarker
+}
+
+async function getHairSegmenter() {
+  if (hairSegmenter) return hairSegmenter
+  const vision = await getVision()
+  const createSegmenter = (delegate) =>
+    ImageSegmenter.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite',
+        delegate,
+      },
+      runningMode: 'IMAGE',
+      outputCategoryMask: true,
+      outputConfidenceMasks: false,
+    })
+
+  try {
+    hairSegmenter = await createSegmenter('GPU')
+  } catch (err) {
+    console.warn('[MediaPipe] Hair Segmenter GPU unavailable, falling back to CPU:', err)
+    hairSegmenter = await createSegmenter('CPU')
+  }
+  return hairSegmenter
 }
 
 /* ── Image loading helpers ── */
@@ -141,7 +174,7 @@ function checkFaceCount(result) {
 }
 
 /** Pose label i18n keys (shared between primary and fallback paths) */
-const POSE_LABEL_KEYS = {
+export const POSE_LABEL_KEYS = {
   front:        'Photo.validation.expectedPose.front',
   smile:        'Photo.validation.expectedPose.smile',
   left45:       'Photo.validation.expectedPose.left45',
@@ -149,6 +182,73 @@ const POSE_LABEL_KEYS = {
   leftProfile:  'Photo.validation.expectedPose.leftProfile',
   rightProfile: 'Photo.validation.expectedPose.rightProfile',
   topHead:      'Photo.validation.expectedPose.topHead',
+}
+
+/** Detected-pose label keys for correctPose.wrong messageValues.detected */
+export const DETECTED_POSE_LABEL_KEYS = {
+  leftProfile:  'Photo.validation.detectedPose.leftProfile',
+  rightProfile: 'Photo.validation.detectedPose.rightProfile',
+  left45:       'Photo.validation.detectedPose.left45',
+  right45:      'Photo.validation.detectedPose.right45',
+  front:        'Photo.validation.detectedPose.frontFacing',
+  unknown:      'Photo.validation.detectedPose.frontFacing',
+}
+
+/**
+ * noseRatio bands for 2D pose path (profiles + matrix fallback).
+ * left/right = subject's anatomical side visible to camera (ADR-050).
+ * Calibrate with `python scripts/calibrate_profile_nose_ratio.py` before changing.
+ */
+export const POSE_NOSE_RATIO_RANGES = {
+  front:        { min: 0.42, max: 0.58, labelKey: POSE_LABEL_KEYS.front },
+  right45:      { min: 0.58, max: 0.75, labelKey: POSE_LABEL_KEYS.right45 },
+  left45:       { min: 0.25, max: 0.42, labelKey: POSE_LABEL_KEYS.left45 },
+  rightProfile: { min: 0.75, max: 1.0,  labelKey: POSE_LABEL_KEYS.rightProfile },
+  leftProfile:  { min: 0.0,  max: 0.25, labelKey: POSE_LABEL_KEYS.leftProfile },
+  smile:        { min: 0.42, max: 0.58, labelKey: POSE_LABEL_KEYS.smile },
+  topHead:      { min: 0.20, max: 0.80, labelKey: POSE_LABEL_KEYS.topHead },
+}
+
+/** noseRatio = (nose.x − landmark 234.x) / faceWidth; 0.5 ≈ frontal. */
+export function computeNoseRatio(landmarks) {
+  const nose = landmarks[1]
+  const leftEdge = landmarks[234]
+  const rightEdge = landmarks[454]
+  const faceWidth = dist(leftEdge, rightEdge)
+  if (faceWidth < 0.01) return null
+  return (nose.x - leftEdge.x) / faceWidth
+}
+
+export function classifyPoseFromNoseRatio(noseRatio) {
+  if (noseRatio == null) return 'unknown'
+  if (noseRatio > 0.75) return 'rightProfile'
+  if (noseRatio < 0.25) return 'leftProfile'
+  if (noseRatio > 0.58) return 'right45'
+  if (noseRatio < 0.42) return 'left45'
+  return 'front'
+}
+
+/** Pure 2D band test — used by checkPose and fixture tests. */
+export function evaluateNoseRatioPose(noseRatio, expectedPose) {
+  const range = POSE_NOSE_RATIO_RANGES[expectedPose] || POSE_NOSE_RATIO_RANGES.front
+  const detectedClass = classifyPoseFromNoseRatio(noseRatio)
+  const inRange = noseRatio != null && noseRatio >= range.min && noseRatio <= range.max
+  return {
+    pass: inRange,
+    detectedClass,
+    detectedKey: DETECTED_POSE_LABEL_KEYS[detectedClass] || DETECTED_POSE_LABEL_KEYS.front,
+    expectedKey: range.labelKey,
+    noseRatio,
+  }
+}
+
+function logPoseDebug(payload) {
+  if (
+    process.env.NEXT_PUBLIC_DEV_POSE_LOG === 'true'
+    || process.env.NEXT_PUBLIC_DEV_SHORTCUTS === 'true'
+  ) {
+    console.log('[Pose Validation]', payload)
+  }
 }
 
 /**
@@ -163,8 +263,7 @@ const POSE_LABEL_KEYS = {
  *       camera/lens-independent). Falls back to noseRatio if the matrix is absent.
  *
  * noseRatio = (nose.x - leftEdge.x) / (rightEdge.x - leftEdge.x)
- *   0.0 → extreme right turn (person's right), 1.0 → extreme left turn (person's left)
- *   0.5 → frontal
+ *   0.0 → subject's left side toward camera, 0.5 → frontal, 1.0 → subject's right side toward camera
  * • leftProfile / rightProfile (90° side views)
  *     → ALWAYS noseRatio (2D heuristic). At ≥ 90° MediaPipe frequently returns no
  *       transformation matrix because it can't fit a full 3D face model to a side profile.
@@ -189,6 +288,7 @@ const POSE_LABEL_KEYS = {
  * @param {string} expectedPose  One of the pose IDs above
  */
 function checkPose(landmarks, matrix, expectedPose) {
+  // topHead pitch is optional confirmation only (hair mask is the gate) → warning.
   const severity = expectedPose === 'topHead' ? 'warning' : 'error'
 
   // ── Full-profile poses: always use noseRatio (3D matrix unreliable at 90°) ──
@@ -210,8 +310,14 @@ function checkPose(landmarks, matrix, expectedPose) {
       return 'front'
     })()
 
-    // Calibration helper — uncomment to log real yaw/pitch against reference photos:
-    // console.log(`[Pose Validation 3D] Detected: ${detectedClass} (yaw: ${yaw.toFixed(1)}°, pitch: ${pitch.toFixed(1)}°) | Expected: ${expectedPose}`)
+    // Calibration helper — enable via NEXT_PUBLIC_DEV_POSE_LOG or dev shortcuts
+    logPoseDebug({
+      path: '3d',
+      expectedPose,
+      yawDeg: Number(yaw.toFixed(1)),
+      pitchDeg: Number(pitch.toFixed(1)),
+      detectedPose: detectedClass,
+    })
 
     const inBand = (() => {
       switch (expectedPose) {
@@ -225,14 +331,9 @@ function checkPose(landmarks, matrix, expectedPose) {
     })()
 
     if (!inBand) {
-      const detectedKey = (() => {
-        if (expectedPose === 'topHead') return 'Photo.validation.detectedPose.frontFacing'
-        if (detectedClass === 'leftProfile') return 'Photo.validation.detectedPose.leftProfile'
-        if (detectedClass === 'rightProfile') return 'Photo.validation.detectedPose.rightProfile'
-        if (detectedClass === 'left45') return 'Photo.validation.detectedPose.left45'
-        if (detectedClass === 'right45') return 'Photo.validation.detectedPose.right45'
-        return 'Photo.validation.detectedPose.frontFacing'
-      })()
+      const detectedKey = expectedPose === 'topHead'
+        ? 'Photo.validation.detectedPose.frontFacing'
+        : (DETECTED_POSE_LABEL_KEYS[detectedClass] || DETECTED_POSE_LABEL_KEYS.front)
 
       return {
         name: 'correctPose',
@@ -253,63 +354,39 @@ function checkPose(landmarks, matrix, expectedPose) {
   }
 
   // ── 2D noseRatio path: profiles (always) + fallback for non-profiles ──────
-  // leftProfile / rightProfile always land here (3D matrix unreliable at 90°).
-  // front / smile / 45° / topHead reach here only if the matrix was absent.
-  // noseRatio = (nose.x − leftEdge.x) / faceWidth
-  //   0.0 → extreme left turn (subject's left side to camera), 0.5 → frontal, 1.0 → extreme right turn
-  const nose      = landmarks[1]
-  const leftEdge  = landmarks[234]
-  const rightEdge = landmarks[454]
-  const faceWidth = dist(leftEdge, rightEdge)
+  const noseRatio = computeNoseRatio(landmarks)
 
-  if (faceWidth < 0.01) {
+  if (noseRatio == null) {
     return { name: 'correctPose', pass: true, messageKey: 'Photo.validation.correctPose.inconclusive', severity: 'info' }
   }
 
-  const noseRatio = (nose.x - leftEdge.x) / faceWidth
+  const evalResult = evaluateNoseRatioPose(noseRatio, expectedPose)
 
-  // Define acceptable ranges per pose
-  // noseRatio: 0 = nose far left of image, 0.5 = center, 1 = nose far right of image
-  const detectedClass2D = noseRatio > 0.75 ? 'rightProfile'
-    : noseRatio < 0.25 ? 'leftProfile'
-    : noseRatio > 0.58 ? 'right45'
-    : noseRatio < 0.42 ? 'left45'
-    : 'front'
+  logPoseDebug({
+    path: '2d',
+    expectedPose,
+    noseRatio: Number(noseRatio.toFixed(3)),
+    detectedPose: evalResult.detectedClass,
+    pass: evalResult.pass,
+  })
 
-  // Calibration helper — uncomment to log real noseRatio against reference photos:
-  // console.log(`[Pose Validation 2D] Detected: ${detectedClass2D} (noseRatio: ${noseRatio.toFixed(3)}) | Expected: ${expectedPose}`)
-
-  // Bands are non-overlapping. NOTE: sensitivity varies with camera/lens so boundaries
-  // are best confirmed against real captures rather than guessed.
-  const poseRanges = {
-    front:        { min: 0.42, max: 0.58, labelKey: POSE_LABEL_KEYS.front },
-    right45:      { min: 0.58, max: 0.75, labelKey: POSE_LABEL_KEYS.right45 },
-    left45:       { min: 0.25, max: 0.42, labelKey: POSE_LABEL_KEYS.left45 },
-    rightProfile: { min: 0.75, max: 1.0,  labelKey: POSE_LABEL_KEYS.rightProfile },
-    leftProfile:  { min: 0.0,  max: 0.25, labelKey: POSE_LABEL_KEYS.leftProfile },
-    smile:        { min: 0.42, max: 0.58, labelKey: POSE_LABEL_KEYS.smile },
-    topHead:      { min: 0.20, max: 0.80, labelKey: POSE_LABEL_KEYS.topHead },
-  }
-
-  const range   = poseRanges[expectedPose] || poseRanges.front
-  const inRange = noseRatio >= range.min && noseRatio <= range.max
-
-  if (!inRange) {
-    const detectedKey = noseRatio > 0.58
-      ? 'Photo.validation.detectedPose.rightProfile'
-      : noseRatio < 0.42
-        ? 'Photo.validation.detectedPose.leftProfile'
-        : 'Photo.validation.detectedPose.frontFacing'
+  if (!evalResult.pass) {
     return {
       name: 'correctPose',
       pass: false,
       messageKey: 'Photo.validation.correctPose.wrong',
-      messageValues: { detected: detectedKey, expected: range.labelKey },
+      messageValues: { detected: evalResult.detectedKey, expected: evalResult.expectedKey },
       severity,
     }
   }
 
-  return { name: 'correctPose', pass: true, messageKey: 'Photo.validation.correctPose.ok', messageValues: { pose: range.labelKey }, severity: 'ok' }
+  return {
+    name: 'correctPose',
+    pass: true,
+    messageKey: 'Photo.validation.correctPose.ok',
+    messageValues: { pose: evalResult.expectedKey },
+    severity: 'ok',
+  }
 }
 
 /**
@@ -436,22 +513,22 @@ function checkGlasses(ctx, w, h, landmarks) {
     let strongEdges = 0
     for (let x = 1; x < w - 1; x++) {
       const grad = Math.abs(profile[x + 1] - profile[x - 1])
-      if (grad > 18) strongEdges++
+      if (grad > 22) strongEdges++
     }
     const edgeRatio = strongEdges / w
-    if (edgeRatio > 0.08 && strongEdges > 12) canvasSignals++
+    if (edgeRatio > 0.10 && strongEdges > 14) canvasSignals++
 
     // Dark horizontal runs → frame top bar / bridge
     let darkRuns = 0
     let inDark = false
     for (let x = Math.floor(w * 0.2); x < Math.floor(w * 0.8); x++) {
-      if (profile[x] < 80) {
+      if (profile[x] < 70) {
         if (!inDark) { darkRuns++; inDark = true }
       } else {
         inDark = false
       }
     }
-    if (darkRuns >= 3) canvasSignals++
+    if (darkRuns >= 4) canvasSignals++
 
     // Eye-band darkening → tinted lenses
     let bandSum = 0
@@ -468,7 +545,7 @@ function checkGlasses(ctx, w, h, landmarks) {
       }
     }
     const overallAvg = overallSum / overallCount
-    if (bandAvg / (overallAvg || 1) < 0.85) canvasSignals++
+    if (bandAvg / (overallAvg || 1) < 0.80) canvasSignals++
 
     // Dark pixel fraction → sunglass tint
     let veryDarkPixels = 0
@@ -477,10 +554,10 @@ function checkGlasses(ctx, w, h, landmarks) {
       for (let x = Math.floor(w * 0.2); x < Math.floor(w * 0.8); x++) {
         const idx = (y * w + x) * 4
         const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
-        if (lum < 60) veryDarkPixels++
+        if (lum < 55) veryDarkPixels++
       }
     }
-    if (veryDarkPixels / (totalBandPixels * 0.6) > 0.15) canvasSignals++
+    if (veryDarkPixels / (totalBandPixels * 0.6) > 0.18) canvasSignals++
   }
 
   // ── Landmark heuristic ──
@@ -505,8 +582,8 @@ function checkGlasses(ctx, w, h, landmarks) {
       const rightBrowGap = (rightEyeTop.y - rightBrowInner.y) / rightEyeWidth
       const avgBrowGap = (leftBrowGap + rightBrowGap) / 2
 
-      // Normal brow-to-eye gap is ~0.2-0.5; glasses frames push it to 0.6+
-      if (avgBrowGap > 0.55) landmarkSignals++
+      // Normal brow-to-eye gap is ~0.2-0.5; glasses frames push it higher
+      if (avgBrowGap > 0.60) landmarkSignals++
     }
 
     // Asymmetric eye region brightness can indicate lens reflections
@@ -527,16 +604,17 @@ function checkGlasses(ctx, w, h, landmarks) {
     if (leftBright !== null && rightBright !== null) {
       const brightDiff = Math.abs(leftBright - rightBright) / Math.max(leftBright, rightBright, 1)
       // Significant asymmetry around eyes → possible lens reflection
-      if (brightDiff > 0.35) landmarkSignals++
+      if (brightDiff > 0.40) landmarkSignals++
     }
   }
 
   const totalSignals = canvasSignals + landmarkSignals
 
-  if (totalSignals >= 3) {
+  if (totalSignals >= 4) {
     return { name: 'noGlasses', pass: false, messageKey: 'Photo.validation.noGlasses.detected', severity: 'error' }
   }
-  if (totalSignals >= 2 && canvasSignals >= 1) {
+  // Need at least two canvas cues so temple hair alone rarely trips "possible glasses"
+  if (totalSignals >= 3 && canvasSignals >= 2) {
     return { name: 'noGlasses', pass: false, messageKey: 'Photo.validation.noGlasses.possible', severity: 'warning' }
   }
 
@@ -773,6 +851,236 @@ function checkDimensions(img) {
   return { name: 'resolution', pass: true, messageKey: 'Photo.validation.resolution.ok', severity: 'ok' }
 }
 
+/** Flatten check groups and derive overall pass/warn/fail. */
+export function combineChecks(...checkGroups) {
+  const checks = checkGroups.flat().filter(Boolean)
+  const hasError = checks.some((c) => !c.pass && c.severity === 'error')
+  const hasWarning = checks.some((c) => !c.pass && c.severity === 'warning')
+  return {
+    overall: hasError ? 'fail' : hasWarning ? 'warn' : 'pass',
+    checks,
+  }
+}
+
+/**
+ * Hair-mask quality for topHead (pure; unit-testable).
+ * Category-1 pixels must cover enough of the upper-central ROI and form one coherent blob.
+ *
+ * ponytail: ROI + largest-CC heuristics; upgrade path = confidence-mask crown ROI.
+ *
+ * @param {Uint8Array|Uint8ClampedArray} data  category mask (1 = hair)
+ * @param {number} w
+ * @param {number} h
+ * @returns {{ pass: boolean, reason: 'ok'|'missing'|'weak'|'scattered', roiRatio: number, coherence: number }}
+ */
+export function evaluateHairMaskQuality(data, w, h) {
+  // ponytail: thresholds are presence gates, not density scores.
+  const MIN_ROI_RATIO = 0.08
+  const MIN_COHERENCE = 0.55
+  if (!data?.length || !w || !h || data.length < w * h) {
+    return { pass: false, reason: 'missing', roiRatio: 0, coherence: 0 }
+  }
+
+  const yMax = Math.floor(h * 0.7)
+  const xMin = Math.floor(w * 0.12)
+  const xMax = Math.floor(w * 0.88)
+  let hairInRoi = 0
+  let roiArea = 0
+  for (let y = 0; y < yMax; y++) {
+    for (let x = xMin; x < xMax; x++) {
+      roiArea++
+      if (data[y * w + x] === 1) hairInRoi++
+    }
+  }
+  const roiRatio = roiArea > 0 ? hairInRoi / roiArea : 0
+  if (hairInRoi === 0) {
+    return { pass: false, reason: 'missing', roiRatio, coherence: 0 }
+  }
+  if (roiRatio < MIN_ROI_RATIO) {
+    return { pass: false, reason: 'weak', roiRatio, coherence: 0 }
+  }
+
+  // Downsample for connected-component coherence (4-connected).
+  const maxDim = 64
+  const scale = Math.max(1, Math.max(w, h) / maxDim)
+  const dw = Math.max(1, Math.floor(w / scale))
+  const dh = Math.max(1, Math.floor(h / scale))
+  const grid = new Uint8Array(dw * dh)
+  let hairDown = 0
+  for (let y = 0; y < dh; y++) {
+    const sy0 = Math.floor((y * h) / dh)
+    const sy1 = Math.floor(((y + 1) * h) / dh)
+    for (let x = 0; x < dw; x++) {
+      const sx0 = Math.floor((x * w) / dw)
+      const sx1 = Math.floor(((x + 1) * w) / dw)
+      let hit = 0
+      for (let sy = sy0; sy < sy1 && !hit; sy++) {
+        for (let sx = sx0; sx < sx1; sx++) {
+          if (data[sy * w + sx] === 1) {
+            hit = 1
+            break
+          }
+        }
+      }
+      if (hit) {
+        grid[y * dw + x] = 1
+        hairDown++
+      }
+    }
+  }
+
+  if (hairDown === 0) {
+    return { pass: false, reason: 'missing', roiRatio, coherence: 0 }
+  }
+
+  const seen = new Uint8Array(dw * dh)
+  let largest = 0
+  const stack = []
+  for (let i = 0; i < grid.length; i++) {
+    if (!grid[i] || seen[i]) continue
+    let size = 0
+    stack.push(i)
+    seen[i] = 1
+    while (stack.length) {
+      const cur = stack.pop()
+      size++
+      const cx = cur % dw
+      const cy = (cur - cx) / dw
+      const neighbors = [
+        cx > 0 ? cur - 1 : -1,
+        cx < dw - 1 ? cur + 1 : -1,
+        cy > 0 ? cur - dw : -1,
+        cy < dh - 1 ? cur + dw : -1,
+      ]
+      for (const n of neighbors) {
+        if (n >= 0 && grid[n] && !seen[n]) {
+          seen[n] = 1
+          stack.push(n)
+        }
+      }
+    }
+    if (size > largest) largest = size
+  }
+
+  const coherence = largest / hairDown
+  if (coherence < MIN_COHERENCE) {
+    return { pass: false, reason: 'scattered', roiRatio, coherence }
+  }
+  return { pass: true, reason: 'ok', roiRatio, coherence }
+}
+
+const HAIR_MASK_FAIL_KEYS = {
+  missing: 'Photo.validation.hairMask.missing',
+  weak: 'Photo.validation.hairMask.weak',
+  scattered: 'Photo.validation.hairMask.scattered',
+}
+
+/**
+ * Primary topHead check: MediaPipe Hair Segmenter with ROI coverage + coherence.
+ */
+async function checkTopHeadHairMask(img) {
+  try {
+    const segmenter = await getHairSegmenter()
+    const result = segmenter.segment(img)
+    try {
+      const mask = result.categoryMask
+      if (!mask) {
+        return {
+          name: 'hairMask',
+          pass: false,
+          messageKey: HAIR_MASK_FAIL_KEYS.missing,
+          severity: 'error',
+        }
+      }
+      const data = mask.getAsUint8Array()
+      const quality = evaluateHairMaskQuality(data, mask.width, mask.height)
+      mask.close()
+      if (!quality.pass) {
+        return {
+          name: 'hairMask',
+          pass: false,
+          messageKey: HAIR_MASK_FAIL_KEYS[quality.reason] || HAIR_MASK_FAIL_KEYS.missing,
+          severity: 'error',
+        }
+      }
+      return {
+        name: 'hairMask',
+        pass: true,
+        messageKey: 'Photo.validation.hairMask.ok',
+        severity: 'ok',
+      }
+    } finally {
+      result.close?.()
+    }
+  } catch (err) {
+    console.error('[Photo Validation] Hair Segmenter failed:', err)
+    return {
+      name: 'hairMask',
+      pass: false,
+      messageKey: 'Photo.validation.hairMask.unavailable',
+      severity: 'error',
+    }
+  }
+}
+
+/**
+ * topHead: hair-primary path. Face Landmarker is optional pitch confirmation.
+ *
+ * Strong hair + face + correct pitch → verified
+ * Strong hair + no face               → warn (allow upload)
+ * Strong hair + face, pitch not top-down → warn (allow upload)
+ * Weak/no hair                        → reject
+ */
+async function validateTopHeadPhoto(img, canvasChecks) {
+  const hairCheck = await checkTopHeadHairMask(img)
+  if (!hairCheck.pass) {
+    return combineChecks(canvasChecks, hairCheck)
+  }
+
+  try {
+    const detector = await getLandmarker()
+    const faceResult = detector.detect(img)
+    const faceCount = faceResult.faceLandmarks?.length || 0
+
+    if (faceCount === 1) {
+      const poseCheck = checkPose(
+        faceResult.faceLandmarks[0],
+        faceResult.facialTransformationMatrixes?.[0],
+        'topHead',
+      )
+      if (!poseCheck.pass) {
+        // Face found but pitch heuristic says not top-down — soft note, hair already passed
+        return combineChecks(canvasChecks, hairCheck, {
+          ...poseCheck,
+          severity: 'warning',
+        })
+      }
+      return combineChecks(canvasChecks, hairCheck, poseCheck, {
+        name: 'faceConfirm',
+        pass: true,
+        messageKey: 'Photo.validation.faceConfirm.topHeadVerified',
+        severity: 'ok',
+      })
+    }
+
+    // Face Mesh often misses steep top-down angles — strong hair alone is enough to upload
+    return combineChecks(canvasChecks, hairCheck, {
+      name: 'faceConfirm',
+      pass: false,
+      messageKey: 'Photo.validation.faceConfirm.topHeadUnconfirmed',
+      severity: 'warning',
+    })
+  } catch (err) {
+    console.warn('[Photo Validation] Face Landmarker unavailable for topHead confirm:', err)
+    return combineChecks(canvasChecks, hairCheck, {
+      name: 'faceConfirm',
+      pass: false,
+      messageKey: 'Photo.validation.faceConfirm.topHeadUnconfirmed',
+      severity: 'warning',
+    })
+  }
+}
+
 /* ──────────────────────────────────────────────
    MAIN VALIDATION ENTRY POINT
    ────────────────────────────────────────────── */
@@ -803,6 +1111,11 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
   const dimensions  = checkDimensions(img)
   const canvasChecks = [brightness, blur, dimensions]
 
+  // topHead: hair-primary (mask quality), face optional confirm
+  if (isTopHead) {
+    return validateTopHeadPhoto(img, canvasChecks)
+  }
+
   // ── MediaPipe checks ──
   let mpChecks = []
   try {
@@ -811,8 +1124,8 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
     const faceCount = result.faceLandmarks?.length || 0
 
     if (faceCount === 0) {
-      if (isProfile || isTopHead) {
-        // Full profile / top-of-head: MediaPipe reliably misses at 90°+ — treat as inconclusive,
+      if (isProfile) {
+        // Full profile: MediaPipe reliably misses at 90° — treat as inconclusive,
         // not a failure, so legitimate profile shots aren't incorrectly blocked.
         mpChecks.push({
           name: 'faceDetected',
@@ -845,8 +1158,8 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
             messageKey: 'Photo.validation.neutralExpression.smileExpected',
             severity: 'ok',
           })
-        } else if (isProfile || isTopHead) {
-          // Full profile / top-of-head: expression landmark reliability is lower — downgrade to info
+        } else if (isProfile) {
+          // Full profile: expression landmark reliability is lower — downgrade to info
           const exp = checkExpression(lm)
           mpChecks.push({ ...exp, severity: 'info' })
         } else {
@@ -855,7 +1168,7 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
         }
 
         // ── Eyes open ──
-        if (isProfile || isTopHead) {
+        if (isProfile) {
           // One eye is hidden in full profiles — skip
           mpChecks.push({
             name: 'eyesOpen',
@@ -883,7 +1196,7 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
 
         // ── Face centered ──
         if (isNonFront) {
-          // Face is naturally offset in profile/angle/top shots — skip centering check
+          // Face is naturally offset in profile/angle shots — skip centering check
           mpChecks.push({
             name: 'faceCentered',
             pass: true,
@@ -898,8 +1211,8 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
         mpChecks.push(checkFaceSize(lm))
 
         // ── Glasses ──
-        if (isProfile || isTopHead) {
-          // Glasses detection is unreliable from side/top angles — skip
+        if (isProfile) {
+          // Glasses detection is unreliable from side angles — skip
           mpChecks.push({
             name: 'noGlasses',
             pass: true,
@@ -960,7 +1273,7 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
     }
 
   } else {
-    // Full profile (leftProfile, rightProfile) and topHead:
+    // Full profile (leftProfile, rightProfile):
     // Canvas errors always count. For landmark checks: include errors from checks that
     // actually ran (not auto-passed), and include correctPose + faceSize warnings
     // so a wrong-direction photo is still flagged even when no face was detected.
@@ -982,18 +1295,62 @@ export async function validatePhoto(dataUrl, poseId = 'front') {
 
 const NESTED_MSG_KEY_PREFIX = 'Photo.'
 
-/** Resolve a validation check message via next-intl `t`. */
+function resolvePhotoMessageKey(key) {
+  if (!key || typeof key !== 'string') return key
+  return key.startsWith(NESTED_MSG_KEY_PREFIX) ? key.slice(NESTED_MSG_KEY_PREFIX.length) : key
+}
+
+/** Resolve a validation check message via next-intl `t` (namespace `Photo`). */
 export function translateValidationMessage(check, t) {
   if (!check?.messageKey || !t) return check?.message || ''
   const values = { ...(check.messageValues || {}) }
   if (values.directionKeys) {
-    values.direction = values.directionKeys.map((key) => t(key)).filter(Boolean).join(' and ')
+    values.direction = values.directionKeys
+      .map((key) => t(resolvePhotoMessageKey(key)))
+      .filter(Boolean)
+      .join(' and ')
     delete values.directionKeys
   }
   for (const [key, val] of Object.entries(values)) {
     if (typeof val === 'string' && val.startsWith(NESTED_MSG_KEY_PREFIX)) {
-      values[key] = t(val)
+      values[key] = t(resolvePhotoMessageKey(val))
     }
   }
-  return t(check.messageKey, values)
+  return t(resolvePhotoMessageKey(check.messageKey), values)
+}
+
+/** True when upload must be blocked (error-severity failure). Warnings do not block. */
+export function validationBlocksUpload(result) {
+  return Boolean(result?.checks?.some((c) => !c.pass && c.severity === 'error'))
+}
+
+/** Failed checks for the given severity filter (`error`, `warning`, or `all`). */
+export function getFailedValidationChecks(result, severity = 'all') {
+  if (!result?.checks) return []
+  return result.checks.filter((c) => {
+    if (c.pass) return false
+    if (severity === 'error') return c.severity === 'error'
+    if (severity === 'warning') return c.severity === 'warning'
+    return c.severity === 'error' || c.severity === 'warning'
+  })
+}
+
+/** First translated error message for a blocking failure; prefers pose / hair mask. */
+export function getPrimaryValidationErrorMessage(result, t) {
+  const failed = getFailedValidationChecks(result, 'error')
+  if (!failed.length || !t) return ''
+  const preferred =
+    failed.find((c) => c.name === 'correctPose')
+    || failed.find((c) => c.name === 'hairMask')
+    || failed.find((c) => c.name === 'faceRequired')
+    || failed[0]
+  return translateValidationMessage(preferred, t)
+}
+
+/** Translated warning messages (non-blocking quality notes). */
+export function getValidationWarningMessages(result, t) {
+  if (!t) return []
+  return getFailedValidationChecks(result, 'warning')
+    .map((c) => translateValidationMessage(c, t))
+    .filter(Boolean)
 }

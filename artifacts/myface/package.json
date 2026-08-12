@@ -10,6 +10,9 @@
     "start": "next start --hostname 0.0.0.0",
     "start:prod": "bash ./start-prod.sh",
     "lint": "next lint",
+    "test:photo-validation-gate": "node scripts/test-photo-validation-gate.js",
+    "test:profile-pose-fixtures": "node scripts/test-profile-pose-fixtures.js",
+    "test:face-diagram-renderer": "node scripts/test-face-diagram-renderer.js",
     "i18n:extract": "i18next --config i18next-parser.config.js"
   },
   "dependencies": {

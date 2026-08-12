@@ -58,6 +58,35 @@ Indexes: unique `email`, `role`.
 ### Analysis JSON (`analysis`)
 Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolWarnings`, etc. (see prior MediaPipe/`cvReport` documentation). Stored as JSONB — not normalized into metric tables.
 
+#### `cvReport.ears` (FaceMesh + optional ear landmarker)
+
+FaceMesh junction proxies still populate the existing panel fields (`earSize`, `earSizeClass`, `earSymmetry`, `sizeDifference`, `protrusion`, `earProtrusion`, `earPosition`, scores/explanations). When profile photos are present, `_enrich_cv_report` loads `models/ear_landmarker.pth` (or `EAR_LANDMARKER_PATH`) — auto-downloading from `EAR_LANDMARKER_URL` when missing unless `EAR_LANDMARKER_AUTO_DOWNLOAD=false` — and **merges** an additive landmarker payload without overwriting those keys (ADR-054):
+
+| Key | Meaning |
+|-----|---------|
+| `earLandmarkSource` | `"ear_landmarker"` when the module ran |
+| `sides.left` / `sides.right` | Per-profile result keyed by anatomical side (`leftProfile` / `rightProfile`) |
+
+Each side object:
+
+| Field | Notes |
+|-------|--------|
+| `poseId` | `leftProfile` \| `rightProfile` |
+| `status` | `ready` \| `skipped` \| `failed` |
+| `reason` | e.g. `pose_missing`, `edge_collapse`, `decode_error`, `inference_error` |
+| `imageSize` | `[W, H]` full profile pixels |
+| `landmarks` | 20× `{id, x, y}` with **0–1 normalized** coords in full-image space |
+| `regions` | `helix: 2–12`, `lobe: 13–18`, `tragus: [19,0,1]` |
+| `measurements` | `verticalHeightNorm/Px`, `horizontalWidthNorm/Px`, `slantHeightNorm/Px`, `softBottomFrac`, `helixTop`, `lobeBottom`, `softBottom`, `lobeLeft`, `xMinNorm`/`xMaxNorm`, `verticalBracketXNorm` (norm = px / height for vertical+slant, / width for horizontal) |
+| `confidences` | Per-point heatmap peak values |
+| `edgeCollapseFrac` | Fraction of points near input border; `> 0.25` → `failed` (no landmarks merged) |
+| `repairedIndices` | Contour indices snapped by neighbor-midpoint repair |
+| `mirrored` | `true` if right-profile retry used a horizontal flip |
+
+When landmarker enrichment succeeds, `proportions.ratios.nasoAural` is updated with `dataSource: "ear_landmarker"`, `photoSource` matching the ready side (`rightProfile`/`leftProfile`), `earHeightNorm` / `noseHeightNorm`, explicit `noseTop`/`noseBottom` (0–1, nasion→subnasale from the **same** 90° profile cephalometrics — never a 45° primary), and sidecar `guideGlabella` / `guideNoseBottom` (0–1) from `extract_glabella_subnasale`: **FaceMesh midline first** (idx 9 / 2, same as `scripts/profile_landmarks.py`), silhouette face-det crop only if mesh fails. Overlay `style: "qoves"` with `nasoLayout: "earPlusNoseGuides-v6"` when guides resolve (else `earOnly-v5`). Overlay contains a single `earVertical` bracket (helix→soft lobe behind the pinna) plus optional `guides[]` — two white dashed horizontals at guide glabella y and subnasale y (`{y, x1, x2, dashed: true}`). No nose vertical line. Ratio bar "Nose" height uses the guide span when present (`noseHeightSource: guide_glabella_subnasale`).
+
+No DB migration — JSONB only. EarReportPanel overlay UI is a follow-up; SegFormer ear crops stay for hero imagery.
+
 ### Generated text (latest-only)
 | Surface | Column / table | Locale |
 |---------|----------------|--------|
@@ -66,7 +95,7 @@ Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolW
 | Per-feature narratives | `feature_narratives` (`origin`; nested `de.{summary, subsections}`) | EN + DE |
 | AI visuals | `ai_visuals` | — |
 | Async pipeline state | `pipeline` (`status`, `stage`, `attempts`, timestamps) |
-| SegFormer parsing (interactive only) | `feature_parsing` (`crops`, `metrics`, `scaleNote`); `parsing/*.jpg` — front white-mask (incl. neck) / rect chin·cheeks·jaw; lips from front DB landmarks; smile from smile mesh; earsLeft/earsRight from profiles |
+| SegFormer parsing (interactive only) | `feature_parsing` (`crops`, `metrics`, `scaleNote`); `parsing/*.jpg` — front white-mask (incl. neck) / rect chin·cheeks·jaw; lips from front DB landmarks; smile from smile mesh; **earsLeft/earsRight** primary = landmarker contour cutout when ready (`sourceMethod: ear_landmarker_contour`), else SegFormer copy; **earsLeftSegformer/earsRightSegformer** always when SegFormer succeeds (`sourceMethod: segformer_ears`); aggregate `crops.ears` also has `leftSegformerPublicUrl` / `rightSegformerPublicUrl` |
 | Projected AFTER (protocol/PDF) | `projected_after` (`status`, `full.publicUrl` → `projected/full.jpg` or `full.png`) |
 | Projected AFTER CV (immutable sibling of BEFORE) | `projected_analysis` (`status`, `cvReport`, `landmarks`, `metrics`, `eyeAnalysis`, `source: projected_full`) — never writes into `analysis` |
 | Beauty Assistant | `conversations` + `conversation_messages` |

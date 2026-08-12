@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from 'next-intl'
 import { FaceImageFrame, ProportionFeatureOverlay, ProportionsOverlay } from './FaceImageFrame'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { AssessmentGridLayout } from './FeatureAnalysisPage'
-import { pickLocalizedCvText, useCvLabel, translateRatioCompareLabel, SYMMETRY_REGION_LABEL_KEY } from '../../utils/cvReportLocale'
+import { pickLocalizedCvText, useCvLabel, translateRatioCompareLabel } from '../../utils/cvReportLocale'
 import {
   bboxFullFace,
   proportionRatioOverlays,
@@ -15,6 +15,13 @@ import {
 } from '../../utils/faceCrop'
 import { cropNormalized } from '../../utils/eyeAnalysis'
 import { mediaUrl } from '../../utils/apiClient'
+import {
+  buildNasoAuralDrawSpec,
+  guidesCrownPlausible,
+  normPoint01,
+  resolveNoseLevelGuidesForDraw,
+  toImagePct,
+} from './nasoAuralOverlay'
 
 const RATIO_PARTS = {
   nasoAural: { primary: 'ear', secondary: 'nose' },
@@ -31,6 +38,8 @@ const RATIO_TABS = [
 ]
 
 const BAR_HEIGHT = 148
+const BAR_FILL = 'bg-[#3d5068]'
+const BAR_TRACK = 'bg-[#d8dee6]'
 
 function parseThird(value, fallback = 0.33) {
   const n = typeof value === 'number' ? value : parseFloat(value)
@@ -85,30 +94,34 @@ function FacialThirdsBar({ upper, middle, lower, t }) {
   )
 }
 
-/** Ratio bar: bottom = first feature (value), top = second feature (1.00). E.g. 1:1 → 50/50 split */
-function RatioStackBar({ value }) {
-  const ratio = Math.max(0, value)
-  const primaryPct = (ratio / (ratio + 1)) * 100
-  const secondaryPct = 100 - primaryPct
-
+/** One vertical track; fill height = relative feature size (max of pair = 100%). */
+function FeatureHeightBar({ fillPct, muted = false }) {
+  const pct = Math.max(0, Math.min(100, Number(fillPct) || 0))
   return (
     <div
-      className="relative w-5 rounded-sm overflow-hidden border border-slate-300/50"
+      className={`relative w-5 rounded-sm overflow-hidden border border-slate-300/40 ${BAR_TRACK}`}
       style={{ height: BAR_HEIGHT }}
+      aria-hidden
     >
       <div
-        className="absolute bottom-0 left-0 right-0 bg-[#3d5068]"
-        style={{ height: `${primaryPct}%` }}
-      />
-      <div
-        className="absolute left-0 right-0 bg-[#b8c5d4]"
-        style={{ bottom: `${primaryPct}%`, height: `${secondaryPct}%` }}
+        className={`absolute bottom-0 left-0 right-0 ${BAR_FILL}${muted ? ' opacity-55' : ''}`}
+        style={{ height: `${pct}%` }}
       />
     </div>
   )
 }
 
+/**
+ * Two side-by-side vertical bars (primary vs secondary), e.g. Ear | Nose.
+ * yourValue is primary/secondary (secondary normalized to 1.00).
+ */
 function RatioBar({ yourValue, idealValue, label1, label2, primaryFeature, secondaryFeature, t }) {
+  const primary = Math.max(0, Number(yourValue) || 0)
+  const secondary = 1
+  const maxRel = Math.max(primary, secondary, 1e-6)
+  const primaryPct = (primary / maxRel) * 100
+  const secondaryPct = (secondary / maxRel) * 100
+
   return (
     <div className="w-full max-w-md mx-auto lg:mx-0">
       <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-end">
@@ -116,21 +129,21 @@ function RatioBar({ yourValue, idealValue, label1, label2, primaryFeature, secon
           <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1.5 font-semibold">{t('proportions.yourProportion')}</p>
           <p className="text-sm font-semibold text-ink font-sans min-h-[40px] flex items-center justify-center">{label1}</p>
           <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1 mt-4">{t('common.value')}</p>
-          <p className="text-base font-display font-bold text-ink">{yourValue.toFixed(2)} : 1.00</p>
+          <p className="text-base font-display font-bold text-ink tabular-nums">{primary.toFixed(2)} : 1.00</p>
         </div>
 
         <div className="flex flex-col items-center gap-3 px-2 pb-6">
           <div className="flex items-end justify-center gap-5">
-            <RatioStackBar value={yourValue} />
-            <RatioStackBar value={idealValue} />
+            <FeatureHeightBar fillPct={primaryPct} />
+            <FeatureHeightBar fillPct={secondaryPct} muted />
           </div>
           <div className="flex items-center gap-3 text-[10px] text-ink-muted font-sans">
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#3d5068] inline-block" />
+              <span className={`w-2.5 h-2.5 rounded-sm ${BAR_FILL} inline-block`} />
               {primaryFeature}
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#b8c5d4] inline-block" />
+              <span className={`w-2.5 h-2.5 rounded-sm ${BAR_FILL} inline-block opacity-55`} />
               {secondaryFeature}
             </span>
           </div>
@@ -140,18 +153,162 @@ function RatioBar({ yourValue, idealValue, label1, label2, primaryFeature, secon
           <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1.5 font-semibold">{t('proportions.idealProportion')}</p>
           <p className="text-sm font-semibold text-ink font-sans min-h-[40px] flex items-center justify-center">{label2}</p>
           <p className="text-[9px] uppercase tracking-wider text-ink-muted mb-1 mt-4">{t('common.value')}</p>
-          <p className="text-base font-display font-bold text-ink">{idealValue.toFixed(2)} : 1.00</p>
+          <p className="text-base font-display font-bold text-ink tabular-nums">{Number(idealValue || 1).toFixed(2)} : 1.00</p>
         </div>
       </div>
     </div>
   )
 }
 
-function resolveOverlay(tabId, active, liveOverlays) {
-  // Naso-aural: no overlay for now (profile mapping deferred).
-  if (tabId === 'nasoAural') return null
+function resolveOverlay(tabId, active, liveOverlays, useProfileEar, nasoOverlay) {
+  if (tabId === 'nasoAural' && useProfileEar) {
+    return nasoOverlay || null
+  }
   if (liveOverlays?.[tabId]) return liveOverlays[tabId]
   return active?.overlay || null
+}
+
+/** Ready ear-landmarker side for the active profile pose (previous CV runs have none). */
+function pickReadyEarSide(ears, poseHint) {
+  if (ears?.earLandmarkSource !== 'ear_landmarker') return null
+  const sides = ears?.sides || {}
+  const ordered = []
+  if (poseHint === 'leftProfile' && sides.left) ordered.push(sides.left)
+  if (poseHint === 'rightProfile' && sides.right) ordered.push(sides.right)
+  if (sides.right) ordered.push(sides.right)
+  if (sides.left) ordered.push(sides.left)
+  return ordered.find((s) => s?.status === 'ready' && Array.isArray(s.landmarks) && s.landmarks.length >= 20) || null
+}
+
+function extractEarSpan01FromOverlay(overlay) {
+  const b = (overlay?.brackets || []).find((br) => br?.id === 'earVertical')
+  if (!b) return null
+  const y1 = toImagePct(b.y1)
+  const y2 = toImagePct(b.y2)
+  if (y1 == null || y2 == null || Math.abs(y2 - y1) < 0.5) return null
+  return Math.abs(y2 - y1) / 100
+}
+
+function extractNoseSpan01(active) {
+  const gg = normPoint01(active?.guideGlabella)
+  const gnb = normPoint01(active?.guideNoseBottom)
+  if (gg && gnb && guidesCrownPlausible(gg, gnb)) {
+    return {
+      top: gg,
+      bottom: gnb,
+      heightNorm: Math.abs(gnb.y - gg.y),
+    }
+  }
+
+  const nt = active?.noseTop
+  const nb = active?.noseBottom
+  if (nt && nb) {
+    const y1 = toImagePct(nt.y)
+    const y2 = toImagePct(nb.y)
+    const x1 = toImagePct(nt.x)
+    const x2 = toImagePct(nb.x)
+    if (
+      y1 != null && y2 != null && x1 != null && x2 != null &&
+      Math.abs(y2 - y1) >= 0.5
+    ) {
+      return {
+        top: { x: Math.min(x1, x2) / 100, y: Math.min(y1, y2) / 100 },
+        bottom: { x: Math.max(x1, x2) / 100, y: Math.max(y1, y2) / 100 },
+        heightNorm: Math.abs(y2 - y1) / 100,
+      }
+    }
+  }
+  const ov = active?.overlay
+  if (!ov) return null
+  for (const b of ov.brackets || []) {
+    if (b?.id === 'noseVertical' || b?.id === 'noseRangeOnEar') {
+      const y1 = toImagePct(b.y1)
+      const y2 = toImagePct(b.y2)
+      if (y1 == null || y2 == null || Math.abs(y2 - y1) < 0.5) continue
+      // Length only — direction is rebuilt by buildNasoAuralDrawSpec.
+      return { heightNorm: Math.abs(y2 - y1) / 100 }
+    }
+  }
+  const segs = ov.segments || []
+  if (segs.length >= 2) {
+    const s = segs[1]
+    const y1 = toImagePct(s.y1)
+    const y2 = toImagePct(s.y2)
+    if (y1 == null || y2 == null || Math.abs(y2 - y1) < 0.5) return null
+    return { heightNorm: Math.abs(y2 - y1) / 100 }
+  }
+  if (Number.isFinite(Number(active?.noseHeightNorm))) {
+    return { heightNorm: Number(active.noseHeightNorm) }
+  }
+  return null
+}
+
+function buildQovesNasoOverlay(side, active) {
+  const m = side.measurements || {}
+  const ht = m.helixTop
+  const sb = m.softBottom || m.lobeBottom
+  if (!ht || !sb) return null
+
+  const facingRight = (active?.photoSource || side.poseId || 'rightProfile') !== 'leftProfile'
+
+  const spec = buildNasoAuralDrawSpec({
+    helixTop: ht,
+    softBottom: sb,
+    xMinNorm: m.xMinNorm,
+    xMaxNorm: m.xMaxNorm,
+    verticalBracketXNorm: m.verticalBracketXNorm,
+    facingRight,
+  })
+  if (!spec) return null
+
+  // Sidecar guide* only — never fall back to cephalometric glabella/noseBottom
+  // (those often sit at the hairline and were redrawing wrong dashed Ys).
+  const guides = resolveNoseLevelGuidesForDraw({
+    guideGlabella: active?.guideGlabella,
+    guideNoseBottom: active?.guideNoseBottom,
+    storedGuides: active?.overlay?.guides,
+    verticalXPct: spec.brackets?.[0]?.x1,
+  })
+  if (!guides.length) return { ...spec, facingRight }
+
+  return {
+    ...spec,
+    guides,
+    nasoLayout: 'earPlusNoseGuides-v6',
+    facingRight,
+  }
+}
+
+/** Prefer ear-landmarker metrics; return null when model/side missing (legacy assessments). */
+function resolveNasoAuralDisplay(active, ears, t) {
+  const side = pickReadyEarSide(ears, active?.photoSource)
+  if (!side) return null
+
+  const overlay = buildQovesNasoOverlay(side, active)
+  if (!overlay?.brackets?.some((b) => b.id === 'earVertical')) return null
+
+  const earH = extractEarSpan01FromOverlay(overlay)
+    ?? Number(side.measurements?.verticalHeightNorm ?? active?.earHeightNorm)
+  const nose = extractNoseSpan01(active)
+  const noseH = nose?.heightNorm ?? Number(active?.noseHeightNorm)
+  let yourValue = Number(active?.yourValue)
+  if (Number.isFinite(earH) && earH > 1e-6 && Number.isFinite(noseH) && noseH > 1e-6) {
+    const nh = noseH > 1.5 ? noseH / 100 : noseH
+    const eh = earH > 1.5 ? earH / 100 : earH
+    if (nh > 1e-6) yourValue = Math.round((eh / nh) * 100) / 100
+  }
+  if (!(Number.isFinite(yourValue) && yourValue > 0)) return null
+
+  let yourLabelKey = 'proportions.ratioCompare.earApproxNose'
+  if (yourValue > 1.05) yourLabelKey = 'proportions.ratioCompare.earGreaterNose'
+  else if (yourValue < 0.95) yourLabelKey = 'proportions.ratioCompare.earLessNose'
+
+  return {
+    yourValue,
+    yourLabel: t(yourLabelKey),
+    overlay,
+    ready: true,
+  }
 }
 
 function nasoOralLabel(ratio, t) {
@@ -166,6 +323,7 @@ export function ProportionsSection({
   photo = null,
   photos = null,
   featureParsing = null,
+  ears = null,
 }) {
   const t = useTranslations('Report')
   const locale = useLocale()
@@ -247,10 +405,15 @@ export function ProportionsSection({
   const activeImageSrc = useProfileEar
     ? (active?.photoSource === 'leftProfile' ? photos?.leftProfile : (mediaUrl(active?.imageSrc) || photos?.rightProfile || photos?.leftProfile))
     : (faceCropSrc || mediaUrl(active?.imageSrc) || mediaUrl(proportions.imageSrc))
+  const nasoLandmarker = activeTab === 'nasoAural' ? resolveNasoAuralDisplay(active, ears, t) : null
+  const nasoReady = activeTab === 'nasoAural' ? Boolean(nasoLandmarker?.ready) : true
+
   const overlay = resolveOverlay(
     activeTab,
     active,
     useProfileEar ? null : liveOverlays,
+    useProfileEar,
+    nasoLandmarker?.overlay || null,
   )
 
   // Full front photo + image-% guides. Crop-relative lines on a front photo look "far apart".
@@ -270,11 +433,21 @@ export function ProportionsSection({
     (proportions.overlaySpace === 'image' ? proportions.proportionLines : null)
 
   const displayYourValue =
-    activeTab === 'nasoOral' && liveNasoOral ? liveNasoOral.yourValue : active?.yourValue
+    activeTab === 'nasoAural'
+      ? (nasoReady ? nasoLandmarker?.yourValue : null)
+      : activeTab === 'nasoOral' && liveNasoOral
+        ? liveNasoOral.yourValue
+        : active?.yourValue
   const displayYourLabel =
-    activeTab === 'nasoOral' && liveNasoOral
-      ? liveNasoOral.yourLabel
-      : translateRatioCompareLabel(active?.yourLabel, t) || cvLabel(active?.yourLabel)
+    activeTab === 'nasoAural'
+      ? (nasoReady
+        ? (nasoLandmarker?.yourLabel
+          || translateRatioCompareLabel(active?.yourLabel, t)
+          || cvLabel(active?.yourLabel))
+        : null)
+      : activeTab === 'nasoOral' && liveNasoOral
+        ? liveNasoOral.yourLabel
+        : (translateRatioCompareLabel(active?.yourLabel, t) || cvLabel(active?.yourLabel))
   const displayIdealLabel =
     translateRatioCompareLabel(active?.idealLabel, t) || cvLabel(active?.idealLabel)
 
@@ -381,7 +554,7 @@ export function ProportionsSection({
           <div className="grid lg:grid-cols-2 gap-8 items-center">
             {activeImageSrc && (
               <FaceImageFrame
-                key={`${activeTab}-${activeImageSrc}`}
+                key={`${activeTab}-${activeImageSrc}-${nasoLandmarker?.overlay?.nasoLayout || 'plain'}`}
                 src={activeImageSrc}
                 alt={t('proportions.facialProportionsAlt')}
                 aspect="4/5"
@@ -392,21 +565,31 @@ export function ProportionsSection({
               />
             )}
 
-            <RatioBar
-              yourValue={displayYourValue}
-              idealValue={active.idealValue}
-              label1={displayYourLabel}
-              label2={displayIdealLabel}
-              primaryFeature={t(`proportions.ratioParts.${RATIO_PARTS[activeTab]?.primary}`)}
-              secondaryFeature={t(`proportions.ratioParts.${RATIO_PARTS[activeTab]?.secondary}`)}
-              t={t}
-            />
+            {activeTab === 'nasoAural' && !nasoReady ? (
+              <div className="rounded-xl border border-dashed border-surface-border bg-surface-warm/40 px-5 py-8 text-center">
+                <p className="text-sm text-ink-secondary leading-relaxed font-sans">
+                  {t('proportions.nasoAuralUnavailable')}
+                </p>
+              </div>
+            ) : (
+              <RatioBar
+                yourValue={displayYourValue ?? 0}
+                idealValue={active.idealValue}
+                label1={displayYourLabel}
+                label2={displayIdealLabel}
+                primaryFeature={t(`proportions.ratioParts.${RATIO_PARTS[activeTab]?.primary}`)}
+                secondaryFeature={t(`proportions.ratioParts.${RATIO_PARTS[activeTab]?.secondary}`)}
+                t={t}
+              />
+            )}
           </div>
 
           <div className="mt-6 pt-4 border-t border-surface-border">
             <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">{t('common.explanation')}</p>
             <p className="text-sm text-ink-secondary leading-relaxed font-sans">
-              {pickLocalizedCvText(active, locale)}
+              {activeTab === 'nasoAural' && !nasoReady
+                ? t('proportions.nasoAuralUnavailableDetail')
+                : pickLocalizedCvText(active, locale)}
             </p>
           </div>
         </div>

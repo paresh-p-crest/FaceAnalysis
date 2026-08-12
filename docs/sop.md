@@ -40,7 +40,7 @@ This document contains standard step-by-step procedures for local environment se
 Start both servers locally:
 ```powershell
 # Backend (FastAPI)
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir backend
 
 # Frontend (Next.js)
 npm run dev

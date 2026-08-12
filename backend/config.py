@@ -12,6 +12,27 @@ from pathlib import Path
 # filesystem and Replit Object Storage backends, so dev and prod behave the same.
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# --- CV Models Root & Timeouts -----------------------------------------------
+# Central root for all downloadable CV model weights (ear, MiVOLO, SegFormer).
+# Default: REPO_ROOT/models. Override with CV_MODELS_ROOT.
+# Layout:
+#   models/
+#     ear_landmarker.pth
+#     huggingface/          # transformers/hub cache_dir
+#       hub/
+#         models--iitolstykh--mivolo_v2/
+#         models--jonathandinu--face-parsing/
+CV_MODELS_ROOT_DEFAULT = REPO_ROOT / "models"
+
+# Per-download socket timeout (seconds). Override with CV_MODEL_DOWNLOAD_TIMEOUT_SEC.
+CV_MODEL_DOWNLOAD_TIMEOUT_SEC_DEFAULT = 300
+
+# Overall preload wall-clock timeout (seconds). Override with CV_MODEL_PRELOAD_TIMEOUT_SEC.
+CV_MODEL_PRELOAD_TIMEOUT_SEC_DEFAULT = 600
+
+# Enable background preload after boot. Override with CV_MODEL_PRELOAD.
+CV_MODEL_PRELOAD_DEFAULT = True
+
 # Browser-facing base path for media, served by backend/routers/media.py (proxied
 # to the backend by Next in dev and the Replit app router in prod).
 MEDIA_URL_BASE = "/api/media"

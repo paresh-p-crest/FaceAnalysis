@@ -5,12 +5,14 @@ from __future__ import annotations
 import io
 import logging
 import os
-from functools import lru_cache
+import threading
 from typing import Any, Optional
 
 import cv2
 import numpy as np
 from PIL import Image
+
+from .model_store import FACE_PARSING_MODEL_ID, ensure_face_parsing_weights, hf_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +66,10 @@ EAR_LABEL_IDS = [8, 9, 15]
 
 MASK_BACKGROUND_RGB = (255, 255, 255)
 
-MODEL_ID = "jonathandinu/face-parsing"
+MODEL_ID = FACE_PARSING_MODEL_ID
+
+_model_lock = threading.Lock()
+_cached_model: Optional[tuple] = None
 
 
 def face_parsing_enabled() -> bool:
@@ -79,17 +84,45 @@ def face_parsing_enabled() -> bool:
     return True
 
 
-@lru_cache(maxsize=1)
-def _load_model():
-    import torch
-    from transformers import SegformerForSemanticSegmentation, SegformerImageProcessor
+def reset_face_parsing_cache() -> None:
+    """Test helper — clear singleton so the next call can retry load."""
+    global _cached_model
+    with _model_lock:
+        _cached_model = None
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    processor = SegformerImageProcessor.from_pretrained(MODEL_ID)
-    model = SegformerForSemanticSegmentation.from_pretrained(MODEL_ID)
-    model.to(device)
-    model.eval()
-    return processor, model, device
+
+def _load_model():
+    """Load SegFormer once on success. Failures are not sticky — next call may retry."""
+    global _cached_model
+    if _cached_model is not None:
+        return _cached_model
+
+    with _model_lock:
+        if _cached_model is not None:
+            return _cached_model
+
+        if not ensure_face_parsing_weights():
+            raise RuntimeError("Face parsing weights unavailable")
+
+        import torch
+        from transformers import SegformerForSemanticSegmentation, SegformerImageProcessor
+
+        cache = str(hf_cache_dir())
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        try:
+            processor = SegformerImageProcessor.from_pretrained(
+                MODEL_ID, cache_dir=cache, local_files_only=True
+            )
+            model = SegformerForSemanticSegmentation.from_pretrained(
+                MODEL_ID, cache_dir=cache, local_files_only=True
+            )
+        except Exception:
+            processor = SegformerImageProcessor.from_pretrained(MODEL_ID, cache_dir=cache)
+            model = SegformerForSemanticSegmentation.from_pretrained(MODEL_ID, cache_dir=cache)
+        model.to(device)
+        model.eval()
+        _cached_model = (processor, model, device)
+        return _cached_model
 
 
 def segment_image(image_rgb: np.ndarray) -> np.ndarray:

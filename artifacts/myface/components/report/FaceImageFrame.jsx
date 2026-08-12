@@ -355,9 +355,65 @@ export function FeatureRegionOverlay({ paths, fill = 'rgba(150, 170, 180, 0.4)',
   )
 }
 
+/**
+ * Naso-aural: keep earVertical; preserve nose level guides (v6). Strip legacy
+ * nose vertical / segments so stale stored overlays cannot paint a second caliper.
+ */
+function normalizeNasoAuralOverlay(overlay) {
+  if (!overlay || !Array.isArray(overlay.brackets)) return overlay
+  const ear = overlay.brackets.find((b) => b?.id === 'earVertical')
+  if (!ear) {
+    return {
+      ...overlay,
+      brackets: [],
+      segments: undefined,
+      vertical: undefined,
+      horizontal: undefined,
+      guides: undefined,
+      bars: undefined,
+      nasoLayout: overlay.nasoLayout || 'earOnly-v5',
+    }
+  }
+
+  const earBot = Math.max(Number(ear.y1), Number(ear.y2))
+  const earTop = Math.min(Number(ear.y1), Number(ear.y2))
+  const earX = Number(ear.x1 ?? ear.x2)
+  if (![earBot, earTop, earX].every(Number.isFinite)) return overlay
+
+  const tick = Number(ear.tick) > 0 ? Number(ear.tick) : 3.5
+  const guides = Array.isArray(overlay.guides)
+    ? overlay.guides.filter((g) => g?.dashed !== false)
+    : undefined
+
+  const out = {
+    style: 'qoves',
+    nasoLayout: guides?.length ? 'earPlusNoseGuides-v6' : (overlay.nasoLayout || 'earOnly-v5'),
+    brackets: [
+      {
+        id: 'earVertical',
+        x1: earX,
+        y1: earTop,
+        x2: earX,
+        y2: earBot,
+        tick,
+      },
+    ],
+    horizontal: [
+      { y: earTop, x1: earX - tick, x2: earX + tick, dashed: false },
+      { y: earBot, x1: earX - tick, x2: earX + tick, dashed: false },
+    ],
+    segments: undefined,
+    vertical: undefined,
+    bars: undefined,
+  }
+  if (guides?.length) out.guides = guides
+  return out
+}
+
 /** report-style per-feature proportion guides — dots use % CSS so size stays small on any aspect. */
-export function ProportionFeatureOverlay({ overlay }) {
-  if (!overlay) return null
+export function ProportionFeatureOverlay({ overlay: overlayIn }) {
+  if (!overlayIn) return null
+  const overlay = normalizeNasoAuralOverlay(overlayIn)
   // Same white + weight as facial-thirds overview (`ProportionsOverlay`).
   const dash = {
     stroke: 'rgba(255,255,255,0.92)',
@@ -374,7 +430,10 @@ export function ProportionFeatureOverlay({ overlay }) {
   }
 
   return (
-    <div className="absolute inset-0 w-full h-full pointer-events-none">
+    <div
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      data-naso-layout={overlay.nasoLayout || ''}
+    >
       <svg
         className="absolute inset-0 w-full h-full"
         viewBox="0 0 100 100"
@@ -387,37 +446,70 @@ export function ProportionFeatureOverlay({ overlay }) {
             y1={line.y}
             x2={line.x2 ?? 96}
             y2={line.y}
+            {...(line.dashed === true ? dash : solid)}
+          />
+        ))}
+        {overlay.guides?.map((line, i) => (
+          <line
+            key={`g-${i}`}
+            x1={line.x1 ?? 4}
+            y1={line.y}
+            x2={line.x2 ?? 96}
+            y2={line.y}
             {...dash}
           />
         ))}
-        {overlay.vertical?.map((line, i) => (
-          <line key={`v-${i}`} x1={line.x} y1="4" x2={line.x} y2="96" {...dash} />
-        ))}
-        {overlay.segments?.map((seg, i) => (
-          <line key={`s-${i}`} x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2} {...solid} />
-        ))}
-        {overlay.bars?.map((bar, i) => {
-          const x1 = Number(bar.x1)
-          const x2 = Number(bar.x2)
-          const y = Number(bar.y ?? bar.y1)
-          if (![x1, x2, y].every(Number.isFinite)) return null
-          const left = Math.min(x1, x2)
-          const right = Math.max(x1, x2)
-          const span = right - left
-          // Downward end ticks (~8% of span, clamped) — matches measurement brackets.
-          const tickLen = Math.max(1.6, Math.min(3.2, span * 0.08 || 2.2))
-          const tickXs = Array.isArray(bar.ticks) && bar.ticks.length
-            ? bar.ticks.map(Number).filter(Number.isFinite)
-            : [left, right]
+        {!overlay.nasoLayout &&
+          overlay.vertical?.map((line, i) => (
+            <line key={`v-${i}`} x1={line.x} y1="4" x2={line.x} y2="96" {...dash} />
+          ))}
+        {!overlay.nasoLayout &&
+          overlay.segments?.map((seg, i) => (
+            <line key={`s-${i}`} x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2} {...solid} />
+          ))}
+        {overlay.brackets?.map((b, i) => {
+          const x1 = Number(b.x1)
+          const y1 = Number(b.y1)
+          const x2 = Number(b.x2)
+          const y2 = Number(b.y2)
+          if (![x1, y1, x2, y2].every(Number.isFinite)) return null
+          const dx = x2 - x1
+          const dy = y2 - y1
+          const len = Math.hypot(dx, dy) || 1
+          const tick = Number(b.tick) > 0 ? Number(b.tick) : 2.2
+          const half = tick / 2
+          const tx = (-dy / len) * half
+          const ty = (dx / len) * half
           return (
-            <g key={`bar-${i}`}>
-              <line x1={left} y1={y} x2={right} y2={y} {...solid} />
-              {tickXs.map((tx, j) => (
-                <line key={j} x1={tx} y1={y} x2={tx} y2={y + tickLen} {...solid} />
-              ))}
+            <g key={`br-${b.id || i}`}>
+              <line x1={x1} y1={y1} x2={x2} y2={y2} {...solid} />
+              <line x1={x1 - tx} y1={y1 - ty} x2={x1 + tx} y2={y1 + ty} {...solid} />
+              <line x1={x2 - tx} y1={y2 - ty} x2={x2 + tx} y2={y2 + ty} {...solid} />
             </g>
           )
         })}
+        {!overlay.nasoLayout &&
+          overlay.bars?.map((bar, i) => {
+            const x1 = Number(bar.x1)
+            const x2 = Number(bar.x2)
+            const y = Number(bar.y ?? bar.y1)
+            if (![x1, x2, y].every(Number.isFinite)) return null
+            const left = Math.min(x1, x2)
+            const right = Math.max(x1, x2)
+            const span = right - left
+            const tickLen = Math.max(1.6, Math.min(3.2, span * 0.08 || 2.2))
+            const tickXs = Array.isArray(bar.ticks) && bar.ticks.length
+              ? bar.ticks.map(Number).filter(Number.isFinite)
+              : [left, right]
+            return (
+              <g key={`bar-${i}`}>
+                <line x1={left} y1={y} x2={right} y2={y} {...solid} />
+                {tickXs.map((tx, j) => (
+                  <line key={j} x1={tx} y1={y} x2={tx} y2={y + tickLen} {...solid} />
+                ))}
+              </g>
+            )
+          })}
       </svg>
       {overlay.dots?.map((d, i) => (
         <span

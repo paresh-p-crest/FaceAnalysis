@@ -18,7 +18,7 @@ import {
   isReportModalHostPath,
 } from '../../utils/routes'
 import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser, saveSession } from '../../utils/authClient'
-import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMediaToken, fetchMyAssessments, fetchMyAssessmentsWithQuota, isFullCloudAssessment, mediaUrl, submitAssessment } from '../../utils/apiClient'
+import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMediaToken, clearMediaToken, fetchMyAssessments, fetchMyAssessmentsWithQuota, isFullCloudAssessment, mediaUrl, submitAssessment } from '../../utils/apiClient'
 import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
@@ -70,6 +70,8 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   const [hasAnalysisAccess, setHasAnalysisAccess] = useState(false)
+  /** True once the user has at least one submitted assessment that is report-ready (approved/published). */
+  const [hasReadyReport, setHasReadyReport] = useState(false)
   const [accessReady, setAccessReady] = useState(false)
   const [returnPath, setReturnPath] = useState(ROUTES.dashboard)
   const [billingMessage, setBillingMessage] = useState('')
@@ -453,6 +455,20 @@ export function AppProvider({ children }) {
     setAccessReady(true)
   }, [])
 
+  const refreshHasReadyReport = useCallback(async () => {
+    if (!userRef.current || !isBackendApiEnabled()) {
+      setHasReadyReport(false)
+      return
+    }
+    try {
+      const items = await fetchMyAssessments(20)
+      const submitted = (Array.isArray(items) ? items : []).filter(isAssessmentSubmitted)
+      setHasReadyReport(submitted.some(userReportReady))
+    } catch {
+      // Transient failure — keep last known value so the navbar doesn't flap.
+    }
+  }, [])
+
   // Never strand the UI if auth/access checks hang (cold backend, stale Stripe session, etc.)
   useEffect(() => {
     if (authReady && accessReady) return undefined
@@ -508,9 +524,13 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     if (!authReady) return
-    if (!user) return
-    // Prewarm the signed media token so <img> renders aren't the first paint
-    // behind MEDIA_AUTH_REQUIRED. Failure is swallowed — mediaUrl() retries lazily.
+    if (!user) {
+      clearMediaToken()
+      return
+    }
+    // Drop any previous account's cached media token, then mint for this user.
+    // Reusing a still-valid token from another login 404s owner-gated photos.
+    clearMediaToken()
     fetchMediaToken().catch(() => {})
   }, [authReady, user?.id])
 
@@ -523,6 +543,15 @@ export function AppProvider({ children }) {
     }
     refreshAnalysisAccess()
   }, [authReady, user?.id, user?.role, refreshAnalysisAccess])
+
+  // Keep hasReadyReport fresh on login and whenever assessments are rebound/deleted (epoch bump).
+  useEffect(() => {
+    if (!authReady || !user) {
+      setHasReadyReport(false)
+      return
+    }
+    refreshHasReadyReport()
+  }, [authReady, user?.id, latestAssessmentEpoch, refreshHasReadyReport])
 
   useEffect(() => {
     if (!bootstrappedRef.current) return
@@ -841,23 +870,31 @@ export function AppProvider({ children }) {
       alert('This analysis is still being prepared. Check back shortly from your dashboard.')
       return
     }
-    if (!assessment?.id || !isBackendApiEnabled()) {
+    if (!assessment?.id) {
       if (pathnameRef.current !== originPath) return
       hydrateFromCloudAssessment(assessment)
       setCloudAssessment(null)
       openReportModalOnRoute()
       return
     }
-    // Reuse in-memory full GET only for the same assessment; list summaries always refetch.
-    if (cloudAssessment?.id === assessment.id && isFullCloudAssessment(cloudAssessment)) {
-      if (pathnameRef.current !== originPath) return
-      hydrateFromCloudAssessment(cloudAssessment)
-      openReportModalOnRoute()
-      return
-    }
+    // Flip "Opening…" on the Open button before any network / hydrate work.
     setOpeningReportId(assessment.id)
     openingReportIdRef.current = assessment.id
     try {
+      if (!isBackendApiEnabled()) {
+        if (pathnameRef.current !== originPath) return
+        hydrateFromCloudAssessment(assessment)
+        setCloudAssessment(null)
+        openReportModalOnRoute()
+        return
+      }
+      // Reuse in-memory full GET only for the same assessment; list summaries always refetch.
+      if (cloudAssessment?.id === assessment.id && isFullCloudAssessment(cloudAssessment)) {
+        if (pathnameRef.current !== originPath) return
+        hydrateFromCloudAssessment(cloudAssessment)
+        openReportModalOnRoute()
+        return
+      }
       const full = await fetchAssessment(assessment.id)
       if (pathnameRef.current !== originPath) return
       hydrateFromCloudAssessment(full)
@@ -1039,6 +1076,8 @@ export function AppProvider({ children }) {
     user,
     authReady,
     hasAnalysisAccess,
+    hasReadyReport,
+    setHasReadyReport,
     accessReady,
     refreshAnalysisAccess,
     answers,
@@ -1112,7 +1151,7 @@ export function AppProvider({ children }) {
     handlePreparingDashboard,
     resetAnalysisFlow,
   }), [
-    user, authReady, hasAnalysisAccess, accessReady, refreshAnalysisAccess,
+    user, authReady, hasAnalysisAccess, hasReadyReport, accessReady, refreshAnalysisAccess,
     answers, photos, analysis, historyId, dismissPaymentReturn, clearPaymentSession, grantPaidAccess, returnPath,
     billingMessage, paymentReturn, logoutConfirmOpen, scanId,
     adminWorkspace,

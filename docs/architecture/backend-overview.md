@@ -2,7 +2,7 @@
 
 Python FastAPI service for MyFace. It runs computer vision on uploaded photos, stores results in PostgreSQL, then adds AI narrative and optional SegFormer parsing via a **background worker**.
 
-**Run:** `uvicorn backend.main:app --reload --port 8000`
+**Run:** `uvicorn backend.main:app --reload --reload-dir backend --port 8000`
 
 ---
 
@@ -55,7 +55,7 @@ If the backend API is disabled, the FE can run a browser-local MediaPipe path (`
 1. Claim next job (`claim_next_pipeline_job`, `FOR UPDATE SKIP LOCKED`) — running orphans first, then queued FIFO; resumes from preserved `pipeline.stage` (not always `cv`)  
 2. **cv** — `pipeline_stages.run_cv_stage` → `analyze_face.run_face_analysis` in thread  
 3. **narratives** — `enrich_assessment_nl_content`  
-4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (torch/torchvision/transformers are core deps installed from `requirements.txt`; the stage disables gracefully via `face_parsing_enabled()` only if they are somehow absent or `FACE_PARSING_ENABLED=false`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **earsLeft/earsRight** via SegFormer on left/right profiles.  
+4. **parsing** — SegFormer crops + metrics → `feature_parsing` + `parsing/*.jpg` (torch/torchvision/transformers are core deps installed from `requirements.txt`; the stage disables gracefully via `face_parsing_enabled()` only if they are somehow absent or `FACE_PARSING_ENABLED=false`). Front pose: white mask-isolated feature crops (incl. neck); chin/cheeks/jaw rectangular. **lips** via stored front MediaPipe landmarks on `front.jpg`; **smile** via MediaPipe on `smile.jpg`; **ears** — SegFormer square backup under `earsLeftSegformer`/`earsRightSegformer`; primary `earsLeft`/`earsRight` prefer landmarker contour cutout when `cvReport.ears.sides` is ready, else SegFormer copy on the primary keys.  
 5. **projected_after** — **generative** AFTER image via `projected_after_ai.generate_projected_after_bytes` → `image_client` (fixed best-groomed makeover prompt, ADR-034) → `projected_after` + `projected/full.jpg` or `full.png` (skipped when `PROJECTED_AFTER_ENABLED=false`); provider unavailable/fail → status **`pending`** (retryable). On success, MediaPipe/OpenCV on that image → `projected_analysis` (BEFORE `analysis` untouched). (ADR-029, ADR-034)  
 6. **ai_visuals** — `pipeline_stages.run_ai_visuals_stage` → `generate_visual_variants` (13 cards: 5 hair + 5 outfit + 3 aging) from the **front (BEFORE)** portrait; soft-skips when front bytes are missing.  
 7. `pipeline.status = ready`, workflow `status = pending_review` (or dev auto-approve)
@@ -265,8 +265,10 @@ POST /api/assessments  (assessments.py)
 
 | File | What it does |
 |------|----------------|
-| `main.py` | Starts FastAPI, CORS, DB lifespan, mounts routers. Also has `/api/health` and quick `/api/run-analysis` (no DB save). |
-| `config.py` | Shared constants (poses, models, thresholds, feature lists). |
+| `main.py` | Starts FastAPI, CORS, deferred boot (routers+DB+pipeline worker), background CV model preload after boot, mounts routers. Also has `/api/health` and quick `/api/run-analysis` (no DB save). |
+| `config.py` | Shared constants (poses, models, thresholds, feature lists, `CV_MODELS_ROOT` defaults). |
+| `model_store.py` | Central `CV_MODELS_ROOT` paths + timeout-bounded ensure/download for ear / MiVOLO / SegFormer weights. |
+| `model_preload.py` | Post-boot background disk-only weight preload (`CV_MODEL_PRELOAD`); soft-fail, never blocks health. |
 | `database.py` | PostgreSQL connection via SQLAlchemy async + asyncpg. |
 | `logging_config.py` | Makes backend logs visible under uvicorn. |
 | `serialization.py` | Turns numpy/nested CV data into JSON/JSONB-safe values. |

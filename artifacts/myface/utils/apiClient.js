@@ -86,12 +86,55 @@ function authHeaders() {
 // <img> tags can't send Authorization headers, so media is accessed via a short-lived
 // user-scoped signed token appended as ?token= at render time. The token is cached
 // module-level (no storage on disk); page reload lazily refetches it (one request).
+//
+// IMPORTANT: the token is bound to the logged-in user. Logout / account switch MUST
+// call clearMediaToken() — otherwise a previous user's ?token= stays cached (or
+// baked into React state) and owner-or-admin checks 404 the real owner's photos.
 
 const MEDIA_TOKEN_RENEW_BUFFER_MS = 60_000
 
 let _mediaToken = null
 let _mediaTokenExpiresAt = 0
 let _mediaTokenPromise = null
+const _mediaTokenListeners = new Set()
+
+function notifyMediaTokenListeners() {
+  _mediaTokenListeners.forEach((fn) => {
+    try {
+      fn()
+    } catch {
+      /* ignore subscriber errors */
+    }
+  })
+}
+
+/** Drop the cached media token (logout / user switch). */
+export function clearMediaToken() {
+  _mediaToken = null
+  _mediaTokenExpiresAt = 0
+  _mediaTokenPromise = null
+  notifyMediaTokenListeners()
+}
+
+/** Subscribe to media-token changes (mint or clear). Returns an unsubscribe fn. */
+export function subscribeMediaToken(listener) {
+  _mediaTokenListeners.add(listener)
+  return () => _mediaTokenListeners.delete(listener)
+}
+
+/** Strip a prior ?token= / &token= so a stale user token can't stick in state. */
+function stripMediaTokenParam(url) {
+  try {
+    const abs = url.startsWith('http') ? url : `http://local.invalid${url.startsWith('/') ? '' : '/'}${url}`
+    const u = new URL(abs)
+    if (!u.searchParams.has('token')) return url
+    u.searchParams.delete('token')
+    const path = `${u.pathname}${u.search}${u.hash}`
+    return url.startsWith('http') ? u.toString() : path
+  } catch {
+    return url.replace(/([?&])token=[^&]*/g, '').replace(/[?&]$/, '').replace(/\?&/, '?')
+  }
+}
 
 async function doFetchMediaToken() {
   const base = getApiBaseUrl()
@@ -102,6 +145,8 @@ async function doFetchMediaToken() {
   if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_MEDIA_TOKEN_FAILED)
   _mediaToken = data.token
   _mediaTokenExpiresAt = new Date(data.expiresAt).getTime() || Date.now()
+  _mediaTokenPromise = null
+  notifyMediaTokenListeners()
   return _mediaToken
 }
 
@@ -127,19 +172,22 @@ function getCachedMediaToken() {
 /**
  * Append the signed media token to a media URL for <img>/fetch use.
  * Non-media URLs (data:, blob:, external) pass through untouched.
+ * Always replaces any existing token= so a previous user's token cannot stick.
  */
 export function mediaUrl(url) {
   if (typeof url !== 'string' || !url) return url
-  if (!url.includes('/api/media/') || url.includes('token=')) return url
+  if (!url.includes('/api/media/')) return url
+  const bare = stripMediaTokenParam(url)
   const token = getCachedMediaToken()
   if (!token) {
-    // First call before the token lands: kick the fetch; callers that await
-    // fetchMediaToken() first (e.g. the photo catalog) always get a token.
+    // First call before the token lands: kick the fetch; subscribers (useMediaUrl)
+    // re-apply once mint completes. Callers that await fetchMediaToken() first
+    // (e.g. the photo catalog) always get a token on the next mediaUrl().
     fetchMediaToken().catch(() => {})
-    return url
+    return bare
   }
-  const sep = url.includes('?') ? '&' : '?'
-  return `${url}${sep}token=${encodeURIComponent(token)}`
+  const sep = bare.includes('?') ? '&' : '?'
+  return `${bare}${sep}token=${encodeURIComponent(token)}`
 }
 
 /**

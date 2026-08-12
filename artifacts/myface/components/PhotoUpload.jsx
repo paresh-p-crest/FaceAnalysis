@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import {
   Upload,
@@ -11,12 +11,21 @@ import {
   Check,
   Loader2,
   AlertCircle,
+  AlertTriangle,
+  CloudOff,
 } from 'lucide-react'
 import { PHOTO_POSES } from '../utils/constants'
 import { isDevShortcutsEnabled } from '../utils/devConfig'
 import { getAllDemoPhotos } from '../utils/demoPhotos'
 import { uploadAssessmentPhoto, deleteAssessmentPhoto } from '../utils/apiClient'
-import { validatePhoto } from '../utils/photoValidation'
+import {
+  validatePhoto,
+  validationBlocksUpload,
+  getPrimaryValidationErrorMessage,
+  getValidationWarningMessages,
+  translateValidationMessage,
+} from '../utils/photoValidation'
+import { GUIDELINE_KEYS, GUIDELINE_CHECK_MAP } from '../utils/photoUploadGuidance'
 import { AnalysisFlowHeader } from './analysis/AnalysisFlowHeader'
 import { BrandLogo } from './BrandLogo'
 import './Questionnaire.css'
@@ -29,31 +38,6 @@ const CHECKLIST_ITEM_KEYS = [
   'makeup',
   'clothing',
   'filters',
-]
-
-const GUIDELINE_KEYS = [
-  'lookStraight',
-  'neutralExpression',
-  'clearObstructions',
-  'armsLength',
-  'oneHead',
-  'notCropped',
-  'notBlurry',
-  'evenLighting',
-  'plainBackground',
-]
-
-// Maps each REQUIRED_GUIDELINES index to the validation check name(s) from photoValidation.js
-const GUIDELINE_CHECK_MAP = [
-  ['faceCentered', 'correctPose'], // Look straight at the camera
-  ['neutralExpression'],           // Maintain a neutral expression
-  ['hairClear', 'noGlasses'],      // Remove hair and obstructions
-  ['faceSize'],                    // Photo from arm's length away
-  ['faceDetected'],                // Only one head visible
-  ['faceSize'],                    // Head and neck not cropped
-  ['sharpness'],                   // Keep camera focused and not blurry
-  ['brightness'],                  // Ensure consistent, even lighting
-  [],                              // Ensure a plain, clear background (no CV check)
 ]
 
 const readAsDataUrl = (fileOrBlob) =>
@@ -73,7 +57,7 @@ const fileFromSrc = async (src, name) => {
 }
 
 /** Overlay shown on the active-pose preview reflecting the per-pose upload state. */
-function UploadStatusOverlay({ state, error, large = false, t }) {
+function UploadStatusOverlay({ state, error, errorKind, warnings = [], large = false, t }) {
   if (state === 'validating' || state === 'uploading') {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-black/25">
@@ -86,16 +70,41 @@ function UploadStatusOverlay({ state, error, large = false, t }) {
   }
   if (state === 'uploaded') {
     return (
-      <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow animate-fade-up">
-        <Check className="w-3 h-3" /> {t('uploaded')}
-      </div>
+      <>
+        <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow animate-fade-up">
+          <Check className="w-3 h-3" /> {t('uploaded')}
+        </div>
+        {warnings.length > 0 && (
+          <div className="absolute inset-x-2 bottom-2 rounded-lg bg-amber-500/90 px-2 py-1 text-[10px] font-semibold text-white shadow space-y-0.5">
+            <div className="inline-flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              <span>{t('validationWarningsTitle')}</span>
+            </div>
+            {warnings.map((msg, i) => (
+              <p key={i} className="font-normal leading-snug pl-4">{msg}</p>
+            ))}
+          </div>
+        )}
+      </>
     )
   }
   if (state === 'error') {
+    const isTransport = errorKind === 'transport'
     return (
-      <div className="absolute inset-x-2 bottom-2 inline-flex items-center gap-1 rounded-lg bg-red-500/90 px-2 py-1 text-[10px] font-semibold text-white shadow">
-        <AlertCircle className="w-3 h-3 shrink-0" />
-        <span className="truncate">{error || t('checkPhotoReupload')}</span>
+      <div className={`absolute inset-x-2 bottom-2 inline-flex items-start gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold text-white shadow ${
+        isTransport ? 'bg-slate-700/95' : 'bg-red-500/90'
+      }`}>
+        {isTransport ? (
+          <CloudOff className="w-3 h-3 shrink-0 mt-px" />
+        ) : (
+          <AlertCircle className="w-3 h-3 shrink-0 mt-px" />
+        )}
+        <span className="min-w-0">
+          <span className="block text-[9px] uppercase tracking-wide opacity-80 mb-0.5">
+            {isTransport ? t('uploadErrorLabel') : t('validationErrorLabel')}
+          </span>
+          <span className="truncate block">{error || t('checkPhotoReupload')}</span>
+        </span>
       </div>
     )
   }
@@ -114,6 +123,7 @@ export default function PhotoUpload({
   submitError,
 }) {
   const t = useTranslations('Photo.upload')
+  const tPhoto = useTranslations('Photo')
   const tPoses = useTranslations('Photo.poses')
 
   const POSES = PHOTO_POSES.map((p) => ({
@@ -125,6 +135,8 @@ export default function PhotoUpload({
 
   const inputRef = useRef(null)
   const filesRef = useRef({})
+  /** Bumps when a pose gets a new file so stale validatePhoto() results are ignored. */
+  const validationGenRef = useRef({})
   const [confirmedChecks, setConfirmedChecks] = useState([false, false, false, false, false, false, false])
   const [dragOver, setDragOver] = useState(false)
   const [activePose, setActivePose] = useState('front')
@@ -132,7 +144,25 @@ export default function PhotoUpload({
   // Per-pose lifecycle: idle | validating | uploading | uploaded | error
   const [uploadState, setUploadState] = useState({})
   const [uploadErrors, setUploadErrors] = useState({})
+  const [uploadErrorKinds, setUploadErrorKinds] = useState({})
   const [loadingDemos, setLoadingDemos] = useState(false)
+
+  /** Restored draft/server photos already uploaded — mark poses as uploaded for Continue. */
+  useEffect(() => {
+    setUploadState((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const pose of PHOTO_POSES) {
+        if (!photos[pose.id]) continue
+        const st = prev[pose.id]
+        if (!st || st === 'idle') {
+          next[pose.id] = 'uploaded'
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [photos])
 
   const allChecked = confirmedChecks.every(Boolean)
   const requiredPoses = POSES.filter((p) => p.required)
@@ -146,49 +176,76 @@ export default function PhotoUpload({
 
   const setPoseState = (poseId, state) => setUploadState((prev) => ({ ...prev, [poseId]: state }))
 
-  const uploadPose = async (file, poseId) => {
+  const bumpValidationGen = (poseId) => {
+    const next = (validationGenRef.current[poseId] || 0) + 1
+    validationGenRef.current[poseId] = next
+    return next
+  }
+
+  const isValidationCurrent = (poseId, gen) => validationGenRef.current[poseId] === gen
+
+  const uploadPose = async (file, poseId, gen) => {
+    if (!isValidationCurrent(poseId, gen)) return false
     setPoseState(poseId, 'uploading')
     setUploadErrors((prev) => ({ ...prev, [poseId]: '' }))
+    setUploadErrorKinds((prev) => ({ ...prev, [poseId]: '' }))
     try {
       const id = await ensureDraft()
+      if (!isValidationCurrent(poseId, gen)) return false
       await uploadAssessmentPhoto(id, poseId, file)
+      if (!isValidationCurrent(poseId, gen)) return false
       setPoseState(poseId, 'uploaded')
+      return true
     } catch (err) {
+      if (!isValidationCurrent(poseId, gen)) return false
       setPoseState(poseId, 'error')
-      setUploadErrors((prev) => ({ ...prev, [poseId]: err?.message || t('uploadFailed') }))
+      setUploadErrorKinds((prev) => ({ ...prev, [poseId]: 'transport' }))
+      setUploadErrors((prev) => ({
+        ...prev,
+        [poseId]: err?.message || t('uploadFailed'),
+      }))
+      return false
     }
   }
 
   // Validate on a throwaway canvas copy (unchanged), then upload the ORIGINAL file.
-  const processPose = async (dataUrl, file, poseId) => {
+  const processPose = async (dataUrl, file, poseId, gen) => {
     setUploadErrors((prev) => ({ ...prev, [poseId]: '' }))
+    setUploadErrorKinds((prev) => ({ ...prev, [poseId]: '' }))
     setPoseState(poseId, 'validating')
     let result = null
     try {
       result = await validatePhoto(dataUrl, poseId)
+      if (!isValidationCurrent(poseId, gen)) return
       setValidation((prev) => ({ ...prev, [poseId]: result }))
     } catch {
+      if (!isValidationCurrent(poseId, gen)) return
       setValidation((prev) => ({ ...prev, [poseId]: null }))
     }
-    if (!result || result.overall !== 'pass') {
+    if (!isValidationCurrent(poseId, gen)) return
+
+    if (!result || validationBlocksUpload(result)) {
+      const specific = getPrimaryValidationErrorMessage(result, tPhoto)
       setPoseState(poseId, 'error')
+      setUploadErrorKinds((prev) => ({ ...prev, [poseId]: 'validation' }))
       setUploadErrors((prev) => ({
         ...prev,
-        [poseId]: t('qualityCheckFailed'),
+        [poseId]: specific || t('qualityCheckFailed'),
       }))
       return
     }
-    await uploadPose(file, poseId)
+    await uploadPose(file, poseId, gen)
   }
 
   const handleFile = (file, poseId = activePose) => {
     if (!file?.type?.startsWith('image/')) return
+    const gen = bumpValidationGen(poseId)
     filesRef.current[poseId] = file
     const reader = new FileReader()
     reader.onload = (e) => {
       const dataUrl = e.target.result
       setPhotos((prev) => ({ ...prev, [poseId]: dataUrl }))
-      processPose(dataUrl, file, poseId)
+      processPose(dataUrl, file, poseId, gen)
     }
     reader.readAsDataURL(file)
   }
@@ -223,10 +280,12 @@ export default function PhotoUpload({
   }
 
   const removePhoto = async (poseId) => {
+    bumpValidationGen(poseId)
     const hadUpload = uploadState[poseId] === 'uploaded' || uploadState[poseId] === 'uploading'
     setPhotos((prev) => ({ ...prev, [poseId]: null }))
     setValidation((prev) => ({ ...prev, [poseId]: null }))
     setUploadErrors((prev) => ({ ...prev, [poseId]: '' }))
+    setUploadErrorKinds((prev) => ({ ...prev, [poseId]: '' }))
     setPoseState(poseId, 'idle')
     filesRef.current[poseId] = null
     if (hadUpload && draftAssessmentId) {
@@ -240,12 +299,23 @@ export default function PhotoUpload({
 
   const currentPhoto = photos[activePose]
   const activePoseInfo = POSES.find((p) => p.id === activePose) || POSES[0]
+  const activeValidation = validation[activePose]
+  const activeWarnings = activeValidation
+    ? getValidationWarningMessages(activeValidation, tPhoto)
+    : []
   const activeState = uploadState[activePose] || (currentPhoto ? 'uploaded' : 'idle')
   const activeBusy = activeState === 'validating' || activeState === 'uploading'
   const activeErr = activeState === 'error'
   const activeUploaded = activeState === 'uploaded'
+  const activeHasWarnings = activeUploaded && activeWarnings.length > 0
   const previewFilter = `transition-all duration-500 ${activeBusy ? 'blur-lg scale-105' : 'blur-0 scale-100'}`
-  const previewRing = activeErr ? 'ring-2 ring-red-500' : activeUploaded ? 'ring-2 ring-emerald-400/70' : ''
+  const previewRing = activeErr
+    ? 'ring-2 ring-red-500'
+    : activeHasWarnings
+      ? 'ring-2 ring-amber-400/80'
+      : activeUploaded
+        ? 'ring-2 ring-emerald-400/70'
+        : ''
 
   // Compute per-guideline status from active pose's validation result
   const getGuidelineStatus = (idx) => {
@@ -264,6 +334,17 @@ export default function PhotoUpload({
     if (relevant.some((c) => !c.pass && c.severity === 'error')) return 'fail'
     if (relevant.some((c) => !c.pass && c.severity === 'warning')) return 'warn'
     return 'pass'
+  }
+
+  /** Translated fail/warn messages for a checklist row (shown under the guideline label). */
+  const getGuidelineNotes = (idx) => {
+    const result = validation[activePose]
+    const checkNames = GUIDELINE_CHECK_MAP[idx]
+    if (!result?.checks || !checkNames?.length) return []
+    return result.checks
+      .filter((c) => checkNames.includes(c.name) && !c.pass && (c.severity === 'error' || c.severity === 'warning'))
+      .map((c) => translateValidationMessage(c, tPhoto))
+      .filter(Boolean)
   }
 
   // ── STEP 1: Instructions Confirmation View ──
@@ -431,8 +512,12 @@ export default function PhotoUpload({
               {POSES.map((pose) => {
                 const isActive = activePose === pose.id
                 const st = uploadState[pose.id]
+                const poseWarnings = validation[pose.id]
+                  ? getValidationWarningMessages(validation[pose.id], tPhoto)
+                  : []
                 const subtitle =
-                  st === 'uploaded' ? t('statusUploaded')
+                  st === 'uploaded'
+                    ? (poseWarnings.length ? t('statusUploadedWithWarnings') : t('statusUploaded'))
                     : st === 'uploading' ? t('statusUploading')
                       : st === 'validating' ? t('statusChecking')
                         : st === 'error' ? t('statusNeedsAttention')
@@ -491,7 +576,13 @@ export default function PhotoUpload({
                       alt={t('previewAlt')}
                       className={`w-28 h-36 rounded-xl object-cover shadow-md ${previewFilter} ${previewRing}`}
                     />
-                    <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} t={t} />
+                    <UploadStatusOverlay
+                      state={activeState}
+                      error={uploadErrors[activePose]}
+                      errorKind={uploadErrorKinds[activePose]}
+                      warnings={activeWarnings}
+                      t={t}
+                    />
                     <div className="absolute top-1 right-1 flex gap-1">
                       <button
                         onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
@@ -538,6 +629,10 @@ export default function PhotoUpload({
             <ul className="space-y-1.5 border border-slate-100 dark:border-slate-800 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-950/20 max-h-[180px] overflow-y-auto lg:max-h-none lg:overflow-visible">
               {GUIDELINE_KEYS.map((guidelineKey, idx) => {
                 const status = getGuidelineStatus(idx)
+                const notes = (status === 'warn' || status === 'fail') ? getGuidelineNotes(idx) : []
+                const label = guidelineKey === 'poseDirection'
+                  ? t(`poseInstructions.${activePose}`)
+                  : t(`guidelines.${guidelineKey}`)
                 return (
                   <li key={guidelineKey} className="flex items-start gap-2 text-[11px] leading-normal">
                     {status === 'idle' && <span className="text-slate-300 dark:text-slate-600 shrink-0 font-bold mt-px">○</span>}
@@ -549,7 +644,21 @@ export default function PhotoUpload({
                       status === 'fail' ? 'text-red-500 dark:text-red-400' :
                       status === 'warn' ? 'text-amber-600 dark:text-amber-400' :
                       'text-slate-600 dark:text-slate-400'
-                    }>{t(`guidelines.${guidelineKey}`)}</span>
+                    }>
+                      {label}
+                      {notes.map((note) => (
+                        <span
+                          key={note}
+                          className={`block font-normal mt-0.5 ${
+                            status === 'fail'
+                              ? 'text-red-500 dark:text-red-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }`}
+                        >
+                          {note}
+                        </span>
+                      ))}
+                    </span>
                   </li>
                 )
               })}
@@ -635,7 +744,14 @@ export default function PhotoUpload({
                     alt={t('uploadPreviewAlt')}
                     className={`w-48 h-60 rounded-2xl object-cover shadow-2xl border border-white/10 ${previewFilter} ${previewRing}`}
                   />
-                  <UploadStatusOverlay state={activeState} error={uploadErrors[activePose]} large t={t} />
+                  <UploadStatusOverlay
+                    state={activeState}
+                    error={uploadErrors[activePose]}
+                    errorKind={uploadErrorKinds[activePose]}
+                    warnings={activeWarnings}
+                    large
+                    t={t}
+                  />
                 </div>
                 <div className="absolute top-2 right-12 flex gap-1.5">
                   <button

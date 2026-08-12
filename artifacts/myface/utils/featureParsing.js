@@ -29,16 +29,26 @@ function withCacheBust(url, featureParsing) {
   return url.includes('?') ? `${url}&v=${v}` : `${url}?v=${v}`
 }
 
+/** Raw ears hero path from featureParsing (primary contour, then SegFormer suffix). */
+export function resolveEarsParsingUrl(featureParsing) {
+  if (featureParsing?.status !== 'ready') return null
+  return (
+    featureParsing?.crops?.earsLeft?.publicUrl ||
+    featureParsing?.crops?.ears?.leftPublicUrl ||
+    featureParsing?.crops?.ears?.publicUrl ||
+    featureParsing?.crops?.earsLeftSegformer?.publicUrl ||
+    featureParsing?.crops?.ears?.leftSegformerPublicUrl ||
+    null
+  )
+}
+
 export function resolveFeatureHero(featureId, cvSection, featureParsing) {
   let result = null
   let fromParsing = false
   if (featureParsing?.status === 'ready') {
-    // Ears: single left-profile crop only (not dual L/R heroes).
+    // Ears: primary contour (earsLeft) then SegFormer backup suffix.
     if (featureId === 'ears') {
-      const left =
-        featureParsing?.crops?.earsLeft?.publicUrl ||
-        featureParsing?.crops?.ears?.leftPublicUrl ||
-        featureParsing?.crops?.ears?.publicUrl
+      const left = resolveEarsParsingUrl(featureParsing)
       if (left) {
         result = left
         fromParsing = true

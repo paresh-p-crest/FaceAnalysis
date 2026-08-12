@@ -200,6 +200,7 @@ export function SiteNavbar({
   authReady = true,
   accessReady = true,
   hasAnalysisAccess = true,
+  hasReadyReport = false,
   onAuth,
   onLogout,
   onLogo,
@@ -285,7 +286,7 @@ export function SiteNavbar({
       }))
     }
 
-    // Customer: Report / AI Visuals / Chat — independent routes (/dashboard is home via logo, not nav)
+    // Customer: Report always; AI Visuals / Chat only once a report is approved/ready
     return [
       {
         key: 'report',
@@ -296,22 +297,26 @@ export function SiteNavbar({
         disabled: false,
         emphasize: false,
       },
-      {
-        key: 'aiVisuals',
-        label: t('aiVisuals'),
-        icon: Sparkles,
-        href: ROUTES.aiVisuals,
-        active: pathname === ROUTES.aiVisuals,
-        disabled: false,
-      },
-      {
-        key: 'chatAssistant',
-        label: t('chatAssistant'),
-        icon: MessageCircle,
-        href: ROUTES.chat,
-        active: pathname === ROUTES.chat,
-        disabled: false,
-      },
+      ...(hasReadyReport
+        ? [
+            {
+              key: 'aiVisuals',
+              label: t('aiVisuals'),
+              icon: Sparkles,
+              href: ROUTES.aiVisuals,
+              active: pathname === ROUTES.aiVisuals,
+              disabled: false,
+            },
+            {
+              key: 'chatAssistant',
+              label: t('chatAssistant'),
+              icon: MessageCircle,
+              href: ROUTES.chat,
+              active: pathname === ROUTES.chat,
+              disabled: false,
+            },
+          ]
+        : []),
     ]
   }, [
     user,
@@ -319,6 +324,7 @@ export function SiteNavbar({
     activeAdminTab,
     adminNavBadges,
     billingLocked,
+    hasReadyReport,
     pathname,
     reportModalOpen,
     t,

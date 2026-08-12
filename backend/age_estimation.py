@@ -9,36 +9,70 @@ from typing import Optional, Tuple
 import cv2
 import numpy as np
 
+from .model_store import MIVOLO_MODEL_ID, ensure_mivolo_weights, hf_cache_dir
+
 logger = logging.getLogger(__name__)
 
 _app_lock = threading.Lock()
 _mivolo_model: Optional[object] = None
 _mivolo_processor: Optional[object] = None
-_mivolo_initialized: bool = False
+
+
+def reset_mivolo_cache() -> None:
+    """Test helper — clear singleton so the next call can retry load."""
+    global _mivolo_model, _mivolo_processor
+    with _app_lock:
+        _mivolo_model = None
+        _mivolo_processor = None
 
 
 def _get_mivolo_app() -> Tuple[Optional[object], Optional[object]]:
-    """Lazy loader singleton for MiVOLO v2 model and processor."""
-    global _mivolo_model, _mivolo_processor, _mivolo_initialized
-    if _mivolo_initialized:
+    """Lazy loader for MiVOLO v2. Retryable on failure (does not permanently latch)."""
+    global _mivolo_model, _mivolo_processor
+    if _mivolo_model is not None:
         return _mivolo_model, _mivolo_processor
 
     with _app_lock:
-        if _mivolo_initialized:
+        if _mivolo_model is not None:
             return _mivolo_model, _mivolo_processor
 
-        _mivolo_initialized = True
+        if not ensure_mivolo_weights():
+            logger.warning("MiVOLO weights unavailable — skipping age estimation.")
+            return None, None
+
         try:
             import torch
             from transformers import AutoImageProcessor, AutoModelForImageClassification
 
-            model = AutoModelForImageClassification.from_pretrained(
-                "iitolstykh/mivolo_v2", trust_remote_code=True, torch_dtype=torch.float32
-            )
+            cache = str(hf_cache_dir())
+            # Local-first after ensure; fall back to hub if cache incomplete.
+            try:
+                model = AutoModelForImageClassification.from_pretrained(
+                    MIVOLO_MODEL_ID,
+                    trust_remote_code=True,
+                    torch_dtype=torch.float32,
+                    cache_dir=cache,
+                    local_files_only=True,
+                )
+                processor = AutoImageProcessor.from_pretrained(
+                    MIVOLO_MODEL_ID,
+                    trust_remote_code=True,
+                    cache_dir=cache,
+                    local_files_only=True,
+                )
+            except Exception:
+                model = AutoModelForImageClassification.from_pretrained(
+                    MIVOLO_MODEL_ID,
+                    trust_remote_code=True,
+                    torch_dtype=torch.float32,
+                    cache_dir=cache,
+                )
+                processor = AutoImageProcessor.from_pretrained(
+                    MIVOLO_MODEL_ID,
+                    trust_remote_code=True,
+                    cache_dir=cache,
+                )
             model.eval()
-            processor = AutoImageProcessor.from_pretrained(
-                "iitolstykh/mivolo_v2", trust_remote_code=True
-            )
             _mivolo_model = model
             _mivolo_processor = processor
             logger.info("MiVOLO v2 age model loaded successfully.")
@@ -50,7 +84,7 @@ def _get_mivolo_app() -> Tuple[Optional[object], Optional[object]]:
     return _mivolo_model, _mivolo_processor
 
 
-def _prepare_mivolo_input(img: np.ndarray, target_size: int = 384) -> torch.Tensor:
+def _prepare_mivolo_input(img: np.ndarray, target_size: int = 384):
     """Preprocess image matching MiVOLOImageProcessor logic without requiring third-party package imports."""
     import torch
 
@@ -135,4 +169,3 @@ def estimate_visual_age(image_bytes: bytes) -> Optional[int]:
     """
     res = estimate_visual_age_and_gender(image_bytes)
     return res["age"] if res else None
-

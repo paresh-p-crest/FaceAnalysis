@@ -22,7 +22,7 @@ For full database schemas and collection definitions, see [Domain Models](file:/
 
 ### Backend (Python / pip / venv)
 - Install deps (repo root): `python -m pip install -r requirements.txt`
-- Run Dev: `python -m uvicorn backend.main:app --reload --port 8000`
+- Run Dev: `python -m uvicorn backend.main:app --reload --reload-dir backend --port 8000`
 - Compile Check: `python -m compileall backend`
 - Run Smoke Tests: `python scripts/smoke_test.py`
 

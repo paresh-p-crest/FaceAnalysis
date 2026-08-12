@@ -84,7 +84,7 @@ export function CvReportView({
     )
   }
   if (activeId === 'averageness' && cvReport?.averageness) {
-    return <AveragenessSection averageness={cvReport.averageness} landmarks={landmarks} />
+    return <AveragenessSection averageness={cvReport.averageness} landmarks={landmarks} photo={photo} />
   }
 
   if (activeId === 'faceShape' && cvReport?.faceShape) {
@@ -221,7 +221,16 @@ export function CvReportView({
 
   // Proportions (report-style tabbed ratio view)
   if (activeId === 'proportions' && cvReport?.proportions) {
-    return <ProportionsSection proportions={cvReport.proportions} landmarks={landmarks} photo={photo} photos={photos} featureParsing={featureParsing} />
+    return (
+      <ProportionsSection
+        proportions={cvReport.proportions}
+        landmarks={landmarks}
+        photo={photo}
+        photos={photos}
+        featureParsing={featureParsing}
+        ears={cvReport.ears}
+      />
+    )
   }
 
   // Nose

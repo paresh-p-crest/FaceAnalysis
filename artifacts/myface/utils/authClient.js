@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from './apiClient'
+import { getApiBaseUrl, clearMediaToken } from './apiClient'
 
 const TOKEN_KEY = 'myface_auth_token'
 const USER_KEY = 'myface_auth_user'
@@ -23,6 +23,9 @@ export function saveSession({ token, user }) {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  // Media tokens are user-scoped; leaving them cached after logout causes the
+  // next account's photos to 404 (owner check fails against the old sub).
+  clearMediaToken()
 }
 
 async function authRequest(path, body) {

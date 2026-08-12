@@ -18,6 +18,7 @@ export function AppShell({ children }) {
     authReady,
     accessReady,
     hasAnalysisAccess,
+    hasReadyReport,
     photos,
     answers,
     analysis,
@@ -66,6 +67,7 @@ export function AppShell({ children }) {
           authReady={authReady}
           accessReady={accessReady}
           hasAnalysisAccess={hasAnalysisAccess}
+          hasReadyReport={hasReadyReport}
           onLogo={handleLogo}
           reportModalOpen={reportModalOpen}
           reportToolbar={reportToolbar}
