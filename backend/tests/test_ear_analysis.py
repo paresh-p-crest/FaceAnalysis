@@ -160,7 +160,7 @@ def test_ensure_weights_downloads_when_missing(monkeypatch, tmp_path):
     def _fake_retrieve(url, filename):
         Path(filename).write_bytes(payload)
 
-    monkeypatch.setattr("backend.ear_analysis.urllib.request.urlretrieve", _fake_retrieve)
+    monkeypatch.setattr("backend.model_store.urllib.request.urlretrieve", _fake_retrieve)
     monkeypatch.setenv("EAR_LANDMARKER_AUTO_DOWNLOAD", "true")
     from backend.ear_analysis import ensure_ear_landmarker_weights
 
@@ -176,12 +176,52 @@ def test_ensure_weights_soft_fails_on_download_error(monkeypatch, tmp_path):
     def _boom(url, filename):
         raise OSError("network down")
 
-    monkeypatch.setattr("backend.ear_analysis.urllib.request.urlretrieve", _boom)
+    monkeypatch.setattr("backend.model_store.urllib.request.urlretrieve", _boom)
     monkeypatch.setenv("EAR_LANDMARKER_AUTO_DOWNLOAD", "true")
     from backend.ear_analysis import ensure_ear_landmarker_weights
 
     assert ensure_ear_landmarker_weights(dest) is None
     assert not dest.is_file()
+
+
+def test_ensure_path_under_models_root(monkeypatch, tmp_path):
+    monkeypatch.setenv("CV_MODELS_ROOT", str(tmp_path / "models"))
+    monkeypatch.delenv("EAR_LANDMARKER_PATH", raising=False)
+    from backend.model_store import ear_weights_path
+
+    path = ear_weights_path()
+    assert path.name == "ear_landmarker.pth"
+    assert path.parent == (tmp_path / "models").resolve()
+
+
+def test_get_model_retries_after_failed_ensure(monkeypatch, tmp_path):
+    """Failed ensure must not permanently disable the ear landmarker for the process."""
+    from backend import ear_analysis
+
+    ear_analysis.reset_ear_landmarker_cache()
+    monkeypatch.setenv("CV_MODELS_ROOT", str(tmp_path / "models"))
+    monkeypatch.delenv("EAR_LANDMARKER_PATH", raising=False)
+
+    state = {"n": 0}
+
+    def _ensure():
+        state["n"] += 1
+        if state["n"] == 1:
+            return None
+        # Second attempt: pretend weights exist (load will still fail without real ckpt —
+        # we only assert ensure is called again).
+        p = tmp_path / "models" / "ear_landmarker.pth"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"not-a-real-checkpoint")
+        return p
+
+    monkeypatch.setattr(ear_analysis, "ensure_ear_landmarker_weights", _ensure)
+    m1, d1 = ear_analysis._get_model()
+    assert m1 is None
+    m2, d2 = ear_analysis._get_model()
+    # Load of bogus bytes fails → still None, but ensure ran twice (retryable).
+    assert state["n"] == 2
+    ear_analysis.reset_ear_landmarker_cache()
 
 
 def test_enrich_keeps_facemesh_ear_fields_when_landmarker_empty(monkeypatch):

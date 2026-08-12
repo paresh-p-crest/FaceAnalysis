@@ -10,16 +10,13 @@ profiles are missing so FaceMesh ``ears`` fields stay intact.
 from __future__ import annotations
 
 import logging
-import os
 import threading
-import urllib.request
-from pathlib import Path
 from typing import Any, Optional
 
 import cv2
 import numpy as np
 
-from .config import REPO_ROOT
+from .model_store import ensure_ear_landmarker_weights
 
 logger = logging.getLogger(__name__)
 
@@ -50,65 +47,6 @@ PROFILE_SIDES = (
 _model_lock = threading.Lock()
 _model: Optional[Any] = None
 _model_device: Optional[str] = None
-_model_init_attempted: bool = False
-
-
-def _default_model_path() -> Path:
-    env = (os.environ.get("EAR_LANDMARKER_PATH") or "").strip()
-    if env:
-        return Path(env)
-    preferred = REPO_ROOT / "models" / "ear_landmarker.pth"
-    if preferred.is_file():
-        return preferred
-    root_copy = REPO_ROOT / "ear_landmarker.pth"
-    if root_copy.is_file():
-        return root_copy
-    # Canonical install target when nothing is on disk yet.
-    return preferred
-
-
-def _auto_download_enabled() -> bool:
-    raw = (os.environ.get("EAR_LANDMARKER_AUTO_DOWNLOAD") or "true").strip().lower()
-    return raw not in ("0", "false", "no", "off")
-
-
-def _landmarker_url() -> str:
-    return (os.environ.get("EAR_LANDMARKER_URL") or "").strip() or DEFAULT_EAR_LANDMARKER_URL
-
-
-def ensure_ear_landmarker_weights(path: Optional[Path] = None) -> Optional[Path]:
-    """Return a local weights path, downloading when missing.
-
-    Soft-fails (returns None) if the file is absent and download is disabled or fails.
-    """
-    dest = path or _default_model_path()
-    if dest.is_file():
-        return dest
-    if not _auto_download_enabled():
-        logger.warning("Ear landmarker weights missing at %s and auto-download is off.", dest)
-        return None
-
-    url = _landmarker_url()
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".download")
-    try:
-        logger.info("Downloading ear landmarker weights from %s → %s", url, dest)
-        urllib.request.urlretrieve(url, str(tmp))
-        if not tmp.is_file() or tmp.stat().st_size < 1_000_000:
-            raise RuntimeError(
-                f"Downloaded file looks too small ({tmp.stat().st_size if tmp.is_file() else 0} bytes)"
-            )
-        tmp.replace(dest)
-        logger.info("Ear landmarker weights ready (%s MB).", round(dest.stat().st_size / 1e6, 1))
-        return dest
-    except Exception as exc:
-        logger.warning("Ear landmarker download failed: %s", exc)
-        try:
-            if tmp.is_file():
-                tmp.unlink()
-        except OSError:
-            pass
-        return None
 
 
 def _resolve_device() -> str:
@@ -123,16 +61,15 @@ def _resolve_device() -> str:
 
 
 def _get_model() -> tuple[Optional[Any], Optional[str]]:
-    """Lazy singleton: ensure weights, then load GraphModule once. No onnx2torch at runtime."""
-    global _model, _model_device, _model_init_attempted
-    if _model_init_attempted:
+    """Lazy singleton: ensure weights, then load GraphModule. Retryable on failure."""
+    global _model, _model_device
+    if _model is not None:
         return _model, _model_device
 
     with _model_lock:
-        if _model_init_attempted:
+        if _model is not None:
             return _model, _model_device
-        _model_init_attempted = True
-        path = ensure_ear_landmarker_weights(_default_model_path())
+        path = ensure_ear_landmarker_weights()
         if path is None or not path.is_file():
             logger.warning("Ear landmarker weights unavailable — skipping.")
             return None, None
@@ -150,16 +87,16 @@ def _get_model() -> tuple[Optional[Any], Optional[str]]:
             logger.warning("Ear landmarker load failed: %s", exc)
             _model = None
             _model_device = None
+            # Soft-fail this run; next assessment may re-download / retry.
     return _model, _model_device
 
 
 def reset_ear_landmarker_cache() -> None:
     """Test helper — clear singleton so the next call reloads (or re-skips)."""
-    global _model, _model_device, _model_init_attempted
+    global _model, _model_device
     with _model_lock:
         _model = None
         _model_device = None
-        _model_init_attempted = False
 
 
 def letterbox_full_image(

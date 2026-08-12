@@ -1125,3 +1125,24 @@ Production ear metrics (`ear_metrics` in `backend/cv_report.py`) use FaceMesh ju
 - Panel UI can consume `sides.*.landmarks` / `measurements` later without a schema migration.
 - FaceMesh ear sizing remains the interactive contract until IPD-relative landmarker sizing is validated.
 - Offline / air-gapped deploys must pre-place the `.pth` or set `EAR_LANDMARKER_AUTO_DOWNLOAD=false`.
+
+---
+
+## ADR-055: Central CV Models Root + Timeout Soft-Fail Preload
+Date: 2026-08-10  
+Status: accepted  
+
+### Context
+Downloadable CV weights (ear landmarker, MiVOLO, SegFormer) lived in mixed places (repo `models/`, optional root `.pth`, default `~/.cache/huggingface`). First assessment paid cold-download latency; a hung GitHub/HF fetch on Replit could stall a CV/parsing stage indefinitely; failed ear/MiVOLO singletons and SegFormer `@lru_cache` permanently disabled recovery for the process lifetime.
+
+### Decision
+1. **Central root**: All downloadable weights resolve under `CV_MODELS_ROOT` (default `REPO_ROOT/models`): `ear_landmarker.pth` and `huggingface/` as transformers/hub `cache_dir`. `EAR_LANDMARKER_PATH` remains an ops override; legacy repo-root `.pth` is one-shot copied into the central file when missing.
+2. **Shared ensure path**: `backend/model_store.py` owns timeout-bounded URL downloads (socket timeout + atomic tmp replace + min-size gate) and HF `snapshot_download` (thread + `CV_MODEL_DOWNLOAD_TIMEOUT_SEC`, default 300). Ear / age / face-parsing call the same `ensure_*` at lazy load.
+3. **Background disk preload**: After deferred boot sets `_boot_done` (and only if boot succeeded), `backend/model_preload.py` runs `ensure_all_cv_weights` in a thread under `CV_MODEL_PRELOAD_TIMEOUT_SEC` (default 600). Failures/timeouts soft-fail and never set `_boot_error`; `/api/health` does not wait for preload. Gate with `CV_MODEL_PRELOAD`.
+4. **Retryable init**: Ear and MiVOLO only keep a loaded singleton on success; failures leave the next assessment free to re-ensure/re-download. SegFormer drops `@lru_cache` failure stickiness for a manual success-only cache.
+5. **Out of scope**: FE MediaPipe CDN vendoring; warming FaceMesh/Pose/torch into RAM at boot; committing weight files.
+
+### Consequences
+- Fresh deploys may re-download HF snapshots once into `models/huggingface/` (layout differs from `~/.cache/huggingface`).
+- Hung networks become soft-fails within timeout (ear/age degraded; parsing stage fails cleanly and can retry) instead of indefinitely blocking the pipeline worker.
+- Concurrent preload + assessment share download locks to avoid partial `.pth` corruption.

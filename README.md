@@ -35,7 +35,7 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 
 # Start API (from repo root)
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir backend
 ```
 The backend server starts at `http://localhost:8000`. Check `http://localhost:8000/api/health` for DB connectivity.
 

@@ -89,11 +89,36 @@ async def lifespan(app: FastAPI):
     configure_backend_logging()
     _boot_done.clear()
     boot_task = asyncio.create_task(_deferred_boot(app))
+    preload_task: Optional[asyncio.Task] = None
+
+    async def _start_preload_after_boot() -> None:
+        nonlocal preload_task
+        await _boot_done.wait()
+        if _boot_error:
+            logger.info("Skipping CV model preload because deferred boot failed")
+            return
+        from .model_preload import run_model_preload_background
+
+        preload_task = asyncio.create_task(run_model_preload_background())
+
+    preload_starter = asyncio.create_task(_start_preload_after_boot())
+
     # Yield immediately — uvicorn accepts TCP while boot continues.
     yield
     from .pipeline_worker import stop_pipeline_worker
 
     await stop_pipeline_worker()
+    preload_starter.cancel()
+    try:
+        await preload_starter
+    except asyncio.CancelledError:
+        pass
+    if preload_task is not None:
+        preload_task.cancel()
+        try:
+            await preload_task
+        except asyncio.CancelledError:
+            pass
     boot_task.cancel()
     try:
         await boot_task
@@ -231,4 +256,12 @@ if __name__ == "__main__":
     import uvicorn
 
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=port, reload=True)
+    # Watch only backend/ — preload writes under models/ (incl. MiVOLO .py files);
+    # watching the repo root would restart mid-download and scramble logs.
+    uvicorn.run(
+        "backend.main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=True,
+        reload_dirs=["backend"],
+    )

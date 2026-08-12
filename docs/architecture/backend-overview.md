@@ -2,7 +2,7 @@
 
 Python FastAPI service for MyFace. It runs computer vision on uploaded photos, stores results in PostgreSQL, then adds AI narrative and optional SegFormer parsing via a **background worker**.
 
-**Run:** `uvicorn backend.main:app --reload --port 8000`
+**Run:** `uvicorn backend.main:app --reload --reload-dir backend --port 8000`
 
 ---
 
@@ -265,8 +265,10 @@ POST /api/assessments  (assessments.py)
 
 | File | What it does |
 |------|----------------|
-| `main.py` | Starts FastAPI, CORS, DB lifespan, mounts routers. Also has `/api/health` and quick `/api/run-analysis` (no DB save). |
-| `config.py` | Shared constants (poses, models, thresholds, feature lists). |
+| `main.py` | Starts FastAPI, CORS, deferred boot (routers+DB+pipeline worker), background CV model preload after boot, mounts routers. Also has `/api/health` and quick `/api/run-analysis` (no DB save). |
+| `config.py` | Shared constants (poses, models, thresholds, feature lists, `CV_MODELS_ROOT` defaults). |
+| `model_store.py` | Central `CV_MODELS_ROOT` paths + timeout-bounded ensure/download for ear / MiVOLO / SegFormer weights. |
+| `model_preload.py` | Post-boot background disk-only weight preload (`CV_MODEL_PRELOAD`); soft-fail, never blocks health. |
 | `database.py` | PostgreSQL connection via SQLAlchemy async + asyncpg. |
 | `logging_config.py` | Makes backend logs visible under uvicorn. |
 | `serialization.py` | Turns numpy/nested CV data into JSON/JSONB-safe values. |
