@@ -55,6 +55,7 @@ dist/
 
 __pycache__/
 .env
+.env.local
 *uploads/
 venv/
 .venv
