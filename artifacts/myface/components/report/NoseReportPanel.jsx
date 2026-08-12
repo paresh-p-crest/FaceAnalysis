@@ -145,7 +145,7 @@ function buildDetailSlides(metrics, t) {
   return slides
 }
 
-function buildAllMetricsRows(metrics, t) {
+function buildAllMetricsRows(metrics, t, nose) {
   const left = [
     { label: t('nose.metrics.nasalWidth'), value: formatMm(metrics.widthMm) },
     { label: t('nose.metrics.nasalAspectRatio'), value: formatRatio(metrics.aspect) },
@@ -153,9 +153,14 @@ function buildAllMetricsRows(metrics, t) {
     { label: t('nose.metrics.heightClass'), value: metrics.heightLabel },
     { label: t('nose.metrics.widthClass'), value: metrics.widthLabel },
   ]
+  const nasoAural =
+    nose?.nasoAuralRatio != null && Number.isFinite(Number(nose.nasoAuralRatio))
+      ? Number(nose.nasoAuralRatio).toFixed(2)
+      : null
   const right = [
     { label: t('nose.metrics.nasalHeight'), value: formatMm(metrics.heightMm) },
     { label: t('nose.metrics.nasoCanthalRatio'), value: formatRatio(metrics.nasoCanthal) },
+    { label: t('nose.metrics.nasoAuralRatio'), value: nasoAural },
     { label: t('nose.metrics.shapeClass'), value: metrics.shapeLabel },
     { label: t('nose.metrics.tipClass'), value: metrics.tipLabel },
   ]
@@ -169,7 +174,7 @@ export function NoseReportPanel({ nose, featureParsing = null }) {
   const heroImage = resolveFeatureHero('nose', nose, featureParsing) || nose.imageSrc
   const metrics = buildNoseMetrics(nose, featureParsing)
   const slides = buildDetailSlides(metrics, t)
-  const { left, right } = buildAllMetricsRows(metrics, t)
+  const { left, right } = buildAllMetricsRows(metrics, t, nose)
 
   return (
     <div className="space-y-8">

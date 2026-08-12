@@ -60,6 +60,7 @@ venv/
 .venv
 
 # Local media storage backend output (MEDIA_STORAGE_BACKEND=local)
+var/
 var/media/
 
 # CV model weights (downloaded at runtime — never commit)

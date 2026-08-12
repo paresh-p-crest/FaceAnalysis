@@ -9,6 +9,7 @@ import {
   FileText,
   Loader2,
   RefreshCw,
+  RotateCcw,
   ShieldCheck,
   Trash2,
   User,
@@ -17,15 +18,17 @@ import {
 import {
   deleteAssessment,
   deleteAdminUser,
-  fetchAssessment,
   isBackendApiEnabled,
+  retryAssessmentPipeline,
   updateAssessmentStatus,
 } from '../utils/apiClient'
+import RetryPipelineModal from './admin/RetryPipelineModal'
 import { ADMIN_TABS, adminTabToPath, persistAdminTab } from '../utils/adminPanel'
 import { isAdminResourceLoading, resourcesForAdminTab } from '../utils/adminWorkspace'
 import { formatHistoryDate } from '../utils/historyStorage'
 import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/reportProtocolModel'
 import { isAssessmentProcessing, normalizeReportStatus, REPORT_WORKFLOW_STATUSES } from '../utils/reportWorkflow'
+import { isPipelineFailed } from '../utils/pipelineStatus'
 import { translateApiError } from '../utils/translateApiError'
 import ConfirmDialog from './ConfirmDialog'
 import { useApp } from './providers/AppProvider'
@@ -110,13 +113,16 @@ function BusyIcon({ busy, IdleIcon }) {
 
 export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
   const t = useTranslations('Admin.panel')
+  const tPipeline = useTranslations('Admin.pipeline')
   const tErrors = useTranslations('Errors')
   const tCommon = useTranslations('Admin.common')
   const router = useRouter()
-  const { adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace, afterAssessmentDeleted, openingReportId, viewCloudAssessment } = useApp()
+  const { adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace, afterAssessmentDeleted, openingReportId } = useApp()
   const { assessments, payments, users, loading: resourceLoading, error: workspaceError } = adminWorkspace
   const [deletingId, setDeletingId] = useState('')
   const [updatingId, setUpdatingId] = useState('')
+  const [retryingId, setRetryingId] = useState('')
+  const [retryModalAssessment, setRetryModalAssessment] = useState(null)
   const [error, setError] = useState('')
   const [reportFilter, setReportFilter] = useState('all')
   const [confirmState, setConfirmState] = useState(null)
@@ -282,6 +288,24 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     })
   }
 
+  const handleRetryConfirm = async (mode) => {
+    const assessment = retryModalAssessment
+    if (!assessment) return
+    setRetryingId(assessment.id)
+    setError('')
+    try {
+      const updated = await retryAssessmentPipeline(assessment.id, { mode })
+      patchAdminWorkspace({
+        assessments: assessments.map((item) => (item.id === assessment.id ? { ...item, ...updated, id: assessment.id } : item)),
+      })
+      setRetryModalAssessment(null)
+    } catch (err) {
+      setError(translateApiError(err, tErrors))
+    } finally {
+      setRetryingId('')
+    }
+  }
+
   const renderClientCell = (assessment) => {
     const owner = assessment.userId ? userById[assessment.userId] : null
     if (owner) {
@@ -295,14 +319,11 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     return <span className="text-xs text-amber-700">{t('unlinkedReport')}</span>
   }
 
-  const handleOpenAssessment = async (assessment) => {
+  const handleOpenAssessment = (assessment) => {
     setError('')
-    try {
-      const full = await fetchAssessment(assessment.id)
-      onViewCloudItem?.(full)
-    } catch (err) {
-      setError(translateApiError(err, tErrors))
-    }
+    // Do not pre-fetch here — viewCloudAssessment sets openingReportId
+    // immediately, then fetches. A prior await hid "Opening…" for seconds.
+    onViewCloudItem?.(assessment)
   }
 
   const renderReportRow = (assessment, { showStatus = false } = {}) => {
@@ -311,6 +332,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     const refLabel = formatAssessmentRef(assessment)
     const processing = isAssessmentProcessing(assessment)
     const isDraft = normalizedStatus === 'draft'
+    const failed = isPipelineFailed(assessment.pipeline)
     return (
       <div key={assessment.id} className="rounded-xl border border-landing-divider bg-white p-4 transition-colors hover:border-brand/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -334,6 +356,25 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
               <p className="px-1 py-2 text-xs leading-relaxed text-ink-muted">
                 {t('draftNotSubmitted')}
               </p>
+            ) : failed ? (
+              <>
+                <button
+                  onClick={() => setRetryModalAssessment(assessment)}
+                  disabled={retryingId === assessment.id}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand/20 bg-brand-50 text-xs font-semibold text-brand hover:bg-brand/10 transition-colors disabled:opacity-50"
+                >
+                  <BusyIcon busy={retryingId === assessment.id} IdleIcon={RotateCcw} />
+                  {t('actions.retry')}
+                </button>
+                <button
+                  onClick={() => handleDeleteAssessment(assessment.id)}
+                  disabled={deletingId === assessment.id}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                >
+                  <BusyIcon busy={deletingId === assessment.id} IdleIcon={Trash2} />
+                  {t('actions.delete')}
+                </button>
+              </>
             ) : (
               <>
                 {normalizedStatus === 'pending_review' && (
@@ -591,6 +632,13 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
         loading={!!deletingId}
         onConfirm={() => confirmState?.onConfirm?.()}
         onCancel={() => setConfirmState(null)}
+      />
+      <RetryPipelineModal
+        open={!!retryModalAssessment}
+        busy={!!retryingId}
+        onClose={() => !retryingId && setRetryModalAssessment(null)}
+        onConfirm={handleRetryConfirm}
+        t={tPipeline}
       />
     </div>
   )

@@ -62,7 +62,8 @@ Interactive/PDF-facing `explanation` is built only from the five measured deviat
 - `backend/prototypicality.py` — runtime (authoritative)
 - `utils/prototypicalityEngine.js` — JS mirror
 - `utils/prototypicalityNorms.js` — norm tables
-- `components/report/PrototypicalityShapeAnalysis.jsx` — two-layer SVG render
+- `components/report/PrototypicalityShapeAnalysis.jsx` — minimal canonical Bézier diagram (client-side)
+- `utils/faceDiagramRenderer.js` — geometry port from `face_diagram_renderer.py`
 
 ## Regenerate reports
 

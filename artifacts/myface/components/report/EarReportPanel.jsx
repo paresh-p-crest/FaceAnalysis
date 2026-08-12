@@ -77,6 +77,16 @@ export function EarReportPanel({
     { label: t('ears.verticalPosition'), value: textOrNull(e.earPosition) },
   ]
 
+  const landmarkerSide =
+    (e.sides?.right?.status === 'ready' && e.sides.right)
+    || (e.sides?.left?.status === 'ready' && e.sides.left)
+    || null
+  const verticalNorm = landmarkerSide?.measurements?.verticalHeightNorm
+  const verticalPct =
+    verticalNorm != null && Number.isFinite(Number(verticalNorm))
+      ? `${(Number(verticalNorm) * 100).toFixed(1)}%`
+      : null
+
   const left = [
     { label: t('ears.earSize'), value: e.earSize != null ? `${e.earSize}× IPD` : null },
     { label: t('ears.sizeClass'), value: textOrNull(e.earSizeClass) },
@@ -87,6 +97,7 @@ export function EarReportPanel({
     { label: t('ears.protrusion'), value: textOrNull(e.protrusion) },
     { label: t('ears.protrusionDepth'), value: e.earProtrusion != null ? `${e.earProtrusion}` : null },
     { label: t('ears.verticalPosition'), value: textOrNull(e.earPosition) },
+    { label: t('ears.verticalHeight'), value: verticalPct },
   ]
 
   return (
@@ -99,11 +110,13 @@ export function EarReportPanel({
 
       {heroImage && (
         <FeatureHeroFrame>
-          <img
-            src={heroImage}
-            alt={t('ears.imageAlt')}
-            className="h-48 w-48 aspect-square object-cover rounded-xl"
-          />
+          <div className="h-48 w-48 aspect-square rounded-xl bg-white dark:bg-surface-card overflow-hidden flex items-center justify-center">
+            <img
+              src={heroImage}
+              alt={t('ears.imageAlt')}
+              className="max-h-full max-w-full object-contain"
+            />
+          </div>
         </FeatureHeroFrame>
       )}
 

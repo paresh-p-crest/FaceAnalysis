@@ -1036,6 +1036,11 @@ The photo-upload validation in `artifacts/myface/utils/photoValidation.js` previ
 - Fallback to noseRatio ensures no hard-failure regression if the matrix is unavailable.
 - GPU-first delegate needs one `console.warn` when WebGL is unavailable; fp16 jitter may shift yaw/pitch slightly, so degree bands should be re-validated against a couple of real uploads before locking.
 
+### Amendment (2026-08-11) — pose-aware upload UI + profile calibration tooling
+The upload checklist previously showed "Look straight at the camera" for every pose and mapped `correctPose` failures onto that generic line. Profile pose failures therefore appeared as the wrong instruction.
+
+**Revised FE behavior:** pose-specific instructions (`Photo.upload.poseInstructions.*`) and a head-turn silhouette sit in a dedicated "Pose direction" section wired only to `correctPose`. General quality checks (expression, hair, sharpness, etc.) are separate. Detected-vs-expected pose messages render via `translateValidationMessage`. Dev logging: `{ expectedPose, noseRatio, detectedPose }` when `NEXT_PUBLIC_DEV_POSE_LOG` or dev shortcuts are on. Calibration: `python scripts/calibrate_profile_nose_ratio.py` against `public/demo-photos/`; fixture tests in `test-profile-pose-fixtures.js`. **Convention:** left/right = subject's anatomical side visible to the camera (matches `profile_cephalometrics.py` gonion mapping). Profile noseRatio bands unchanged until calibration confirms new thresholds.
+
 ---
 
 ## ADR-051: Sclera Color Detection via Geometric Iris Exclusion
@@ -1079,6 +1084,26 @@ Photo validation existed only in the frontend (`artifacts/myface/utils/photoVali
 - Backend `correctPose` is weaker than frontend pose detection (noseRatio vs 3D matrix) — acceptable for a double-guard; closes when Python MediaPipe exposes the matrix API.
 - Submit adds one MediaPipe + check pass per photo against the final set.
 
+### Amendment (2026-08-10) — simplify BE to face/sanity only
+Production left45/right45 submits that passed FE 3D-yaw validation were rejected by BE `correctPose` (noseRatio-only). Mirroring FE pose/expression/glasses on Python FaceMesh is not faithful and false-rejects good photos.
+
+**Revised decision:** backend submit checks are limited to (1) required pose presence, (2) decodable image + min resolution, (3) extreme brightness only, (4) face detected for `front` / `smile` / `left45` / `right45` (profiles and `topHead` stay lenient). Pose direction, expression, eyes, hair, centering, face size, glasses, and sharpness are **frontend-only**. ADR-050 remains the FE pose source of truth.
+
+### Amendment (2026-08-11) — FE upload gate: warnings allowed
+`PhotoUpload.jsx` previously treated any `overall !== 'pass'` as a hard upload failure, surfacing warnings (e.g. `hairClear.partial`, `faceCentered.offCenter`, `sharpness.blurry`, `noGlasses.possible`) as red errors and blocking upload.
+
+**Revised FE behavior:** block upload only when `validationBlocksUpload(result)` — any check with `pass === false` and `severity === 'error'`. Warnings upload successfully; validation results persist on the pose and render translated quality notes. Transport failures remain visually distinct from validation failures. Backend submit-time sanity checks unchanged.
+
+### Amendment (2026-08-11) — topHead face-first + Hair Segmenter secondary
+FE `topHead` previously shared the full-profile no-face leniency (`faceDetected.limitedAngle` informational pass), so crown photos without a detectable face could upload. Hair Segmenter must not promote a no-face image to a pass (it only labels hair/background).
+
+**Revised FE `topHead` gate:** (1) Face Landmarker must find exactly one face → else `faceRequired` error and stop; (2) pitch via `facialTransformationMatrixes` (`correctPose`, error severity); (3) only then MediaPipe Hair Segmenter → `hairMask` present/missing as a secondary result. Profiles keep the existing 90° face-detection leniency. Backend submit still treats `topHead` as face-lenient (FE remains the fine gate).
+
+### Amendment (2026-08-11) — topHead hair-primary (Face Mesh inclination caveat)
+Face Mesh / Face Landmarker degrades on large inclination and partially visible faces (official model card). Forcing a face on `topHead` false-rejects valid crown shots.
+
+**Revised FE `topHead` gate:** Hair Segmenter is primary — require a strong mask (upper-central ROI coverage + coherent connected region), plus canvas resolution/brightness/sharpness. Face Landmarker is optional confirmation: one face + correct pitch → verified; strong hair + no face → upload with warning (`faceConfirm.topHeadUnconfirmed`); strong hair + face but pitch not top-down (e.g. reported front-facing) → upload with warning (`correctPose` warning, not error); weak/no hair → reject. Other poses keep face detection as the primary gate. Backend submit still face-lenient on `topHead`.
+
 ---
 
 ## ADR-053: Authenticated Media Serving with Short-Lived Signed URL Tokens
@@ -1101,6 +1126,9 @@ All user-uploaded photos were served publicly by `GET /api/media/assessments/{id
 - The token is replayable against `/api/media/*` for ~1 day but cannot be replayed against `/api/*` (different signature domain) and carries no new privileges beyond what the session already grants.
 - Every media-backed value must pass through `mediaUrl()` (or a resolver that does) — missed sites silently 404 once enforcement is on; a grep audit guards this.
 - The 7-URL probe costs 7 requests per assessment (capped at 100 assessments) — acceptable for personal accounts; a dedicated catalog endpoint is the upgrade path if that ever grows.
+
+### Amendment (2026-08-10) — clear media token on logout / user switch
+The module-level token cache survived logout and account switch. A still-valid previous user's `?token=` then failed owner checks (404) on the new user's photos even when the file existed on disk. **Revised FE lifecycle:** `clearMediaToken()` on `clearSession` and on `user.id` change before reminting; `mediaUrl()` always strips/replaces prior `token=`; `useMediaUrl` re-binds `<img src>` when the token mints so first paint without a token (or with a stale one) retries.
 
 ---
 
@@ -1125,6 +1153,12 @@ Production ear metrics (`ear_metrics` in `backend/cv_report.py`) use FaceMesh ju
 - Panel UI can consume `sides.*.landmarks` / `measurements` later without a schema migration.
 - FaceMesh ear sizing remains the interactive contract until IPD-relative landmarker sizing is validated.
 - Offline / air-gapped deploys must pre-place the `.pth` or set `EAR_LANDMARKER_AUTO_DOWNLOAD=false`.
+
+### Amendment (2026-08-11) — Naso-aural nose level guides restored
+The interim `earOnly-v5` layout (ear vertical only, nose caliper deferred) is superseded when glabella resolves from the matching 90° profile. **Revised overlay:** keep the existing `earVertical` solid bracket; add two white dashed horizontal `guides[]` at glabella and subnasale y-levels (outside face → landmark x). No nose vertical line. Layout version `earPlusNoseGuides-v6`. Persist `ratios.nasoAural.glabella`. Legacy stored `earOnly-v5` overlays without glabella remain ear-only until re-run; FE can rebuild guides client-side when `glabella` + `noseBottom` exist on the ratio object.
+
+### Amendment (2026-08-11) — Contour ear hero + SegFormer backup keys
+Parsing-stage ear heroes now prefer the landmarker contour cutout (notebook soft-mask on white → `earsLeft` / `earsRight`, `sourceMethod: ear_landmarker_contour`) when `cvReport.ears.sides.*.status == ready`. SegFormer square crops are **always** retained under suffixed keys `earsLeftSegformer` / `earsRightSegformer` (`sourceMethod: segformer_ears`). If contour is unavailable, SegFormer bytes are also copied onto the primary keys so old clients keep working. Aggregate `crops.ears` exposes `leftSegformerPublicUrl` / `rightSegformerPublicUrl`. FE `resolveFeatureHero('ears')` prefers primary then suffix. Out-of-scope items (measurement overlays, PDF imagery, historical re-parse) unchanged.
 
 ---
 

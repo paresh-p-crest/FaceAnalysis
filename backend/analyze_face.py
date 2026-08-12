@@ -12,7 +12,12 @@ from .profile_cephalometrics import build_profile_report, _naso_aural_explanatio
 from .quarter_analysis import build_quarter_report
 from .smile_analysis import analyze_smile_photo
 from .hair_analysis import analyze_hair_photo
-from .ear_analysis import analyze_profile_ears
+from .ear_analysis import (
+    analyze_profile_ears,
+    build_naso_aural_caliper_overlay,
+    resolve_nose_points_for_profile,
+)
+from .naso_aural_guide_overlay import nose_height_norm_from_guides, patch_naso_aural_guides
 from . import cv_report_explanations_de as expl_de
 
 logger = logging.getLogger(__name__)
@@ -144,6 +149,104 @@ def _enrich_cv_report(cv_report: dict, answers: dict, photos: dict, multi_view: 
         ear_lm = analyze_profile_ears(photos)
         if ear_lm:
             cv_report["ears"] = {**(cv_report.get("ears") or {}), **ear_lm}
+            # Prefer landmarker vertical ear height for naso-aural when overlay nose span exists.
+            naso = (cv_report.get("proportions") or {}).get("ratios", {}).get("nasoAural")
+            if isinstance(naso, dict):
+                sides = ear_lm.get("sides") or {}
+                pose = naso.get("photoSource")
+                side = None
+                if pose == "leftProfile" and (sides.get("left") or {}).get("status") == "ready":
+                    side = sides["left"]
+                elif pose == "rightProfile" and (sides.get("right") or {}).get("status") == "ready":
+                    side = sides["right"]
+                else:
+                    for key in ("right", "left"):
+                        cand = sides.get(key)
+                        if cand and cand.get("status") == "ready":
+                            side = cand
+                            break
+                meas = (side or {}).get("measurements") or {}
+                ear_h = meas.get("verticalHeightNorm")
+                # Nose must come from the same 90° profile as the ear landmarker /
+                # displayed plate — primary may be right45 with mismatched coords.
+                pose_for_ear = (side or {}).get("poseId") or (
+                    "leftProfile" if pose == "leftProfile" else "rightProfile"
+                )
+                nose_top, nose_bot = resolve_nose_points_for_profile(
+                    cv_report, pose_for_ear, naso
+                )
+                nose_h = None
+                if nose_top and nose_bot:
+                    nose_h = abs(float(nose_bot["y"]) - float(nose_top["y"]))
+                if (
+                    ear_h is not None
+                    and nose_h is not None
+                    and float(nose_h) > 1e-6
+                    and float(ear_h) > 1e-6
+                    and meas.get("helixTop")
+                    and (meas.get("softBottom") or meas.get("lobeBottom"))
+                ):
+                    ratio = round(float(ear_h) / float(nose_h), 2)
+                    facing_right = pose_for_ear != "leftProfile"
+                    qoves_overlay = build_naso_aural_caliper_overlay(
+                        ear_measurements=meas,
+                        nose_top=nose_top,
+                        nose_bottom=nose_bot,
+                        facing_right=facing_right,
+                    )
+                    # Ear caliper required; nose guides additive (earPlusNoseGuides-v6).
+                    bracket_ids = {
+                        b.get("id") for b in (qoves_overlay.get("brackets") or [])
+                    }
+                    if "earVertical" in bracket_ids:
+                        naso = {
+                            **naso,
+                            "yourValue": ratio,
+                            "yourLabel": _naso_aural_label(ratio),
+                            "explanation": _naso_aural_explanation(ratio),
+                            "explanationDe": expl_de.naso_aural_explanation_de(float(ratio)),
+                            "earHeightNorm": round(float(ear_h), 6),
+                            "noseHeightNorm": round(float(nose_h), 6),
+                            "noseTop": nose_top,
+                            "noseBottom": nose_bot,
+                            "photoSource": pose_for_ear,
+                            "dataSource": "ear_landmarker",
+                            "overlay": qoves_overlay,
+                            "overlaySpace": "image",
+                        }
+                        profile_bytes = photos.get(pose_for_ear)
+                        naso = patch_naso_aural_guides(
+                            naso,
+                            profile_bytes,
+                            facing_right=facing_right,
+                            ear_measurements=meas,
+                            pose_id=pose_for_ear,
+                        )
+                        guide_nose_h = nose_height_norm_from_guides(naso)
+                        if guide_nose_h is not None:
+                            ratio = round(float(ear_h) / guide_nose_h, 2)
+                            naso = {
+                                **naso,
+                                "yourValue": ratio,
+                                "yourLabel": _naso_aural_label(ratio),
+                                "explanation": _naso_aural_explanation(ratio),
+                                "explanationDe": expl_de.naso_aural_explanation_de(float(ratio)),
+                                "noseHeightNorm": round(guide_nose_h, 6),
+                                "noseHeightSource": "guide_glabella_subnasale",
+                            }
+                        prev_ratios = (cv_report.get("proportions") or {}).get("ratios") or {}
+                        ratios = {**prev_ratios, "nasoAural": naso}
+                        cv_report["proportions"] = {**(cv_report.get("proportions") or {}), "ratios": ratios}
+                        if cv_report.get("nose"):
+                            cv_report["nose"] = {
+                                **cv_report["nose"],
+                                "nasoAuralRatio": ratio,
+                            }
+                        if cv_report.get("ears"):
+                            cv_report["ears"] = {
+                                **cv_report["ears"],
+                                "protrusion": _naso_aural_label(ratio),
+                            }
     except Exception as exc:
         logger.warning("Ear landmarker enrichment skipped: %s", exc)
 

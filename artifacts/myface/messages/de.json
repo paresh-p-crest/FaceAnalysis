@@ -759,6 +759,8 @@
       "yourProportion": "Deine Proportion",
       "idealProportion": "Ideale Proportion",
       "facialProportionsAlt": "Gesichtsproportionen",
+      "nasoAuralUnavailable": "Die Ohrenhöhenmessung ist für diese Analyse nicht verfügbar. Starte die Analyse erneut, um die Ohr-Landmarker-Metriken zu erzeugen.",
+      "nasoAuralUnavailableDetail": "Ältere Berichte (oder Läufe, bei denen das Ohr-Modell nicht fertig wurde) enthalten keine zuverlässigen Ohr-zu-Nase-Hilfslinien — Overlay und Verhältnis werden ausgeblendet, damit keine falschen Punkte erscheinen.",
       "ratioTabs": {
         "nasoAural": {
           "label": "Ohr",
@@ -854,7 +856,8 @@
       "protrusionDepth": "Abstehtiefe",
       "protrusionDepthTooltip": "Z-Tiefenmessung des Ohrabstehens relativ zur Gesichtsebene.",
       "verticalPosition": "Vertikale Position",
-      "verticalPositionTooltip": "Vertikale Ausrichtung der Ohren relativ zu den Gesichtsmerkmalen. Mittelhohe Ohren liegen auf Höhe Braue bis Nasenbasis."
+      "verticalPositionTooltip": "Vertikale Ausrichtung der Ohren relativ zu den Gesichtsmerkmalen. Mittelhohe Ohren liegen auf Höhe Braue bis Nasenbasis.",
+      "verticalHeight": "Vertikale Höhe"
     },
     "featureReport": {
       "subtitle": "Messpunkt-Balance aus deinen Fotos"
@@ -1137,6 +1140,7 @@
         "widthClass": "Breiten-Klassifikation",
         "nasalHeight": "Nasenhöhe",
         "nasoCanthalRatio": "Naso-Kanthal-Verhältnis",
+        "nasoAuralRatio": "Naso-Aurales Verhältnis",
         "shapeClass": "Form-Klassifikation",
         "tipClass": "Spitzen-Klassifikation"
       }
@@ -1750,6 +1754,18 @@
       "posesUploaded": "Posen hochgeladen ({uploaded}/{total})",
       "uploadActivePose": "Upload · {pose}",
       "required": "Erforderlich",
+      "poseDirectionHeading": "Posen-Richtung",
+      "photoQualityHeading": "Fotoqualität",
+      "poseConventionNote": "Links und rechts beziehen sich auf deine eigenen Seiten, die dem Kameraobjektiv zugewandte Gesichtsseite.",
+      "poseInstructions": {
+        "front": "Schau gerade in die Kamera",
+        "leftProfile": "Dreh dich ganz nach links, linkes Ohr und Wange zeigen",
+        "rightProfile": "Dreh dich ganz nach rechts, rechtes Ohr und Wange zeigen",
+        "left45": "Dreh dich etwa 45° nach links",
+        "right45": "Dreh dich etwa 45° nach rechts",
+        "smile": "Schau gerade in die Kamera und lächle natürlich",
+        "topHead": "Neige den Kopf nach unten, Scheitel und Haaransatz zeigen"
+      },
       "checking": "Wird geprüft…",
       "continue": "Weiter",
       "activePose": "Aktive Pose",
@@ -1767,6 +1783,10 @@
       "checkPhotoReupload": "Foto prüfen und erneut hochladen",
       "qualityCheckFailed": "Dieses Foto hat die Qualitätsprüfung nicht bestanden.",
       "uploadFailed": "Upload fehlgeschlagen. Lade erneut hoch, um es nochmal zu versuchen.",
+      "uploadErrorLabel": "Upload-Fehler",
+      "validationErrorLabel": "Foto-Prüfung fehlgeschlagen",
+      "validationWarningsTitle": "Hinweise zur Qualität",
+      "statusUploadedWithWarnings": "Hochgeladen, Hinweise prüfen",
       "demoLoadFailed": "Demo-Fotos konnten nicht geladen werden",
       "demoImage": "Demo-Bild",
       "statusUploaded": "Hochgeladen",
@@ -1834,6 +1854,20 @@
         "ok": "Gesicht erkannt",
         "limitedAngle": "Gesichtserkennung für diesen Winkel eingeschränkt · wird fortgesetzt"
       },
+      "faceRequired": {
+        "topHead": "Kein Gesicht erkannt. Neige den Kopf nach unten, sodass Gesicht und Kopfoberseite sichtbar sind"
+      },
+      "faceConfirm": {
+        "topHeadVerified": "Winkel von oben bestätigt",
+        "topHeadUnconfirmed": "Winkel von oben konnte nicht unabhängig bestätigt werden"
+      },
+      "hairMask": {
+        "missing": "Kopfoberseite nicht richtig sichtbar. Neige den Kopf nach unten, sodass Scheitel und Haaransatz klar zu sehen sind",
+        "weak": "Kopfoberseite nicht klar genug. Füll mehr vom Bild mit Scheitel und Haaransatz",
+        "scattered": "Haarbereich wirkt unvollständig. Neu aufnehmen mit zentriertem Scheitel und gutem Licht",
+        "ok": "Kopfoberseite sichtbar",
+        "unavailable": "Haar-Sichtbarkeitsprüfung nicht verfügbar · bitte erneut versuchen"
+      },
       "correctPose": {
         "inconclusive": "Posenprüfung unklar",
         "wrong": "Gesicht ist {detected} · erwartet: {expected}",
@@ -1842,6 +1876,8 @@
       "detectedPose": {
         "leftProfile": "linkes Profil",
         "rightProfile": "rechtes Profil",
+        "left45": "linkes 45°",
+        "right45": "rechtes 45°",
         "frontFacing": "frontal"
       },
       "expectedPose": {
@@ -2156,6 +2192,7 @@
         "open": "Öffnen",
         "opening": "Wird geöffnet…",
         "delete": "Löschen",
+        "retry": "Erneut versuchen",
         "pipelineRunning": "Verarbeitung…"
       },
       "errors": {

@@ -2,6 +2,7 @@
 
 import { Calendar, Zap, RefreshCw, ScanFace } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { useMediaUrl } from '../../utils/useMediaUrl'
 
 /**
  * Static "analysis preparing" timeline. Live pipeline status stays admin-only.
@@ -27,6 +28,7 @@ export default function AnalysisPreparing({
   onRefresh = null,
 }) {
   const t = useTranslations('Analysis.preparing')
+  const photoSrc = useMediaUrl(photo)
   const isHome = variant === 'home'
   const remaining =
     typeof daysLeft === 'number' && Number.isFinite(daysLeft)
@@ -59,8 +61,8 @@ export default function AnalysisPreparing({
         <div className="w-full max-w-lg flex flex-col gap-3">
         <header className="flex flex-col items-center text-center shrink-0">
           <div className="w-16 h-16 rounded-full border-2 border-brand/30 bg-brand/5 flex items-center justify-center mb-2.5">
-            {photo ? (
-              <img src={photo} alt="" className="w-14 h-14 rounded-full object-cover" />
+            {photoSrc ? (
+              <img src={photoSrc} alt="" className="w-14 h-14 rounded-full object-cover" />
             ) : (
               <ScanFace className="w-7 h-7 text-brand" />
             )}

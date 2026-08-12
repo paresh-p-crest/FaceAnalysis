@@ -65,6 +65,130 @@ def test_repair_contour_outliers_snaps_isolated_jump():
     assert again == []
 
 
+def test_build_nose_level_guides_right_profile():
+    from backend.ear_analysis import build_nose_level_guides
+
+    glabella = {"x": 0.42, "y": 0.30}
+    nose_bot = {"x": 0.40, "y": 0.48}
+    ear_x = 80.0  # ear vertical caliper x (image %)
+    guides = build_nose_level_guides(
+        glabella=glabella,
+        nose_bottom=nose_bot,
+        vertical_x_pct=ear_x,
+    )
+    assert len(guides) == 2
+    assert all(g.get("dashed") is True for g in guides)
+    assert guides[0]["y"] == pytest.approx(30.0, abs=0.1)
+    assert guides[1]["y"] == pytest.approx(48.0, abs=0.1)
+    # Span ear vertical → face landmark (script-style).
+    assert guides[0]["x1"] == pytest.approx(42.0, abs=0.1)
+    assert guides[0]["x2"] == pytest.approx(80.0, abs=0.1)
+
+
+def test_build_nose_level_guides_left_profile_mirrors():
+    from backend.ear_analysis import build_nose_level_guides
+
+    glabella = {"x": 0.58, "y": 0.30}
+    nose_bot = {"x": 0.60, "y": 0.48}
+    ear_x = 20.0
+    guides = build_nose_level_guides(
+        glabella=glabella,
+        nose_bottom=nose_bot,
+        vertical_x_pct=ear_x,
+    )
+    assert len(guides) == 2
+    assert guides[0]["x1"] == pytest.approx(20.0, abs=0.1)
+    assert guides[0]["x2"] == pytest.approx(58.0, abs=0.1)
+
+
+def test_build_naso_aural_caliper_overlay_includes_nose_and_level_guides():
+    from backend.ear_analysis import build_naso_aural_caliper_overlay
+
+    ear_m = {
+        "helixTop": {"x": 0.72, "y": 0.30},
+        "softBottom": {"x": 0.70, "y": 0.55},
+        "xMinNorm": 0.65,
+        "xMaxNorm": 0.78,
+    }
+    nose_top = {"x": 0.42, "y": 0.34}
+    nose_bot = {"x": 0.40, "y": 0.48}
+    glabella = {"x": 0.43, "y": 0.32}
+    ov = build_naso_aural_caliper_overlay(
+        ear_measurements=ear_m,
+        nose_top=nose_top,
+        nose_bottom=nose_bot,
+        glabella=glabella,
+        facing_right=True,
+    )
+    assert ov["style"] == "qoves"
+    assert ov.get("nasoLayout") == "earPlusNoseGuides-v6"
+    ids = [b["id"] for b in ov["brackets"]]
+    assert ids == ["earVertical"]
+    ear = ov["brackets"][0]
+    assert ear["y1"] == pytest.approx(30.0, abs=0.1)
+    assert ear["y2"] == pytest.approx(55.0, abs=0.1)
+    assert not any(b.get("id") in ("noseRangeOnEar", "noseVertical") for b in ov["brackets"])
+    assert len(ov["horizontal"]) == 2
+    assert all(h.get("dashed") is False for h in ov["horizontal"])
+    assert len(ov["guides"]) == 2
+    assert all(g.get("dashed") is True for g in ov["guides"])
+
+
+def test_build_naso_aural_caliper_overlay_ear_only_without_glabella():
+    from backend.ear_analysis import build_naso_aural_caliper_overlay
+
+    ear_m = {
+        "helixTop": {"x": 0.72, "y": 0.30},
+        "softBottom": {"x": 0.70, "y": 0.55},
+        "xMinNorm": 0.65,
+        "xMaxNorm": 0.78,
+    }
+    ov = build_naso_aural_caliper_overlay(
+        ear_measurements=ear_m,
+        nose_top={"x": 0.42, "y": 0.34},
+        nose_bottom={"x": 0.40, "y": 0.48},
+        facing_right=True,
+    )
+    assert ov.get("nasoLayout") == "earOnly-v5"
+    assert "guides" not in ov
+
+
+def test_resolve_nose_points_prefers_matching_profile_not_primary_45():
+    """right45 primary overlay must not supply nose coords for a rightProfile plate."""
+    from backend.ear_analysis import resolve_nose_points_for_profile
+
+    cv = {
+        "profile": {
+            "primaryView": "right45",
+            "rightProfile": {
+                "overlay": {
+                    "nasoAural": {
+                        "segments": [
+                            {"x1": 70, "y1": 30, "x2": 70, "y2": 55},
+                            {"x1": 40, "y1": 34, "x2": 40, "y2": 48},
+                        ]
+                    }
+                }
+            },
+        }
+    }
+    # Stale naso overlay from a 45° primary — wrong image space
+    naso = {
+        "photoSource": "right45",
+        "overlay": {
+            "segments": [
+                {"x1": 60, "y1": 20, "x2": 60, "y2": 70},
+                {"x1": 55, "y1": 22, "x2": 55, "y2": 66},
+            ]
+        },
+    }
+    top, bot = resolve_nose_points_for_profile(cv, "rightProfile", naso)
+    assert top is not None and bot is not None
+    assert top["y"] == pytest.approx(0.34, abs=1e-3)
+    assert bot["y"] == pytest.approx(0.48, abs=1e-3)
+    assert top["x"] == pytest.approx(0.40, abs=1e-3)
+
+
 def test_compute_ear_measurements_norms_and_keys():
     # Helix (2-12) near top, lobe (13-18) near bottom — hand-place for clear extents.
     pts = np.zeros((EAR_LMK_COUNT, 2), dtype=np.float32)
@@ -103,8 +227,9 @@ def test_compute_ear_measurements_norms_and_keys():
     assert 0 < m["verticalHeightNorm"] < 1
     assert 0 < m["horizontalWidthNorm"] < 1
     assert 0 < m["slantHeightNorm"] < 1
-    # Soft extend adds a bit past lobe bottom along lobe direction.
-    assert m["verticalHeightPx"] > (160 - 40)
+    # Soft extend off (SOFT_BOTTOM_FRAC == 0): height is helix → lobe tip.
+    assert m["verticalHeightPx"] == pytest.approx(160 - 40, abs=0.01)
+    assert m["softBottom"]["y"] == pytest.approx(m["lobeBottom"]["y"], abs=1e-5)
 
 
 def test_decode_heatmaps_peaks_and_edge_frac():
@@ -269,3 +394,81 @@ def test_enrich_merges_sides_additively(monkeypatch):
     assert out["ears"]["protrusion"] == "Moderate"
     assert out["ears"]["earLandmarkSource"] == "ear_landmarker"
     assert out["ears"]["sides"]["left"]["status"] == "ready"
+
+
+def test_ear_contour_polygon_closes_synthetic_ring():
+    from backend.ear_analysis import ear_contour_polygon, expand_tragus_contour
+
+    pts = _synthetic_contour()
+    poly = ear_contour_polygon(pts)
+    assert poly.shape[0] > EAR_LMK_COUNT
+    np.testing.assert_allclose(poly[0], poly[-1], atol=1e-5)
+    expanded = expand_tragus_contour(pts)
+    assert expanded.shape[0] == poly.shape[0] - 1
+
+
+def test_make_hero_ear_crop_non_square_white_bg():
+    from backend.ear_analysis import make_hero_ear_crop
+
+    h, w = 240, 320
+    rgb = np.full((h, w, 3), 40, dtype=np.uint8)
+    pts = _synthetic_contour(cx=200.0, cy=120.0, rx=35.0, ry=55.0)
+    crop, bbox = make_hero_ear_crop(rgb, pts, max_side=384, pad_px=0, dilate_px=0)
+    assert crop.size > 0
+    x1, y1, x2, y2 = bbox
+    assert x2 > x1 and y2 > y1
+    # Tall ellipse → non-square tight bbox (before optional max_side resize)
+    assert (y2 - y1) > (x2 - x1)
+    # Outside-mask pixels in crop should be near white
+    assert int(crop[0, 0].mean()) >= 240
+
+
+def test_resolve_ear_hero_crops_contour_primary_keeps_segformer_suffix():
+    from backend.ear_analysis import resolve_ear_hero_crops
+
+    seg = {"jpegBytes": b"seg", "sourceMethod": "segformer_ears", "bbox": [0, 0, 1, 1], "labels": ["l"]}
+    contour = {
+        "jpegBytes": b"contour",
+        "sourceMethod": "ear_landmarker_contour",
+        "bbox": [0, 0, 2, 2],
+        "labels": ["c"],
+    }
+    out = resolve_ear_hero_crops("earsLeft", seg, contour)
+    assert out["earsLeft"]["jpegBytes"] == b"contour"
+    assert out["earsLeft"]["sourceMethod"] == "ear_landmarker_contour"
+    assert out["earsLeftSegformer"]["jpegBytes"] == b"seg"
+    assert out["earsLeftSegformer"]["sourceMethod"] == "segformer_ears"
+
+
+def test_resolve_ear_hero_crops_segformer_fallback_on_primary():
+    from backend.ear_analysis import resolve_ear_hero_crops
+
+    seg = {"jpegBytes": b"seg", "sourceMethod": "segformer_ears", "bbox": [0, 0, 1, 1], "labels": ["l"]}
+    out = resolve_ear_hero_crops("earsRight", seg, None)
+    assert out["earsRight"]["jpegBytes"] == b"seg"
+    assert out["earsRightSegformer"]["jpegBytes"] == b"seg"
+    assert out["earsRight"] is not out["earsRightSegformer"]
+
+
+def test_extract_ear_contour_crop_roundtrip_jpeg():
+    import cv2
+
+    from backend.ear_analysis import EAR_LMK_COUNT, extract_ear_contour_crop
+
+    h, w = 200, 200
+    rgb = np.full((h, w, 3), 80, dtype=np.uint8)
+    pts = _synthetic_contour(cx=100.0, cy=100.0, rx=30.0, ry=45.0)
+    landmarks_norm = [
+        {"id": i, "x": float(pts[i, 0] / w), "y": float(pts[i, 1] / h)}
+        for i in range(EAR_LMK_COUNT)
+    ]
+    ok, buf = cv2.imencode(".jpg", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+    assert ok
+    res = extract_ear_contour_crop(buf.tobytes(), landmarks_norm, "leftProfile")
+    assert res is not None
+    assert res["sourceMethod"] == "ear_landmarker_contour"
+    assert res["sourcePose"] == "leftProfile"
+    assert len(res["jpegBytes"]) > 100
+    decoded = cv2.imdecode(np.frombuffer(res["jpegBytes"], np.uint8), cv2.IMREAD_COLOR)
+    assert decoded is not None
+    assert decoded.shape[0] > 0 and decoded.shape[1] > 0

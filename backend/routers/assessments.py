@@ -92,9 +92,11 @@ def _normalize_cv_provider(provider: str) -> str:
 
 
 async def _submit_photo_content_failures(photos: dict) -> list[dict]:
-    """Load each stored photo's original bytes and run the coarse content
-    checks (backend/photo_validation.py). Runs in a thread — MediaPipe does
-    one pass per photo. Returns error-severity failures, if any."""
+    """Load each stored photo's original bytes and run simple BE sanity checks
+    (face present where expected, extreme brightness/resolution — see
+    ``photo_validation`` module docstring). Not a FE mirror: pose/expression/
+    glasses stay frontend-only. MediaPipe runs in a thread, one pass per photo.
+    """
     media = get_media_storage()
     items: list[tuple[str, bytes]] = []
     for pose_id, meta in photos.items():
@@ -598,9 +600,8 @@ async def post_assessment_submit(
             detail=f"Missing required photo poses: {', '.join(missing)}",
         )
 
-    # Server-side double-guard: re-run the frontend's photo content checks on
-    # the stored original bytes (same pixels the FE validated — multipart, no
-    # re-encode) before enqueueing the pipeline.
+    # Simple BE sanity guard only (face / blank / extreme exposure). Fine pose
+    # and quality checks live on the frontend — see ADR-052 amendment.
     content_failures = await _submit_photo_content_failures(photos)
     if content_failures:
         raise HTTPException(

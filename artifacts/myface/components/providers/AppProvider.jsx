@@ -18,7 +18,7 @@ import {
   isReportModalHostPath,
 } from '../../utils/routes'
 import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser, saveSession } from '../../utils/authClient'
-import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMediaToken, fetchMyAssessments, fetchMyAssessmentsWithQuota, isFullCloudAssessment, mediaUrl, submitAssessment } from '../../utils/apiClient'
+import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMediaToken, clearMediaToken, fetchMyAssessments, fetchMyAssessmentsWithQuota, isFullCloudAssessment, mediaUrl, submitAssessment } from '../../utils/apiClient'
 import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
 import { resourcesForAdminTab } from '../../utils/adminWorkspace'
@@ -524,9 +524,13 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     if (!authReady) return
-    if (!user) return
-    // Prewarm the signed media token so <img> renders aren't the first paint
-    // behind MEDIA_AUTH_REQUIRED. Failure is swallowed — mediaUrl() retries lazily.
+    if (!user) {
+      clearMediaToken()
+      return
+    }
+    // Drop any previous account's cached media token, then mint for this user.
+    // Reusing a still-valid token from another login 404s owner-gated photos.
+    clearMediaToken()
     fetchMediaToken().catch(() => {})
   }, [authReady, user?.id])
 
@@ -866,23 +870,31 @@ export function AppProvider({ children }) {
       alert('This analysis is still being prepared. Check back shortly from your dashboard.')
       return
     }
-    if (!assessment?.id || !isBackendApiEnabled()) {
+    if (!assessment?.id) {
       if (pathnameRef.current !== originPath) return
       hydrateFromCloudAssessment(assessment)
       setCloudAssessment(null)
       openReportModalOnRoute()
       return
     }
-    // Reuse in-memory full GET only for the same assessment; list summaries always refetch.
-    if (cloudAssessment?.id === assessment.id && isFullCloudAssessment(cloudAssessment)) {
-      if (pathnameRef.current !== originPath) return
-      hydrateFromCloudAssessment(cloudAssessment)
-      openReportModalOnRoute()
-      return
-    }
+    // Flip "Opening…" on the Open button before any network / hydrate work.
     setOpeningReportId(assessment.id)
     openingReportIdRef.current = assessment.id
     try {
+      if (!isBackendApiEnabled()) {
+        if (pathnameRef.current !== originPath) return
+        hydrateFromCloudAssessment(assessment)
+        setCloudAssessment(null)
+        openReportModalOnRoute()
+        return
+      }
+      // Reuse in-memory full GET only for the same assessment; list summaries always refetch.
+      if (cloudAssessment?.id === assessment.id && isFullCloudAssessment(cloudAssessment)) {
+        if (pathnameRef.current !== originPath) return
+        hydrateFromCloudAssessment(cloudAssessment)
+        openReportModalOnRoute()
+        return
+      }
       const full = await fetchAssessment(assessment.id)
       if (pathnameRef.current !== originPath) return
       hydrateFromCloudAssessment(full)

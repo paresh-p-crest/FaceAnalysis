@@ -129,6 +129,7 @@ async def run_parsing_stage(assessment: dict, *, force: bool = False) -> dict:
     if not force and parsing_stage_complete(assessment):
         logger.info("Pipeline stage parsing skipped (complete) assessment=%s", assessment_id)
         return assessment
+    from .ear_analysis import extract_ear_contour_crop, resolve_ear_hero_crops
     from .face_parsing import (
         extract_feature_crops,
         extract_lips_crop_from_front_landmarks,
@@ -188,16 +189,36 @@ async def run_parsing_stage(assessment: dict, *, force: bool = False) -> dict:
             except Exception:
                 logger.exception("Smile mesh crop failed for %s", assessment_id)
 
-        for pose_id, crop_key in (("leftProfile", "earsLeft"), ("rightProfile", "earsRight")):
+        ears_sides = ((analysis.get("cvReport") or {}).get("ears") or {}).get("sides") or {}
+        for pose_id, crop_key, side_key in (
+            ("leftProfile", "earsLeft", "left"),
+            ("rightProfile", "earsRight", "right"),
+        ):
             pose_bytes = _load_pose_bytes(assessment_id, pose_id)
             if not pose_bytes:
                 continue
+            segformer = None
             try:
-                ear = await asyncio.to_thread(extract_profile_ear_crop, pose_bytes, pose_id)
-                if ear:
-                    crops_data[crop_key] = ear
+                segformer = await asyncio.to_thread(extract_profile_ear_crop, pose_bytes, pose_id)
             except Exception:
-                logger.exception("Profile ear crop failed (%s) for %s", pose_id, assessment_id)
+                logger.exception("Profile SegFormer ear crop failed (%s) for %s", pose_id, assessment_id)
+
+            contour = None
+            side = ears_sides.get(side_key) or {}
+            if side.get("status") == "ready" and side.get("landmarks"):
+                try:
+                    contour = await asyncio.to_thread(
+                        extract_ear_contour_crop,
+                        pose_bytes,
+                        side["landmarks"],
+                        pose_id,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Profile contour ear crop failed (%s) for %s", pose_id, assessment_id
+                    )
+
+            crops_data.update(resolve_ear_hero_crops(crop_key, segformer, contour))
 
         # Aggregate ears hero entry for single-key consumers
         left_ear = crops_data.get("earsLeft")
@@ -235,6 +256,10 @@ async def run_parsing_stage(assessment: dict, *, force: bool = False) -> dict:
                 ears_meta["leftPublicUrl"] = crops_out["earsLeft"]["publicUrl"]
             if crops_out.get("earsRight"):
                 ears_meta["rightPublicUrl"] = crops_out["earsRight"]["publicUrl"]
+            if crops_out.get("earsLeftSegformer"):
+                ears_meta["leftSegformerPublicUrl"] = crops_out["earsLeftSegformer"]["publicUrl"]
+            if crops_out.get("earsRightSegformer"):
+                ears_meta["rightSegformerPublicUrl"] = crops_out["earsRightSegformer"]["publicUrl"]
             crops_out["ears"] = ears_meta
 
         fp["status"] = "ready"
