@@ -16,6 +16,7 @@ export function ReportDocumentLayout({
   rightRail = null,
   immersive = false,
   canvasClassName = '',
+  layoutClassName = '',
   onClose = null,
   isAdmin = false,
   children,
@@ -28,7 +29,7 @@ export function ReportDocumentLayout({
 
   return (
     <div
-      className={`report-view-layout ${immersive ? 'report-view-layout--immersive' : ''} ${showRightRail ? 'report-view-layout--with-rail' : ''} ${showSidebar ? 'report-view-layout--with-sidebar' : ''}`}
+      className={`report-view-layout ${immersive ? 'report-view-layout--immersive' : ''} ${showRightRail ? 'report-view-layout--with-rail' : ''} ${showSidebar ? 'report-view-layout--with-sidebar' : ''} ${layoutClassName}`.trim()}
     >
       {showSidebar && (
         <aside className="report-view-sidebar">
@@ -48,14 +49,16 @@ export function ReportDocumentLayout({
 
       <main className={`report-view-canvas min-w-0 relative ${canvasClassName} ${immersive ? 'report-view-canvas--immersive' : ''} ${activeId === 'protocol' ? 'report-view-canvas--protocol' : ''}`.trim()}>
         {showCanvasClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-3 right-6 z-10 w-10 h-10 flex items-center justify-center rounded-full text-ink/70 hover:text-ink hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-            aria-label={t('shell.closeReport')}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="report-view-close-bar">
+            <button
+              type="button"
+              onClick={onClose}
+              className="report-view-close-btn"
+              aria-label={t('shell.closeReport')}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         ) : null}
         <div
           className={`report-view-page ${

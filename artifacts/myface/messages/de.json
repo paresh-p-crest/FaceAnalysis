@@ -2176,7 +2176,7 @@
       "scoreColumn": "Score",
       "loadingWorkspace": "Admin-Bereich wird geladen...",
       "reviewReports": "Berichte prüfen",
-      "recentClients": "Kunden",
+      "recentClients": "Aktuelle Kunden",
       "latestReports": "Neueste Berichte",
       "reportCount": "{count} Berichte",
       "pendingBanner": "{count} Bericht(e) warten auf Prüfung",
@@ -2205,6 +2205,12 @@
       },
       "filters": {
         "all": "Alle"
+      },
+      "pagination": {
+        "prev": "Zurück",
+        "next": "Weiter",
+        "page": "Seite {page} von {pages}",
+        "showing": "{from}–{to} von {total}"
       },
       "status": {
         "pendingReview": "Prüfung ausstehend",

@@ -2176,7 +2176,7 @@
       "scoreColumn": "Score",
       "loadingWorkspace": "Loading admin workspace...",
       "reviewReports": "Review reports",
-      "recentClients": "Clients",
+      "recentClients": "Recent clients",
       "latestReports": "Latest reports",
       "reportCount": "{count} reports",
       "pendingBanner": "{count} report(s) waiting for review",
@@ -2205,6 +2205,12 @@
       },
       "filters": {
         "all": "All"
+      },
+      "pagination": {
+        "prev": "Previous",
+        "next": "Next",
+        "page": "Page {page} of {pages}",
+        "showing": "{from}–{to} of {total}"
       },
       "status": {
         "pendingReview": "pending review",

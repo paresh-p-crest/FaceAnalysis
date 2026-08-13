@@ -161,29 +161,29 @@ Used on all stages except **landing (questionnaire welcome)**, **questionnaire**
 
 | Element | Value |
 |---|---|
-| Shell | `.site-navbar` — `fixed top-0 inset-x-0 w-full`, **opaque** `bg-white` + hairline `border-landing-divider` (no backdrop-blur — avoids jagged seam) |
+| Shell | `.site-navbar` — `fixed top-0 inset-x-0 w-full`, frosted `rgba(255,255,255,0.7)` + `backdrop-filter: blur(18px)`, bottom `1px solid rgba(255,255,255,0.5)` + inset highlight (no drop shadow / dark edge) |
 | Top inset | `--site-navbar-top`: `0` (flush to viewport) |
 | Height | `--site-navbar-height`: `3.5rem` mobile · `3.75rem` from `sm` up |
-| Content gap | `--site-navbar-gap`: `0.75rem` mobile · `1rem` from `sm` up (top only) |
-| Page offset | `.site-navbar-offset` — `padding-top: var(--site-navbar-offset)` |
-| Report modal | Explicit spacers: navbar-height clear + mint `--site-navbar-gap` strip |
-| Standalone tools | `/chat` and `/visuals` use `StandalonePageShell` — mint surface, `report-shell-inner` gutters, white `report-view-layout` card |
+| Content gap | `--site-navbar-gap`: `1.25rem` mobile · `1.5rem` from `sm` — mint strip between navbar and report/tool/settings cards |
+| Page offset | `.site-navbar-offset` — `padding-top: var(--site-navbar-offset)` (legacy pages) |
+| Report modal | Navbar-height clear + mint `--site-navbar-gap` strip |
+| Standalone tools | `/chat`, `/visuals`, `/dashboard`, `/settings` use `StandalonePageShell` — mint plane + grain, navbar clear + top gap, `report-shell-inner` gutters |
 | Inner row | `.site-navbar-inner` — full width; `.site-navbar-cluster` left-aligns logo + links |
 | Customer links | Report always; AI Visuals + Chat Assistant only once a submitted report is approved/ready (left of bar); History/Billing removed from navbar (use dashboard KPIs) |
-| Active link | Brand liquid-glass pill (`site-navbar-link-active`) — low-opacity teal frost (~4–10% brand), heavy blur, brand-dark label |
-| Controls | `.site-navbar-pill` account + language; `.site-navbar-btn` brand fill |
-| Mobile | Hamburger opens `.site-navbar-mobile-panel`; Escape to close |
+| Active link | Mint underline (`site-navbar-link-active`) — not a frosted pill |
+| Controls | `.site-navbar-pill` near-solid `white/88` (no nested blur); `.site-navbar-btn` brand fill |
+| Mobile | Hamburger opens solid `.site-navbar-mobile-panel`; Escape to close |
 | Report actions | PDF + admin review actions in navbar whenever the report modal is open (any route, e.g. admin review); Share on overview header |
 
 **Visibility:** `AppShell` shows the navbar on `/report`, `/visuals`, `/chat`, `/dashboard`, `/history`, `/billing`, admin tabs, and `/payment-success`. Questionnaire and `/analysis/*` stay chromeless.
 
-**Page width:** Page surface is mint (`--color-surface: #eef6f3`). Dashboard/admin **hero is full-bleed** (`.dashboard-hero-band--bleed`) flush under the navbar. Lower sections use full width with `px-4 sm:px-6 lg:px-8` gutters. Cards/panels use glass (`bg-white/55–70` + backdrop blur).
+**Page width:** Page surface is mint (`--color-surface: #eef6f3`) from viewport top under the frosted navbar. Dashboard/admin **hero is full-bleed** (`.dashboard-hero-band--bleed`) flush under the navbar. Lower sections use full width with `px-4 sm:px-6 lg:px-8` gutters. Large sheets use customer glass (`bg-white/64–70` + **8px** blur); controls/rows/photos stay opaque.
 
 **Customer home:** Default authenticated route is `/report` (`CustomerHome`). Ready submitted assessment → open report modal; submitted pending → `AnalysisPreparing` `variant="home"`; in-progress draft (photos only) → **Continue upload**; empty → questionnaire CTA; unpaid → Stripe Checkout; Stripe return → `PaymentSuccessPage` with **Start Face Analysis**. Photo-only drafts are excluded from `GET /my/assessments`.
 
-**Standalone tools:** `/visuals` and `/chat` use `StandalonePageShell` — mint surface + `report-shell-inner` gutters (`px-4 sm:px-6 lg:px-8`), then white `report-view-layout` card (same as report). Chat uses a floating pill composer inside the card. Generate/Regenerate on Visuals is **admin-only**.
+**Standalone tools:** `/visuals` and `/chat` use `StandalonePageShell` — continuous mint under navbar + `report-shell-inner` gutters, then solid white `report-view-layout` card. Chat uses a floating pill composer inside the card. Generate/Regenerate on Visuals is **admin-only**.
 
-**Report chrome:** Report has no secondary header bar (`REPORT` / `#ref` / close). PDF lives in the site navbar while the report modal is open; admin review actions (Edit PDF narrative, Edit After Image, Approve) share that navbar row and only render for admins on unapproved assessments. Share is on the overview header only (protocol meta · centered MyFace · Share). Mint gap under navbar via ReportModal spacers.
+**Report chrome:** Report has no secondary header bar (`REPORT` / `#ref` / close). PDF lives in the site navbar while the report modal is open; admin review actions (Edit PDF narrative, Edit After Image, Approve) share that navbar row and only render for admins on unapproved assessments. Share is on the overview header only. Mint gap under navbar via ReportModal / `StandalonePageShell` spacers (`--site-navbar-gap`).
 
 ---
 
@@ -199,9 +199,10 @@ Defined in `app/globals.css` `@layer components`. **Always use these before writ
 | `.glass` | Card: white bg + border + shadow (light/dark) |
 | `.dashboard-icon-well` | Landing-style mint circle icon well (customer KPI headers) |
 | `.dashboard-icon-well-stat` | Landing-style white square icon well (stat bar icons) |
-| `.dashboard-card-glass` | Glassmorphic dashboard card with 8px blur |
-| `.dashboard-card` | Solid premium dashboard card (no blur) |
-| `.dashboard-panel` | Solid dashboard section wrapper |
+| `.dashboard-card-glass` | Customer glass tile: `white/64`, 8px blur, white/60 border + inset edge light |
+| `.dashboard-card-glass--hero` | Stronger fill (`white/70`) for primary KPI |
+| `.dashboard-card` | Glass panel (`white/64`, 8px) — not solid |
+| `.dashboard-panel` | Glass section wrapper (`white/70`, 8px) |
 | `.dashboard-hero-band` | Mint/gradient hero band wrapper for dashboard header |
 | `.dashboard-status-chip` | Check-bubble status chip (ready/pending) |
 | `.dashboard-metric-bar` | 5px track metric bar (landing) |
@@ -366,15 +367,17 @@ Landing has different “icon wells” depending on context. Use the correct one
 Use photo thumbnails or solid tint blocks on list rows.
 
 ### 13.2 Glass card — `.dashboard-card-glass`
-Landing’s hero glass card uses:
+Customer KPI / large tiles (matches admin glass recipe; navbar alone keeps 18px blur):
 | Property | Literal value |
 |---|---|
 | Radius | `rounded-2xl` (`16px`) |
-| Border | `border: 1px solid rgba(255,255,255,0.6)` (`#ffffff99`) |
-| Background | `bg-white/70` |
-| Shadow | `0px 4px 24px rgba(118,118,118,0.12), inset 0 1px 0 rgba(255,255,255,0.60), inset 1px 0 0 rgba(255,255,255,0.50)` |
-| Blur | `backdrop-blur-[8px]` and `-webkit-backdrop-filter: blur(8px)` |
-| Padding | `p-6` |
+| Border | `1px solid rgba(255,255,255,0.6)` |
+| Background | `rgba(255,255,255,0.64)`; hero KPI uses `.dashboard-card-glass--hero` → `0.70` |
+| Shadow | `0 10px 28px -18px rgba(17,24,39,0.28)` + inset edge light (no green glow) |
+| Blur | `backdrop-filter: blur(8px)` |
+| Padding | `p-6` default; KPI strip uses tighter `px-4 py-3` |
+
+Landing may keep a heavier frost class separately — do not ship 18px blur on content cards.
 
 ### 13.3 Hero band — `.dashboard-hero-band`
 No blur on the wrapper (perf). Use only mint gradient.
@@ -384,54 +387,51 @@ No blur on the wrapper (perf). Use only mint gradient.
 | Padding | `pt-4 pb-8 px-4 sm:px-6` |
 
 ### 13.4 Solid card — `.dashboard-card`
+Used for opaque reading surfaces / photos when glass is not wanted. Glass panels use `.dashboard-card-glass` / `.dashboard-panel` instead.
 | Property | Literal value |
 |---|---|
 | Radius | `rounded-2xl` |
-| Background | `#ffffff` |
-| Border | `border: 1px solid #e8eeec` |
-| Shadow | `shadow-[0px_2px_16px_#4343431a]` |
+| Background | `#ffffff` when solid; glass variants use `white/64–70` + 8px blur |
+| Border | solid `#e8eeec` or glass `white/60` |
 | Padding | `p-5` default; `p-6` panels |
 
-Harmony/attractiveness panel uses solid card + `#eef6f3` tint, not glass.
+Harmony/attractiveness panel and report canvas stay solid white for reading.
 
 ### 13.5 Named glass placements (hard locked)
-On **DashboardPage**, glass is allowed **exactly** on:
-1. Navbar pill shell
-2. Hero title card (page title + subtitle + CTAs)
-3. KPI: Reports
-4. KPI: Latest Score
-5. KPI: Payments
+On **customer protocol overview** (`CustomerOverviewDashboard` → `ExecutiveSummary`), glass is allowed **exactly** on:
+1. KPI strip tiles (`.dashboard-card-glass` / `--hero`)
+2. Report sidebar (already frosted — one layer only)
 
-Everything else uses `.dashboard-card` (solid). **Never** apply blur per table row/list row.
+Photos, list rows, chat sheet/composer/messages, and long report canvas stay opaque. **Never** nest `backdrop-filter`. Unused `DashboardPage.jsx` is not the live `/dashboard` route.
 
 ### 13.6 Site navbar — `.site-navbar`
 Full-width frosted glass bar:
 | Property | Literal value |
 |---|---|
 | Position | `fixed top-0 inset-x-0` |
-| Background | `rgba(255,255,255,0.72)` + `backdrop-filter: blur(22px) saturate(1.2)` |
-| Border | `border-b border-white/50` |
+| Background | `rgba(255,255,255,0.7)` + `backdrop-filter: blur(18px)` |
+| Border | bottom `1px solid rgba(255,255,255,0.5)` + inset `0 1px 0 rgba(255,255,255,0.55)` |
 | Height | `--site-navbar-height` (`3.5rem` / `3.75rem`) |
 | Inner | `w-full` + `px-4 sm:px-6 lg:px-8` |
-| Center links | `text-[13px]`; active = soft glass chip `bg-white/70` |
-| Account / language | `.site-navbar-pill` frosted pills + initials avatar |
+| Center links | `text-[13px]`; active = mint underline (not frosted pill) |
+| Account / language | `.site-navbar-pill` near-solid `white/88` (no nested blur) |
 
 ### 13.6b Dashboard hero bleed — `.dashboard-hero-band--bleed`
 | Property | Literal value |
 |---|---|
 | Width | Edge-to-edge (`w-full`, no side margin) |
 | Radius | `rounded-none` (flush under navbar) |
-| Gap above | None — sits directly under `.site-navbar-offset` |
+| Gap above | Mint `--site-navbar-gap` under frosted navbar for report/tool cards; admin omits gap |
 | Finish | Glass gradient + grain; KPI tiles use `.dashboard-card-glass` |
 
 ### 13.13 Interactive report shell
 | Element | Spec |
 |---|---|
 | Column | Full width (`w-full` gutters) — matches site navbar |
-| Header | `.report-shell-bar` white + hairline bottom border |
-| Actions | `.report-shell-btn` white pills; PDF uses `.report-shell-btn-primary` |
-| Sidebar nav | White panel; active item `bg-landing-mint text-brand` |
-| Document card | `.report-view-layout` — white `rounded-2xl shadow-soft` |
+| Seam | Navbar-height clear + mint `--site-navbar-gap` (~20–24px) above the white card |
+| Sidebar nav | `.report-view-sidebar` frost + grain (one blur layer; no blur on nav links) |
+| Document card | `.report-view-layout` — solid white shell for reading (chat included) |
+| Canvas | `.report-view-canvas` — opaque white; do not blur article body |
 
 ### 13.14 Admin panel
 | Element | Spec |

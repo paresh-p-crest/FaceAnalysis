@@ -35,7 +35,9 @@ export function IntroductionSection() {
               key={item.titleKey}
               className="rounded-xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-4 flex gap-4"
             >
-              <span className="font-display text-lg font-bold text-brand shrink-0">{i + 1}</span>
+              <span className="dashboard-icon-well h-8 w-8 text-sm font-bold shrink-0" aria-hidden>
+                {i + 1}
+              </span>
               <div>
                 <p className="font-semibold text-ink text-sm mb-1">{t(item.titleKey)}</p>
                 <p className="text-sm text-ink-muted leading-relaxed">{t(item.bodyKey)}</p>

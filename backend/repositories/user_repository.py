@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from ..database import session_scope
@@ -178,11 +178,33 @@ async def update_user_password(user_id: str, password_hash: str) -> dict:
         return serialize_user(_user_to_dict(user))
 
 
-async def list_users(limit: int = 100) -> list[dict]:
+async def count_users() -> int:
     async with session_scope() as session:
-        result = await session.execute(select(User).order_by(User.created_at.desc()).limit(limit))
+        result = await session.execute(select(func.count()).select_from(User))
+        return int(result.scalar() or 0)
+
+
+async def list_users(limit: int = 50, offset: int = 0) -> list[dict]:
+    async with session_scope() as session:
+        result = await session.execute(
+            select(User).order_by(User.created_at.desc()).limit(limit).offset(offset)
+        )
         users = result.scalars().all()
-        return [serialize_user(_user_to_dict(u)) for u in users]
+        ids = [u.id for u in users]
+        counts: dict[str, int] = {}
+        if ids:
+            count_result = await session.execute(
+                select(Assessment.user_id, func.count())
+                .where(Assessment.user_id.in_(ids), Assessment.deleted_at.is_(None))
+                .group_by(Assessment.user_id)
+            )
+            counts = {str(uid): int(n) for uid, n in count_result.all()}
+        items = []
+        for u in users:
+            doc = serialize_user(_user_to_dict(u))
+            doc["assessmentCount"] = counts.get(doc["id"], 0)
+            items.append(doc)
+        return items
 
 
 async def delete_user_and_related_data(user_id: str) -> dict:

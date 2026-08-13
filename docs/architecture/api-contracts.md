@@ -115,18 +115,27 @@ Validates that the token holder has admin privilege.
   ```
 
 ### `GET /api/auth/users`
-Lists all registered users.
+Lists registered users (newest first).
 - **Auth:** Private (Admin)
+- **Query:** `limit` (default 50, max 100), `offset` (default 0)
 - **Response Shape (200 OK):**
   ```json
-  [
-    {
-      "id": "60c72b2f9b1d8e2568cf2001",
-      "email": "user@example.com",
-      "role": "user",
-      "createdAt": "2026-07-01T12:00:00Z"
-    }
-  ]
+  {
+    "items": [
+      {
+        "id": "60c72b2f9b1d8e2568cf2001",
+        "email": "user@example.com",
+        "firstName": "Ada",
+        "lastName": "Lovelace",
+        "role": "user",
+        "createdAt": "2026-07-01T12:00:00Z",
+        "assessmentCount": 2
+      }
+    ],
+    "total": 120,
+    "limit": 50,
+    "offset": 0
+  }
   ```
 
 ### `DELETE /api/auth/users/{user_id}`
@@ -261,8 +270,8 @@ Retrieves a detailed assessment object by ID.
 ### `GET /api/assessments`
 Lists recent assessments for the admin panel (summary projection only).
 - **Auth:** Private (Admin)
-- **Query:** `limit` (max 100)
-- **Response Shape (200 OK):** `{ "items": [...] }` where each item includes `id`, `userId`, `status`, `provider`, `scanId`, `createdAt`, `pipeline` (live stage/status for the admin tracker), and pruned `analysis` score fields only (no photos, narratives, protocol blobs, or cvReport image data). Pruned `cvReport` score keys: `overall`, `symmetry`, `proportions`, `skin`, `structure`, `jaw`, `jawChin`; pruned `metrics` keys: `harmonyScore`, `symmetryScore`, `proportionsScore`, `skinScore`, `jawlineScore`. Use `GET /api/assessments/{id}` for full detail.
+- **Query:** `limit` (default 50, max 100), `offset` (default 0), `status` (optional: `pending_review`, `approved` includes `published`, `draft`)
+- **Response Shape (200 OK):** `{ "items": [...], "total": 120, "limit": 50, "offset": 0 }` where each item includes `id`, `userId`, `status`, `provider`, `scanId`, `createdAt`, `pipeline` (live stage/status for the admin tracker), and pruned `analysis` score fields only (no photos, narratives, protocol blobs, or cvReport image data). Pruned `cvReport` score keys: `overall`, `symmetry`, `proportions`, `skin`, `structure`, `jaw`, `jawChin`; pruned `metrics` keys: `harmonyScore`, `symmetryScore`, `proportionsScore`, `skinScore`, `jawlineScore`. Use `GET /api/assessments/{id}` for full detail.
 - **Note:** Un-submitted drafts (`status = "draft"` with `pipeline = null`) are excluded from the user history list, but appear here for admins.
 
 ### `GET /api/my/assessments`

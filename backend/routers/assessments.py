@@ -29,6 +29,7 @@ from ..protocol_service import (
 from ..narrative_translation import ensure_narrative_translations
 from ..assessment_limits import require_assessment_slot
 from ..repositories.assessment_repository import (
+    count_assessments,
     count_submitted_assessments_for_user,
     create_assessment,
     delete_all_assessment_data,
@@ -695,11 +696,22 @@ async def get_assessment(
 
 
 @router.get("/assessments")
-async def get_assessments_list(limit: int = 20, current_user: dict = Depends(require_admin)):
+async def get_assessments_list(
+    limit: int = 50,
+    offset: int = 0,
+    status: Optional[str] = None,
+    current_user: dict = Depends(require_admin),
+):
     if not is_db_configured():
         raise HTTPException(status_code=503, detail="Database not configured.")
     limit = min(max(1, limit), 100)
-    return {"items": serialize_assessments(await list_assessments(limit=limit), summary=True)}
+    offset = max(0, offset)
+    items = serialize_assessments(
+        await list_assessments(limit=limit, offset=offset, status=status),
+        summary=True,
+    )
+    total = await count_assessments(status=status)
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/my/assessments/draft")

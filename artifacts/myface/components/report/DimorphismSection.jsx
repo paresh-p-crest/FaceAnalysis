@@ -26,7 +26,7 @@ const DIMORPHISM_HERO_IMG_CLASS = 'max-h-40 w-auto object-contain rounded-xl blo
 
 function DimorphismScale({ score, scaleLeft, scaleRight, t, cvLabel }) {
   return (
-    <div className="rounded-2xl border border-surface-border bg-surface-warm dark:bg-surface-raised p-5">
+    <div className="rounded-2xl border border-surface-border bg-white dark:bg-surface-card p-5">
       <p className="text-[10px] uppercase tracking-wider text-ink-muted mb-2 font-medium">{t('dimorphism.dimorphismRange')}</p>
       <p className="text-2xl font-display font-bold text-ink mb-4">{cvLabel(score.label)}</p>
       <div className="relative h-2.5 rounded-full bg-surface-border mb-2">

@@ -6,9 +6,21 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Changed
+- **Customer glass seam pass** — Restored mint `--site-navbar-gap` under report / standalone shells (visuals, chat, settings, overview) so the white card sits ~20–24px below the frosted navbar. `.dashboard-card-glass` uses `rgba(255,255,255,0.64–0.70)` + **8px** blur. Overview KPI strip is glass; duplicate hero summary metrics removed. Chat Assistant UI stays on the prior solid white sheet. Intro “What to expect” uses `.dashboard-icon-well` numbers. Dimorphism Range card stays solid white (no glass). Theme §6 / §13 updated. Admin still omits the gap spacer.
+- **Admin overview segment** — Relabeled worklist tab “Clients” → “Recent clients” (DE: “Aktuelle Kunden”).
+- **Admin Users/Review titles** — Dropped duplicate in-page headings (“Registered users”, “Review reports”); command bar title is the sole page label. Review keeps the short how-to line only.
+- **Admin list pagination** — Users and review-reports lists load 50 rows per page (`limit`/`offset` + `total`). Footer always shows range (`1–N of N`); Prev/Next enable only when more than one page. Admin no longer requests 250 users / 100 assessments in one call.
+- **Admin report shell actions** — Dropped pill chrome; 11px radius. Approve is filled brand primary; Edit Images / PDF are quiet outline buttons (same family).
+- **Report close (X) sticky** — Canvas close stays pinned while scrolling; sidebar REPORT header + X sticky with light fade.
+- **Report sidebar glass** — Flush to canvas (no gap). Frost + rim/grain on sidebar only; layout shell back to solid white (no mint behind glass).
+- **Admin title** — Overview page title “Admin overview”; review CTA “Open review”.
+- **Admin nav seam** — Dropped `--site-navbar-gap` spacer on admin; mint+grain runs under frosted navbar from viewport top; Queue bar stays transparent; navbar loses drop shadow / dark edge (white/50 hairline only).
+- **Global navbar frost** — White ~70% + 18px blur, hairline inset only (no green glow/drop shadow). Active nav uses mint underline instead of frosted pills; mobile menu stays solid.
+- **Admin queue material pass** — Glass only on pending tile (~70%), stats stack (~64%), and activity panel (8px blur + edge light). Hero grain under KPIs; solid denser rows with front-photo thumbs; Approve primary on pending / Open secondary; hide ready pipeline badge; title “Queue”; underline segments (Latest reports / Clients). EN/DE copy updated.
 - **Admin navbar** — Removed user-count badge from the Users tab; pending-review badge on Review tab unchanged.
 
 ### Fixed
+- **Admin report → Users flash** — Navbar admin tabs no longer close the report before the route changes (that briefly revealed Overview). Navigation runs first; the report closes on the new tab (or immediately if already on that tab).
 - **Ear contour crops restored** — Parsing stores landmarker **contour cutouts** (`ear_landmarker_contour`) on `earsLeft`/`earsRight` whenever landmarks exist (not gated on `earCapture.proper`). SegFormer squares stay on `*Segformer` suffix keys only. Ears tab shows contour crops for the active naso-aural profile pose — never SegFormer squares or full profile photos.
 - **Naso-aural unavailable UX** — When no profile has usable ear landmarks, proportions naso-aural hides the profile plate and prompts contact support. Improper landmarker sides still `status: failed` for hero crops; contour crop rejects thin slivers.
 - **Right/left profile pose false reject** — `evaluateNoseRatioPose` now passes when detected pose matches expected even if `noseRatio` exceeds the 0–1 band (common at 90° when the nose sits past MediaPipe face-width landmarks). Fixes “Face is right profile, expected right profile” blocking valid uploads.

@@ -4,6 +4,11 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
+- [x] Admin navbar: close report after tab nav (no Overview flash when opening Users/Review from a report) (status: completed)
+- [x] Customer glass seam pass — kill navbar gap on report/standalone; 8px glass KPIs; chat UI glass reverted to prior solid sheet (status: completed)
+- [x] Admin users + review reports pagination — 50 per page, `offset`/`total` on list APIs (status: completed)
+- [x] Admin queue material + global navbar frost — glass on KPI/activity only; denser rows; Approve-primary pending; Queue copy (status: completed)
+- [x] Admin overview “clinical instrument” redesign — command bar, priority pending metric, unified worklist, admin-scoped CSS (status: completed)
 - [x] Chat Assistant message order fix — persist user message on receipt and assistant reply after generation (two `append_messages` calls) so `created_at` reflects real chronology; failed AI calls keep the question in history (status: completed)
 - [x] Standalone MediaPipe→SVG face diagram renderer (`face_diagram_renderer.py`) — `--image` FaceMesh input, semantic groups, canonicalize, Bézier minimal style, template fallback, self-tests, optional local UI (status: completed)
 - [x] Prototypicality Shape Analysis — client-side minimal face diagram via `faceDiagramRenderer.js` (aspect-corrected landmarks, Bézier paths, white panel); replaces sage edge-mesh wireframe; test: `test-face-diagram-renderer.js` (status: completed)

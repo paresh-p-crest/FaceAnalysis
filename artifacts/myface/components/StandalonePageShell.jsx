@@ -1,4 +1,4 @@
-/** Fixed full-viewport shell — same navbar clear + mint gap + report gutters as ReportModal. */
+/** Fixed full-viewport shell — navbar clear + mint gap + report gutters. */
 export function StandalonePageShell({
   children,
   className = '',
@@ -12,6 +12,7 @@ export function StandalonePageShell({
 
   return (
     <div className={`standalone-page-shell ${mods} ${className}`.trim()}>
+      <div className="standalone-page-shell__ambient" aria-hidden />
       <div className="standalone-page-shell__navbar-clear" aria-hidden />
       <div className="standalone-page-shell__top-gap" aria-hidden />
       <div className="standalone-page-shell__body">

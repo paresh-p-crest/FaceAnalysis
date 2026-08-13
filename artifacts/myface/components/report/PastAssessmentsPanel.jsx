@@ -43,7 +43,8 @@ export function PastAssessmentsPanel({
     setError('')
     try {
       const next = isAdmin ? await fetchAdminAssessments(30) : await fetchMyAssessments(30)
-      setItems(Array.isArray(next) ? next : [])
+      const items = Array.isArray(next) ? next : (next?.items || [])
+      setItems(items)
     } catch (err) {
       setError(err.message || t('loadFailed'))
     } finally {

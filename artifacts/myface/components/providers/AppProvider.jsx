@@ -21,7 +21,7 @@ import { clearSession, fetchCurrentUser, getAuthToken, getStoredUser, saveSessio
 import { isBackendApiEnabled, confirmStripeCheckout, createStripeCheckout, createAssessmentDraft, fetchAdminAssessments, fetchAdminPayments, fetchAdminUsers, fetchAssessment, fetchMediaToken, clearMediaToken, fetchMyAssessments, fetchMyAssessmentsWithQuota, isFullCloudAssessment, mediaUrl, submitAssessment } from '../../utils/apiClient'
 import { trackEvent } from '../../utils/analytics'
 import { clearAdminTab, resolveLegacyAdminHash } from '../../utils/adminPanel'
-import { resourcesForAdminTab } from '../../utils/adminWorkspace'
+import { ADMIN_LIST_PAGE_SIZE, resourcesForAdminTab } from '../../utils/adminWorkspace'
 import { dedupeAssessments } from '../../utils/assessmentDedupe'
 import { createHistoryId } from '../../utils/historyStorage'
 import { userHasAnalysisAccess } from '../../utils/paymentAccess'
@@ -94,6 +94,8 @@ export function AppProvider({ children }) {
     assessments: [],
     payments: [],
     users: [],
+    assessmentsTotal: 0,
+    usersTotal: 0,
     loading: {},
     error: '',
   })
@@ -117,36 +119,68 @@ export function AppProvider({ children }) {
       assessments: [],
       payments: [],
       users: [],
+      assessmentsTotal: 0,
+      usersTotal: 0,
       loading: {},
       error: '',
     })
   }, [])
 
-  const fetchAdminResource = useCallback(async (resource) => {
+  const fetchAdminResource = useCallback(async (resource, opts = {}) => {
     if (resource === 'assessments') {
-      const items = await fetchAdminAssessments(100)
-      return dedupeAssessments(items)
+      const offset = opts.offset || 0
+      const status = opts.status
+      const { items, total } = await fetchAdminAssessments({
+        limit: ADMIN_LIST_PAGE_SIZE,
+        offset,
+        status,
+      })
+      return { items: dedupeAssessments(items), total, offset, status }
     }
     if (resource === 'payments') return fetchAdminPayments(50)
-    if (resource === 'users') return fetchAdminUsers(250)
+    if (resource === 'users') {
+      const offset = opts.offset || 0
+      const { items, total } = await fetchAdminUsers({ limit: ADMIN_LIST_PAGE_SIZE, offset })
+      return { items, total, offset }
+    }
     return null
   }, [])
 
-  const ensureAdminResources = useCallback(async (resources, { force = false } = {}) => {
+  const ensureAdminResources = useCallback(async (resources, { force = false, offsets = {}, assessmentStatus } = {}) => {
     if (!user || user.role !== 'admin' || !isBackendApiEnabled()) return
     const unique = [...new Set(resources)]
-    const toFetch = unique.filter((key) => force || adminCacheRef.current[key] == null)
+    const pageOpts = (key) => ({
+      offset: offsets[key] || 0,
+      status: key === 'assessments' ? assessmentStatus : undefined,
+    })
+    const cacheMiss = (key) => {
+      const cached = adminCacheRef.current[key]
+      if (cached == null) return true
+      if (Array.isArray(cached)) return true
+      const opts = pageOpts(key)
+      if ((cached.offset || 0) !== opts.offset) return true
+      if (key === 'assessments' && (cached.status || undefined) !== (opts.status || undefined)) return true
+      return false
+    }
+    const toFetch = unique.filter((key) => force || cacheMiss(key))
     if (!toFetch.length) {
+      const assessments = adminCacheRef.current.assessments
+      const usersCached = adminCacheRef.current.users
       setAdminWorkspace((prev) => ({
         ...prev,
-        assessments: adminCacheRef.current.assessments ?? prev.assessments,
+        assessments: assessments?.items ?? (Array.isArray(assessments) ? assessments : prev.assessments),
         payments: adminCacheRef.current.payments ?? prev.payments,
-        users: adminCacheRef.current.users ?? prev.users,
+        users: usersCached?.items ?? (Array.isArray(usersCached) ? usersCached : prev.users),
+        assessmentsTotal: assessments?.total ?? prev.assessmentsTotal,
+        usersTotal: usersCached?.total ?? prev.usersTotal,
       }))
       return
     }
 
-    const inflightKey = toFetch.sort().join(',')
+    const inflightKey = toFetch.map((key) => {
+      const opts = pageOpts(key)
+      return `${key}:${opts.offset}:${opts.status || ''}`
+    }).join(',')
     if (adminInflightRef.current.has(inflightKey)) return
     adminInflightRef.current.add(inflightKey)
 
@@ -161,12 +195,18 @@ export function AppProvider({ children }) {
 
     try {
       const results = await Promise.all(
-        toFetch.map(async (resource) => [resource, await fetchAdminResource(resource)]),
+        toFetch.map(async (resource) => [resource, await fetchAdminResource(resource, pageOpts(resource))]),
       )
       const updates = {}
-      for (const [resource, items] of results) {
-        adminCacheRef.current[resource] = items
-        updates[resource] = items
+      for (const [resource, payload] of results) {
+        if (payload && !Array.isArray(payload) && payload.items) {
+          adminCacheRef.current[resource] = payload
+          updates[resource] = payload.items
+          updates[`${resource}Total`] = payload.total
+        } else {
+          adminCacheRef.current[resource] = payload
+          updates[resource] = payload
+        }
       }
       setAdminWorkspace((prev) => ({
         ...prev,
@@ -190,7 +230,7 @@ export function AppProvider({ children }) {
     }
   }, [user, fetchAdminResource])
 
-  const loadAdminTab = useCallback(async (tab, { force = false } = {}) => {
+  const loadAdminTab = useCallback(async (tab, { force = false, usersOffset = 0, assessmentsOffset = 0, assessmentStatus } = {}) => {
     const resources = resourcesForAdminTab(tab)
     if (!resources.length) return
     if (force) {
@@ -198,18 +238,32 @@ export function AppProvider({ children }) {
         adminCacheRef.current[key] = null
       })
     }
-    await ensureAdminResources(resources, { force })
+    await ensureAdminResources(resources, {
+      force,
+      offsets: { users: usersOffset, assessments: assessmentsOffset },
+      assessmentStatus,
+    })
   }, [ensureAdminResources])
 
-  const refreshAdminTab = useCallback(async (tab) => {
-    await loadAdminTab(tab, { force: true })
+  const refreshAdminTab = useCallback(async (tab, opts = {}) => {
+    await loadAdminTab(tab, { ...opts, force: true })
   }, [loadAdminTab])
 
   const patchAdminWorkspace = useCallback((patch) => {
     setAdminWorkspace((prev) => ({ ...prev, ...patch }))
-    if (patch.assessments) adminCacheRef.current.assessments = patch.assessments
+    if (patch.assessments) {
+      const prev = adminCacheRef.current.assessments
+      adminCacheRef.current.assessments = Array.isArray(patch.assessments)
+        ? { ...(prev && !Array.isArray(prev) ? prev : {}), items: patch.assessments, total: patch.assessmentsTotal ?? prev?.total ?? patch.assessments.length }
+        : patch.assessments
+    }
     if (patch.payments) adminCacheRef.current.payments = patch.payments
-    if (patch.users) adminCacheRef.current.users = patch.users
+    if (patch.users) {
+      const prev = adminCacheRef.current.users
+      adminCacheRef.current.users = Array.isArray(patch.users)
+        ? { ...(prev && !Array.isArray(prev) ? prev : {}), items: patch.users, total: patch.usersTotal ?? prev?.total ?? patch.users.length }
+        : patch.users
+    }
   }, [])
   useEffect(() => {
     userRef.current = user

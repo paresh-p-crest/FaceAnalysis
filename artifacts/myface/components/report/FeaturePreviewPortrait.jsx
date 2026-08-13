@@ -139,6 +139,7 @@ export function FeatureAnalysisHero({
   analysisTimeLabel = '—',
   className = '',
   compact = false,
+  showSummaryMetrics = true,
 }) {
   const metrics = [
     {
@@ -228,31 +229,33 @@ export function FeatureAnalysisHero({
           </div>
         </div>
 
-        <div>
-          <p
-            className={`font-bold uppercase tracking-[0.14em] text-ink-muted mb-1.5 ${
-              compact ? 'text-[8px]' : 'text-[9px]'
-            }`}
-          >
-            {t('executiveSummary.heroSummaryLabel')}
-          </p>
-          <div className={`grid grid-cols-3 border-t border-surface-border ${compact ? 'gap-2 pt-2' : 'gap-3 pt-3'}`}>
-            {metrics.map((m) => (
-              <div key={m.label} className="min-w-0">
-                <p
-                  className={`font-bold text-ink tabular-nums leading-none truncate ${
-                    compact ? 'text-[12px]' : 'text-base sm:text-lg'
-                  }`}
-                >
-                  {m.value}
-                </p>
-                <p className={`text-ink-muted mt-0.5 truncate ${compact ? 'text-[8px]' : 'text-[10px]'}`}>
-                  {m.label}
-                </p>
-              </div>
-            ))}
+        {showSummaryMetrics ? (
+          <div>
+            <p
+              className={`font-bold uppercase tracking-[0.14em] text-ink-muted mb-1.5 ${
+                compact ? 'text-[8px]' : 'text-[9px]'
+              }`}
+            >
+              {t('executiveSummary.heroSummaryLabel')}
+            </p>
+            <div className={`grid grid-cols-3 border-t border-surface-border ${compact ? 'gap-2 pt-2' : 'gap-3 pt-3'}`}>
+              {metrics.map((m) => (
+                <div key={m.label} className="min-w-0">
+                  <p
+                    className={`font-bold text-ink tabular-nums leading-none truncate ${
+                      compact ? 'text-[12px]' : 'text-base sm:text-lg'
+                    }`}
+                  >
+                    {m.value}
+                  </p>
+                  <p className={`text-ink-muted mt-0.5 truncate ${compact ? 'text-[8px]' : 'text-[10px]'}`}>
+                    {m.label}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
     </section>
   )

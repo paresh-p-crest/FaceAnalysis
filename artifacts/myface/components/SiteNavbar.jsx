@@ -152,7 +152,7 @@ function ReportNavbarActions({ toolbar, tReport, className = '', showLabels = tr
           <button
             type="button"
             onClick={() => toolbar.onToggleAdminView?.('images')}
-            className={`report-shell-btn min-h-[32px] px-2.5 text-[10px] shrink-0 ${
+            className={`report-shell-btn min-h-[32px] px-2.5 text-[11px] shrink-0 ${
               toolbar.adminView === 'images' ||
               toolbar.adminView === 'after' ||
               toolbar.adminView === 'visuals'
@@ -169,7 +169,7 @@ function ReportNavbarActions({ toolbar, tReport, className = '', showLabels = tr
               type="button"
               onClick={() => toolbar.onApprove?.()}
               disabled={!!toolbar.statusUpdating}
-              className="report-shell-btn min-h-[32px] px-2.5 text-[10px] shrink-0 text-emerald-700 border-emerald-200 hover:border-emerald-300 hover:text-emerald-800"
+              className="report-shell-btn-primary min-h-[32px] px-2.5 text-[11px] shrink-0"
               title={tReport('shell.approve')}
             >
               {toolbar.statusUpdating === 'approved' ? (
@@ -186,10 +186,11 @@ function ReportNavbarActions({ toolbar, tReport, className = '', showLabels = tr
         type="button"
         onClick={toolbar.onDownloadPdf}
         disabled={!toolbar.canDownloadPdf || toolbar.pdfLoading}
-        className="inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-brand/90 disabled:opacity-50 shrink-0 min-h-[32px]"
+        className="report-shell-btn min-h-[32px] px-2.5 text-[11px] shrink-0"
+        title={tReport('shell.downloadPdf')}
       >
-        {toolbar.pdfLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-        {tReport('executiveSummary.pdfButton')}
+        {toolbar.pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Download className="w-3.5 h-3.5 shrink-0" />}
+        {showLabels ? <span>{tReport('executiveSummary.pdfButton')}</span> : null}
       </button>
     </div>
   )
@@ -265,6 +266,16 @@ export function SiteNavbar({
 
   const activeAdminTab = isAdmin ? (adminTabFromPath(pathname) || 'overview') : null
 
+  /** Close report after tab change so we don't flash the page under the modal. */
+  const onAdminNavClick = useCallback((tab) => (event) => {
+    if (user?.role !== 'admin' || !reportModalOpen) return
+    if (activeAdminTab === tab) {
+      event.preventDefault()
+      onCloseReport?.()
+    }
+    // Else: Link navigates first; AppProvider pathname effect closes the report.
+  }, [user, reportModalOpen, activeAdminTab, onCloseReport])
+
   const closeReportIfOpen = useCallback(() => {
     if (user?.role === 'admin' && reportModalOpen) {
       onCloseReport?.()
@@ -282,7 +293,7 @@ export function SiteNavbar({
         href: adminTabToPath(tab),
         active: !reportModalOpen && activeAdminTab === tab,
         badge: tab === 'review' ? adminNavBadges?.review : undefined,
-        onClick: closeReportIfOpen,
+        onClick: onAdminNavClick(tab),
       }))
     }
 
@@ -327,6 +338,7 @@ export function SiteNavbar({
     hasReadyReport,
     pathname,
     reportModalOpen,
+    onAdminNavClick,
     t,
     tAdmin,
   ])

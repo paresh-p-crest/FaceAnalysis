@@ -28,6 +28,7 @@ from ..repositories.password_reset_repository import (
     mark_reset_token_used,
 )
 from ..repositories.user_repository import (
+    count_users,
     create_user,
     delete_user_and_related_data,
     get_user_by_email,
@@ -271,11 +272,14 @@ async def admin_check(current_user: dict = Depends(require_admin)):
 
 
 @router.get("/users")
-async def get_users(limit: int = 100, current_user: dict = Depends(require_admin)):
+async def get_users(limit: int = 50, offset: int = 0, current_user: dict = Depends(require_admin)):
     if not is_db_configured():
         raise HTTPException(status_code=503, detail="Database not configured")
-    limit = min(max(1, limit), 250)
-    return {"items": await list_users(limit=limit)}
+    limit = min(max(1, limit), 100)
+    offset = max(0, offset)
+    items = await list_users(limit=limit, offset=offset)
+    total = await count_users()
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 @router.delete("/users/{user_id}")

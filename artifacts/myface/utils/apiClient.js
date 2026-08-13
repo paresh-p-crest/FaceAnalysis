@@ -383,14 +383,22 @@ export async function fetchMyPhotoCatalog({ limit = 20 } = {}) {
     .sort((a, b) => new Date(b.date) - new Date(a.date))
 }
 
-export async function fetchAdminAssessments(limit = 50) {
+export async function fetchAdminAssessments(limitOrOpts = 50, offset = 0) {
+  const opts = typeof limitOrOpts === 'object' && limitOrOpts
+    ? limitOrOpts
+    : { limit: limitOrOpts, offset }
+  const limit = opts.limit ?? 50
+  const off = opts.offset ?? 0
+  const params = new URLSearchParams({ limit: String(limit), offset: String(off) })
+  if (opts.status) params.set('status', opts.status)
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/assessments?limit=${limit}`, {
+  const res = await fetch(`${base}/api/assessments?${params}`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_ASSESSMENTS_FAILED)
-  return data.items || []
+  const items = data.items || []
+  return { items, total: data.total ?? items.length, limit: data.limit ?? limit, offset: data.offset ?? off }
 }
 
 export async function updateAssessmentStatus(assessmentId, status) {
@@ -639,14 +647,21 @@ export async function fetchAdminPayments() {
   return []
 }
 
-export async function fetchAdminUsers(limit = 100) {
+export async function fetchAdminUsers(limitOrOpts = 50, offset = 0) {
+  const opts = typeof limitOrOpts === 'object' && limitOrOpts
+    ? limitOrOpts
+    : { limit: limitOrOpts, offset }
+  const limit = opts.limit ?? 50
+  const off = opts.offset ?? 0
+  const params = new URLSearchParams({ limit: String(limit), offset: String(off) })
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/api/auth/users?limit=${limit}`, {
+  const res = await fetch(`${base}/api/auth/users?${params}`, {
     headers: authHeaders(),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throwApiError(res, data, ERROR_KEYS.LOAD_USERS_FAILED)
-  return data.items || []
+  const items = data.items || []
+  return { items, total: data.total ?? items.length, limit: data.limit ?? limit, offset: data.offset ?? off }
 }
 
 export async function createStripeCheckout() {

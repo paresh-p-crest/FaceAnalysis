@@ -168,13 +168,42 @@ async def get_assessment_by_id(assessment_id: str) -> Optional[dict]:
 ASSESSMENT_SUMMARY_PROJECTION = {}  # kept for import compatibility; summary shaping is in _summary_dict
 
 
-async def list_assessments(limit: int = 20, *, summary: bool = True) -> list[dict]:
+def _list_clauses(*, status: Optional[str] = None) -> list:
+    clauses = [Assessment.deleted_at.is_(None)]
+    if not status:
+        return clauses
+    normalized = status.strip().lower().replace(" ", "_")
+    if normalized == "approved":
+        clauses.append(Assessment.status.in_([AssessmentStatus.approved, AssessmentStatus.published]))
+    elif normalized == "pending_review":
+        clauses.append(Assessment.status == AssessmentStatus.pending_review)
+    elif normalized == "draft":
+        clauses.append(Assessment.status == AssessmentStatus.draft)
+    return clauses
+
+
+async def count_assessments(*, status: Optional[str] = None) -> int:
+    clauses = _list_clauses(status=status)
+    async with session_scope() as session:
+        result = await session.execute(select(func.count()).select_from(Assessment).where(*clauses))
+        return int(result.scalar() or 0)
+
+
+async def list_assessments(
+    limit: int = 50,
+    offset: int = 0,
+    *,
+    summary: bool = True,
+    status: Optional[str] = None,
+) -> list[dict]:
+    clauses = _list_clauses(status=status)
     async with session_scope() as session:
         result = await session.execute(
             select(Assessment)
-            .where(Assessment.deleted_at.is_(None))
+            .where(*clauses)
             .order_by(Assessment.created_at.desc())
             .limit(limit)
+            .offset(offset)
         )
         rows = result.scalars().all()
         mapper = _summary_dict if summary else _assessment_to_dict

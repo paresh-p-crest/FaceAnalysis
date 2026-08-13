@@ -41,20 +41,21 @@ export function ReportModal({
 
   return (
     <div
-      className="fixed inset-0 z-30 flex flex-col"
+      className="fixed inset-0 z-30 flex flex-col report-modal-shell"
       style={{ backgroundColor: 'var(--color-surface)' }}
     >
+      <div className="report-modal-shell__ambient" aria-hidden />
       {withNavbarOffset && (
         <>
           {/* Clear the fixed navbar */}
           <div
-            className="shrink-0"
+            className="shrink-0 relative z-[1]"
             style={{ height: 'var(--site-navbar-height)' }}
             aria-hidden
           />
-          {/* Mint gap between navbar and report */}
+          {/* Mint gap between navbar and report card */}
           <div
-            className="shrink-0"
+            className="shrink-0 relative z-[1]"
             style={{
               height: 'var(--site-navbar-gap)',
               backgroundColor: 'var(--color-surface)',
@@ -63,7 +64,7 @@ export function ReportModal({
           />
         </>
       )}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden relative z-[1]">
         <Report
           key={cloudAssessment?.id || analysis?.assessmentId || historyId || 'report'}
           photo={photo}

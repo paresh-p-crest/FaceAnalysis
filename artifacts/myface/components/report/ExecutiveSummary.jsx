@@ -88,9 +88,13 @@ function RadarChart({ scores, t }) {
   )
 }
 
-function KpiCard({ label, value, parts = null }) {
+function KpiCard({ label, value, parts = null, hero = false }) {
   return (
-    <div className="rounded-xl border border-surface-border bg-white dark:bg-surface-card px-4 py-3 min-w-0">
+    <div
+      className={`dashboard-card-glass min-w-0 px-4 py-3 ${
+        hero ? 'dashboard-card-glass--hero' : ''
+      }`.trim()}
+    >
       <p className="text-[9px] font-bold uppercase tracking-wider text-ink-muted truncate">{label}</p>
       <p className="text-base font-bold mt-1 tabular-nums truncate">
         {parts?.length ? (
@@ -154,10 +158,6 @@ export function ExecutiveSummary({
   const overviewText = localized.protocolNarrative?.summary || localized.aiNarrative?.content?.summary || null
   const treatment = resolveTreatmentPhases({ protocolNarrative: localized.protocolNarrative, dash, t })
 
-  const analysisTimeLabel = dash.analysisTimeDays
-    ? t('executiveSummary.kpiAnalysisTimeValue', { days: dash.analysisTimeDays })
-    : '—'
-
   const handleShare = useCallback(async () => {
     try {
       await shareReportPage(t('executiveSummary.shareTitle'))
@@ -203,9 +203,10 @@ export function ExecutiveSummary({
         </div>
       </div>
 
-      {/* KPI strip — brand-green numbers only (same as PDF page-1 metrics) */}
+      {/* KPI strip — glass tiles; brand on values only */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <KpiCard
+          hero
           label={t('executiveSummary.kpiOverallScore')}
           parts={dash.overallScore != null
             ? [
@@ -263,12 +264,8 @@ export function ExecutiveSummary({
             alt={t('executiveSummary.originalAlt')}
             t={t}
             landmarks={landmarks}
-            overallScore={dash.overallScore}
-            evaluatedLabel={dash.evaluatedPoints
-              ? t('executiveSummary.kpiEvaluatedValue', { count: dash.evaluatedPoints })
-              : '—'}
-            analysisTimeLabel={analysisTimeLabel}
             compact
+            showSummaryMetrics={false}
           />
 
           <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted px-0.5 pt-2">

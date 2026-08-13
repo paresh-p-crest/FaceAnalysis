@@ -105,38 +105,42 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center site-navbar-offset bg-surface px-4">
-        <div className="max-w-md w-full rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
-          <p className="text-sm text-red-700 mb-4">{error}</p>
-          <button type="button" onClick={load} className="btn-primary text-sm">
-            {tHome('retry')}
-          </button>
+      <StandalonePageShell>
+        <div className="tool-page-shell__body flex items-center justify-center">
+          <div className="max-w-md w-full rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
+            <p className="text-sm text-red-700 mb-4">{error}</p>
+            <button type="button" onClick={load} className="btn-primary text-sm">
+              {tHome('retry')}
+            </button>
+          </div>
         </div>
-      </div>
+      </StandalonePageShell>
     )
   }
 
   if (!assessment) {
     return (
-      <div className="min-h-screen flex items-center justify-center site-navbar-offset bg-surface px-4">
-        <div className="max-w-lg w-full rounded-3xl border border-surface-border bg-white p-8 sm:p-10 text-center shadow-card">
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-brand/30 bg-brand/5">
-            <Sparkles className="h-6 w-6 text-brand" />
+      <StandalonePageShell>
+        <div className="tool-page-shell__body flex items-center justify-center">
+          <div className="max-w-lg w-full rounded-3xl border border-white/60 bg-white/70 p-8 sm:p-10 text-center shadow-card">
+            <div className="dashboard-icon-well mx-auto mb-5 h-14 w-14">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl text-ink tracking-tight mb-2">
+              {t('emptyTitle')}
+            </h1>
+            <p className="text-sm text-ink-secondary leading-relaxed mb-6 max-w-md mx-auto">
+              {t('needsReport')}
+            </p>
+            {onStartAssessment && (
+              <button type="button" onClick={onStartAssessment} className="btn-primary">
+                <Sparkles className="w-4 h-4" />
+                {tHome('startCta')}
+              </button>
+            )}
           </div>
-          <h1 className="font-serif text-2xl sm:text-3xl text-ink tracking-tight mb-2">
-            {t('emptyTitle')}
-          </h1>
-          <p className="text-sm text-ink-secondary leading-relaxed mb-6 max-w-md mx-auto">
-            {t('needsReport')}
-          </p>
-          {onStartAssessment && (
-            <button type="button" onClick={onStartAssessment} className="btn-primary">
-              <Sparkles className="w-4 h-4" />
-              {tHome('startCta')}
-            </button>
-          )}
         </div>
-      </div>
+      </StandalonePageShell>
     )
   }
 

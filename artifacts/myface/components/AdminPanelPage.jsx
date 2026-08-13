@@ -1,19 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useRouter } from '../i18n/navigation'
 import {
-  BarChart3,
-  CreditCard,
-  FileText,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   RefreshCw,
   RotateCcw,
-  ShieldCheck,
   Trash2,
-  User,
-  Users,
 } from 'lucide-react'
 import {
   deleteAssessment,
@@ -22,9 +18,11 @@ import {
   retryAssessmentPipeline,
   updateAssessmentStatus,
 } from '../utils/apiClient'
+import { resolveAssessmentFrontPhoto } from '../utils/assessmentPhotos'
+import { useMediaUrl } from '../utils/useMediaUrl'
 import RetryPipelineModal from './admin/RetryPipelineModal'
 import { ADMIN_TABS, adminTabToPath, persistAdminTab } from '../utils/adminPanel'
-import { isAdminResourceLoading, resourcesForAdminTab } from '../utils/adminWorkspace'
+import { ADMIN_LIST_PAGE_SIZE, isAdminResourceLoading, resourcesForAdminTab } from '../utils/adminWorkspace'
 import { formatHistoryDate } from '../utils/historyStorage'
 import { formatAssessmentRef, resolveOverallHarmonyScore } from '../utils/reportProtocolModel'
 import { isAssessmentProcessing, normalizeReportStatus, REPORT_WORKFLOW_STATUSES } from '../utils/reportWorkflow'
@@ -34,51 +32,59 @@ import ConfirmDialog from './ConfirmDialog'
 import { useApp } from './providers/AppProvider'
 
 const STATUS_STYLE = {
-  draft: 'bg-surface-warm text-ink-muted border-surface-border',
-  pending_review: 'bg-amber-50 text-amber-700 border-amber-200',
-  approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  paid: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  created: 'bg-surface-warm text-ink-muted border-surface-border',
+  draft: 'admin-status-pill admin-status-pill--muted',
+  pending_review: 'admin-status-pill admin-status-pill--amber',
+  approved: 'admin-status-pill admin-status-pill--mint',
+  paid: 'admin-status-pill admin-status-pill--mint',
+  completed: 'admin-status-pill admin-status-pill--mint',
+  pending: 'admin-status-pill admin-status-pill--amber',
+  created: 'admin-status-pill admin-status-pill--muted',
 }
 
 function StatusBadge({ status, t }) {
   const display = normalizeReportStatus(status)
   const label = display === 'pending_review' ? t('status.pendingReview') : t(`status.${display}`)
   return (
-    <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold ${STATUS_STYLE[display] || STATUS_STYLE.created}`}>
+    <span className={STATUS_STYLE[display] || STATUS_STYLE.created}>
       {label}
     </span>
   )
 }
 
-/** Admin-only live pipeline indicator (hidden from clients). */
+/** Admin-only live pipeline indicator. Ready is omitted (mixed signal with pending review). */
 function PipelineBadge({ pipeline, t }) {
   if (!pipeline) return null
   const status = pipeline.status || 'queued'
+  if (status === 'ready') return null
   const style =
     status === 'failed'
-      ? 'bg-red-50 text-red-700 border-red-200'
-      : status === 'ready'
-        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-        : 'bg-sky-50 text-sky-700 border-sky-200'
+      ? 'admin-status-pill admin-status-pill--danger admin-status-pill--loud'
+      : 'admin-status-pill admin-status-pill--sky admin-status-pill--loud'
   const label =
     status === 'running' && pipeline.stage
       ? t('pipelineRunning', { stage: pipeline.stage })
       : t(`pipelineStatus.${status}`, { default: status })
   return (
-    <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold capitalize ${style}`}>
+    <span className={`${style} capitalize`}>
       {label}
     </span>
   )
 }
 
-function money(amountCents, currency = 'usd') {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency.toUpperCase(),
-  }).format((amountCents || 0) / 100)
+function AdminThumb({ url, fallback }) {
+  const src = useMediaUrl(url)
+  const [broken, setBroken] = useState(false)
+  if (!src || broken) {
+    return <span className="admin-avatar" aria-hidden>{fallback}</span>
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      className="admin-avatar admin-avatar--photo"
+      onError={() => setBroken(true)}
+    />
+  )
 }
 
 function displayName(item, t) {
@@ -86,9 +92,16 @@ function displayName(item, t) {
   return full || item?.email || t('unknownUser')
 }
 
-function EmptyState({ title, text }) {
+function initials(item, t) {
+  const name = displayName(item, t)
+  const parts = name.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  return (parts[0] || '?').slice(0, 2).toUpperCase()
+}
+
+function EmptyState({ title, text, className = '' }) {
   return (
-    <div className="dashboard-empty-state p-8">
+    <div className={`admin-empty ${className}`}>
       <p className="font-semibold text-ink mb-1">{title}</p>
       <p className="text-sm text-ink-muted">{text}</p>
     </div>
@@ -111,6 +124,95 @@ function BusyIcon({ busy, IdleIcon }) {
   )
 }
 
+function formatSyncedLabel(syncedAt, t, _tick = 0) {
+  if (!syncedAt) return t('sync.never')
+  const seconds = Math.max(0, Math.round((Date.now() - syncedAt.getTime()) / 1000))
+  if (seconds < 45) return t('sync.justNow')
+  if (seconds < 3600) return t('sync.minutesAgo', { count: Math.max(1, Math.round(seconds / 60)) })
+  return t('sync.hoursAgo', { count: Math.max(1, Math.round(seconds / 3600)) })
+}
+
+function AdminPager({ page, pageSize, total, onPageChange, t, disabled }) {
+  const safeTotal = Math.max(0, Number(total) || 0)
+  if (safeTotal <= 0) return null
+  const pages = Math.max(1, Math.ceil(safeTotal / pageSize))
+  const from = page * pageSize + 1
+  const to = Math.min(safeTotal, (page + 1) * pageSize)
+  return (
+    <div className="admin-pager">
+      <p className="admin-pager__meta">{t('pagination.showing', { from, to, total: safeTotal })}</p>
+      <div className="admin-pager__controls">
+        <button
+          type="button"
+          className="admin-btn admin-btn--ghost"
+          disabled={disabled || page <= 0}
+          onClick={() => onPageChange(page - 1)}
+        >
+          <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+          {t('pagination.prev')}
+        </button>
+        <span className="admin-pager__page">{t('pagination.page', { page: page + 1, pages })}</span>
+        <button
+          type="button"
+          className="admin-btn admin-btn--ghost"
+          disabled={disabled || page + 1 >= pages}
+          onClick={() => onPageChange(page + 1)}
+        >
+          {t('pagination.next')}
+          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AdminCommandBar({ title, loading, canLoad, syncedLabel, onRefresh, t }) {
+  return (
+    <header className="admin-command-bar">
+      <div className="admin-command-bar__left">
+        <h1 className="admin-command-bar__title">{title}</h1>
+      </div>
+      <div className="admin-command-bar__right">
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading || !canLoad}
+          className="admin-btn admin-btn--ghost"
+        >
+          <BusyIcon busy={loading} IdleIcon={RefreshCw} />
+          {t('refresh')}
+        </button>
+        <span className="admin-command-bar__sync">{syncedLabel}</span>
+      </div>
+    </header>
+  )
+}
+
+function AdminOverviewSkeleton() {
+  return (
+    <div className="admin-overview admin-fade-in" aria-hidden>
+      <div className="admin-metrics">
+        <div className="admin-priority-card admin-skel" />
+        <div className="admin-metric-stack">
+          <div className="admin-metric-readout admin-skel" />
+          <div className="admin-metric-readout admin-skel" />
+          <div className="admin-metric-readout admin-skel" />
+        </div>
+      </div>
+      <div className="admin-worklist admin-panel-tier-1">
+        <div className="admin-worklist__header">
+          <div className="admin-skel admin-skel--line w-40 h-4" />
+        </div>
+        <div className="admin-worklist__body space-y-2 p-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="admin-worklist-row admin-skel h-16" />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
   const t = useTranslations('Admin.panel')
   const tPipeline = useTranslations('Admin.pipeline')
@@ -118,14 +220,20 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
   const tCommon = useTranslations('Admin.common')
   const router = useRouter()
   const { adminWorkspace, loadAdminTab, refreshAdminTab, patchAdminWorkspace, afterAssessmentDeleted, openingReportId } = useApp()
-  const { assessments, payments, users, loading: resourceLoading, error: workspaceError } = adminWorkspace
+  const { assessments, payments, users, assessmentsTotal = 0, usersTotal = 0, loading: resourceLoading, error: workspaceError } = adminWorkspace
   const [deletingId, setDeletingId] = useState('')
   const [updatingId, setUpdatingId] = useState('')
   const [retryingId, setRetryingId] = useState('')
   const [retryModalAssessment, setRetryModalAssessment] = useState(null)
   const [error, setError] = useState('')
   const [reportFilter, setReportFilter] = useState('all')
+  const [usersPage, setUsersPage] = useState(0)
+  const [reportsPage, setReportsPage] = useState(0)
   const [confirmState, setConfirmState] = useState(null)
+  const [syncedAt, setSyncedAt] = useState(null)
+  const [syncTick, setSyncTick] = useState(0)
+  const [worklistTab, setWorklistTab] = useState(null)
+  const wasLoadingRef = useRef(false)
 
   const canLoad = !!user && user.role === 'admin' && isBackendApiEnabled()
   const tabResources = resourcesForAdminTab(activeTab)
@@ -143,18 +251,39 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     }
   }, [activeTab])
 
+  const pagingOpts = useMemo(() => ({
+    usersOffset: activeTab === 'users' ? usersPage * ADMIN_LIST_PAGE_SIZE : 0,
+    assessmentsOffset: activeTab === 'review' ? reportsPage * ADMIN_LIST_PAGE_SIZE : 0,
+    assessmentStatus: activeTab === 'review' && reportFilter !== 'all' ? reportFilter : undefined,
+  }), [activeTab, usersPage, reportsPage, reportFilter])
+
   useEffect(() => {
     if (!canLoad || !activeTab) return
-    loadAdminTab(activeTab)
-  }, [activeTab, canLoad, loadAdminTab])
+    loadAdminTab(activeTab, pagingOpts)
+  }, [activeTab, canLoad, loadAdminTab, pagingOpts])
 
   useEffect(() => {
     if (workspaceError) setError(translateApiError({ message: workspaceError, code: workspaceError }, tErrors))
   }, [workspaceError, tErrors])
 
+  useEffect(() => {
+    if (wasLoadingRef.current && !loading && canLoad) {
+      setSyncedAt(new Date())
+    } else if (!loading && canLoad && !syncedAt) {
+      setSyncedAt(new Date())
+    }
+    wasLoadingRef.current = loading
+  }, [loading, canLoad, syncedAt])
+
+  useEffect(() => {
+    if (!syncedAt) return undefined
+    const id = setInterval(() => setSyncTick((n) => n + 1), 30_000)
+    return () => clearInterval(id)
+  }, [syncedAt])
+
   const handleRefresh = () => {
     if (!canLoad || !activeTab) return
-    refreshAdminTab(activeTab)
+    refreshAdminTab(activeTab, pagingOpts)
   }
 
   useEffect(() => {
@@ -198,12 +327,19 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     [visibleAssessments],
   )
 
-  const filteredReports = useMemo(() => {
-    if (reportFilter === 'all') return visibleAssessments
-    return visibleAssessments.filter((item) => normalizeReportStatus(item.status) === reportFilter)
-  }, [visibleAssessments, reportFilter])
+  const filteredReports = visibleAssessments
 
   const clientUsers = users.filter((item) => item.role !== 'admin')
+
+  const resolvedWorklistTab = worklistTab
+    ?? (readyForReviewCount > 0 ? 'reports' : 'clients')
+
+  const pageTitle =
+    activeTab === 'users'
+      ? t('commandBarTitleUsers')
+      : activeTab === 'review'
+        ? t('commandBarTitleReview')
+        : t('commandBarTitle')
 
   const handleStatusChange = async (assessmentId, status) => {
     setUpdatingId(assessmentId)
@@ -233,6 +369,7 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
           await deleteAssessment(assessmentId)
           patchAdminWorkspace({
             assessments: assessments.filter((item) => item.id !== assessmentId),
+            assessmentsTotal: Math.max(0, assessmentsTotal - 1),
           })
           await afterAssessmentDeleted?.(assessmentId)
         } catch (err) {
@@ -263,7 +400,9 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
           await deleteAdminUser(targetUser.id)
           patchAdminWorkspace({
             users: users.filter((item) => item.id !== targetUser.id),
+            usersTotal: Math.max(0, usersTotal - 1),
             assessments: assessments.filter((item) => item.userId !== targetUser.id),
+            assessmentsTotal: Math.max(0, assessmentsTotal - (targetUser.assessmentCount || 0)),
             payments: payments.filter((item) => item.userId !== targetUser.id),
           })
         } catch (err) {
@@ -306,19 +445,6 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     }
   }
 
-  const renderClientCell = (assessment) => {
-    const owner = assessment.userId ? userById[assessment.userId] : null
-    if (owner) {
-      return (
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink truncate">{displayName(owner, t)}</p>
-          <p className="text-xs text-ink-muted truncate">{owner.email}</p>
-        </div>
-      )
-    }
-    return <span className="text-xs text-amber-700">{t('unlinkedReport')}</span>
-  }
-
   const handleOpenAssessment = (assessment) => {
     setError('')
     // Do not pre-fetch here — viewCloudAssessment sets openingReportId
@@ -326,220 +452,272 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     onViewCloudItem?.(assessment)
   }
 
-  const renderReportRow = (assessment, { showStatus = false } = {}) => {
-    const score = resolveOverallHarmonyScore(assessment.analysis) ?? '—'
+  const renderReportActions = (assessment) => {
     const normalizedStatus = normalizeReportStatus(assessment.status)
-    const refLabel = formatAssessmentRef(assessment)
     const processing = isAssessmentProcessing(assessment)
     const isDraft = normalizedStatus === 'draft'
     const failed = isPipelineFailed(assessment.pipeline)
+    const pending = normalizedStatus === 'pending_review'
+
+    if (processing) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-ink-muted">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" aria-hidden />
+          {t('actions.pipelineRunning')}
+        </span>
+      )
+    }
+    if (isDraft) {
+      return (
+        <p className="admin-draft-note">
+          {t('draftNotSubmitted')}
+        </p>
+      )
+    }
+    if (failed) {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => setRetryModalAssessment(assessment)}
+            disabled={retryingId === assessment.id}
+            className="admin-btn admin-btn--primary"
+          >
+            <BusyIcon busy={retryingId === assessment.id} IdleIcon={RotateCcw} />
+            {t('actions.retry')}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDeleteAssessment(assessment.id)}
+            disabled={deletingId === assessment.id}
+            className="admin-btn admin-btn--danger-quiet"
+            aria-label={t('actions.delete')}
+          >
+            <BusyIcon busy={deletingId === assessment.id} IdleIcon={Trash2} />
+          </button>
+        </>
+      )
+    }
     return (
-      <div key={assessment.id} className="rounded-xl border border-landing-divider bg-white p-4 transition-colors hover:border-brand/20">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 flex-1 space-y-2">
-            {renderClientCell(assessment)}
-            <div className="flex flex-wrap items-center gap-2">
-              {showStatus && <StatusBadge status={assessment.status} t={t} />}
-              <PipelineBadge pipeline={assessment.pipeline} t={t} />
-            </div>
-            <p className="micro-label !normal-case !tracking-normal !text-[11px] text-ink-muted">
-              #{refLabel} · {formatHistoryDate(assessment.createdAt)} · {t('scoreLabel', { score })}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 shrink-0 lg:justify-end lg:max-w-xs lg:text-right">
-            {processing ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-ink-muted">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" aria-hidden />
-                {t('actions.pipelineRunning')}
-              </span>
-            ) : isDraft ? (
-              <p className="px-1 py-2 text-xs leading-relaxed text-ink-muted">
-                {t('draftNotSubmitted')}
-              </p>
-            ) : failed ? (
-              <>
-                <button
-                  onClick={() => setRetryModalAssessment(assessment)}
-                  disabled={retryingId === assessment.id}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand/20 bg-brand-50 text-xs font-semibold text-brand hover:bg-brand/10 transition-colors disabled:opacity-50"
-                >
-                  <BusyIcon busy={retryingId === assessment.id} IdleIcon={RotateCcw} />
-                  {t('actions.retry')}
-                </button>
-                <button
-                  onClick={() => handleDeleteAssessment(assessment.id)}
-                  disabled={deletingId === assessment.id}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
-                >
-                  <BusyIcon busy={deletingId === assessment.id} IdleIcon={Trash2} />
-                  {t('actions.delete')}
-                </button>
-              </>
-            ) : (
-              <>
-                {normalizedStatus === 'pending_review' && (
-                  <button
-                    onClick={() => handleApprove(assessment)}
-                    disabled={updatingId === assessment.id}
-                    className="px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                  >
-                    {t('actions.approve')}
-                  </button>
+      <>
+        <button
+          type="button"
+          onClick={() => handleOpenAssessment(assessment)}
+          disabled={openingReportId === assessment.id}
+          className={pending ? 'admin-btn admin-btn--secondary' : 'admin-btn admin-btn--primary'}
+        >
+          {openingReportId === assessment.id ? t('actions.opening') : t('actions.open')}
+        </button>
+        {pending && (
+          <button
+            type="button"
+            onClick={() => handleApprove(assessment)}
+            disabled={updatingId === assessment.id}
+            className="admin-btn admin-btn--primary"
+          >
+            {t('actions.approve')}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => handleDeleteAssessment(assessment.id)}
+          disabled={deletingId === assessment.id}
+          className="admin-btn admin-btn--danger-quiet"
+          aria-label={t('actions.delete')}
+        >
+          <BusyIcon busy={deletingId === assessment.id} IdleIcon={Trash2} />
+        </button>
+      </>
+    )
+  }
+
+  const renderReportRow = (assessment, { showStatus = false } = {}) => {
+    const rawScore = resolveOverallHarmonyScore(assessment.analysis)
+    const hasScore = rawScore != null && Number.isFinite(Number(rawScore))
+    const score = hasScore ? rawScore : null
+    const refLabel = formatAssessmentRef(assessment)
+    const owner = assessment.userId ? userById[assessment.userId] : null
+    const thumb = resolveAssessmentFrontPhoto(assessment)
+    return (
+      <div
+        key={assessment.id}
+        className={`admin-worklist-row admin-row-tier-2 admin-worklist-row--tracks${hasScore ? '' : ' admin-worklist-row--no-score'}`}
+      >
+        <div className="admin-worklist-row__identity-track">
+          <div className="admin-worklist-row__identity">
+            <AdminThumb
+              url={thumb}
+              fallback={owner ? initials(owner, t) : '?'}
+            />
+            <div className="admin-worklist-row__who min-w-0">
+              <div className="admin-worklist-row__who-top">
+                {owner ? (
+                  <p className="admin-worklist-row__name">{displayName(owner, t)}</p>
+                ) : (
+                  <span className="text-xs text-amber-700">{t('unlinkedReport')}</span>
                 )}
-                <button
-                  onClick={() => handleOpenAssessment(assessment)}
-                  disabled={openingReportId === assessment.id}
-                  className="px-3 py-2 rounded-xl bg-white dark:bg-surface-card border border-surface-border text-xs font-semibold text-ink-secondary hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-50"
-                >
-                  {openingReportId === assessment.id ? t('actions.opening') : t('actions.open')}
-                </button>
-                <button
-                  onClick={() => handleDeleteAssessment(assessment.id)}
-                  disabled={deletingId === assessment.id}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
-                >
-                  <BusyIcon busy={deletingId === assessment.id} IdleIcon={Trash2} />
-                  {t('actions.delete')}
-                </button>
-              </>
-            )}
+                <div className="admin-worklist-row__status-track">
+                  {showStatus && <StatusBadge status={assessment.status} t={t} />}
+                  <PipelineBadge pipeline={assessment.pipeline} t={t} />
+                </div>
+              </div>
+              {owner?.email && (
+                <p className="admin-worklist-row__meta truncate">{owner.email}</p>
+              )}
+            </div>
           </div>
+          <p className="admin-worklist-row__meta admin-worklist-row__meta--indent">
+            <span className="admin-worklist-row__ref">#{refLabel}</span>
+            <span aria-hidden> · </span>
+            <span>{formatHistoryDate(assessment.createdAt)}</span>
+          </p>
+        </div>
+        {hasScore && (
+          <div className="admin-worklist-row__score-track" title={t('scoreLabel', { score })}>
+            <span className="admin-worklist-row__score-label">{t('scoreColumn')}</span>
+            <span className="admin-worklist-row__score-value">{score}</span>
+          </div>
+        )}
+        <div className="admin-worklist-row__actions">
+          {renderReportActions(assessment)}
         </div>
       </div>
     )
   }
 
+  const showSkeleton = loading && assessments.length === 0 && users.length === 0
+
   return (
-    <div className="relative min-h-screen bg-surface font-sans text-ink">
-      {/* Explicit clear + mint gap under fixed navbar (padding alone was covered by bleed hero/gradients) */}
+    <div className="admin-shell relative min-h-screen font-sans text-ink">
+      {/* Clear fixed navbar only — no --site-navbar-gap (that seam read as a hole). */}
       <div className="shrink-0 h-[var(--site-navbar-height)]" aria-hidden />
-      <div className="shrink-0 h-[var(--site-navbar-gap)] bg-surface" aria-hidden />
 
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 h-[420px] -z-0"
-        style={{
-          top: 'var(--site-navbar-offset)',
-          background:
-            'radial-gradient(900px 360px at 12% 0%, rgba(94, 159, 139, 0.14), transparent 58%), radial-gradient(700px 280px at 88% 0%, rgba(255, 255, 255, 0.5), transparent 55%)',
-        }}
-      />
+      <div aria-hidden className="admin-ambient-bloom" />
 
-      <section className="relative z-10 dashboard-hero-band dashboard-hero-band--bleed surface-grain">
-        <div className="relative z-10 flex w-full flex-col gap-6 px-4 py-7 sm:px-6 sm:py-8 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="dashboard-icon-well h-11 w-11">
-              <ShieldCheck className="h-5 w-5" aria-hidden />
-            </span>
-            <div className="min-w-0">
-              <p className="micro-label !text-brand mb-1">{t('eyebrow')}</p>
-              <h1 className="font-serif text-[32px] sm:text-[36px] leading-tight tracking-tight text-ink">
-                {t('title')}
-              </h1>
-              <p className="text-sm text-ink-secondary mt-1">{t('subtitle')}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={loading || !canLoad}
-            className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-white/70 bg-white/60 px-4 py-2.5 text-xs font-semibold text-ink-secondary backdrop-blur-md transition-colors hover:bg-white/90 hover:text-brand disabled:opacity-50"
-          >
-            <BusyIcon busy={loading} IdleIcon={RefreshCw} />
-            {t('refresh')}
-          </button>
-        </div>
-      </section>
+      <div className="relative z-10 sticky top-[var(--site-navbar-height)]">
+        <AdminCommandBar
+          title={pageTitle}
+          loading={loading}
+          canLoad={canLoad}
+          syncedLabel={formatSyncedLabel(syncedAt, t, syncTick)}
+          onRefresh={handleRefresh}
+          t={t}
+        />
+      </div>
 
-      <main className="relative z-10 w-full px-4 sm:px-6 lg:px-8 pb-24 pt-6 space-y-6">
+      <main className="relative z-10 w-full px-4 sm:px-6 lg:px-8 pb-24 pt-3 space-y-5">
         {error && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         )}
 
         {!isBackendApiEnabled() ? (
           <EmptyState title={t('empty.backendRequiredTitle')} text={t('empty.backendRequiredText')} />
         ) : !user || user.role !== 'admin' ? (
           <EmptyState title={t('empty.adminRequiredTitle')} text={t('empty.adminRequiredText')} />
-        ) : loading && assessments.length === 0 ? (
-          <div className="py-16 text-center">
-            <Loader2 className="w-7 h-7 text-brand animate-spin mx-auto mb-3" />
-            <p className="text-sm text-ink-muted">{t('loadingWorkspace')}</p>
-          </div>
+        ) : showSkeleton ? (
+          <AdminOverviewSkeleton />
         ) : (
           <>
             {activeTab === 'overview' && (
-              <div className="space-y-6">
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {[
-                    ['users', clientUsers.length, Users],
-                    ['reports', reportStats.total, FileText],
-                    ['pendingReview', reportStats.pending_review, ShieldCheck],
-                    ['approved', reportStats.approved, BarChart3],
-                  ].map(([key, value, Icon]) => (
-                    <div key={key} className="dashboard-card flex flex-col gap-3">
-                      <span className="dashboard-icon-well-stat self-start">
-                        <Icon className="w-4 h-4 text-brand" aria-hidden />
-                      </span>
-                      <div>
-                        <p className="micro-label">{t(`stats.${key}`)}</p>
-                        <p className="mt-1 text-[28px] font-semibold tracking-tight tabular-nums text-ink">{value}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {(processingCount > 0 || readyForReviewCount > 0) && (
-                  <div className="space-y-3">
+              <div className="admin-overview admin-fade-in space-y-4">
+                <div className="admin-hero-band admin-metrics">
+                  <button
+                    type="button"
+                    className={`admin-priority-card admin-panel-tier-1 admin-panel-tier-1--strong ${readyForReviewCount > 0 ? 'admin-priority-card--active' : ''}`}
+                    onClick={() => changeTab('review')}
+                  >
+                    <p className="admin-label">{t('stats.pendingReview')}</p>
+                    <p className="admin-priority-card__value">{readyForReviewCount}</p>
+                    <p className="admin-priority-card__desc">
+                      {readyForReviewCount > 0
+                        ? t('pendingReviewDescription', { count: readyForReviewCount })
+                        : t('queueClear')}
+                    </p>
                     {processingCount > 0 && (
-                      <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <p className="text-sm text-sky-800 font-medium">{t('processingBanner', { count: processingCount })}</p>
-                      </div>
+                      <p className="admin-priority-card__aside">{t('processingAside', { count: processingCount })}</p>
                     )}
-                    {readyForReviewCount > 0 && (
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <p className="text-sm text-amber-800 font-medium">{t('pendingBanner', { count: readyForReviewCount })}</p>
-                        <button type="button" onClick={() => changeTab('review')} className="btn-primary text-sm">{t('reviewReports')}</button>
+                    <span className="admin-priority-card__cta">{t('viewReviewQueue')}</span>
+                  </button>
+
+                  <div className="admin-metric-stack admin-panel-tier-1">
+                    {[
+                      ['users', usersTotal || clientUsers.length],
+                      ['reports', assessmentsTotal || reportStats.total],
+                      ['approved', reportStats.approved],
+                    ].map(([key, value]) => (
+                      <div key={key} className="admin-metric-readout">
+                        <span className="admin-metric-readout__value">{value}</span>
+                        <span className="admin-label">{t(`stats.${key}`)}</span>
                       </div>
+                    ))}
+                  </div>
+                </div>
+
+                <section className="admin-worklist admin-panel-tier-1">
+                  <div className="admin-worklist__header">
+                    <div className="admin-segment" role="tablist" aria-label={t('latestReports')}>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={resolvedWorklistTab === 'reports'}
+                        className={`admin-segment__btn ${resolvedWorklistTab === 'reports' ? 'is-active' : ''}`}
+                        onClick={() => setWorklistTab('reports')}
+                      >
+                        {t('latestReports')}
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={resolvedWorklistTab === 'clients'}
+                        className={`admin-segment__btn ${resolvedWorklistTab === 'clients' ? 'is-active' : ''}`}
+                        onClick={() => setWorklistTab('clients')}
+                      >
+                        {t('recentClients')}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="admin-worklist__body">
+                    {resolvedWorklistTab === 'clients' ? (
+                      clientUsers.length === 0 ? (
+                        <EmptyState title={t('users.emptyTitle')} text={t('users.emptyText')} />
+                      ) : (
+                        clientUsers.slice(0, 8).map((item) => (
+                          <div key={item.id} className="admin-worklist-row admin-row-tier-2">
+                            <div className="admin-worklist-row__identity">
+                              <span className="admin-avatar" aria-hidden>{initials(item, t)}</span>
+                              <div className="min-w-0">
+                                <p className="admin-worklist-row__name">{displayName(item, t)}</p>
+                                <p className="admin-worklist-row__meta truncate">{item.email}</p>
+                              </div>
+                            </div>
+                            <span className="admin-worklist-row__aside">
+                              {t('reportCount', { count: reportCountByUser[item.id] || 0 })}
+                            </span>
+                          </div>
+                        ))
+                      )
+                    ) : visibleAssessments.length === 0 ? (
+                      <EmptyState title={t('review.emptyTitle')} text={t('empty.noReportsText')} />
+                    ) : (
+                      visibleAssessments.slice(0, 8).map((assessment) =>
+                        renderReportRow(assessment, { showStatus: true }),
+                      )
                     )}
                   </div>
-                )}
-                <div className="grid lg:grid-cols-2 gap-6">
-                  <section className="dashboard-panel p-5 sm:p-6">
-                    <h2 className="micro-label !text-brand mb-4">{t('recentClients')}</h2>
-                    <div className="space-y-2">
-                      {clientUsers.slice(0, 5).map((item) => (
-                        <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-landing-divider bg-white px-4 py-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-ink truncate">{displayName(item, t)}</p>
-                            <p className="text-xs text-ink-muted truncate">{item.email}</p>
-                          </div>
-                          <span className="text-xs font-medium text-ink-muted shrink-0">{t('reportCount', { count: reportCountByUser[item.id] || 0 })}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                  <section className="dashboard-panel p-5 sm:p-6">
-                    <h2 className="micro-label !text-brand mb-4">{t('latestReports')}</h2>
-                    <div className="space-y-3">
-                      {visibleAssessments.slice(0, 5).map((assessment) => renderReportRow(assessment, { showStatus: true }))}
-                    </div>
-                  </section>
-                </div>
+                </section>
               </div>
             )}
 
             {activeTab === 'users' && (
-              <section className="dashboard-panel overflow-hidden">
-                <div className="px-5 py-4 sm:px-6 border-b border-landing-divider flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-ink tracking-tight">{t('users.title')}</h2>
-                  </div>
-                </div>
+              <section className="admin-panel-tier-1 overflow-hidden admin-fade-in">
                 {users.length === 0 ? (
-                  <div className="p-8"><EmptyState title={t('users.emptyTitle')} text={t('users.emptyText')} /></div>
+                  <EmptyState title={t('users.emptyTitle')} text={t('users.emptyText')} className="m-4" />
                 ) : (
+                  <>
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
-                      <thead className="bg-surface-warm dark:bg-surface-raised text-left text-xs text-ink-muted">
+                      <thead className="bg-[rgba(4,33,29,0.03)] text-left text-xs text-ink-muted">
                         <tr>
                           <th className="px-5 py-3 font-semibold">{t('users.columns.name')}</th>
                           <th className="px-5 py-3 font-semibold">{t('users.columns.email')}</th>
@@ -551,26 +729,27 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
                       </thead>
                       <tbody>
                         {users.map((item) => (
-                          <tr key={item.id} className="border-t border-surface-border">
+                          <tr key={item.id} className="border-t border-[var(--admin-border)]">
                             <td className="px-5 py-3 font-medium text-ink">{displayName(item, t)}</td>
                             <td className="px-5 py-3 text-ink-secondary">{item.email}</td>
                             <td className="px-5 py-3">
-                              <span className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-semibold uppercase ${
+                              <span className={`admin-status-pill ${
                                 item.role === 'admin'
-                                  ? 'bg-brand-50 text-brand border-brand/20'
-                                  : 'bg-surface-warm text-ink-muted border-surface-border'
+                                  ? 'admin-status-pill--mint'
+                                  : 'admin-status-pill--muted'
                               }`}>
                                 {item.role === 'admin' ? t('users.roleAdmin') : t('users.roleUser')}
                               </span>
                             </td>
-                            <td className="px-5 py-3">{reportCountByUser[item.id] || 0}</td>
+                            <td className="px-5 py-3 tabular-nums">{item.assessmentCount ?? reportCountByUser[item.id] ?? 0}</td>
                             <td className="px-5 py-3 text-ink-muted">{formatHistoryDate(item.createdAt)}</td>
                             <td className="px-5 py-3 text-right">
                               {item.role !== 'admin' && (
                                 <button
+                                  type="button"
                                   onClick={() => handleDeleteUser(item)}
                                   disabled={deletingId === item.id}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                                  className="admin-btn admin-btn--danger-quiet"
                                 >
                                   <BusyIcon busy={deletingId === item.id} IdleIcon={Trash2} />
                                   {t('actions.delete')}
@@ -582,27 +761,32 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
                       </tbody>
                     </table>
                   </div>
+                  <AdminPager
+                    page={usersPage}
+                    pageSize={ADMIN_LIST_PAGE_SIZE}
+                    total={usersTotal}
+                    onPageChange={setUsersPage}
+                    t={t}
+                    disabled={loading}
+                  />
+                  </>
                 )}
               </section>
             )}
 
             {activeTab === 'review' && (
-              <section className="space-y-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-ink tracking-tight">{t('review.title')}</h2>
-                  <p className="text-xs text-ink-muted mt-0.5">{t('review.subtitle')}</p>
-                </div>
+              <section className="space-y-4 admin-fade-in">
+                <p className="text-xs text-ink-muted">{t('review.subtitle')}</p>
                 <div className="flex flex-wrap gap-2">
                   {['all', ...REPORT_WORKFLOW_STATUSES.map((s) => s.value)].map((filter) => (
                     <button
                       key={filter}
                       type="button"
-                      onClick={() => setReportFilter(filter)}
-                      className={`px-3 py-1.5 rounded-full border text-xs font-semibold capitalize transition-colors ${
-                        reportFilter === filter
-                          ? 'bg-brand text-white border-brand shadow-brand'
-                          : 'bg-white border-landing-divider text-ink-secondary hover:border-brand/30 hover:text-brand'
-                      }`}
+                      onClick={() => {
+                        setReportFilter(filter)
+                        setReportsPage(0)
+                      }}
+                      className={`admin-filter-chip ${reportFilter === filter ? 'is-active' : ''}`}
                     >
                       {filter === 'all' ? t('filters.all') : t(`status.${filter === 'pending_review' ? 'pendingReview' : filter}`)}
                     </button>
@@ -611,15 +795,22 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
                 {filteredReports.length === 0 ? (
                   <EmptyState title={t('review.emptyTitle')} text={t('review.emptyText')} />
                 ) : (
-                  <div className="space-y-3">
-                    {filteredReports.map((assessment) => renderReportRow(assessment, { showStatus: reportFilter === 'all' }))}
+                  <div className="admin-worklist admin-panel-tier-1">
+                    <div className="admin-worklist__body">
+                      {filteredReports.map((assessment) => renderReportRow(assessment, { showStatus: reportFilter === 'all' }))}
+                    </div>
+                    <AdminPager
+                      page={reportsPage}
+                      pageSize={ADMIN_LIST_PAGE_SIZE}
+                      total={assessmentsTotal}
+                      onPageChange={setReportsPage}
+                      t={t}
+                      disabled={loading}
+                    />
                   </div>
                 )}
               </section>
             )}
-
-
-
           </>
         )}
       </main>

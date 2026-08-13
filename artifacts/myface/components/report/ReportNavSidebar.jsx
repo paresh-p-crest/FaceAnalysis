@@ -158,7 +158,7 @@ export function ReportNavSidebar({
       </div>
 
       <div className="hidden lg:flex flex-col h-full min-h-0">
-        <div className="flex items-center justify-between gap-2 mb-4 px-2 shrink-0">
+        <div className="report-view-sidebar-header flex items-center justify-between gap-2 mb-4 px-2 shrink-0 sticky top-0 z-10">
           <p className="text-[10px] uppercase tracking-wider text-ink-muted font-semibold">
             {t(titleKey)}
           </p>
