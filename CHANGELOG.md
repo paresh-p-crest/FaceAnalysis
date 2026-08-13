@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file. The format 
 - **Admin navbar** — Removed user-count badge from the Users tab; pending-review badge on Review tab unchanged.
 
 ### Fixed
+- **Ear contour crops restored** — Parsing stores landmarker **contour cutouts** (`ear_landmarker_contour`) on `earsLeft`/`earsRight` whenever landmarks exist (not gated on `earCapture.proper`). SegFormer squares stay on `*Segformer` suffix keys only. Ears tab shows contour crops for the active naso-aural profile pose — never SegFormer squares or full profile photos.
+- **Naso-aural unavailable UX** — When no profile has usable ear landmarks, proportions naso-aural hides the profile plate and prompts contact support. Improper landmarker sides still `status: failed` for hero crops; contour crop rejects thin slivers.
+- **Right/left profile pose false reject** — `evaluateNoseRatioPose` now passes when detected pose matches expected even if `noseRatio` exceeds the 0–1 band (common at 90° when the nose sits past MediaPipe face-width landmarks). Fixes “Face is right profile, expected right profile” blocking valid uploads.
 - **Preview card N/A replacements** — Swapped empty summary cards: Brow Virility → Brow Thickness, Lip Health → Philtrum Proportion, Cheekbone Height → Cheekbone Prominence, Teeth Exposure → Lip Balance, Teeth Color → Nasolabial Fold, Neck Aging → Transition Angle. Bottom "All metrics" tables unchanged.
 
 ### Added
