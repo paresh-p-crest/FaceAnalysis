@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslations, useLocale } from 'next-intl'
 import { EyeReportPanel } from '../EyeReportPanel'
 import { SymmetryOverlay, FaceShapeOverlay } from './FaceImageFrame'
@@ -25,7 +26,8 @@ import { AiVisualsSection } from '../AiVisualsSection'
 import { AI_VISUAL_TYPE_BY_SECTION_ID } from './reportNavConfig'
 import { ReportSectionHeading, ReportMetricCard, ReportExplanationCard } from './ReportSectionHeading'
 import { AssessmentGridLayout, FeatureAnalysisPage } from './FeatureAnalysisPage'
-import { resolveFeatureHero } from '../../utils/featureParsing'
+import { resolveEarHeroForPose, resolveFeatureHero } from '../../utils/featureParsing'
+import { resolveMeasurementProfilePose } from '../../utils/earCapture'
 import { mediaUrl } from '../../utils/apiClient'
 import { pickLocalizedCvText, useCvLabel, SYMMETRY_REGION_LABEL_KEY } from '../../utils/cvReportLocale'
 
@@ -64,6 +66,21 @@ export function CvReportView({
   const t = useTranslations('Report')
   const locale = useLocale()
   const cvLabel = useCvLabel()
+  const posePhotos = useMemo(
+    () => ({ ...(cvReport?.photos || {}), ...(photos || {}) }),
+    [cvReport?.photos, photos],
+  )
+  const [nasoProfilePose, setNasoProfilePose] = useState(
+    () => resolveMeasurementProfilePose(cvReport?.ears) || 'rightProfile',
+  )
+
+  useEffect(() => {
+    setNasoProfilePose(resolveMeasurementProfilePose(cvReport?.ears) || 'rightProfile')
+  }, [
+    cvReport?.ears?.adminMeasurementProfilePose,
+    cvReport?.ears?.nasoAuralByPose,
+    cvReport?.ears?.measurementProfilePose,
+  ])
 
   if (activeId === 'intro') {
     return <IntroductionSection />
@@ -226,9 +243,14 @@ export function CvReportView({
         proportions={cvReport.proportions}
         landmarks={landmarks}
         photo={photo}
-        photos={photos}
+        photos={posePhotos}
         featureParsing={featureParsing}
         ears={cvReport.ears}
+        showAdminEarToggle={showAdminEdit}
+        assessmentId={assessmentId}
+        onAdminNasoPoseSaved={onNarrativesSaved}
+        nasoProfilePose={nasoProfilePose}
+        onNasoProfilePoseChange={setNasoProfilePose}
       />
     )
   }
@@ -361,18 +383,14 @@ export function CvReportView({
   // ── Ears ──
   if (activeId === 'ears' && cvReport?.ears) {
     const e = cvReport.ears
-    const photosMap = photos || cvReport?.photos
-    const earHero =
-      resolveFeatureHero('ears', e, featureParsing) ||
-      mediaUrl(e.imageSrcLeft) ||
-      mediaUrl(photosMap?.leftProfile) ||
-      mediaUrl(e.imageSrc)
+    const earHero = resolveEarHeroForPose(e, featureParsing, posePhotos, nasoProfilePose)
 
     return (
       <EarReportPanel
         ears={e}
         featureParsing={featureParsing}
         imageSrc={earHero}
+        profilePose={nasoProfilePose}
       />
     )
   }

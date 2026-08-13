@@ -34,6 +34,9 @@ const FIXTURES = [
   { expectedPose: 'front', noseRatio: 0.50, shouldPass: true, detectedClass: 'front' },
   { expectedPose: 'left45', noseRatio: 0.35, shouldPass: true, detectedClass: 'left45' },
   { expectedPose: 'right45', noseRatio: 0.65, shouldPass: true, detectedClass: 'right45' },
+  // Full right profile: nose can sit past face-width line (ratio > 1) at 90°
+  { expectedPose: 'rightProfile', noseRatio: 1.12, shouldPass: true, detectedClass: 'rightProfile' },
+  { expectedPose: 'leftProfile', noseRatio: -0.08, shouldPass: true, detectedClass: 'leftProfile' },
 ]
 
 let failed = 0

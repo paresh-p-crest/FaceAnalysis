@@ -1,6 +1,9 @@
 /** Resolve SegFormer parsing crops + metrics for interactive Features Analysis. */
 
 import { mediaUrl } from './apiClient'
+import { resolveMeasurementProfilePose } from './earCapture'
+
+export { pickProfileEarSide, resolveMeasurementProfilePose } from './earCapture'
 
 function humanizeMetricKey(key) {
   return String(key)
@@ -29,37 +32,54 @@ function withCacheBust(url, featureParsing) {
   return url.includes('?') ? `${url}&v=${v}` : `${url}?v=${v}`
 }
 
-/** Raw ears hero path from featureParsing (primary contour, then SegFormer suffix). */
-export function resolveEarsParsingUrl(featureParsing) {
+/** Landmarker contour crop only — never SegFormer square cutouts on primary keys. */
+function contourEarCropUrl(cropMeta) {
+  if (!cropMeta?.publicUrl) return null
+  if (cropMeta.sourceMethod === 'segformer_ears') return null
+  return cropMeta.publicUrl
+}
+
+/** Ears hero crop for the active naso-aural profile pose (contour cutout only). */
+export function resolveEarsParsingUrl(featureParsing, cvEars = null, poseOverride = null) {
   if (featureParsing?.status !== 'ready') return null
-  return (
-    featureParsing?.crops?.earsLeft?.publicUrl ||
-    featureParsing?.crops?.ears?.leftPublicUrl ||
-    featureParsing?.crops?.ears?.publicUrl ||
-    featureParsing?.crops?.earsLeftSegformer?.publicUrl ||
-    featureParsing?.crops?.ears?.leftSegformerPublicUrl ||
-    null
-  )
+  const pose = poseOverride || resolveMeasurementProfilePose(cvEars)
+  const crops = featureParsing?.crops || {}
+
+  if (pose === 'rightProfile') {
+    return contourEarCropUrl(crops.earsRight)
+  }
+  if (pose === 'leftProfile') {
+    return contourEarCropUrl(crops.earsLeft)
+  }
+  return null
+}
+
+/** Hero image for Ears tab — landmarker contour for selected profile pose. */
+export function resolveEarHeroForPose(cvEars, featureParsing, photos, poseOverride = null) {
+  const crop = resolveEarsParsingUrl(featureParsing, cvEars, poseOverride)
+  if (crop) return mediaUrl(withCacheBust(crop, featureParsing))
+  return null
 }
 
 export function resolveFeatureHero(featureId, cvSection, featureParsing) {
   let result = null
   let fromParsing = false
   if (featureParsing?.status === 'ready') {
-    // Ears: primary contour (earsLeft) then SegFormer backup suffix.
     if (featureId === 'ears') {
-      const left = resolveEarsParsingUrl(featureParsing)
-      if (left) {
-        result = left
+      const crop = resolveEarsParsingUrl(featureParsing, cvSection)
+      if (crop) {
+        result = crop
+        fromParsing = true
+      }
+    } else {
+      const parsingCrop = featureParsing?.crops?.[featureId]?.publicUrl
+      if (parsingCrop) {
+        result = parsingCrop
         fromParsing = true
       }
     }
-    const parsingCrop = featureParsing?.crops?.[featureId]?.publicUrl
-    if (!result && parsingCrop) {
-      result = parsingCrop
-      fromParsing = true
-    }
   }
+  if (!result && featureId === 'ears') return null
   if (!result && cvSection?.crop) result = cvSection.crop
   if (!result) result = cvSection?.imageSrc || null
   if (!result) return null

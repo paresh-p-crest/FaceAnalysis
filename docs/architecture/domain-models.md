@@ -82,8 +82,15 @@ Each side object:
 | `edgeCollapseFrac` | Fraction of points near input border; `> 0.25` → `failed` (no landmarks merged) |
 | `repairedIndices` | Contour indices snapped by neighbor-midpoint repair |
 | `mirrored` | `true` if right-profile retry used a horizontal flip |
+| `earCapture` | `{ proper, score, meanConfidence, checks }` — conclusive gate (`evaluate_ear_capture`): edge ≤0.15, mean conf ≥0.28, helix/lobe mid-face bands, height 0.05–0.26, rear-side x, ≤3 repairs |
 
-When landmarker enrichment succeeds, `proportions.ratios.nasoAural` is updated with `dataSource: "ear_landmarker"`, `photoSource` matching the ready side (`rightProfile`/`leftProfile`), `earHeightNorm` / `noseHeightNorm`, explicit `noseTop`/`noseBottom` (0–1, nasion→subnasale from the **same** 90° profile cephalometrics — never a 45° primary), and sidecar `guideGlabella` / `guideNoseBottom` (0–1) from `extract_glabella_subnasale`: **FaceMesh midline first** (idx 9 / 2, same as `scripts/profile_landmarks.py`), silhouette face-det crop only if mesh fails. Overlay `style: "qoves"` with `nasoLayout: "earPlusNoseGuides-v6"` when guides resolve (else `earOnly-v5`). Overlay contains a single `earVertical` bracket (helix→soft lobe behind the pinna) plus optional `guides[]` — two white dashed horizontals at guide glabella y and subnasale y (`{y, x1, x2, dashed: true}`). No nose vertical line. Ratio bar "Nose" height uses the guide span when present (`noseHeightSource: guide_glabella_subnasale`).
+`measurementProfilePose` (`rightProfile` \| `leftProfile` \| absent): auto-picked side passing `earCapture` (**right first**, then left).
+
+`nasoAuralByPose` (`{ rightProfile?, leftProfile? }`): precomputed naso-aural payload per profile (overlay, ratio, guides) — built even when `earCapture.proper` is false so admins can compare both sides.
+
+`adminMeasurementProfilePose` (`rightProfile` \| `leftProfile` \| absent): admin-confirmed side during pre-approval review. When set, drives active `proportions.ratios.nasoAural` and ears hero binding. Default before admin review: **right profile** when present in `nasoAuralByPose`.
+
+When landmarker enrichment succeeds, active `proportions.ratios.nasoAural` uses the resolved pose above with `dataSource: "ear_landmarker"`, `photoSource`, `earHeightNorm` / `noseHeightNorm`, explicit `noseTop`/`noseBottom` (0–1, nasion→subnasale from the **same** 90° profile cephalometrics — never a 45° primary), and sidecar `guideGlabella` / `guideNoseBottom` (0–1) from `extract_glabella_subnasale`: **FaceMesh midline first** (idx 9 / 2, same as `scripts/profile_landmarks.py`), silhouette face-det crop only if mesh fails. Overlay `style: "qoves"` with `nasoLayout: "earPlusNoseGuides-v6"` when guides resolve (else `earOnly-v5`). Overlay contains a single `earVertical` bracket (helix→soft lobe behind the pinna) plus optional `guides[]` — two white dashed horizontals at guide glabella y and subnasale y (`{y, x1, x2, dashed: true}`). No nose vertical line. Ratio bar "Nose" height uses the guide span when present (`noseHeightSource: guide_glabella_subnasale`).
 
 No DB migration — JSONB only. EarReportPanel overlay UI is a follow-up; SegFormer ear crops stay for hero imagery.
 
@@ -95,7 +102,7 @@ No DB migration — JSONB only. EarReportPanel overlay UI is a follow-up; SegFor
 | Per-feature narratives | `feature_narratives` (`origin`; nested `de.{summary, subsections}`) | EN + DE |
 | AI visuals | `ai_visuals` | — |
 | Async pipeline state | `pipeline` (`status`, `stage`, `attempts`, timestamps) |
-| SegFormer parsing (interactive only) | `feature_parsing` (`crops`, `metrics`, `scaleNote`); `parsing/*.jpg` — front white-mask (incl. neck) / rect chin·cheeks·jaw; lips from front DB landmarks; smile from smile mesh; **earsLeft/earsRight** primary = landmarker contour cutout when ready (`sourceMethod: ear_landmarker_contour`), else SegFormer copy; **earsLeftSegformer/earsRightSegformer** always when SegFormer succeeds (`sourceMethod: segformer_ears`); aggregate `crops.ears` also has `leftSegformerPublicUrl` / `rightSegformerPublicUrl` |
+| SegFormer parsing (interactive only) | `feature_parsing` (`crops`, `metrics`, `scaleNote`); `parsing/*.jpg` — front white-mask (incl. neck) / rect chin·cheeks·jaw; lips from front DB landmarks; smile from smile mesh; **earsLeft/earsRight** = landmarker **contour** cutout whenever profile landmarks exist (`sourceMethod: ear_landmarker_contour`); **earsLeftSegformer/earsRightSegformer** SegFormer backup only (`sourceMethod: segformer_ears`); Ears UI uses contour keys for active `adminMeasurementProfilePose` / naso-aural pose |
 | Projected AFTER (protocol/PDF) | `projected_after` (`status`, `full.publicUrl` → `projected/full.jpg` or `full.png`) |
 | Projected AFTER CV (immutable sibling of BEFORE) | `projected_analysis` (`status`, `cvReport`, `landmarks`, `metrics`, `eyeAnalysis`, `source: projected_full`) — never writes into `analysis` |
 | Beauty Assistant | `conversations` + `conversation_messages` |

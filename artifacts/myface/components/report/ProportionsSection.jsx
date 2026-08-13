@@ -14,7 +14,8 @@ import {
   noseAlae,
 } from '../../utils/faceCrop'
 import { cropNormalized } from '../../utils/eyeAnalysis'
-import { mediaUrl } from '../../utils/apiClient'
+import { mediaUrl, updateAssessmentAdminReview } from '../../utils/apiClient'
+import { pickProfileEarSide, resolveMeasurementProfilePose } from '../../utils/earCapture'
 import {
   buildNasoAuralDrawSpec,
   guidesCrownPlausible,
@@ -168,16 +169,26 @@ function resolveOverlay(tabId, active, liveOverlays, useProfileEar, nasoOverlay)
   return active?.overlay || null
 }
 
-/** Ready ear-landmarker side for the active profile pose (previous CV runs have none). */
-function pickReadyEarSide(ears, poseHint) {
-  if (ears?.earLandmarkSource !== 'ear_landmarker') return null
-  const sides = ears?.sides || {}
-  const ordered = []
-  if (poseHint === 'leftProfile' && sides.left) ordered.push(sides.left)
-  if (poseHint === 'rightProfile' && sides.right) ordered.push(sides.right)
-  if (sides.right) ordered.push(sides.right)
-  if (sides.left) ordered.push(sides.left)
-  return ordered.find((s) => s?.status === 'ready' && Array.isArray(s.landmarks) && s.landmarks.length >= 20) || null
+function pickNasoEarSide(ears) {
+  return pickProfileEarSide(ears)
+}
+
+function pickReadyEarSide(ears, _poseHint) {
+  return pickProfileEarSide(ears)
+}
+
+function nasoGuidesMatchProfile(active, side) {
+  const pose = side?.poseId
+  const src = active?.photoSource
+  if (!pose || !src || src === 'front') return true
+  return src === pose
+}
+
+function profilePhotoForPose(photos, poseId, fallbackSrc = null) {
+  const primary = poseId === 'leftProfile' ? photos?.leftProfile : photos?.rightProfile
+  if (primary) return primary
+  if (fallbackSrc && poseId && new RegExp(poseId, 'i').test(String(fallbackSrc))) return fallbackSrc
+  return null
 }
 
 function extractEarSpan01FromOverlay(overlay) {
@@ -189,9 +200,10 @@ function extractEarSpan01FromOverlay(overlay) {
   return Math.abs(y2 - y1) / 100
 }
 
-function extractNoseSpan01(active) {
-  const gg = normPoint01(active?.guideGlabella)
-  const gnb = normPoint01(active?.guideNoseBottom)
+function extractNoseSpan01(active, profilePose = null) {
+  const useGuides = !profilePose || !active?.photoSource || active.photoSource === profilePose
+  const gg = useGuides ? normPoint01(active?.guideGlabella) : null
+  const gnb = useGuides ? normPoint01(active?.guideNoseBottom) : null
   if (gg && gnb && guidesCrownPlausible(gg, gnb)) {
     return {
       top: gg,
@@ -200,8 +212,9 @@ function extractNoseSpan01(active) {
     }
   }
 
-  const nt = active?.noseTop
-  const nb = active?.noseBottom
+  // Nose cephalometric points only when they belong to the displayed profile.
+  const nt = useGuides ? active?.noseTop : null
+  const nb = useGuides ? active?.noseBottom : null
   if (nt && nb) {
     const y1 = toImagePct(nt.y)
     const y2 = toImagePct(nb.y)
@@ -249,7 +262,7 @@ function buildQovesNasoOverlay(side, active) {
   const sb = m.softBottom || m.lobeBottom
   if (!ht || !sb) return null
 
-  const facingRight = (active?.photoSource || side.poseId || 'rightProfile') !== 'leftProfile'
+  const facingRight = (side.poseId || active?.photoSource || 'rightProfile') !== 'leftProfile'
 
   const spec = buildNasoAuralDrawSpec({
     helixTop: ht,
@@ -261,14 +274,15 @@ function buildQovesNasoOverlay(side, active) {
   })
   if (!spec) return null
 
-  // Sidecar guide* only — never fall back to cephalometric glabella/noseBottom
-  // (those often sit at the hairline and were redrawing wrong dashed Ys).
-  const guides = resolveNoseLevelGuidesForDraw({
-    guideGlabella: active?.guideGlabella,
-    guideNoseBottom: active?.guideNoseBottom,
-    storedGuides: active?.overlay?.guides,
-    verticalXPct: spec.brackets?.[0]?.x1,
-  })
+  // Sidecar guide* only when stored on the same profile as the ear measurement.
+  const guides = nasoGuidesMatchProfile(active, side)
+    ? resolveNoseLevelGuidesForDraw({
+      guideGlabella: active?.guideGlabella,
+      guideNoseBottom: active?.guideNoseBottom,
+      storedGuides: active?.overlay?.guides,
+      verticalXPct: spec.brackets?.[0]?.x1,
+    })
+    : []
   if (!guides.length) return { ...spec, facingRight }
 
   return {
@@ -279,17 +293,41 @@ function buildQovesNasoOverlay(side, active) {
   }
 }
 
-/** Prefer ear-landmarker metrics; return null when model/side missing (legacy assessments). */
-function resolveNasoAuralDisplay(active, ears, t) {
-  const side = pickReadyEarSide(ears, active?.photoSource)
-  if (!side) return null
+/** Prefer stored per-pose variant, then live landmarker rebuild. */
+function resolveNasoAuralDisplay(active, ears, t, previewPose = null) {
+  const pose = previewPose || resolveMeasurementProfilePose(ears) || 'rightProfile'
+  const variant = ears?.nasoAuralByPose?.[pose]
+  const sideKey = pose === 'leftProfile' ? 'left' : 'right'
+  const side = ears?.sides?.[sideKey]
 
-  const overlay = buildQovesNasoOverlay(side, active)
+  if (variant) {
+    const mergedActive = { ...active, ...variant, photoSource: pose }
+    const overlay = variant.overlay || buildQovesNasoOverlay(side, mergedActive)
+    if (!overlay?.brackets?.some((b) => b.id === 'earVertical')) return null
+    const yourValue = Number(variant.yourValue)
+    if (!(Number.isFinite(yourValue) && yourValue > 0)) return null
+    let yourLabelKey = 'proportions.ratioCompare.earApproxNose'
+    if (yourValue > 1.05) yourLabelKey = 'proportions.ratioCompare.earGreaterNose'
+    else if (yourValue < 0.95) yourLabelKey = 'proportions.ratioCompare.earLessNose'
+    return {
+      yourValue,
+      yourLabel: variant.yourLabel || t(yourLabelKey),
+      overlay,
+      profilePose: pose,
+      ready: true,
+      earCaptureProper: variant.earCaptureProper,
+    }
+  }
+
+  const pickedSide = pickReadyEarSide(ears, pose)
+  if (!pickedSide) return null
+
+  const overlay = buildQovesNasoOverlay(pickedSide, active)
   if (!overlay?.brackets?.some((b) => b.id === 'earVertical')) return null
 
   const earH = extractEarSpan01FromOverlay(overlay)
-    ?? Number(side.measurements?.verticalHeightNorm ?? active?.earHeightNorm)
-  const nose = extractNoseSpan01(active)
+    ?? Number(pickedSide.measurements?.verticalHeightNorm ?? active?.earHeightNorm)
+  const nose = extractNoseSpan01(active, pickedSide.poseId)
   const noseH = nose?.heightNorm ?? Number(active?.noseHeightNorm)
   let yourValue = Number(active?.yourValue)
   if (Number.isFinite(earH) && earH > 1e-6 && Number.isFinite(noseH) && noseH > 1e-6) {
@@ -307,7 +345,9 @@ function resolveNasoAuralDisplay(active, ears, t) {
     yourValue,
     yourLabel: t(yourLabelKey),
     overlay,
+    profilePose: pickedSide.poseId,
     ready: true,
+    earCaptureProper: pickedSide?.earCapture?.proper,
   }
 }
 
@@ -324,12 +364,52 @@ export function ProportionsSection({
   photos = null,
   featureParsing = null,
   ears = null,
+  showAdminEarToggle = false,
+  assessmentId = null,
+  onAdminNasoPoseSaved = null,
+  nasoProfilePose: controlledNasoPose = null,
+  onNasoProfilePoseChange = null,
 }) {
   const t = useTranslations('Report')
   const locale = useLocale()
   const cvLabel = useCvLabel()
+  const photoMap = photos || proportions?.photos || {}
   const ratioTabs = RATIO_TABS.filter((tab) => proportions?.ratios?.[tab.id])
   const [activeTab, setActiveTab] = useState(ratioTabs[0]?.id || 'nasoAural')
+  const [localNasoPose, setLocalNasoPose] = useState(() => resolveMeasurementProfilePose(ears) || 'rightProfile')
+  const adminPreviewPose = controlledNasoPose ?? localNasoPose
+  const setAdminPreviewPose = onNasoProfilePoseChange ?? setLocalNasoPose
+  const [adminPoseSaving, setAdminPoseSaving] = useState(false)
+  const [adminPoseError, setAdminPoseError] = useState('')
+
+  useEffect(() => {
+    if (controlledNasoPose != null) return
+    setLocalNasoPose(resolveMeasurementProfilePose(ears) || 'rightProfile')
+  }, [controlledNasoPose, ears?.adminMeasurementProfilePose, ears?.nasoAuralByPose, ears?.measurementProfilePose])
+
+  const hasNasoByPose = Boolean(
+    ears?.nasoAuralByPose?.rightProfile || ears?.nasoAuralByPose?.leftProfile,
+  )
+
+  async function handleAdminPoseSelect(poseId) {
+    if (!poseId || poseId === adminPreviewPose) return
+    if (!ears?.nasoAuralByPose?.[poseId]) return
+    setAdminPreviewPose(poseId)
+    if (!showAdminEarToggle || !assessmentId) return
+    setAdminPoseSaving(true)
+    setAdminPoseError('')
+    try {
+      const updated = await updateAssessmentAdminReview(assessmentId, {
+        adminMeasurementProfilePose: poseId,
+      })
+      onAdminNasoPoseSaved?.(updated)
+    } catch (err) {
+      setAdminPoseError(err?.message || t('proportions.adminEarProfileSaveFailed'))
+      setAdminPreviewPose(resolveMeasurementProfilePose(ears) || 'rightProfile')
+    } finally {
+      setAdminPoseSaving(false)
+    }
+  }
 
   const frontSrc = photos?.front || photo || null
   const [faceCropSrc, setFaceCropSrc] = useState(null)
@@ -399,14 +479,21 @@ export function ProportionsSection({
   const useProfileEar =
     activeTab === 'nasoAural' && (
       (active?.photoSource && active.photoSource !== 'front') ||
-      Boolean(photos?.rightProfile || photos?.leftProfile) ||
+      Boolean(photoMap?.rightProfile || photoMap?.leftProfile) ||
       (typeof active?.imageSrc === 'string' && /profile/i.test(active.imageSrc))
     )
-  const activeImageSrc = useProfileEar
-    ? (active?.photoSource === 'leftProfile' ? photos?.leftProfile : (mediaUrl(active?.imageSrc) || photos?.rightProfile || photos?.leftProfile))
-    : (faceCropSrc || mediaUrl(active?.imageSrc) || mediaUrl(proportions.imageSrc))
-  const nasoLandmarker = activeTab === 'nasoAural' ? resolveNasoAuralDisplay(active, ears, t) : null
+  const nasoLandmarker = activeTab === 'nasoAural'
+    ? resolveNasoAuralDisplay(active, ears, t, showAdminEarToggle ? adminPreviewPose : null)
+    : null
   const nasoReady = activeTab === 'nasoAural' ? Boolean(nasoLandmarker?.ready) : true
+  const nasoProfilePose = activeTab === 'nasoAural' && nasoReady
+    ? (nasoLandmarker?.profilePose || resolveMeasurementProfilePose(ears))
+    : null
+  const activeImageSrc = useProfileEar && nasoReady && nasoProfilePose
+    ? mediaUrl(profilePhotoForPose(photoMap, nasoProfilePose, mediaUrl(active?.imageSrc)))
+    : useProfileEar && !nasoReady
+      ? null
+      : (faceCropSrc || mediaUrl(active?.imageSrc) || mediaUrl(proportions.imageSrc))
 
   const overlay = resolveOverlay(
     activeTab,
@@ -550,6 +637,59 @@ export function ProportionsSection({
           <p className="text-sm text-ink font-sans mb-5 leading-relaxed">
             {t(`proportions.ratioTabs.${activeTab}.expectation`)}
           </p>
+
+          {showAdminEarToggle && activeTab === 'nasoAural' && hasNasoByPose && (
+            <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/80 dark:bg-amber-950/20 dark:border-amber-800 px-4 py-3 space-y-2">
+              <p className="text-xs font-medium text-amber-900 dark:text-amber-100">
+                {t('proportions.adminEarProfileLabel')}
+              </p>
+              <p className="text-xs text-amber-800/90 dark:text-amber-200/90 leading-relaxed">
+                {t('proportions.adminEarProfileHint')}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {['rightProfile', 'leftProfile'].map((poseId) => {
+                  const variant = ears?.nasoAuralByPose?.[poseId]
+                  const selected = adminPreviewPose === poseId
+                  const label = poseId === 'rightProfile'
+                    ? t('proportions.adminEarProfileRight')
+                    : t('proportions.adminEarProfileLeft')
+                  const ratioText = variant?.yourValue != null
+                    ? `${Number(variant.yourValue).toFixed(2)}×`
+                    : '—'
+                  const captureOk = variant?.earCaptureProper
+                  return (
+                    <button
+                      key={poseId}
+                      type="button"
+                      disabled={!variant || adminPoseSaving}
+                      onClick={() => handleAdminPoseSelect(poseId)}
+                      className={`rounded-lg px-3 py-2 text-left text-xs border transition-colors ${
+                        selected
+                          ? 'border-amber-600 bg-white dark:bg-surface-card shadow-sm'
+                          : 'border-amber-200/80 bg-white/60 dark:bg-surface-card/40 hover:border-amber-400'
+                      } ${!variant ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >
+                      <span className="font-semibold text-ink block">{label}</span>
+                      <span className="text-ink-secondary">{t('proportions.adminEarProfileRatio', { ratio: ratioText })}</span>
+                      {variant && (
+                        <span className={`block mt-0.5 ${captureOk ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {captureOk
+                            ? t('proportions.adminEarCaptureOk')
+                            : t('proportions.adminEarCaptureReview')}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              {adminPoseSaving && (
+                <p className="text-xs text-ink-muted">{t('proportions.adminEarProfileSaving')}</p>
+              )}
+              {adminPoseError && (
+                <p className="text-xs text-red-600">{adminPoseError}</p>
+              )}
+            </div>
+          )}
 
           <div className="grid lg:grid-cols-2 gap-8 items-center">
             {activeImageSrc && (

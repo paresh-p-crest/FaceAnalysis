@@ -8,6 +8,7 @@ import {
   FeatureSummaryGrid,
 } from './FeatureSummaryUi'
 import { resolveFeatureHero } from '../../utils/featureParsing'
+import { pickProfileEarSide } from '../../utils/earCapture'
 function textOrNull(v) {
   if (v == null) return null
   const s = String(v).trim()
@@ -61,12 +62,13 @@ export function EarReportPanel({
   ears,
   featureParsing = null,
   imageSrc = null,
+  profilePose = null,
 }) {
   const t = useTranslations('Report')
   if (!ears) return null
 
   const e = ears
-  const heroImage = resolveFeatureHero('ears', e, featureParsing) || imageSrc || e.imageSrcLeft || e.imageSrc
+  const heroImage = imageSrc || resolveFeatureHero('ears', e, featureParsing)
 
   const slides = buildDetailSlides(e, t)
 
@@ -77,10 +79,8 @@ export function EarReportPanel({
     { label: t('ears.verticalPosition'), value: textOrNull(e.earPosition) },
   ]
 
-  const landmarkerSide =
-    (e.sides?.right?.status === 'ready' && e.sides.right)
-    || (e.sides?.left?.status === 'ready' && e.sides.left)
-    || null
+  const sideKey = profilePose === 'leftProfile' ? 'left' : profilePose === 'rightProfile' ? 'right' : null
+  const landmarkerSide = (sideKey && e.sides?.[sideKey]) || pickProfileEarSide(e)
   const verticalNorm = landmarkerSide?.measurements?.verticalHeightNorm
   const verticalPct =
     verticalNorm != null && Number.isFinite(Number(verticalNorm))

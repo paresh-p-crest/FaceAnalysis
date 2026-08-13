@@ -183,6 +183,7 @@ class AssessmentAdminReviewRequest(BaseModel):
     protocolNarrative: Optional[dict] = None
     featureNarratives: Optional[dict] = None
     narrativeLocale: Optional[str] = None
+    adminMeasurementProfilePose: Optional[str] = None
 
 
 class AssessmentVisualsRequest(BaseModel):
@@ -850,6 +851,25 @@ async def patch_assessment_admin_review(
         ai_narrative=ai_narrative,
         reviewer=reviewer,
     )
+
+    if req.adminMeasurementProfilePose is not None:
+        _reject_narrative_edit_if_approved(existing)
+        from ..naso_aural_enrichment import set_admin_naso_profile_pose
+
+        pose = req.adminMeasurementProfilePose.strip()
+        if pose not in ("leftProfile", "rightProfile"):
+            raise HTTPException(
+                status_code=400,
+                detail="adminMeasurementProfilePose must be leftProfile or rightProfile",
+            )
+        try:
+            base = updated or existing
+            analysis = set_admin_naso_profile_pose(base.get("analysis") or {}, pose)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        persisted = await update_assessment_analysis(assessment_id, analysis)
+        if persisted:
+            updated = persisted
 
     if req.protocolNarrative is not None or req.featureNarratives is not None:
         try:

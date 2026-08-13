@@ -233,8 +233,11 @@ export function evaluateNoseRatioPose(noseRatio, expectedPose) {
   const range = POSE_NOSE_RATIO_RANGES[expectedPose] || POSE_NOSE_RATIO_RANGES.front
   const detectedClass = classifyPoseFromNoseRatio(noseRatio)
   const inRange = noseRatio != null && noseRatio >= range.min && noseRatio <= range.max
+  // At full profile MediaPipe can push noseRatio past 1.0 (or below 0) while still
+  // classifying the correct side — trust detectedClass when it matches expectedPose.
+  const pass = inRange || detectedClass === expectedPose
   return {
-    pass: inRange,
+    pass,
     detectedClass,
     detectedKey: DETECTED_POSE_LABEL_KEYS[detectedClass] || DETECTED_POSE_LABEL_KEYS.front,
     expectedKey: range.labelKey,

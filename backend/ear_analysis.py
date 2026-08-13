@@ -28,6 +28,20 @@ EAR_LMK_COUNT = 20
 # SOFT_BOTTOM_FRAC = 0.0225
 SOFT_BOTTOM_FRAC = 0.0
 EDGE_COLLAPSE_FAIL = 0.25
+# --- Ear capture quality (shared: naso-aural proportions + ears feature hero) ---
+# Heatmap edge collapse — stricter than EDGE_COLLAPSE_FAIL.
+EAR_CAPTURE_MAX_EDGE = 0.15
+EAR_CAPTURE_MIN_MEAN_CONF = 0.28
+EAR_CAPTURE_HELIX_Y_MIN = 0.12
+EAR_CAPTURE_HELIX_Y_MAX = 0.52
+EAR_CAPTURE_LOBE_Y_MAX = 0.68
+EAR_CAPTURE_VERT_MIN = 0.05
+EAR_CAPTURE_VERT_MAX = 0.26
+EAR_CAPTURE_REAR_X_RIGHT_MIN = 0.52  # xMaxNorm on rightProfile (rear pinna)
+EAR_CAPTURE_REAR_X_LEFT_MAX = 0.48  # xMinNorm on leftProfile (rear pinna)
+EAR_CAPTURE_MAX_REPAIRED = 3
+# Legacy alias
+NASO_EAR_PROPER_MAX_EDGE = EAR_CAPTURE_MAX_EDGE
 GAUSSIAN_SIGMA = 2.5
 PAD_COLOR = (128, 128, 128)
 
@@ -639,7 +653,7 @@ def _analyze_one_side(
         }
         for i in range(EAR_LMK_COUNT)
     ]
-    return {
+    side_out = {
         "poseId": pose_id,
         "status": "ready",
         "imageSize": [w, h],
@@ -651,6 +665,113 @@ def _analyze_one_side(
         "repairedIndices": repaired_indices,
         "mirrored": mirrored,
     }
+    side_out["earCapture"] = evaluate_ear_capture(side_out)
+    if not side_out["earCapture"].get("proper"):
+        failed_checks = [
+            k for k, v in (side_out["earCapture"].get("checks") or {}).items()
+            if k != "status" and not v
+        ]
+        return {
+            **side_out,
+            "status": "failed",
+            "reason": "capture_implausible",
+            "failedChecks": failed_checks,
+        }
+    return side_out
+
+
+def _ear_side_has_naso_measurements(side: dict) -> bool:
+    meas = side.get("measurements") or {}
+    if not meas.get("verticalHeightNorm") or not meas.get("helixTop"):
+        return False
+    return bool(meas.get("softBottom") or meas.get("lobeBottom"))
+
+
+def evaluate_ear_capture(side: dict | None) -> dict:
+    """Conclusive ear-capture gate for profile photos.
+
+    Combines heatmap edge collapse, mean landmark confidence, mid-face vertical
+    band, plausible ear height, rear-side horizontal placement, and contour
+    repair count. Used by naso-aural proportions and ears feature hero selection.
+    """
+    failed = {
+        "proper": False,
+        "score": 0.0,
+        "meanConfidence": 0.0,
+        "checks": {"status": False},
+    }
+    if not isinstance(side, dict) or side.get("status") != "ready":
+        return failed
+    if not _ear_side_has_naso_measurements(side):
+        return {**failed, "checks": {"measurements": False}}
+
+    meas = side.get("measurements") or {}
+    ht = meas.get("helixTop") or {}
+    sb = meas.get("softBottom") or meas.get("lobeBottom") or {}
+    try:
+        helix_y = float(ht["y"])
+        lobe_y = float(sb["y"])
+        vert_h = float(meas.get("verticalHeightNorm") or 0)
+        x_min = float(meas.get("xMinNorm") or 0)
+        x_max = float(meas.get("xMaxNorm") or 0)
+    except (KeyError, TypeError, ValueError):
+        return {**failed, "checks": {"parse": False}}
+
+    confs = side.get("confidences") or []
+    mean_conf = sum(float(c) for c in confs) / len(confs) if confs else 0.0
+    ec = float(side.get("edgeCollapseFrac") if side.get("edgeCollapseFrac") is not None else 1.0)
+    repaired_n = len(side.get("repairedIndices") or [])
+    facing_right = side.get("poseId") != "leftProfile"
+
+    checks = {
+        "status": True,
+        "edge_ok": ec <= EAR_CAPTURE_MAX_EDGE,
+        "confidence_ok": mean_conf >= EAR_CAPTURE_MIN_MEAN_CONF,
+        "helix_band_ok": EAR_CAPTURE_HELIX_Y_MIN <= helix_y <= EAR_CAPTURE_HELIX_Y_MAX,
+        "lobe_band_ok": (helix_y + 0.03) <= lobe_y <= EAR_CAPTURE_LOBE_Y_MAX,
+        "height_ok": EAR_CAPTURE_VERT_MIN <= vert_h <= EAR_CAPTURE_VERT_MAX,
+        "rear_side_ok": (
+            x_max >= EAR_CAPTURE_REAR_X_RIGHT_MIN
+            if facing_right
+            else x_min <= EAR_CAPTURE_REAR_X_LEFT_MAX
+        ),
+        "contour_ok": repaired_n <= EAR_CAPTURE_MAX_REPAIRED,
+    }
+    proper = all(checks.values())
+    score = round(sum(1 for v in checks.values() if v) / len(checks), 3)
+    return {
+        "proper": proper,
+        "score": score,
+        "meanConfidence": round(mean_conf, 4),
+        "checks": checks,
+    }
+
+
+def _ear_side_is_proper(side: dict | None) -> bool:
+    if isinstance(side, dict) and isinstance(side.get("earCapture"), dict):
+        return bool(side["earCapture"].get("proper"))
+    return bool(evaluate_ear_capture(side).get("proper"))
+
+
+def pick_profile_ear_side(sides: Optional[dict]) -> Optional[dict]:
+    """Profile with a proper ear capture — right first, left fallback."""
+    if not sides:
+        return None
+    for side_key in ("right", "left"):
+        cand = sides.get(side_key)
+        if _ear_side_is_proper(cand):
+            return cand
+    return None
+
+
+def pick_naso_ear_side(sides: Optional[dict]) -> Optional[dict]:
+    """Alias for ``pick_profile_ear_side`` (naso-aural proportions)."""
+    return pick_profile_ear_side(sides)
+
+
+def pick_best_naso_ear_side(sides: Optional[dict]) -> Optional[dict]:
+    """Deprecated alias — naso-aural uses right-first ``pick_naso_ear_side``."""
+    return pick_naso_ear_side(sides)
 
 
 def analyze_profile_ears(photos: Optional[dict] = None) -> dict:
@@ -865,6 +986,14 @@ def extract_ear_contour_crop(
     )
     if crop.size == 0:
         return None
+    cw, ch = crop.shape[1], crop.shape[0]
+    x1, y1, x2, y2 = bbox
+    bw, bh = max(1, x2 - x1), max(1, y2 - y1)
+    # Reject thin diagonal slivers (misplaced landmarks on nose/neck).
+    if min(cw, ch) < 24 or min(bw, bh) < max(16, 0.04 * min(w, h)):
+        return None
+    if max(cw, ch) / max(1, min(cw, ch)) > 6.0:
+        return None
     bgr = cv2.cvtColor(crop, cv2.COLOR_RGB2BGR)
     ok, buf = cv2.imencode(".jpg", bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
     if not ok:
@@ -879,17 +1008,23 @@ def extract_ear_contour_crop(
     }
 
 
+def side_has_contour_landmarks(side: dict | None) -> bool:
+    """True when landmarker produced enough points to build a contour cutout."""
+    if not isinstance(side, dict):
+        return False
+    lms = side.get("landmarks")
+    return isinstance(lms, list) and len(lms) >= EAR_LMK_COUNT
+
+
 def resolve_ear_hero_crops(
     crop_key: str,
     segformer: Optional[dict[str, Any]],
     contour: Optional[dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    """Primary ``earsLeft``/``earsRight`` + always-suffixed SegFormer backup when present."""
+    """Primary ``earsLeft``/``earsRight`` = landmarker contour only; SegFormer suffix backup."""
     out: dict[str, dict[str, Any]] = {}
     if segformer:
         out[f"{crop_key}Segformer"] = segformer
     if contour:
         out[crop_key] = contour
-    elif segformer:
-        out[crop_key] = dict(segformer)
     return out

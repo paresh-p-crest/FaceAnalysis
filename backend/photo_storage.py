@@ -17,6 +17,7 @@ from .media_storage import (
     media_key_from_ref,
     public_url_for_key,
 )
+from .naso_aural_enrichment import resolve_naso_profile_pose
 
 PIPELINE_VERSION = "2.0.0"
 
@@ -105,6 +106,20 @@ def photos_map_to_urls(stored: dict[str, StoredPhoto]) -> dict[str, str]:
     return {pose_id: s.publicUrl for pose_id, s in stored.items()}
 
 
+def _resolve_naso_profile_pose(naso: dict, cv_report: dict) -> Optional[str]:
+    """Profile pose for naso-aural plate — admin override, then right default."""
+    ears = (cv_report or {}).get("ears") or {}
+    pose = resolve_naso_profile_pose(ears)
+    if pose:
+        return pose
+    if ears.get("earLandmarkSource") == "ear_landmarker" and (ears.get("sides") or {}):
+        return None
+    legacy = naso.get("photoSource")
+    if legacy in ("leftProfile", "rightProfile"):
+        return legacy
+    return "rightProfile"
+
+
 def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -> dict:
     """Bind persisted URLs into cvReport sections per pose routing."""
     if not cv_report or not photo_urls:
@@ -156,23 +171,33 @@ def apply_photo_urls_to_cv_report(cv_report: dict, photo_urls: dict[str, str]) -
                 }
             cv_report["proportions"] = prop
 
-    if profile:
+    left_profile = photo_urls.get("leftProfile")
+    right_profile = photo_urls.get("rightProfile") or profile
+
+    if left_profile or right_profile:
         ratios = cv_report.get("proportions", {}).get("ratios", {})
         if isinstance(ratios, dict) and "nasoAural" in ratios:
             naso = dict(ratios["nasoAural"])
             was_crop = naso.get("overlaySpace") == "crop"
-            naso["imageSrc"] = profile
-            naso["photoSource"] = "rightProfile"
-            naso["overlaySpace"] = "image"
-            # Frontal crop-space guides must not ride onto the profile plate.
-            if was_crop:
-                naso["overlay"] = None
-            ratios = {**ratios, "nasoAural": naso}
-            prop = {**cv_report.get("proportions", {}), "ratios": ratios}
-            cv_report["proportions"] = prop
+            pose = _resolve_naso_profile_pose(naso, cv_report)
+            if pose:
+                profile_url = left_profile if pose == "leftProfile" else right_profile
+                if profile_url:
+                    naso["imageSrc"] = profile_url
+                    naso["photoSource"] = pose
+                    naso["overlaySpace"] = "image"
+                    # Frontal crop-space guides must not ride onto the profile plate.
+                    if was_crop:
+                        naso["overlay"] = None
+                    ratios = {**ratios, "nasoAural": naso}
+                    prop = {**cv_report.get("proportions", {}), "ratios": ratios}
+                    cv_report["proportions"] = prop
+            elif ((cv_report.get("ears") or {}).get("earLandmarkSource") == "ear_landmarker"):
+                naso.pop("imageSrc", None)
+                ratios = {**ratios, "nasoAural": naso}
+                prop = {**cv_report.get("proportions", {}), "ratios": ratios}
+                cv_report["proportions"] = prop
 
-    left_profile = photo_urls.get("leftProfile")
-    right_profile = photo_urls.get("rightProfile")
     if left_profile or right_profile:
         ears = dict(cv_report.get("ears") or {})
         # Keep frontal crop as primary imageSrc; store profiles only as L/R slots

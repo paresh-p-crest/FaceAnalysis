@@ -65,6 +65,71 @@ def test_repair_contour_outliers_snaps_isolated_jump():
     assert again == []
 
 
+def test_analyze_one_side_marks_capture_implausible_as_failed(monkeypatch):
+    from backend import ear_analysis
+
+    monkeypatch.setattr(ear_analysis, "EDGE_COLLAPSE_FAIL", 1.0)
+
+    def _fake_run(_model, _device, _rgb):
+        # Landmarks clustered on nose — fails earCapture bands.
+        lms = np.full((20, 2), [300.0, 400.0], dtype=np.float32)
+        lms[:, 1] = np.linspace(380, 520, 20)
+        conf = np.full(20, 0.5, dtype=np.float32)
+        return lms, conf, 0.05, {}
+
+    monkeypatch.setattr(ear_analysis, "_run_inference", _fake_run)
+    monkeypatch.setattr(ear_analysis, "_bytes_to_rgb", lambda b: np.zeros((800, 600, 3), dtype=np.uint8))
+
+    out = ear_analysis._analyze_one_side(b"x", "rightProfile", object(), "cpu")
+    assert out["status"] == "failed"
+    assert out["reason"] == "capture_implausible"
+    assert out["earCapture"]["proper"] is False
+
+
+def test_evaluate_ear_capture_rejects_shoulder_misdetection():
+    from backend.ear_analysis import evaluate_ear_capture
+
+    side = {
+        "poseId": "rightProfile",
+        "status": "ready",
+        "edgeCollapseFrac": 0.08,
+        "confidences": [0.4] * 20,
+        "repairedIndices": [],
+        "measurements": {
+            "verticalHeightNorm": 0.22,
+            "helixTop": {"x": 0.85, "y": 0.55},
+            "softBottom": {"x": 0.88, "y": 0.82},
+            "xMinNorm": 0.80,
+            "xMaxNorm": 0.92,
+        },
+    }
+    cap = evaluate_ear_capture(side)
+    assert cap["proper"] is False
+    assert cap["checks"]["helix_band_ok"] is False
+    assert cap["checks"]["lobe_band_ok"] is False
+
+
+def test_evaluate_ear_capture_accepts_mid_face_ear():
+    from backend.ear_analysis import evaluate_ear_capture
+
+    side = {
+        "poseId": "rightProfile",
+        "status": "ready",
+        "edgeCollapseFrac": 0.08,
+        "confidences": [0.5] * 20,
+        "repairedIndices": [],
+        "measurements": {
+            "verticalHeightNorm": 0.14,
+            "helixTop": {"x": 0.72, "y": 0.28},
+            "softBottom": {"x": 0.72, "y": 0.42},
+            "xMinNorm": 0.65,
+            "xMaxNorm": 0.78,
+        },
+    }
+    cap = evaluate_ear_capture(side)
+    assert cap["proper"] is True
+
+
 def test_build_nose_level_guides_right_profile():
     from backend.ear_analysis import build_nose_level_guides
 
@@ -440,14 +505,28 @@ def test_resolve_ear_hero_crops_contour_primary_keeps_segformer_suffix():
     assert out["earsLeftSegformer"]["sourceMethod"] == "segformer_ears"
 
 
-def test_resolve_ear_hero_crops_segformer_fallback_on_primary():
+def test_resolve_ear_hero_crops_segformer_suffix_only_without_contour():
     from backend.ear_analysis import resolve_ear_hero_crops
 
     seg = {"jpegBytes": b"seg", "sourceMethod": "segformer_ears", "bbox": [0, 0, 1, 1], "labels": ["l"]}
     out = resolve_ear_hero_crops("earsRight", seg, None)
-    assert out["earsRight"]["jpegBytes"] == b"seg"
+    assert "earsRight" not in out
     assert out["earsRightSegformer"]["jpegBytes"] == b"seg"
-    assert out["earsRight"] is not out["earsRightSegformer"]
+
+
+def test_extract_ear_contour_crop_rejects_nose_sliver():
+    import cv2
+    import numpy as np
+    from backend.ear_analysis import extract_ear_contour_crop
+
+    rgb = np.zeros((800, 600, 3), dtype=np.uint8)
+    rgb[:, :] = (240, 240, 240)
+    ok, buf = cv2.imencode(".jpg", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+    assert ok
+    # Landmarks clustered on nose — produces a thin diagonal sliver.
+    landmarks_norm = [{"x": 0.50 + i * 0.001, "y": 0.45 + i * 0.008} for i in range(20)]
+    res = extract_ear_contour_crop(buf.tobytes(), landmarks_norm, "rightProfile")
+    assert res is None
 
 
 def test_extract_ear_contour_crop_roundtrip_jpeg():

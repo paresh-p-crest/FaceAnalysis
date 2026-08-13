@@ -337,13 +337,15 @@ Saves admin review comments, PDF protocol text edits, and/or publishes reports.
         "summary": "One-paragraph synthesis of baseline status and staged plan."
       }
     },
-    "featureNarratives": { "hair": { "summary": "...", "subsections": [] } }
+    "featureNarratives": { "hair": { "summary": "...", "subsections": [] } },
+    "adminMeasurementProfilePose": "leftProfile"
   }
   ```
+  Optional `adminMeasurementProfilePose` (`leftProfile` | `rightProfile`) — admin pre-approval only. Applies stored `cvReport.ears.nasoAuralByPose` variant to active `proportions.ratios.nasoAural` and sets `ears.adminMeasurementProfilePose`. **400** if pose has no variant or report is approved.
   `treatmentPhases` bounds (Pydantic / structured LLM): `title`/`duration` ≤100 chars; item `name` ≤100; item `detail` ≤280; `items` 1–3 per phase; `summary` 20–500 chars. Soft overruns are clamped before validate.
   Optional legacy `aiNarrative` is still accepted. Protocol text is persisted via protocol storage + DB when `protocolNarrative` / `featureNarratives` are sent.
   Optional `narrativeLocale` (`"en"` | `"de"`, default `"en"`) — when `"de"`, merges edited text into nested `.de` / `contentDe` blocks with `origin: "admin"` (no auto-retranslate). When `"en"`, saves English fields and retriggers DE translation for affected sections.
-- **400:** When assessment status is **Approved**, requests that include `protocolNarrative` or `featureNarratives` are rejected (`Cannot edit protocol narrative on approved reports.`).
+- **400:** When assessment status is **Approved**, requests that include `protocolNarrative`, `featureNarratives`, or `adminMeasurementProfilePose` are rejected.
 - **Response Shape (200 OK):** Complete updated assessment document.
 
 ### `POST /api/assessments/{assessment_id}/ai-narrative`
