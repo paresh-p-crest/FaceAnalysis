@@ -271,7 +271,7 @@ Protocol PDF and assistant copy mixed third-person clinic narration (“the clie
 
 ## ADR-017: MyFace-Style Third-Person Report Voice (Subject as Subject)
 Date: 2026-07-10  
-Status: accepted  
+Status: accepted (diction amended by ADR-049: feature as grammatical subject; “the subject’s” possessive only)  
 
 ### Context
 ADR-013 moved PDF/protocol copy to second person (you/your). report-style clinical protocol PDFs instead narrate in third person with the assessed person as the grammatical subject (“the subject…”, or a provided name). Chat coaching still benefits from second person.
@@ -988,3 +988,41 @@ MyFace originally required payment (Stripe/PayPal) before users could run facial
 - Authenticated users experience zero payment friction when submitting photos and creating reports.
 - Simplified frontend navigation and codebase without payment state tracking or Stripe/PayPal checkout integration.
 - Database records for historical payments are preserved in the inert `payments` table.
+
+---
+
+## ADR-049: Feature-led English diction and German localization (not QOVES voice)
+Date: 2026-08-19  
+Status: accepted  
+
+### Context
+ADR-017 required third-person protocol English with “the subject” as grammatical subject. Combined with a “clinical protocol writer” role, that produced “The subject presents…” plus abstract terms (`transverse span`). German translation was told to preserve technical English, then `sanitize_report_ascii` stripped umlauts. Client PDF corrections showed native du-form German as the style authority. QOVES samples share a useful information skeleton but include banned treatments and slogan prose.
+
+### Decision
+1. **Person unchanged:** English stays third person (ADR-017). The **feature** is the grammatical subject; “the subject’s” is possessive only. Ban presents/demonstrates/exhibits.
+2. **Structure:** finding → visual significance (if cues support it) → supported non-surgical action or explicit no-change → synthesis (not sentence-1 repeat). High-information readable English. Client German corrections are the DE style authority.
+3. **QOVES is structure/reference data only.** Never paste QOVES recommendation passages into prompts. Banned-treatment regex is unchanged.
+4. **DE is localization** (du-form), not “translate and preserve technical terms.” Exact-phrase glossary + leftover-English detect → targeted repair. Decimal commas in code. DE storage uses Latin-1 (`sanitize_report_latin1`); do not ASCII-strip `ä ö ü ß`.
+5. Technical tokens stay in **grounding**; prose prefers consumer-facing words (philosophy + short avoid-list, not a giant blacklist).
+
+### Consequences
+- Existing stored narratives stay stale until EN regen then DE retry.
+- German PDF chrome was already i18n; narrative bodies pick up umlauts and native terms only after regen.
+
+---
+
+## ADR-050: GPT-5.6 Luna text model; reasoning effort only on Luna
+Date: 2026-08-19  
+Status: accepted  
+
+### Context
+OpenRouter json_schema and vision gates listed `openai/gpt-5-mini`. Reasoning effort was attached to every OpenAI-source model and to every OpenRouter json_schema model (including Gemma), which is wasteful and unsupported on many chat models.
+
+### Decision
+1. Allowlists use `openai/gpt-5.6-luna` (OpenRouter) and `gpt-5.6-luna` (native OpenAI id). Gemma remains json_schema-capable without vision/reasoning.
+2. `_reasoning_kwargs` sends `reasoning_effort` / OpenRouter `extra_body.reasoning.effort` only when the active text model is Luna. Default effort stays `high` via `LLM_REASONING_EFFORT`. Applies to `chat_structured_completion`, `chat_json_completion`, and `chat_text_completion` (English narrative and German localization).
+
+### Consequences
+- Set `OPENROUTER_MODEL=openai/gpt-5.6-luna` to use Luna + vision + high reasoning.
+- Historical ADR-045/046 still name gpt-5-mini as the model at the time of those decisions.
+

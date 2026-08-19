@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from .clinical_guardrails import (
-    _facts_phrase,
-    _rewrite_narrative_dict,
-)
+from .clinical_guardrails import _facts_phrase, sanitize_report_latin1
 from .narrative_schemas import FEATURE_SUBSECTION_TITLES, FeatureNarrative
 
 FEATURE_DISPLAY_DE = {
@@ -76,4 +73,15 @@ def template_feature_narrative_de(feature_id: str, ctx: dict) -> dict:
         ],
     ).model_dump()
     data["origin"] = "template"
-    return _rewrite_narrative_dict(data)
+    for key in ("summary", "description"):
+        if isinstance(data.get(key), str):
+            data[key] = sanitize_report_latin1(data[key])
+    for sub in data.get("subsections") or []:
+        if isinstance(sub, dict) and isinstance(sub.get("body"), str):
+            sub["body"] = sanitize_report_latin1(sub["body"])
+    recs = data.get("recommendations")
+    if isinstance(recs, list):
+        data["recommendations"] = [
+            sanitize_report_latin1(r) if isinstance(r, str) else r for r in recs
+        ]
+    return data

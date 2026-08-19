@@ -21,6 +21,7 @@ import {
   buildProtocolContents,
   buildProtocolDashboardData,
   DISCLAIMER_PARAGRAPH_KEYS,
+  formatAnalysisTimeDays,
   formatProtocolId,
   formatProtocolMonth,
   getClientName,
@@ -39,6 +40,7 @@ import { FeatureAnalysisHero } from './FeaturePreviewPortrait'
 import { NameProtocolPlate } from './NameProtocolPlate'
 import { TreatmentProtocolPhases } from './TreatmentProtocolPhases'
 import { FacialAgePanel } from './FacialAgePanel'
+import { localizePriorityMiniCard } from '../../utils/cvReportLocale'
 
 const EVIDENCE_TIER_LABELS = {
   lifestyle: 'Routine / Topical',
@@ -137,11 +139,13 @@ function SectionBlock({ title, subtitle, page, sectionId, children, splitTitle }
 function ImageFrame({
   src,
   tag,
-  emptyLabel = 'Projected image pending',
+  emptyLabel,
   height,
   className = '',
   cover = true,
 }) {
+  const tPdf = useTranslations('Pdf')
+  const pending = emptyLabel || tPdf('projectedImagePending')
   return (
     <div
       className={`report-pdf-image-frame ${className}`}
@@ -154,7 +158,7 @@ function ImageFrame({
           className={cover ? 'object-cover' : 'object-contain'}
         />
       ) : (
-        <span className="report-pdf-image-empty">{emptyLabel}</span>
+        <span className="report-pdf-image-empty">{pending}</span>
       )}
       {tag && <span className="report-pdf-image-tag">{tag}</span>}
     </div>
@@ -201,7 +205,7 @@ function LabeledBody({ title, body, evidenceTier, editable = false, onCommit, di
   )
 }
 
-function DumbbellChart({ items }) {
+function DumbbellChart({ items, t }) {
   const trackW = 140
   return (
     <div className="space-y-1.5">
@@ -210,7 +214,7 @@ function DumbbellChart({ items }) {
         const px = (item.projected / 100) * trackW
         return (
           <div key={item.label} className="flex items-center gap-3 text-[10px] font-sans">
-            <span className="w-14 shrink-0 text-ink-secondary">{item.label}</span>
+            <span className="w-14 shrink-0 text-ink-secondary">{t(`protocolModel.chartAxes.${item.id}`) || item.label}</span>
             <div className="relative flex-1 h-4 max-w-[160px]">
               <div className="absolute top-1/2 left-0 right-0 h-px bg-surface-border -translate-y-1/2" />
               <div
@@ -231,10 +235,10 @@ function DumbbellChart({ items }) {
       })}
       <div className="flex gap-4 pt-2 text-[9px] text-ink-muted">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-slate-600" /> Client Values
+          <span className="w-2 h-2 rounded-full bg-slate-600" /> {t('protocolModel.chartClientValues')}
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-brand" /> Projected Potential
+          <span className="w-2 h-2 rounded-full bg-brand" /> {t('protocolModel.chartProjectedPotential')}
         </span>
       </div>
     </div>
@@ -527,6 +531,7 @@ export default function ProtocolReport({
   onEditOverview,
 }) {
   const t = useTranslations('Report')
+  const tCv = useTranslations('CvReport')
   const tPdf = useTranslations('Pdf')
   const locale = useLocale()
   const clientName = getClientName(answers, user, assessmentOwner)
@@ -537,7 +542,7 @@ export default function ProtocolReport({
     if (!Number.isFinite(ms)) return '—'
     return new Date(ms).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
   })()
-  const month = formatProtocolMonth()
+  const month = formatProtocolMonth(undefined, locale)
   const featurePages = useMemo(
     () => buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative, locale, t),
     [cvReport, eyeAnalysis, protocolNarrative, locale, t],
@@ -674,9 +679,7 @@ export default function ProtocolReport({
               [t('executiveSummary.kpiEvaluated'), dash.evaluatedPoints
                 ? t('executiveSummary.kpiEvaluatedValue', { count: dash.evaluatedPoints })
                 : '—'],
-              [t('executiveSummary.kpiAnalysisTime'), dash.analysisTimeDays
-                ? t('executiveSummary.kpiAnalysisTimeValue', { days: dash.analysisTimeDays })
-                : '—'],
+              [t('executiveSummary.kpiAnalysisTime'), formatAnalysisTimeDays(dash.analysisTimeDays, t) || '—'],
             ].map(([label, value]) => (
               <div key={label} className="report-protocol-dashboard-kpi">
                 <p className="report-pdf-label">{label}</p>
@@ -705,15 +708,14 @@ export default function ProtocolReport({
                 evaluatedLabel={dash.evaluatedPoints
                   ? t('executiveSummary.kpiEvaluatedValue', { count: dash.evaluatedPoints })
                   : '—'}
-                analysisTimeLabel={dash.analysisTimeDays
-                  ? t('executiveSummary.kpiAnalysisTimeValue', { days: dash.analysisTimeDays })
-                  : '—'}
+                analysisTimeLabel={formatAnalysisTimeDays(dash.analysisTimeDays, t) || '—'}
                 className="report-protocol-dashboard-hero mb-3"
                 compact
               />
                     <p className="report-pdf-label font-bold text-ink mb-0.5">{t('executiveSummary.priorityFeatures')}</p>
               {(dash.miniCards || []).map((card) => {
-                const findings = (card.findings || []).filter((f) => f?.title)
+                const localized = localizePriorityMiniCard(card, { tReport: t, tCv, locale })
+                const findings = (localized.findings || []).filter((f) => f?.title)
                 return (
                   <button
                     key={card.id}
@@ -725,11 +727,11 @@ export default function ProtocolReport({
                     }}
                   >
                     <div className="flex items-baseline justify-between gap-1">
-                      <p className="report-pdf-label font-bold text-ink min-w-0">{card.title || t(`nav.${card.id}`)}</p>
-                      {card.score && <p className="report-pdf-label font-bold text-ink tabular-nums shrink-0">{card.score}</p>}
+                      <p className="report-pdf-label font-bold text-ink min-w-0">{localized.title}</p>
+                      {localized.score && <p className="report-pdf-label font-bold text-ink tabular-nums shrink-0">{localized.score}</p>}
                     </div>
-                    {card.scoreLabel && (
-                      <p className="text-[6px] text-ink-muted text-right">{card.scoreLabel}</p>
+                    {localized.scoreLabel && (
+                      <p className="text-[6px] text-ink-muted text-right">{localized.scoreLabel}</p>
                     )}
                     {findings.length > 0 && (
                       <div className="report-protocol-dashboard-mini-lines">
@@ -887,8 +889,7 @@ export default function ProtocolReport({
           as="p"
           className="report-pdf-body-text mb-3 mt-1"
           value={rewriteToSubjectVoice(
-            protocolNarrative?.summary ||
-              "This evidence-based protocol is grounded in the subject's measured facial analysis, organised around 11 key features for facial aesthetics."
+            protocolNarrative?.summary || t('protocolModel.protocolLeadBefore')
           )}
           editable={editable && !!onEditOverview}
           onCommit={(value) => onEditOverview?.(value)}
@@ -907,7 +908,7 @@ export default function ProtocolReport({
               ))}
             </div>
           </div>
-          <DumbbellChart items={chartItems} />
+          <DumbbellChart items={chartItems} t={t} />
         </div>
       </SectionBlock>
     ),

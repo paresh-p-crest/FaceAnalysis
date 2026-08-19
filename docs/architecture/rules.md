@@ -60,6 +60,9 @@ Governs all report/protocol prose generated in `backend/narrative_orchestrator.p
 5. **Directional consistency.** A measured classification/direction is stated once and kept consistent within a section (e.g. a "wide" dimension is never also called narrow or told to narrow).
 6. **Sclera is a visual observation only.** Sclera coloring is described as a single neutral visual/lighting observation — never attributed to oxidative stress, vitamin deficiency, or any medical cause — and is not repeated outside the eyes section.
 7. **Non-invasive vocabulary is enforced, not assumed.** Invasive/energy-based treatments (surgery, injectables, fillers, Botox, laser, IPL, HIFU, Thermage, Endolift, microneedling, chemical peels, radiofrequency, Ultherapy, energy-based devices, prescriptions) are banned in report prose. Enforcement is both prompt-level (`STRICT_NON_SURGICAL_RULES`) and post-generation (`BANNED_TERM_PATTERN` → hard reject → retry → per-section template fallback; the report never fails).
+8. **English diction is feature-led third person (ADR-017 + ADR-049).** The feature is the grammatical subject. Do not prompt “The subject presents/demonstrates/exhibits.” Prefer consumer-facing terms in prose; keep technical tokens in grounding/context. Structure: finding → visual significance → supported non-surgical action or explicit no-change → synthesis (not a repeated first sentence).
+9. **QOVES is structure-only.** Other aesthetic-report samples may inform information density (finding → meaning → action → synthesis). They are **not** an instruction source for treatment recommendations and must not be pasted into system prompts.
+10. **German narrative storage keeps Latin-1.** Do not ASCII-strip `ä ö ü ß` from DE. Localize (du-form), do not “preserve English technical terms.” Exact-phrase glossary plus targeted leak repair; decimal commas in code.
 
 ## Projected AFTER Image (Hard Rules)
 

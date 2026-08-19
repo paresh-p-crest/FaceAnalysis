@@ -2,7 +2,12 @@
 
 from unittest.mock import patch
 
-from backend.llm_client import get_chat_llm, resolve_llm_provider, uses_strict_json_schema
+from backend.llm_client import (
+    _reasoning_kwargs,
+    get_chat_llm,
+    resolve_llm_provider,
+    uses_strict_json_schema,
+)
 
 
 def test_resolve_explicit_openrouter(monkeypatch):
@@ -54,23 +59,35 @@ def test_get_chat_llm_openrouter_client(monkeypatch):
 
 
 def test_uses_strict_json_schema_openai():
-    assert uses_strict_json_schema("openai", "gpt-5-mini") is True
+    assert uses_strict_json_schema("openai", "gpt-5.6-luna") is True
 
 
 def test_uses_strict_json_schema_openrouter_allowlist():
-    assert uses_strict_json_schema("openrouter", "openai/gpt-5-mini") is True
+    assert uses_strict_json_schema("openrouter", "openai/gpt-5.6-luna") is True
     assert uses_strict_json_schema("openrouter", "google/gemma-4-26b-a4b-it:free") is True
     assert uses_strict_json_schema("openrouter", "meta-llama/llama-3.3-70b-instruct:free") is False
+
+
+def test_reasoning_kwargs_only_gpt56_luna():
+    assert _reasoning_kwargs("openrouter", "openai/gpt-5.6-luna", "high") == {
+        "extra_body": {"reasoning": {"effort": "high"}}
+    }
+    assert _reasoning_kwargs("openai", "gpt-5.6-luna", "high") == {"reasoning_effort": "high"}
+    assert _reasoning_kwargs("openrouter", "google/gemma-4-26b-a4b-it:free", "high") == {}
+    assert _reasoning_kwargs("openrouter", "openai/gpt-5-mini", "high") == {}
+    assert _reasoning_kwargs("openai", "gpt-5-mini", "high") == {}
+    assert _reasoning_kwargs("openai", "gpt-4o-mini", "high") == {}
+    assert _reasoning_kwargs("openrouter", "openai/gpt-5.6-luna", None) == {}
 
 
 def test_uses_strict_json_schema_groq():
     assert uses_strict_json_schema("groq", "llama-3.3-70b-versatile") is False
 
 
-def test_chat_structured_openrouter_gpt5_mini_uses_json_schema(monkeypatch):
+def test_chat_structured_openrouter_gpt56_luna_uses_json_schema_and_reasoning(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "openrouter")
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
-    monkeypatch.setenv("OPENROUTER_MODEL", "openai/gpt-5-mini")
+    monkeypatch.setenv("OPENROUTER_MODEL", "openai/gpt-5.6-luna")
 
     mock_response = type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": '{"ok": true}'})()})()]})()
     captured = {}
@@ -88,12 +105,14 @@ def test_chat_structured_openrouter_gpt5_mini_uses_json_schema(monkeypatch):
             messages=[{"role": "user", "content": "hi"}],
             temperature=0.2,
             max_tokens=100,
+            reasoning_effort="high",
         )
 
     assert result["error"] is None
     assert result["content"] == {"ok": True}
     assert captured["response_format"]["type"] == "json_schema"
     assert captured["response_format"]["json_schema"]["strict"] is True
+    assert captured["extra_body"] == {"reasoning": {"effort": "high"}}
 
 
 def test_chat_structured_openrouter_free_llama_uses_json_object(monkeypatch):
@@ -121,3 +140,5 @@ def test_chat_structured_openrouter_free_llama_uses_json_object(monkeypatch):
 
     assert result["error"] is None
     assert captured["response_format"] == {"type": "json_object"}
+    assert "extra_body" not in captured
+    assert "reasoning_effort" not in captured

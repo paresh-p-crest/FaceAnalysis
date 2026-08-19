@@ -49,9 +49,9 @@ FEATURE_SUBSECTION_BODY_LIMITS: dict[str, dict[str, tuple[int, int]]] = {
     },
     "eyes": {
         "Eyebrows": SUBSECTION_BODY_LONG,
-        "Eyelashes": SUBSECTION_BODY_SHORT,
-        "Eyes": SUBSECTION_BODY_LONG,
-        "Under eye": SUBSECTION_BODY_LONG,
+        "Eyelashes": SUBSECTION_BODY_LONG,
+        "Eyes": SUBSECTION_BODY_BRIEF,
+        "Under eye": SUBSECTION_BODY_BRIEF,
     },
     "nose": {
         "Nose": SUBSECTION_BODY_LONG,

@@ -65,8 +65,9 @@ export default function middleware(request) {
   // German is the product default. An explicitly selected NEXT_LOCALE cookie
   // still wins, but the browser's Accept-Language must not change the first
   // visit to English.
-  if (!request.cookies.get('NEXT_LOCALE')?.value) {
-    request.cookies.set('NEXT_LOCALE', routing.defaultLocale)
+  const localeCookieName = routing.localeCookie?.name || 'NEXT_LOCALE'
+  if (!request.cookies.get(localeCookieName)?.value) {
+    request.cookies.set(localeCookieName, routing.defaultLocale)
   }
 
   return handleI18n(request)

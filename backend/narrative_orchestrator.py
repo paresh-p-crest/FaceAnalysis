@@ -88,7 +88,7 @@ _RETRY_USER_HINT = (
 
 _PROTOCOL_OVERVIEW_RETRY_HINT = (
     'Previous JSON failed validation. Return ONLY {"summary": "..."} with summary between '
-    "40 and 500 characters, third-person clinical tone, no numeric scores."
+    "40 and 500 characters, third-person feature-led tone, no numeric scores."
 )
 
 _TREATMENT_PHASES_RETRY_HINT = (
@@ -98,7 +98,7 @@ _TREATMENT_PHASES_RETRY_HINT = (
     f"({{name, detail}} with name under {TREATMENT_PHASE_NAME_MAX} chars and detail under "
     f"{TREATMENT_PHASE_DETAIL_MAX} chars). Include summary "
     f"({TREATMENT_PHASE_SUMMARY_MIN}-{TREATMENT_PHASE_SUMMARY_MAX} chars). "
-    "Third-person clinical tone; no numeric scores."
+    "Third-person feature-led tone; ordinary consumer-facing English; no numeric scores."
 )
 
 def _null_path_grounding_hint(feature_id: str, ctx: dict) -> str:
@@ -119,15 +119,16 @@ _NL_STYLE_RULES = (
 )
 
 FEATURE_NARRATIVE_SYSTEM = (
-    "You are MyFace's clinical aesthetic protocol writer for ONE facial feature page.\n"
+    "You are MyFace's personalized aesthetic report writer for ONE facial feature page.\n"
     + STRICT_NON_SURGICAL_RULES
     + _NL_STYLE_RULES
-    + "\n\nWrite conservative, biologically plausible non-surgical guidance grounded ONLY in supplied cues. "
+    + "\n\nWrite biologically plausible non-surgical guidance grounded ONLY in supplied cues. "
     "Return ONLY: featureId, summary, and subsections (title + body). "
     "Do NOT return measuredFacts, limitations, description, recommendations, evidenceTier, or scores. "
     "Use subsection titles exactly as required by schema. "
     "Honor each subsection's length target from the user message — never X/100. "
-    "Summary: 1-2 sentences naming qualitative priorities for this feature (not a generic placeholder). "
+    "Summary: 1-2 sentences synthesizing this feature's main finding and practical priority "
+    "(not a repeat of the opening sentence, not a generic placeholder). "
     "The phrase 'non-surgical' is allowed and preferred; do not recommend surgery or injectables.\n"
     "Never output raw numeric deviation scores or decimals (for example 0.04, 12, or 0.33). "
     "Use only the qualitative severity label provided (minimal, mild, moderate, notable, significant).\n"
@@ -136,7 +137,8 @@ FEATURE_NARRATIVE_SYSTEM = (
     "narrowing it; describe only supportive measures for the stated classification. The same rule applies "
     "to any paired opposites (full/flat, prominent/recessed, elevated/low, long/short).\n"
     "Example — Bad: 'The subject's skin quality shows score 72/100 with textured surface.' "
-    "Good: 'The subject's skin shows moderate redness with a dry texture under photographic review.'"
+    "Good: 'The skin shows moderate redness with a dry texture under photographic review, so the "
+    "priority is barrier support and daily SPF rather than aggressive resurfacing.'"
 )
 
 
@@ -155,7 +157,7 @@ def _build_feature_messages(
         f"{feature_context_as_prompt_text(ctx)}\n\n"
     )
     if hints:
-        user += f"Clinical hints (follow these):\n" + "\n".join(f"- {h}" for h in hints) + "\n"
+        user += f"Grounding hints (follow these):\n" + "\n".join(f"- {h}" for h in hints) + "\n"
 
     bucket = feature_severity_bucket(feature_id, ctx)
     user += "\n" + get_severity_content_directive(feature_id, ctx) + "\n"
@@ -655,7 +657,7 @@ def stitch_closing_paragraphs(
         )
 
     paragraphs.append(
-        "This protocol is educational guidance from the subject's facial measurements, not medical diagnosis or treatment."
+        "This protocol is informational guidance from the facial measurements, not medical diagnosis or treatment."
     )
     # Deduplicate while preserving order
     seen: set[str] = set()
@@ -698,10 +700,12 @@ CLOSING_SYNTHESIS_SYSTEM = (
     + STRICT_NON_SURGICAL_RULES
     + _NL_STYLE_RULES
     + "\n\nWrite 3-5 dense paragraphs (100-160 words each) that:\n"
-    "- Tie together priorities across ALL feature sections supplied with concrete measured cues\n"
-    "- Reference the subject's stated goals when provided\n"
+    "- Tie together priorities across ALL feature sections with concrete measured cues and why they "
+    "matter visually on this face\n"
+    "- Reference stated goals when provided\n"
     "- Use magnitude/qualitative language only — NEVER numeric scores (no X/100)\n"
     "- Close with realistic non-surgical next steps in priority order (SPF, sleep, grooming, topical care)\n"
+    "- Synthesize; do not repeat each feature's first sentence\n"
     "- Do NOT invent measurements or procedures\n"
     "- Do NOT paste generic lines like 'Non-surgical guidance for X based on stored measurements'\n"
     "- Do NOT restate sclera or eye-color observations; those belong only in the eyes section\n"
@@ -761,7 +765,7 @@ async def generate_closing_synthesis_async(
             paragraphs = [p for p in parsed.paragraphs if p.strip() and not _is_generic_summary(p)]
             if len(paragraphs) >= 3:
                 paragraphs.append(
-                    "This protocol is educational guidance from the subject's facial measurements, "
+                    "This protocol is informational guidance from the facial measurements, "
                     "not medical diagnosis or treatment."
                 )
                 return [
@@ -873,14 +877,15 @@ async def generate_treatment_phases_async(
                 "You write the three-phase TREATMENT PROTOCOL panel for a facial aesthetic dashboard.\n"
                 "Return JSON only. Top-level keys MUST be exactly: phase01, phase02, phase03, summary "
                 "(never 'Phase 01' or phase_01).\n"
-                "Third-person clinical tone. Each phase has title, duration, and "
+                "Third-person, feature-led, ordinary consumer-facing English that fits the char budgets. "
+                "Each phase has title, duration, and "
                 f"{TREATMENT_PHASE_ITEMS_MIN}–{TREATMENT_PHASE_ITEMS_MAX} items "
                 "(name + detail line like timing or anatomical focus).\n"
                 f"Budgets: title/duration ≤{TREATMENT_PHASE_TITLE_MAX} chars; "
                 f"name ≤{TREATMENT_PHASE_NAME_MAX} chars; detail ≤{TREATMENT_PHASE_DETAIL_MAX} chars; "
                 f"summary {TREATMENT_PHASE_SUMMARY_MIN}–{TREATMENT_PHASE_SUMMARY_MAX} chars.\n"
-                "phase01 = foundation topicals/photoprotection; phase02 = supervised regeneration; "
-                "phase03 = long-term structural optimisation.\n"
+                "phase01 = foundation topicals and sun protection; phase02 = supervised regeneration; "
+                "phase03 = long-term grooming and maintenance.\n"
                 + STRICT_NON_SURGICAL_RULES
                 + _NL_STYLE_RULES
             ),

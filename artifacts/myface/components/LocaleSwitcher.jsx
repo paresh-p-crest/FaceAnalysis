@@ -11,6 +11,12 @@ const LOCALE_LABELS = {
   de: 'Deutsch',
 }
 
+const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
+
+function persistLocaleCookie(locale) {
+  document.cookie = `NEXT_LOCALE=${locale}; path=/; max-age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax`
+}
+
 export function LocaleSwitcher({ className = '', compact = false }) {
   const t = useTranslations('Nav')
   const locale = useLocale()
@@ -28,6 +34,7 @@ export function LocaleSwitcher({ className = '', compact = false }) {
         close()
         return
       }
+      persistLocaleCookie(nextLocale)
       router.replace(pathname, { locale: nextLocale })
       router.refresh()
       close()

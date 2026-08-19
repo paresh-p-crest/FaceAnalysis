@@ -81,10 +81,11 @@ def get_severity_content_directive(feature_id: str, ctx: dict) -> str:
                 "so the section reads as substantive, not boilerplate. Write in this exact order: "
                 "(1) one sentence naming the SPECIFIC measured attributes for this feature from the provided cues "
                 "(shape, angle, ratio, symmetry, or position) using ONLY values present in the cues, never invented; "
-                "(2) one sentence explaining WHY those specific values support facial harmony or sit within the "
-                "expected/balanced range, grounded in the stated classification (not generic language); "
-                "(3) one closing sentence stating no non-surgical changes are recommended and the current routine "
-                "is sufficient. Do NOT use 'balanced', 'harmonious', or 'no deviations' without pairing each to the "
+                "(2) one sentence explaining the visual significance of those findings on this face "
+                "(why they matter in appearance), grounded in the stated classification, only if the "
+                "cues support that interpretation; "
+                "(3) one closing sentence stating no non-surgical changes are recommended and the current "
+                "routine is sufficient. Do NOT use 'balanced', 'harmonious', or 'no deviations' without pairing each to the "
                 "specific measured attribute it describes. Every sentence must reference at least one concrete cue "
                 "from this feature's measurements. Do NOT pad with generic SPF/hydration/sleep filler."
             )
@@ -103,7 +104,7 @@ def get_severity_content_directive(feature_id: str, ctx: dict) -> str:
         )
     return (
         "SEVERITY = notable. Give lifestyle guidance plus a targeted change, and state explicitly that this "
-        "is a priority area for the subject. Do NOT pad with generic skincare filler covered in other sections."
+        "is a priority area. Do NOT pad with generic skincare filler covered in other sections."
     )
 
 
@@ -177,42 +178,40 @@ NULL_PATH_FEATURE_GUIDE: dict[str, dict[str, Any]] = {
     "hair": {
         "terms": {
             "hair", "hairline", "temple", "temporal", "frontal", "crown", "scalp",
-            "recession", "forehead", "follicle",
+            "recession", "forehead", "follicle", "density", "part",
         },
         "fewshot": (
-            "The subject's hairline is stable with even density across the frontal and temporal regions "
-            "and no notable recession at the temples or crown. The hair texture and coverage frame the "
-            "forehead in proportion with the facial thirds, so the present cut and styling suit the face. "
-            "Scalp coverage tracks within the expected range, so routine grooming maintains the current "
-            "appearance. Currently, no non-surgical changes are recommended for this feature."
+            "The hairline is low and rounded, with even density across the front and temples and "
+            "continuous coverage at the crown. That coverage already frames the forehead, so the "
+            "current cut can stay close to the head without exposing extra forehead height. "
+            "Gentle cleansing and less heat styling are enough to keep this pattern; no non-surgical "
+            "hair-loss treatment is indicated beyond styling and scalp care."
         ),
     },
     "eyes": {
         "terms": {
             "brow", "brows", "eyebrow", "arch", "lash", "lashes", "eyelash", "lid",
             "eyelid", "canthal", "canthus", "periorbital", "ocular", "sclera",
-            "hollowing", "under-eye", "undereye", "tear trough",
+            "hollowing", "under-eye", "undereye", "tear trough", "tilt",
         },
         "fewshot": (
-            "The subject's brows sit level with a soft arch and even thickness, framing the periorbital "
-            "region symmetrically. The lash line and eyelid exposure are even and the canthal tilt reads "
-            "neutral, so the ocular region stays in proportion with the brow and midface. The under-eye "
-            "area shows even tone with minimal hollowing, keeping the periorbital frame rested. Currently, "
-            "no non-surgical changes are recommended for this feature."
+            "The brows sit level with a soft arch and even thickness, so they already frame the "
+            "upper lids cleanly. Lash line and eyelid show are even, and the outer corners sit "
+            "level with the inner corners, keeping the eye area in proportion with the midface. "
+            "The under-eye area shows even tone with only minimal hollowing. Light weekly brow "
+            "tidying is optional; no non-surgical change is indicated for the eyes themselves."
         ),
     },
     "nose": {
         "terms": {
             "nasal", "nose", "dorsum", "dorsal", "hump", "nasolabial", "nasofrontal",
-            "alar", "ala", "columella", "convexity",
+            "alar", "ala", "columella", "convexity", "bridge", "nostril", "tip", "root",
         },
         "fewshot": (
-            "The subject's nasal profile is straight with a high root, a smooth dorsum, and a nasolabial "
-            "angle in the typical range, giving a stable midface anchor. The dorsal contour shows only a "
-            "minimal hump and the alar base sits proportionally against the facial thirds, so the nose "
-            "transitions cleanly into the surrounding features. Facial convexity and the nasofrontal "
-            "relationship both read within the expected range for this face shape, so the nose integrates "
-            "rather than standing out. Currently, no non-surgical changes are recommended for this feature."
+            "The nose is straight with a relatively high root and a subtle bridge prominence. "
+            "Its upper third is slightly broader than the lower base, while the tip remains defined "
+            "and mildly upturned. That combination anchors the midface without crowding the eyes "
+            "or mouth, so contour makeup is optional and no non-surgical change to the nose is indicated."
         ),
     },
     "cheeks": {
@@ -221,37 +220,34 @@ NULL_PATH_FEATURE_GUIDE: dict[str, dict[str, Any]] = {
             "midface", "buccal",
         },
         "fewshot": (
-            "The subject's cheekbones show moderate malar projection with a smooth midface transition and "
-            "no notable submalar hollowing. The zygomatic contour supports the midface and keeps the "
-            "cheeks in proportion with the orbital and jaw regions. Malar height tracks with the "
-            "surrounding facial thirds, so the cheeks read as supportive structure rather than a focal "
-            "point. Currently, no non-surgical changes are recommended for this feature."
+            "The cheekbones sit high and project enough to keep a clear transition from the lower "
+            "lid into the midface, with no notable hollow under the cheek. That height already "
+            "defines the middle of the face against the jaw. Daily SPF and moisturiser maintain "
+            "the surface; no non-surgical change to cheek structure is indicated."
         ),
     },
     "jaw": {
         "terms": {
             "jaw", "jawline", "jowl", "mandible", "mandibular", "gonial", "bigonial",
-            "ramus", "masseter", "definition",
+            "ramus", "masseter", "definition", "width",
         },
         "fewshot": (
-            "The subject's jawline shows a defined mandibular border with a gonial angle in the typical "
-            "range and even bigonial proportions. The ramus and mandibular contour give the lower face a "
-            "stable frame that balances with the midface and chin. Jaw definition tracks with the "
-            "surrounding landmarks, so the lower-third proportions read as harmonious. Currently, no "
-            "non-surgical changes are recommended for this feature."
+            "The jaw is broad and U-shaped, with a smooth transition from the angles toward the chin. "
+            "This gives the lower face a defined but softer outline rather than a sharp square. "
+            "Neat grooming along the jaw can increase contrast if desired; no non-surgical change "
+            "to the bony outline is indicated."
         ),
     },
     "lips": {
         "terms": {
             "lip", "lips", "vermilion", "cupid", "philtrum", "commissure", "oral",
-            "mouth", "border",
+            "mouth", "border", "bow",
         },
         "fewshot": (
-            "The subject's lips show an even vermilion border with a defined cupid's bow and a "
-            "proportionate philtrum. The upper-to-lower vermilion balance and gentle lip curvature keep "
-            "the mouth in harmony with the midface. The oral commissures sit level, so the lips integrate "
-            "with the lower-face features. Currently, no non-surgical changes are recommended for this "
-            "feature."
+            "The lips are full, with a longer philtrum and a rather flat cupid's bow, so they sit "
+            "quietly in the lower midface rather than reading as a sharp peak. Fullness and philtrum "
+            "length still fit the surrounding proportions. Daily balm keeps the surface even; no "
+            "non-surgical change to lip shape is indicated."
         ),
     },
     "chin": {
@@ -260,37 +256,35 @@ NULL_PATH_FEATURE_GUIDE: dict[str, dict[str, Any]] = {
             "recession",
         },
         "fewshot": (
-            "The subject's chin shows neutral pogonial projection with a smooth mental contour and no "
-            "notable recession in profile. The chin balances the lower third against the lips and "
-            "jawline, keeping the lower-face proportions stable. Mental projection tracks with the "
-            "surrounding landmarks, so the chin integrates with the lower face. Currently, no non-surgical "
-            "changes are recommended for this feature."
+            "The chin is centered, with adequate height and only slight under-projection in profile. "
+            "It closes the lower third without a blocky or protruding look. A short, well-edged beard "
+            "along the chin outline can add visual depth if wanted; no non-surgical change to chin "
+            "structure is required."
         ),
     },
     "neck": {
         "terms": {
             "neck", "cervicomental", "submental", "cervical", "nape", "posture",
+            "width", "length",
         },
         "fewshot": (
-            "The subject's neck shows a clean cervicomental angle with proportionate width and length and "
-            "an upright head posture. The submental contour is smooth and the neck transitions cleanly "
-            "into the jawline and shoulders. Cervical proportions track with the surrounding landmarks, so "
-            "the profile reads as stable. Currently, no non-surgical changes are recommended for this "
-            "feature."
+            "The neck has balanced width and a clean transition under the jaw, with upright head "
+            "posture. That column already supports the head without looking bulky. Daily SPF on the "
+            "neck skin and ordinary posture habits maintain this; no non-surgical change to neck "
+            "size is indicated."
         ),
     },
     "ears": {
         "terms": {
             "ear", "ears", "helix", "helical", "antihelix", "lobule", "lobe",
             "conchal", "concha", "auricle", "auricular", "pinna", "tragus",
+            "projection",
         },
         "fewshot": (
-            "The subject's ears sit close to the head with a well-defined helix and antihelix and a "
-            "proportionate lobule. The helical rim curls smoothly and the conchal depth keeps the auricle "
-            "from projecting, so the ears stay visually recessive in front and profile views. Ear "
-            "position tracks with the surrounding facial landmarks, so they read as neutral framing "
-            "rather than a focal point. Currently, no non-surgical changes are recommended for this "
-            "feature."
+            "The ears are small, set high, and only slightly prominent, with a clear helix and "
+            "antihelix. Their size and symmetry keep them as a side frame rather than a focal point "
+            "from the front. Current hair styling that covers the rim is enough; no non-surgical "
+            "change to ear shape is indicated."
         ),
     },
     "smile": {
@@ -299,11 +293,9 @@ NULL_PATH_FEATURE_GUIDE: dict[str, dict[str, Any]] = {
             "commissure", "oral", "whiteness", "corridor",
         },
         "fewshot": (
-            "The subject's smile shows a consonant smile arc with even teeth visibility and minimal gum "
-            "exposure. The oral commissures rise symmetrically and the dental display sits in proportion "
-            "with the lips and lower face. Smile curvature and gingival show track with the surrounding "
-            "features, so the smile reads as harmonious. Currently, no non-surgical changes are "
-            "recommended for this feature."
+            "The smile shows an even arc with moderate tooth display and little gum show. The corners "
+            "rise symmetrically, so the mouth stays in proportion with the lips and chin. Ordinary "
+            "oral hygiene and lip care maintain this; no non-surgical change to smile shape is indicated."
         ),
     },
 }

@@ -6,7 +6,9 @@ import { Download, Loader2, Share2 } from 'lucide-react'
 import { PhotoLandmarkFrame } from './FaceImageFrame'
 import { resolveProjectedAfterUrl } from '../../utils/projectedAfter'
 import {
+  analysisTimeDaysParts,
   buildProtocolDashboardData,
+  formatAnalysisTimeDays,
   formatProtocolId,
   getClientName,
   resolveTreatmentPhases,
@@ -17,6 +19,7 @@ import { NameProtocolPlate } from './NameProtocolPlate'
 import { TreatmentProtocolPhases } from './TreatmentProtocolPhases'
 import { FacialAgePanel } from './FacialAgePanel'
 import { pickLocalizedNarratives } from '../../utils/narrativeLocale'
+import { localizeFeatureRow, localizePriorityMiniCard } from '../../utils/cvReportLocale'
 
 const RADAR_AXIS_KEYS = ['symmetry', 'smoothness', 'jawline', 'skin', 'volume', 'harmony']
 
@@ -28,7 +31,7 @@ function RadarChart({ scores, t }) {
   const cx = 100
   const cy = 100
   const rMax = 70
-  const axes = RADAR_AXIS_KEYS.map((key) => t(`executiveSummary.radarAxes.${key}`))
+  const axes = RADAR_AXIS_KEYS.map((key) => t(`executiveSummary.radarAxesShort.${key}`))
 
   const backgroundPolygons = [0.2, 0.4, 0.6, 0.8, 1].map((scale) => {
     const points = []
@@ -130,6 +133,7 @@ export function ExecutiveSummary({
   canDownloadPdf = true,
 }) {
   const t = useTranslations('Report')
+  const tCv = useTranslations('CvReport')
   const locale = useLocale()
   const localized = useMemo(
     () => pickLocalizedNarratives({ aiNarrative, protocolNarrative }, locale, { t }),
@@ -153,9 +157,7 @@ export function ExecutiveSummary({
   const overviewText = localized.protocolNarrative?.summary || localized.aiNarrative?.content?.summary || null
   const treatment = resolveTreatmentPhases({ protocolNarrative: localized.protocolNarrative, dash, t })
 
-  const analysisTimeLabel = dash.analysisTimeDays
-    ? t('executiveSummary.kpiAnalysisTimeValue', { days: dash.analysisTimeDays })
-    : '—'
+  const analysisTimeLabel = formatAnalysisTimeDays(dash.analysisTimeDays, t) || '—'
 
   const handleShare = useCallback(async () => {
     try {
@@ -231,17 +233,7 @@ export function ExecutiveSummary({
         />
         <KpiCard
           label={t('executiveSummary.kpiAnalysisTime')}
-          parts={dash.analysisTimeDays != null
-            ? (() => {
-                const full = t('executiveSummary.kpiAnalysisTimeValue', { days: dash.analysisTimeDays })
-                const m = String(full).match(/^(\d[\d,]*\+?)(.*)$/)
-                if (!m) return [{ text: full, brand: false }]
-                return [
-                  { text: m[1], brand: true },
-                  ...(m[2] ? [{ text: m[2], brand: false }] : []),
-                ]
-              })()
-            : null}
+          parts={analysisTimeDaysParts(dash.analysisTimeDays, t)}
           value="—"
         />
       </div>
@@ -275,7 +267,8 @@ export function ExecutiveSummary({
           </p>
 
           {(dash.miniCards || []).map((card) => {
-            const findings = (card.findings || []).filter((f) => f?.title)
+            const localized = localizePriorityMiniCard(card, { tReport: t, tCv, locale })
+            const findings = (localized.findings || []).filter((f) => f?.title)
             return (
               <button
                 key={card.id}
@@ -286,17 +279,17 @@ export function ExecutiveSummary({
                 <div className="px-3 py-2.5">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-[12px] font-bold text-ink leading-tight min-w-0">
-                      {t(`nav.${card.id}`)}
+                      {localized.title}
                     </p>
-                    {card.score && (
+                    {localized.score && (
                       <p className="text-[12px] font-bold text-ink tabular-nums shrink-0">
-                        {card.score}
+                        {localized.score}
                       </p>
                     )}
                   </div>
-                  {card.scoreLabel && (
+                  {localized.scoreLabel && (
                     <p className="mt-0.5 text-[10px] text-ink-muted text-right">
-                      {card.scoreLabel}
+                      {localized.scoreLabel}
                     </p>
                   )}
                   {findings.length > 0 && (
@@ -404,13 +397,16 @@ export function ExecutiveSummary({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-border">
-                    {dash.featureRows.map((row) => (
+                    {dash.featureRows.map((row) => {
+                      const localized = localizeFeatureRow(row, { tReport: t, tCv, locale })
+                      return (
                       <tr key={row.zoneKey}>
                         <td className="py-2 font-bold text-ink">{t(`executiveSummary.featureRows.${row.zoneKey}.zone`)}</td>
-                        <td className="py-2 text-ink-secondary">{dashBlank(row.finding)}</td>
-                        <td className="py-2 text-ink-muted">{dashBlank(row.ref)}</td>
+                        <td className="py-2 text-ink-secondary">{dashBlank(localized.finding)}</td>
+                        <td className="py-2 text-ink-muted">{dashBlank(localized.ref)}</td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

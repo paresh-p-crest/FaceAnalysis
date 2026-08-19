@@ -59,5 +59,7 @@ __pycache__/
 .venv
 
 # Local media storage backend output (MEDIA_STORAGE_BACKEND=local)
+var/
 var/media/
+models/
 

@@ -81,6 +81,11 @@ const ENGLISH_TO_KEY = {
   High: 'high',
   Neutral: 'neutral',
   Recessed: 'recessed',
+  protruded: 'protruding',
+  'Needs attention': 'needsAttention',
+  'Need Attention': 'needsAttention',
+  'Good condition': 'goodCondition',
+  Clear: 'clear',
   Deviated: 'deviated',
   Pointed: 'pointed',
   Shallow: 'shallow',
@@ -88,7 +93,8 @@ const ENGLISH_TO_KEY = {
   'Peaked / Defined': 'peakedDefined',
   'Flat / Subtle': 'flatSubtle',
   'Full / Wide': 'fullWide',
-  Angular: 'angularDefined',
+  Angular: 'angular',
+  'Angular / Defined': 'angularDefined',
   Eyes: 'regionEyes',
   Brows: 'regionBrows',
   Mouth: 'regionMouth',
@@ -158,9 +164,128 @@ export function resolveCvLabelKey(value) {
   if (value == null || value === '') return null
   const s = String(value).trim()
   if (ENGLISH_TO_KEY[s]) return ENGLISH_TO_KEY[s]
+  const lower = s.toLowerCase()
+  for (const [en, key] of Object.entries(ENGLISH_TO_KEY)) {
+    if (en.toLowerCase() === lower) return key
+  }
   if (CV_LABEL_VALUES.has(s)) return s
   if (s in CV_LABEL) return s
   return null
+}
+
+/** Mini-card metric row titles (English source → i18n key under Report.executiveSummary.miniCardMetrics). */
+const MINI_CARD_METRIC_TO_KEY = {
+  'Width–length': 'widthLength',
+  'Width-length': 'widthLength',
+  'Width': 'width',
+  'Length': 'length',
+  'Definition': 'definition',
+  'Projection': 'projection',
+  'Shape': 'shape',
+  'Fullness': 'fullness',
+  'Prominence': 'prominence',
+  'Symmetry': 'symmetry',
+  'Texture': 'texture',
+  'Color': 'color',
+  'Hairline': 'hairline',
+  'Density': 'density',
+  'Recession': 'recession',
+  'Canthal tilt': 'canthalTilt',
+  'Spacing': 'spacing',
+  'Under-eye': 'underEye',
+  'Tip': 'tip',
+  'Hollowing': 'hollowing',
+  'Ratio': 'ratio',
+  'Cupid bow': 'cupidBow',
+  'Profile': 'profile',
+  'Laxity': 'laxity',
+  'Contour': 'contour',
+  'Blemishing': 'blemishing',
+  'Evenness': 'evenness',
+  'Skin': 'skin',
+  'Ideal ratio': 'idealRatio',
+}
+
+function normalizeMetricTitle(title) {
+  return String(title || '').replace(/\u2013/g, '-').trim()
+}
+
+export function formatLocaleDecimal(value, locale) {
+  const s = String(value ?? '').trim()
+  if (/^-?\d+\.\d+$/.test(s)) {
+    const n = Number(s)
+    if (Number.isFinite(n)) {
+      return n.toLocaleString(locale === 'de' ? 'de-DE' : 'en-US', { maximumFractionDigits: 10 })
+    }
+  }
+  return s
+}
+
+export function localizeMiniCardMetricTitle(title, tReport) {
+  const norm = normalizeMetricTitle(title)
+  const key = MINI_CARD_METRIC_TO_KEY[norm]
+  if (key && tReport?.has?.(`executiveSummary.miniCardMetrics.${key}`)) {
+    return tReport(`executiveSummary.miniCardMetrics.${key}`)
+  }
+  return title
+}
+
+export function localizeMiniCardDetail(detail, tCv, locale) {
+  if (detail == null || detail === '') return detail
+  const s = String(detail)
+  if (s.includes(' · ')) {
+    return s.split(' · ').map((part) => localizeMiniCardDetail(part.trim(), tCv, locale)).join(' · ')
+  }
+  const counted = s.match(/^(.+?)\s*\((\d+)\)\s*$/)
+  if (counted) {
+    return `${translateClassification(counted[1], tCv)} (${counted[2]})`
+  }
+  const localized = formatLocaleDecimal(s, locale)
+  if (localized !== s) return localized
+  return translateClassification(s, tCv)
+}
+
+export function localizeFeatureRowText(text, tReport, tCv, locale) {
+  if (text == null || text === '') return null
+  const s = String(text).trim()
+  if (!s || s === '—') return null
+  const ratio = s.match(/^Ratio\s+(.+)$/i)
+  if (ratio) {
+    const value = formatLocaleDecimal(ratio[1], locale)
+    if (tReport?.has?.('executiveSummary.ratioValue')) {
+      return tReport('executiveSummary.ratioValue', { value })
+    }
+    return `Ratio ${value}`
+  }
+  return localizeMiniCardDetail(s, tCv, locale)
+}
+
+export function localizeFeatureRow(row, { tReport, tCv, locale = 'en' }) {
+  if (!row) return row
+  const finding = localizeFeatureRowText(row.finding, tReport, tCv, locale)
+  let ref = localizeFeatureRowText(row.ref, tReport, tCv, locale)
+  if (!ref && row.zoneKey && tReport?.has?.(`executiveSummary.featureRows.${row.zoneKey}.ref`)) {
+    ref = tReport(`executiveSummary.featureRows.${row.zoneKey}.ref`)
+  }
+  return { ...row, finding, ref }
+}
+
+export function localizePriorityMiniCard(card, { tReport, tCv, locale = 'en' }) {
+  if (!card) return card
+  const navTitle = tReport?.(`nav.${card.id}`)
+  const miniTitle = tReport?.has?.(`executiveSummary.miniCards.${card.id}.title`)
+    ? tReport(`executiveSummary.miniCards.${card.id}.title`)
+    : navTitle
+  return {
+    ...card,
+    title: miniTitle || card.title,
+    scoreLabel: card.scoreLabel ? translateClassification(card.scoreLabel, tCv) : card.scoreLabel,
+    findings: (card.findings || []).map((f) => ({
+      ...f,
+      title: localizeMiniCardMetricTitle(f.title, tReport),
+      detail: localizeMiniCardDetail(f.detail, tCv, locale),
+    })),
+  }
 }
 
 export function translateClassification(value, tCv) {

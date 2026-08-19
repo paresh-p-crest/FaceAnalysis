@@ -30,7 +30,12 @@ OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 # Unified max completion tokens for every backend LLM call (narratives, protocol, assistant).
 # Keeps budgets consistent and avoids truncated JSON from smaller per-call caps.
 # Override with LLM_MAX_OUTPUT_TOKENS in .env if needed.
-LLM_MAX_OUTPUT_TOKENS = int(os.environ.get("LLM_MAX_OUTPUT_TOKENS", "8000") or "8000")
+LLM_MAX_OUTPUT_TOKENS = int(os.environ.get("LLM_MAX_OUTPUT_TOKENS", "12000") or "12000")
+
+# Reasoning effort — applied only when the text model is GPT-5.6 Luna
+# (`openai/gpt-5.6-luna` on OpenRouter, `gpt-5.6-luna` on OpenAI). Default high.
+# Set to "low", "medium", or "high"; empty disables the param even on Luna.
+LLM_REASONING_EFFORT = os.environ.get("LLM_REASONING_EFFORT", "high").strip() or None
 
 # Feature narrative generation: total LLM attempts on hard reject / empty / schema fail.
 FEATURE_NARRATIVE_MAX_ATTEMPTS = int(os.environ.get("FEATURE_NARRATIVE_MAX_ATTEMPTS", "3") or "3")

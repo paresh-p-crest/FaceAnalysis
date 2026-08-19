@@ -170,14 +170,14 @@ def score_band_label(score: Any) -> str:
     try:
         s = float(score)
     except (TypeError, ValueError):
-        return "unrated relative to peers"
+        return "unrated for this face"
     if s >= 85:
-        return "strong relative to peers"
+        return "strong for this face"
     if s >= 70:
-        return "balanced relative to peers"
+        return "balanced for this face"
     if s >= 55:
-        return "soft relative to peers"
-    return "notably soft relative to peers"
+        return "soft for this face"
+    return "notably soft for this face"
 
 
 def _qualitative_fact_value(key: str, val: Any) -> Optional[str]:
@@ -233,9 +233,9 @@ def build_measured_facts(feature_id: str, cv_slice: dict, eye_analysis: Optional
         band = score_band_label(cv_slice["score"])
         label = (cv_slice.get("scoreLabel") or "").strip()
         if label and label.lower() not in band.lower():
-            facts.append(f"scoreLabel: {label}; relative strength: {band}")
+            facts.append(f"scoreLabel: {label}; overall band: {band}")
         else:
-            facts.append(f"relative strength: {band}")
+            facts.append(f"overall band: {band}")
 
     scalar_keys = (
         "shape",
@@ -301,7 +301,7 @@ def build_measured_facts(feature_id: str, cv_slice: dict, eye_analysis: Optional
         eyes_region = cv_slice.get("eyesRegion") if isinstance(cv_slice.get("eyesRegion"), dict) else None
         if eyes_region:
             if eyes_region.get("score") is not None:
-                facts.append(f"eyes relative strength: {score_band_label(eyes_region['score'])}")
+                facts.append(f"eyes overall band: {score_band_label(eyes_region['score'])}")
             for sub_key, sub_title in (
                 ("eyebrows", "brow"),
                 ("eyelashes", "lash"),
@@ -380,7 +380,7 @@ def _build_deviation_facts(feature_id: str, cv_report: dict) -> list[str]:
         if isinstance(score, (int, float)) and score < 75:
             mag = max(0, (80 - score) / 200)
             facts.append(
-                f"feature relative strength {score_band_label(score)} implies "
+                f"feature overall band {score_band_label(score)} implies "
                 f"{magnitude_label(mag)} deviation"
             )
     return facts[:8]

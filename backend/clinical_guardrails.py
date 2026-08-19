@@ -409,29 +409,52 @@ def strip_score_language_from_narrative_dict(data: dict) -> dict:
     return out
 
 
-def sanitize_report_ascii(text: str) -> str:
-    """Normalize fancy Unicode punctuation to Helvetica-safe ASCII for PDF storage."""
+_PUNCT_MAP = (
+    ("\u00ad", "-"),
+    ("\u2010", "-"),
+    ("\u2011", "-"),
+    ("\u2012", "-"),
+    ("\u2013", "-"),
+    ("\u2014", "-"),
+    ("\u2015", "-"),
+    ("\u2212", "-"),
+    ("\u2018", "'"),
+    ("\u2019", "'"),
+    ("\u201c", '"'),
+    ("\u201d", '"'),
+    ("\u2026", "..."),
+    ("\u00a0", " "),
+)
+
+
+def sanitize_report_punctuation(text: str) -> str:
+    """Normalize fancy dashes/quotes; keep letters intact."""
     if not isinstance(text, str) or not text:
         return text
     out = text
-    for src, dst in (
-        ("\u00ad", "-"),
-        ("\u2010", "-"),
-        ("\u2011", "-"),
-        ("\u2012", "-"),
-        ("\u2013", "-"),
-        ("\u2014", "-"),
-        ("\u2015", "-"),
-        ("\u2212", "-"),
-        ("\u2018", "'"),
-        ("\u2019", "'"),
-        ("\u201c", '"'),
-        ("\u201d", '"'),
-        ("\u2026", "..."),
-        ("\u00a0", " "),
-    ):
+    for src, dst in _PUNCT_MAP:
         out = out.replace(src, dst)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    return out.strip()
+
+
+def sanitize_report_ascii(text: str) -> str:
+    """English storage: punctuation plus ASCII-only (Helvetica-safe)."""
+    out = sanitize_report_punctuation(text)
+    if not out:
+        return out
     out = re.sub(r"[^\t\n\r\x20-\x7E]", "", out)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    return out.strip()
+
+
+def sanitize_report_latin1(text: str) -> str:
+    """German storage: punctuation plus WinAnsi/Latin-1 (ä ö ü ß)."""
+    out = sanitize_report_punctuation(text)
+    if not out:
+        return out
+    out = out.replace("\u1e9e", "\u00df").replace("\u1E9E", "\u00df")
+    out = re.sub(r"[^\t\n\r\x20-\x7E\u00A0-\u00FF]", "", out)
     out = re.sub(r"[ \t]{2,}", " ", out)
     return out.strip()
 

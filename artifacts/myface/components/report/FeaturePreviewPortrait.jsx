@@ -126,6 +126,8 @@ export function FeaturePreviewPortrait({
   )
 }
 
+const HERO_FEATURE_COUNT = 1
+
 /**
  * Overview hero: copy left, annotated portrait right, metrics full-width below.
  */
@@ -184,7 +186,7 @@ export function FeatureAnalysisHero({
               {t('executiveSummary.heroBody')}
             </p>
             <ul className={compact ? 'space-y-1 pt-0.5' : 'space-y-2.5 pt-1'}>
-              {[0, 1, 2].map((i) => (
+              {Array.from({ length: HERO_FEATURE_COUNT }, (_, i) => i).map((i) => (
                 <li key={i} className="flex items-start gap-1.5">
                   <span
                     className={`rounded-full bg-brand-100 text-brand flex items-center justify-center shrink-0 font-bold ${

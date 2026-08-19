@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from openai import OpenAI
 
-from .config import GROQ_MODEL, OPENAI_REPORT_MODEL, OPENROUTER_MODEL
+from .config import GROQ_MODEL, LLM_REASONING_EFFORT, OPENAI_REPORT_MODEL, OPENROUTER_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +20,15 @@ _KNOWN_PROVIDERS = frozenset({"openai", "groq", "openrouter"})
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # OpenRouter models that accept OpenAI strict json_schema (not just json_object).
 _OPENROUTER_JSON_SCHEMA_MODELS = frozenset({
-    "openai/gpt-5-mini",
+    "openai/gpt-5.6-luna",
     "google/gemma-4-26b-a4b-it:free",
 })
+
+
+def _model_is_gpt56_luna(model: str) -> bool:
+    """True for OpenRouter `openai/gpt-5.6-luna` or OpenAI `gpt-5.6-luna`."""
+    m = (model or "").strip().lower()
+    return m == "openai/gpt-5.6-luna" or m == "gpt-5.6-luna" or m.endswith("/gpt-5.6-luna")
 
 
 def uses_strict_json_schema(source: str, model: str) -> bool:
@@ -233,6 +239,17 @@ def _chat_create(
         raise
 
 
+def _reasoning_kwargs(source: str, model: str, reasoning_effort: Optional[str]) -> dict:
+    """Attach reasoning effort only for GPT-5.6 Luna (EN + DE text completions)."""
+    if not reasoning_effort or not _model_is_gpt56_luna(model):
+        return {}
+    if source == "openai":
+        return {"reasoning_effort": reasoning_effort}
+    if source == "openrouter":
+        return {"extra_body": {"reasoning": {"effort": reasoning_effort}}}
+    return {}
+
+
 def chat_structured_completion(
     *,
     schema_name: str,
@@ -242,6 +259,7 @@ def chat_structured_completion(
     max_tokens: int,
     require_strict: bool = False,
     api_key_override: Optional[str] = None,
+    reasoning_effort: Optional[str] = LLM_REASONING_EFFORT,
 ) -> dict:
     """Chat completion with strict json_schema when supported or required; else json_object."""
     llm = get_chat_llm(api_key_override=api_key_override)
@@ -255,6 +273,8 @@ def chat_structured_completion(
 
     def _parse_response(raw: str) -> dict:
         return _extract_json_object(raw)
+
+    extra = _reasoning_kwargs(source, model, reasoning_effort)
 
     if require_strict or uses_strict_json_schema(source, model):
         try:
@@ -275,6 +295,7 @@ def chat_structured_completion(
                         "schema": json_schema,
                     },
                 },
+                **extra,
             )
             raw = response.choices[0].message.content
             content = _parse_response(raw)
@@ -298,6 +319,7 @@ def chat_structured_completion(
                     temperature=temperature,
                     max_tokens=max_tokens,
                     response_format={"type": "json_object"},
+                    **extra,
                 )
                 raw = response.choices[0].message.content
                 content = _parse_response(raw)
@@ -331,6 +353,7 @@ def chat_structured_completion(
             temperature=temperature,
             max_tokens=max_tokens,
             response_format={"type": "json_object"},
+            **extra,
         )
         raw = response.choices[0].message.content
         content = _parse_response(raw)
@@ -359,6 +382,7 @@ def chat_json_completion(
     max_tokens: int,
     api_key_override: Optional[str] = None,
     label: Optional[str] = None,
+    reasoning_effort: Optional[str] = LLM_REASONING_EFFORT,
 ) -> dict:
     """Run a chat completion and parse a JSON object from the response."""
     llm = get_chat_llm(api_key_override=api_key_override)
@@ -369,6 +393,7 @@ def chat_json_completion(
     model = llm["model"]
     source = llm["source"]
     op = "chat_json"
+    extra = _reasoning_kwargs(source, model, reasoning_effort)
 
     try:
         response, usage, duration_s = _chat_create(
@@ -381,6 +406,7 @@ def chat_json_completion(
             temperature=temperature,
             max_tokens=max_tokens,
             response_format={"type": "json_object"},
+            **extra,
         )
         raw = response.choices[0].message.content
         content = _extract_json_object(raw)
@@ -411,6 +437,7 @@ def chat_text_completion(
     api_key_override: Optional[str] = None,
     tools: Optional[list[dict]] = None,
     label: Optional[str] = None,
+    reasoning_effort: Optional[str] = LLM_REASONING_EFFORT,
 ) -> dict:
     """Run a chat completion and return plain text (or tool_calls in metadata)."""
     llm = get_chat_llm(api_key_override=api_key_override)
@@ -428,6 +455,7 @@ def chat_text_completion(
     model = llm["model"]
     source = llm["source"]
     op = "chat_text"
+    extra = _reasoning_kwargs(source, model, reasoning_effort)
 
     try:
         kwargs: dict = {
@@ -435,6 +463,7 @@ def chat_text_completion(
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            **extra,
         }
         if tools:
             kwargs["tools"] = tools

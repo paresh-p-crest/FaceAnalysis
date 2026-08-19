@@ -11,7 +11,7 @@
 |---|---|
 | Product name | **MyFace** |
 | Logo treatment | Wordmark: Inter bold (`font-sans`), tracking-tight. Same stack as app UI. |
-| Brand voice | Scientific, clean, premium; report-style third person (“the subject”) in PDF/protocol/narrative copy; second-person (you/your) in Beauty Assistant chat; no pipeline/tech jargon in client-facing text |
+| Brand voice | Scientific, clean, premium; PDF/protocol English is third person with the **feature** as grammatical subject (ADR-017/049); German protocol bodies are du-form localization; Beauty Assistant is second-person (you/your); no pipeline/tech jargon in client-facing text |
 | Dark panel background | `#0d1e1f` → `#091516` → `#04090a` (gradient) |
 
 ---

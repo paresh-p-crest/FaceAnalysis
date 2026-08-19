@@ -34,7 +34,7 @@ POSE_LABELS = {
 
 _OPENROUTER_VISION_MODELS = frozenset(
     {
-        "openai/gpt-5-mini",
+        "openai/gpt-5.6-luna",
     }
 )
 

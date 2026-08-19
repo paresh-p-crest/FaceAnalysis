@@ -28,9 +28,11 @@ def test_build_flat_translation_schema():
 
 
 def test_batch_max_tokens_scaling():
-    assert _batch_max_tokens(1) == 8000
-    assert _batch_max_tokens(4) == 8000
-    assert _batch_max_tokens(6) == 12000
+    from backend.config import LLM_MAX_OUTPUT_TOKENS
+
+    assert _batch_max_tokens(1) == LLM_MAX_OUTPUT_TOKENS
+    assert _batch_max_tokens(4) == max(LLM_MAX_OUTPUT_TOKENS, 8000)
+    assert _batch_max_tokens(6) == max(LLM_MAX_OUTPUT_TOKENS, 12000)
     assert _batch_max_tokens(20) == 16000
     assert _batch_max_tokens(50) == 16000
 
@@ -57,7 +59,7 @@ def test_feature_flat_roundtrip():
     mock_resp = {
         "content": {
             "summary": "Das Kinn ist ausgewogen.",
-            "subsection_0": "Dein Kinn zeigt eine ausgewogene Hoehe.",
+            "subsection_0": "Dein Kinn zeigt eine ausgewogene Höhe.",
             "subsection_1": "Dezente Definition empfohlen.",
         },
         "error": None,
@@ -71,7 +73,7 @@ def test_feature_flat_roundtrip():
             assert res["summary"] == "Das Kinn ist ausgewogen."
             assert len(res["subsections"]) == 2
             assert res["subsections"][0]["title"] == "Chin"  # EN title kept
-            assert res["subsections"][0]["body"] == "Dein Kinn zeigt eine ausgewogene Hoehe."
+            assert res["subsections"][0]["body"] == "Dein Kinn zeigt eine ausgewogene Höhe."
             assert res["subsections"][1]["title"] == "Further Enhancement"
             assert res["subsections"][1]["body"] == "Dezente Definition empfohlen."
 
@@ -80,9 +82,9 @@ def test_feature_flat_roundtrip():
 
 def test_key_mismatch_retry_and_success():
     en_fields = {"summary": "Overview text.", "paragraph_0": "First paragraph."}
-    bad_resp = {"content": {"summary": "Uebersicht"}, "error": None}  # missing paragraph_0
+    bad_resp = {"content": {"summary": "Übersicht"}, "error": None}  # missing paragraph_0
     good_resp = {
-        "content": {"summary": "Uebersicht", "paragraph_0": "Erster Absatzziffer."},
+        "content": {"summary": "Übersicht", "paragraph_0": "Erster Absatzziffer."},
         "error": None,
     }
 
@@ -90,7 +92,7 @@ def test_key_mismatch_retry_and_success():
         with patch("backend.narrative_translation.chat_structured_completion", side_effect=[bad_resp, good_resp]) as mock_llm:
             res = await _translate_flat_batch(en_fields, label="test_mismatch", schema_name="test_schema")
             assert mock_llm.call_count == 2
-            assert res["summary"] == "Uebersicht"
+            assert res["summary"] == "Übersicht"
             assert res["paragraph_0"] == "Erster Absatzziffer."
 
     asyncio.run(_run())
@@ -139,3 +141,33 @@ def test_require_strict_api_error_json_object_fallback():
         assert mock_create.call_args_list[0].kwargs["response_format"]["json_schema"]["strict"] is True
         assert mock_create.call_args_list[1].kwargs["response_format"]["type"] == "json_object"
         assert res["content"] == {"translated": "hallo"}
+
+
+def test_de_sanitize_keeps_umlauts():
+    from backend.narrative_translation import finalize_de_text
+    from backend.clinical_guardrails import sanitize_report_ascii, sanitize_report_latin1
+
+    src = "Höhe, Größe, weiß, Maß"
+    assert sanitize_report_latin1(src) == src
+    assert "ö" not in sanitize_report_ascii(src)
+    assert finalize_de_text(src) == src
+
+
+def test_exact_glossary_not_substring_base():
+    from backend.narrative_translation import apply_exact_de_glossary, find_en_leaks, localize_de_decimals
+
+    assert apply_exact_de_glossary("alar base wide") == "Nasenflügelbasis wide"
+    assert "Basis" not in apply_exact_de_glossary("the base of the chin")
+    assert localize_de_decimals("Width-length 1.29 and SPF 30+") == "Width-length 1,29 and SPF 30+"
+    leftover = find_en_leaks("Die alar base ist breit.")
+    assert leftover
+
+
+def test_translation_prompt_localizes_not_preserves_english():
+    from backend.narrative_translation import NARRATIVE_TRANSLATION_SYSTEM_PROMPT
+
+    assert "Preserve medical/technical terms" not in NARRATIVE_TRANSLATION_SYSTEM_PROMPT
+    assert "Localize" in NARRATIVE_TRANSLATION_SYSTEM_PROMPT
+    assert "Nasenflügelbasis" in NARRATIVE_TRANSLATION_SYSTEM_PROMPT
+    assert "Querbreite" in NARRATIVE_TRANSLATION_SYSTEM_PROMPT
+    assert "Augenbrauen" in NARRATIVE_TRANSLATION_SYSTEM_PROMPT

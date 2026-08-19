@@ -211,7 +211,7 @@ def test_feature_context_facts_have_no_score_digits():
     blob = " ".join(ctx["measuredFacts"])
     assert "/100" not in blob
     assert not any(re.search(r"\bscore\s+\d", f, re.I) for f in ctx["measuredFacts"])
-    assert any("relative strength" in f or "scoreLabel" in f for f in ctx["measuredFacts"])
+    assert any("overall band" in f or "scoreLabel" in f for f in ctx["measuredFacts"])
 
 
 def test_normalize_free_model_feature_alias():

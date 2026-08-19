@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl'
 import { ReportSectionHeading } from './ReportSectionHeading'
 import { mergeMetricSections, resolveFeatureHero } from '../../utils/featureParsing'
+import { useCvLabel } from '../../utils/cvReportLocale'
 
 function MetricCard({ label, value, tooltip }) {
   return (
@@ -33,6 +34,7 @@ export function FeatureReportPanel({
   featureParsing = null,
 }) {
   const t = useTranslations('Report')
+  const cvLabel = useCvLabel()
 
   if (!data) return null
 
@@ -77,7 +79,7 @@ export function FeatureReportPanel({
           {summaryCards.map((card) => (
             <div key={card.label} className="report-view-metric-card">
               <p className="report-view-mono-label mb-1">{card.label}</p>
-              <p className="text-lg font-display font-bold text-ink">{card.value}</p>
+              <p className="text-lg font-display font-bold text-ink">{cvLabel(card.value)}</p>
             </div>
           ))}
         </div>
@@ -88,7 +90,7 @@ export function FeatureReportPanel({
         <div className="flex items-end gap-3 mb-4">
           <span className="text-4xl font-display font-bold text-brand">{data.score}</span>
           <span className="text-sm text-ink-muted mb-1">/ 100</span>
-          <span className="ml-auto text-sm font-medium text-brand bg-brand-50 px-3 py-1 rounded-full border border-brand/20">{data.scoreLabel}</span>
+          <span className="ml-auto text-sm font-medium text-brand bg-brand-50 px-3 py-1 rounded-full border border-brand/20">{cvLabel(data.scoreLabel)}</span>
         </div>
         <div className="relative h-2 rounded-full bg-surface-border mb-2">
           <div className="absolute top-0 bottom-0 rounded-full bg-brand/20" style={{ left: '50%', width: '45%' }} />
@@ -104,7 +106,7 @@ export function FeatureReportPanel({
         {extraMetrics && extraMetrics.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
             {extraMetrics.map((m, i) => (
-              <MetricCard key={i} label={m.label} value={m.value} tooltip={m.tooltip} />
+              <MetricCard key={i} label={m.label} value={cvLabel(m.value)} tooltip={m.tooltip} />
             ))}
           </div>
         )}
@@ -115,7 +117,7 @@ export function FeatureReportPanel({
           <p className="text-xs font-medium uppercase tracking-wider text-ink-muted mb-3">{section.title}</p>
           <div className={`grid gap-2 ${section.cols === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {section.metrics.map((m, i) => (
-              <MetricCard key={i} label={m.label} value={m.value} tooltip={m.tooltip} />
+              <MetricCard key={i} label={m.label} value={cvLabel(m.value)} tooltip={m.tooltip} />
             ))}
           </div>
         </div>

@@ -35,4 +35,19 @@ export function createReportTranslator(messages = null) {
   return t
 }
 
+/** CvReport.labels translator for PDF (mirrors next-intl CvReport namespace). */
+export function createCvReportTranslator(messages = null) {
+  const labels = messages?.CvReport?.labels || enMessages.CvReport?.labels || {}
+  const t = (key) => {
+    const k = key.startsWith('labels.') ? key.slice(7) : key
+    if (labels[k] != null) return labels[k]
+    throw new Error(`missing CvReport label: ${k}`)
+  }
+  t.has = (key) => {
+    const k = key.startsWith('labels.') ? key.slice(7) : key
+    return labels[k] != null
+  }
+  return t
+}
+
 export const defaultPdfT = createPdfTranslator()

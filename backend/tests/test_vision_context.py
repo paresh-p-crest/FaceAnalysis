@@ -42,7 +42,7 @@ def test_mapping_covers_all_narrative_features():
 def test_openrouter_vision_enabled():
     env = {
         "LLM_PROVIDER": "openrouter",
-        "OPENROUTER_MODEL": "openai/gpt-5-mini",
+        "OPENROUTER_MODEL": "openai/gpt-5.6-luna",
         "OPENROUTER_API_KEY": "sk-or-test",
         "OPENAI_VISION_NARRATIVE": "1",
     }

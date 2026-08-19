@@ -14,24 +14,52 @@ import os
 import re
 from typing import Any, Optional
 
-from .clinical_guardrails import sanitize_report_ascii
+from .clinical_guardrails import sanitize_report_latin1
 from .clinical_guardrails_de import template_feature_narrative_de
-from .config import FEATURE_NARRATIVE_IDS, LLM_MAX_OUTPUT_TOKENS
+from .config import FEATURE_NARRATIVE_IDS, LLM_MAX_OUTPUT_TOKENS, PROTOCOL_FEATURE_IDS
 from .feature_context import build_feature_context
 from .llm_client import chat_structured_completion, chat_text_completion
-from .narrative_orchestrator import _clamp_treatment_phases_raw, stitch_closing_paragraphs
+from .narrative_orchestrator import _clamp_treatment_phases_raw
 from .narrative_provenance import resolve_feature_origin, should_llm_translate_en, stamp_origin
 
 logger = logging.getLogger(__name__)
 
 NARRATIVE_TRANSLATION_SYSTEM_PROMPT = (
-    "Translate to German. Write per Du-form. Make sure it doesn't sound "
-    "AI-generated. Do not use long hyphens, en dashes, or em dashes. "
-    "Preserve medical/technical terms. Output only the translation, no preamble."
+    "Localize the provided report content into native German. Write Du-form "
+    "(du/dein/deine; dein lowercase mid-sentence). Do not use Sie/Ihr. "
+    "Do not use long hyphens, en dashes, or em dashes. "
+    "This is localization, not a literal translation: rewrite so a German aesthetic "
+    "consultant would say it. Use native terms (Nasenflügelbasis, Mittelgesicht, "
+    "Querbreite, Amorbogen, Ohrmuscheln, Feuchtigkeitsversorgung, Styling). "
+    "Do not keep English anatomy (alar base, dorsal hump, transverse span, cupid's bow, "
+    "vermilion, malar, midface, auricle, hydration, grooming, peers). "
+    "Allowed tokens: MyFace, SPF, AHA, OTC, Retinol, Niacinamid, Vitamin C. "
+    "Gloss exercise names once if needed (Kinn-zurück-Übungen (Chin Tucks)). "
+    "Output only the German text, no preamble.\n\n"
+    "EXAMPLES (compact):\n"
+    "EN: The nose is balanced overall. The nostril base is relatively wide, while "
+    "width-to-length keeps facial proportions. In profile the brow-to-root transition "
+    "is rather blunt and the nose-lip angle is acute, so the profile is gently convex "
+    "with only a slight bump on the bridge.\n"
+    "DE: Die Form deiner Nase wirkt insgesamt ausgewogen. Die Nasenflügelbasis ist "
+    "relativ breit, während das Verhältnis von Breite zu Länge die Gesichtsproportionen "
+    "wahrt. Im Profil zeigt sich ein eher stumpfer Übergang zwischen Brauenbereich und "
+    "Nasenwurzel sowie ein spitzer Nasen-Lippen-Winkel. Dadurch entsteht ein sanft "
+    "konvexes Profil mit einem nur leicht ausgeprägten Höcker auf dem Nasenrücken.\n\n"
+    "EN: The lower face shows a defined jaw with an angular jawline and a wide span "
+    "that gives the lower third presence from the side.\n"
+    "DE: Dein Untergesicht zeigt einen deutlich ausgeprägten Kiefer mit einer kantigen "
+    "Unterkieferkante, kombiniert mit einer breiten Querbreite, die dem Untergesicht "
+    "seitliche Präsenz verleiht.\n\n"
+    "EN: The brows look balanced compared with typical faces. They show a soft arch, "
+    "a centered position, dense structure, and a slightly upward direction.\n"
+    "DE: Deine Augenbrauen wirken im Vergleich zu Gleichaltrigen ausgewogen. Sie zeigen "
+    "einen weichen Bogen, eine mittige Position, eine dichte Struktur und eine leicht "
+    "nach oben gerichtete Ausrichtung."
 )
 
 FLAT_TRANSLATION_BATCH_SUFFIX = (
-    " You will receive a flat JSON object. Translate each string value to German. "
+    " You will receive a flat JSON object. Localize each string value into native German. "
     "Return the exact same keys, same count. Do not merge, split, add, rename, or omit any key. "
     "Values must remain plain strings."
 )
@@ -47,6 +75,115 @@ NARRATIVE_TRANSLATION_CONCURRENCY = max(
 _OVERVIEW_FALLBACK_DE = (
     "Dieses evidenzbasierte, nicht-invasive Protokoll basiert auf deinen gemessenen Gesichtsdaten."
 )
+
+# Longest-first exact phrases only. Never substring-replace "base".
+DE_EXACT_GLOSSARY: tuple[tuple[str, str], ...] = (
+    ("alar base", "Nasenflügelbasis"),
+    ("dorsal hump", "Höcker auf dem Nasenrücken"),
+    ("transverse span", "Querbreite"),
+    ("cupid's bow", "Amorbogen"),
+    ("cupids bow", "Amorbogen"),
+    ("width-to-length", "Verhältnis von Breite zu Länge"),
+    ("width to length", "Verhältnis von Breite zu Länge"),
+    ("malar projection", "Wangenprojektion"),
+    ("malar display", "Wangenprojektion"),
+    ("canthal tilt", "Lidachsenneigung"),
+    ("structural presentation", "Ausprägung"),
+)
+
+_LEAK_DETECT_PHRASES: tuple[str, ...] = tuple(en for en, _de in DE_EXACT_GLOSSARY) + (
+    "vermilion",
+    "midface",
+    "photoprotection",
+    "auricle",
+    "aurikel",
+    "hydration",
+    "grooming",
+    "the subject",
+    "relative strength",
+    "edukativ",
+)
+
+_DECIMAL_RE = re.compile(r"(?<!SPF )(?<!SPF)(?<!\d)\b(\d+)\.(\d+)\b")
+_LEAK_RE = re.compile(
+    r"(?:" + "|".join(re.escape(p) for p in sorted(_LEAK_DETECT_PHRASES, key=len, reverse=True)) + r")",
+    re.I,
+)
+
+
+def apply_exact_de_glossary(text: str) -> str:
+    """Deterministic full-phrase replacements only."""
+    if not text:
+        return text
+    out = text
+    for en, de in DE_EXACT_GLOSSARY:
+        out = re.sub(re.escape(en), de, out, flags=re.I)
+    return out
+
+
+def localize_de_decimals(text: str) -> str:
+    """1.29 → 1,29. Leaves SPF 30+ alone (no decimal)."""
+    if not text:
+        return text
+    return _DECIMAL_RE.sub(r"\1,\2", text)
+
+
+def find_en_leaks(text: str) -> list[str]:
+    if not text:
+        return []
+    found = []
+    seen: set[str] = set()
+    for m in _LEAK_RE.finditer(text):
+        key = m.group(0).lower()
+        if key not in seen:
+            seen.add(key)
+            found.append(m.group(0))
+    return found
+
+
+def finalize_de_text(text: str) -> str:
+    cleaned = sanitize_report_latin1(text)
+    cleaned = apply_exact_de_glossary(cleaned)
+    return localize_de_decimals(cleaned)
+
+
+_LEAK_REPAIR_SYSTEM = (
+    "The German report field still contains leftover English. Rewrite ONLY those "
+    "English terms into native German (Du-form). Keep every other sentence. "
+    "Output only the rewritten German, no preamble."
+)
+
+
+async def repair_de_english_leaks(text: str, leaks: list[str], *, label: str) -> str:
+    """Targeted LLM repair for leftover English after exact glossary."""
+    if not text or not leaks:
+        return text
+    result = await asyncio.to_thread(
+        chat_text_completion,
+        messages=[
+            {"role": "system", "content": _LEAK_REPAIR_SYSTEM},
+            {
+                "role": "user",
+                "content": f"Leftover English: {', '.join(leaks)}\n\nGerman:\n{text}",
+            },
+        ],
+        temperature=0.2,
+        max_tokens=min(LLM_MAX_OUTPUT_TOKENS, max(800, len(text) + 400)),
+        label=f"{label}_leak_repair",
+    )
+    if result.get("error") or not result.get("content"):
+        logger.warning("DE leak repair failed for %s: %s", label, result.get("error"))
+        return text
+    return str(result["content"]).strip()
+
+
+async def finalize_de_text_async(text: str, *, label: str = "de_finalize") -> str:
+    cleaned = finalize_de_text(text)
+    leaks = find_en_leaks(cleaned)
+    if not leaks:
+        return cleaned
+    repaired = await repair_de_english_leaks(cleaned, leaks, label=label)
+    return finalize_de_text(repaired)
 
 
 def _batch_max_tokens(
@@ -132,7 +269,7 @@ async def _translate_flat_batch(
             if res_keys == expected_keys and all(
                 isinstance(v, str) and v.strip() for v in content.values()
             ):
-                return {k: _sanitize_translation_text(content[k].strip()) for k in keys}
+                return {k: await finalize_de_text_async(content[k].strip(), label=f"{label}_{k}") for k in keys}
             logger.warning(
                 "Flat translation batch key mismatch for %s (attempt %d/2). Expected: %s, got: %s, raw: %s",
                 label,
@@ -155,10 +292,7 @@ async def _translate_flat_batch(
 def _sanitize_translation_text(text: str) -> str:
     if not text:
         return text
-    cleaned = sanitize_report_ascii(text)
-    if cleaned != text:
-        logger.debug("DE translation sanitized dashes/ascii")
-    return cleaned
+    return finalize_de_text(text)
 
 
 async def translate_text_en_to_de(text_en: str, *, label: str = "narrative_translate_text") -> str:
@@ -176,7 +310,7 @@ async def translate_text_en_to_de(text_en: str, *, label: str = "narrative_trans
     )
     if result.get("error") or not result.get("content"):
         raise RuntimeError(result.get("error") or "Empty translation")
-    return _sanitize_translation_text(str(result["content"]).strip())
+    return await finalize_de_text_async(str(result["content"]).strip(), label=label)
 
 
 async def _translate_strings_parallel(
@@ -210,39 +344,134 @@ async def _translate_strings_parallel(
     return out
 
 
+_OVERALL_LABEL_DE = {
+    "average": "durchschnittlich",
+    "balanced": "ausgewogen",
+    "high": "hoch",
+    "low": "niedrig",
+    "good": "gut",
+    "excellent": "sehr gut",
+}
+
+
+def _de_feature_summary(fn: dict) -> str:
+    de = fn.get("de") if isinstance(fn, dict) else None
+    if isinstance(de, dict) and isinstance(de.get("summary"), str) and de["summary"].strip():
+        return de["summary"].strip()
+    return ""
+
+
 def stitch_closing_paragraphs_de(
     feature_narratives: dict[str, dict],
     ai_narrative: Optional[dict] = None,
     client_name: str = "Client",
     cv_report: Optional[dict] = None,
 ) -> list[str]:
-    """German deterministic closing (mirror EN stitch; hardcoded DE strings)."""
-    en = stitch_closing_paragraphs(
-        feature_narratives, ai_narrative, client_name, cv_report=cv_report
+    """German deterministic closing — native du-form boilerplate, not word-swap Denglisch."""
+    paragraphs: list[str] = []
+    content_de = None
+    if isinstance(ai_narrative, dict):
+        raw = ai_narrative.get("contentDe")
+        if isinstance(raw, dict):
+            content_de = raw
+        else:
+            content = ai_narrative.get("content") if isinstance(ai_narrative.get("content"), dict) else None
+            if isinstance(content, dict) and isinstance(content.get("summaryDe"), str):
+                content_de = content
+
+    if isinstance(content_de, dict):
+        summary = content_de.get("summary")
+        if isinstance(summary, str) and summary.strip() and not _is_generic_summary_local(summary):
+            paragraphs.append(summary.strip())
+
+    overall = None
+    if isinstance(cv_report, dict):
+        overall = (cv_report.get("overall") or {}).get("scoreLabel")
+    if overall:
+        label = _OVERALL_LABEL_DE.get(str(overall).strip().lower(), str(overall))
+        paragraphs.append(
+            f"Deine Bewertung zeigt insgesamt eine als {label} beschriebene Gesichtsharmonie "
+            "aus den Messungen unter den Licht- und Posebedingungen dieser Sitzung, "
+            "keine medizinische Diagnose."
+        )
+
+    priorities: list[str] = []
+    for fid in PROTOCOL_FEATURE_IDS:
+        fn = (feature_narratives or {}).get(fid) or {}
+        summary = _de_feature_summary(fn)
+        if summary and not _is_generic_summary_local(summary):
+            priorities.append(f"{fid}: {summary}")
+            continue
+        de = fn.get("de") if isinstance(fn, dict) else None
+        subs = (de or {}).get("subsections") if isinstance(de, dict) else None
+        if isinstance(subs, list):
+            for sub in subs:
+                body = (sub.get("body") or "").strip() if isinstance(sub, dict) else ""
+                if body and "evidence-aligned" not in body.lower():
+                    first = body.split(". ")[0].strip()
+                    if first and not _is_generic_summary_local(first):
+                        priorities.append(f"{fid}: {first}.")
+                        break
+    if priorities:
+        paragraphs.append(
+            "Merkmalsspezifische Prioritäten für dich in den nächsten 30 Tagen: "
+            + " ".join(priorities[:5])
+        )
+
+    if isinstance(content_de, dict):
+        strengths = content_de.get("strengths") or []
+        focus = content_de.get("focusAreas") or []
+        if strengths:
+            paragraphs.append(
+                "Gemessene Stärken, die du bewahren solltest, sind "
+                + "; ".join(str(s) for s in strengths[:3])
+                + ". Pflege, Sonnenschutz und Alltagsgewohnheiten, die diese Bereiche stützen, beibehalten."
+            )
+        if focus:
+            paragraphs.append(
+                "Die wichtigsten Ansatzpunkte für dich sind "
+                + "; ".join(str(s) for s in focus[:3])
+                + ". Gehe sie zuerst mit zurückhaltender topischer Pflege, Schlaf, Feuchtigkeitsversorgung "
+                "und Haltung bzw. Styling an, bevor du eine Praxisberatung in Betracht ziehst."
+            )
+
+    if len(paragraphs) < 3:
+        paragraphs.append(
+            "Ein praktischer 30-Tage-Plan für dich: täglicher breitbandiger Sonnenschutz SPF 50 im Freien; "
+            "sanfte Reinigung morgens und abends; ausreichend Schlaf und Feuchtigkeitsversorgung; "
+            "sowie die merkmalsbezogene Pflege auf den einzelnen Protokollseiten. "
+            "Vermeide aggressive Wirkstoffe, bis die Verträglichkeit klar ist."
+        )
+        paragraphs.append(
+            "Wiederhole die Analyse bei gleichbleibender Beleuchtung, neutralem Gesichtsausdruck "
+            "und gleichem Kameraabstand, um Fortschritte zu vergleichen. "
+            "Besprich anhaltende oder zunehmende Anliegen mit einer qualifizierten medizinischen Fachkraft; "
+            "dieser Bericht ersetzt keine klinische Untersuchung."
+        )
+
+    paragraphs.append(
+        "Dieses Protokoll ist Bildungsinhalt auf Grundlage deiner Gesichtsmessungen, "
+        "keine medizinische Diagnose oder Behandlung."
     )
-    # ponytail: translate stitch boilerplate via fixed DE replacements for v1
-    replacements = (
-        ("the subject", "du"),
-        ("The subject", "Du"),
-        ("your ", "deine "),
-        ("Your ", "Deine "),
-        ("This protocol is educational guidance", "Dieses Protokoll ist Bildungsinhalt"),
-        ("not medical diagnosis or treatment", "keine medizinische Diagnose oder Behandlung"),
-        ("broad-spectrum SPF 50", "breitbandigen SPF 50"),
-        ("Feature-specific priorities", "Merkmalsspezifische Prioritäten"),
-        ("Measured strengths to preserve", "Gemessene Stärken, die du bewahren solltest"),
-        ("Primary opportunities", "Wichtigste Chancen"),
-        ("overall facial harmony described as", "gesamte Gesichtsharmonie beschrieben als"),
-        ("from facial measurements", "aus den Gesichtsmessungen"),
-        ("not a medical diagnosis", "keine medizinische Diagnose"),
-    )
+    seen: set[str] = set()
     out: list[str] = []
-    for para in en:
-        de = para
-        for a, b in replacements:
-            de = de.replace(a, b)
-        out.append(_sanitize_translation_text(de))
-    return out
+    for p in paragraphs:
+        key = p.strip().lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return out[:6]
+
+
+def _is_generic_summary_local(text: str) -> bool:
+    t = (text or "").strip().lower()
+    return (
+        not t
+        or "non-surgical guidance for" in t
+        or "based on stored measurements" in t
+        or "nicht-chirurgische empfehlung" in t
+    )
 
 
 async def _translate_list_fields(values: list, *, label_prefix: str) -> list:
@@ -435,7 +664,7 @@ _PHASE_FIELD_TAG_RE = re.compile(r"<<([a-zA-Z0-9_.]+)>>")
 _PHASE_PACK_SYSTEM = (
     NARRATIVE_TRANSLATION_SYSTEM_PROMPT
     + " When the user message contains <<tag>> markers, keep every marker line "
-    "unchanged and in the same order. Translate only the text between markers."
+    "unchanged and in the same order. Localize only the text between markers."
 )
 
 

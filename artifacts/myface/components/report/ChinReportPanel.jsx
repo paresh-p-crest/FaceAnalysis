@@ -32,9 +32,9 @@ function classifyWidth(widthMm, cvWidth) {
 
 function classifyProjection(devMm, cvProj) {
   const fromCv = textOrNull(cvProj)
-  if (fromCv === 'Balanced') return 'neutral'
-  if (fromCv === 'Prominent') return 'prominent'
-  if (fromCv === 'Recessed') return 'recessed'
+  if (fromCv === 'Balanced' || fromCv === 'balanced') return 'neutral'
+  if (fromCv === 'Prominent' || fromCv === 'protruded' || fromCv === 'Protruding') return 'prominent'
+  if (fromCv === 'Recessed' || fromCv === 'recessed') return 'recessed'
   if (!Number.isFinite(devMm)) return toCvLabelKey(fromCv)
   if (Math.abs(devMm) < 2.5) return 'neutral'
   return 'deviated'

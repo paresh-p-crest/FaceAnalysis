@@ -4,10 +4,14 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
+- [x] DE CV aliases: Needs attention + chin protruded (ENGLISH_TO_KEY) (status: completed)
+- [x] Locale persists across browser restart — `NEXT_LOCALE` 1-year cookie (`localeCookie.maxAge` + LocaleSwitcher write) (status: completed)
 - [x] Unmasked Square Ear Photo Crop — Updated `extract_profile_ear_crop` and `_bbox_from_mask` (`face_parsing.py`) to extract 1:1 square crops directly from unmasked profile photos with minimal padding (`pad=8`); updated `EarReportPanel.jsx` (`aspect-square object-cover`); added unit test `test_extract_profile_ear_crop_is_square_unmasked_photo` (status: completed)
 - [x] Auth page: remove lone "Sign in" tab pill left after signup removal (status: completed)
 - [x] Sign-In Only mode: comment out signup end-to-end (backend `/api/auth/register` + `_send_signup_welcome`, `authClient.register()`, AuthForm register tab/name fields/"New here?" toggle) (status: completed)
 - [x] Complete Payment System Removal (ADR-048) — Removed payment gates, paywalls, and admin payments tab; retained 2-analysis package cap, admin approval gate, and inert payments table (status: completed)
+- [x] Switch OpenRouter OpenAI text/vision allowlist to `openai/gpt-5.6-luna`; reasoning effort high only on Luna (ADR-050) (status: completed)
+- [x] Protocol narrative diction + DE localization (ADR-049) — feature-led EN voice, umlaut-safe DE sanitize, exact-phrase glossary, skin intro i18n (status: completed)
 - [x] Fix ConfirmDialog busy spinner insertBefore on delete (stable opacity slot + deferred close) (status: completed)
 - [x] Fix admin tab removeChild — drop RouteContent pathname key remount (status: completed)
 - [x] Fix root build TS5083 — drop stale lib/* tsconfig references; fix auth/reset import depth (status: completed)

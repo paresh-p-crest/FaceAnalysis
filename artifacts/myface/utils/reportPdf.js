@@ -1,4 +1,4 @@
-import { defaultPdfT, createPdfTranslator, createReportTranslator } from './pdfI18n'
+import { defaultPdfT, createPdfTranslator, createReportTranslator, createCvReportTranslator } from './pdfI18n'
 import { jsPDF } from 'jspdf'
 import { normalizeToJpegDataUrl } from './aestheticProjection'
 import {
@@ -16,16 +16,20 @@ import { resolveAllFeatureAfterImages, resolveAllFeatureImages } from './protoco
 import { resolveAfterCvPayload, resolveAfterLandmarks, resolveProjectedAfterUrl } from './projectedAfter'
 import { alignAfterToBefore } from './alignAfterToBefore'
 import {
+  analysisTimeDaysParts,
   buildClosingColumns,
   buildClosingRecommendations,
   buildFeaturePages,
   buildProtocolContents,
   buildProtocolDashboardData,
+  formatAnalysisTimeDays,
   formatProtocolId,
   formatProtocolMonth,
   getClientName,
   getFeatureComparisonData,
   INTRODUCTION_PARAGRAPH_KEYS,
+  DISCLAIMER_PARAGRAPH_KEYS,
+  PRIVACY_PARAGRAPH_KEYS,
   LIMITATIONS_PARAGRAPH_KEY,
   localizedFeaturePrimary,
   localizedSubsectionTitle,
@@ -35,6 +39,7 @@ import {
   mapCoverTopCenter,
   UNDERSTANDING_RESULTS_KEYS,
 } from './reportProtocolModel'
+import { localizeFeatureRow, localizePriorityMiniCard } from './cvReportLocale'
 
 // MyFace theme tokens (docs/design/theme.md)
 const BRAND = { r: 94, g: 159, b: 139 }
@@ -130,21 +135,6 @@ function wrapSubsectionText(doc, sub, x, y, maxW, lineH = 11.5, pdfT = activePdf
   return nextY
 }
 const IMG_QUALITY = 'SLOW'
-
-const DISCLAIMER_PARAGRAPHS_PDF = [
-  'This report is provided for general informational and educational purposes only. It discusses topics related to facial aesthetics, orthodontics, and other health related subjects. It is not intended to constitute, and should not be relied upon as, medical, clinical, or professional advice, diagnosis, or treatment of any kind.',
-  'The information provided by MyFace, MyFace Inc., and their affiliates is not a substitute for consultation with a qualified medical or healthcare professional. Readers should always seek the advice of an appropriately licensed professional regarding any medical condition, treatment, or decision.',
-  'MyFace, MyFace Inc., and their affiliates make no representations or warranties, express or implied, regarding the accuracy, reliability, timeliness, or completeness of the information contained in this report, and expressly disclaim any liability arising from reliance on its contents. Any actions taken based on this report are done solely at the reader\'s own risk.',
-  'The purpose of this report is solely to help the reader understand their facial features and how certain treatments or recommendations could potentially impact appearance. Any reference to treatments, procedures, or outcomes is provided for informational context only. The final decision on whether any treatment or intervention is appropriate must be made by a qualified medical or healthcare professional.'
-]
-
-const PRIVACY_PARAGRAPHS_PDF = [
-  'The contents of this report have been produced for the intended client and all supplied original content by the client including but not limited to images and videos are stored offline for 30 days in the event of revisions or corrections to the supplied report.',
-  'The MyFace brand does not use supplied client material for any purpose other than for the intended report the client has provided consent for. By supplying visual content (images, videos) to MyFace, it is implicitly assumed that the client provides consent for MyFace to use it in the client\'s report.',
-  'This produced report is intended for the client only and will not be distributed to anyone other than the client. MyFace reserves the right to store the report offline for up to 1 year for reference purposes.',
-  'Client-supplied images that have been modified by MyFace will be stored as a whole within the report.',
-  'The MyFace brand does use cookies on the myface.club website to help aid navigation, analytics and browsing metadata. This process does track browser usage throughout the site.'
-]
 function setBrand(doc) {
   doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
 }
@@ -192,25 +182,51 @@ function drawHeader(doc, pageNum, pdfT = defaultPdfT) {
  * Helvetica (jsPDF built-in) only covers WinAnsi. LLM closing copy often
  * includes soft hyphens, en/em dashes, and curly quotes that map to control
  * glyphs, break splitTextToSize widths, and overflow columns.
- * Final pass keeps printable ASCII only so wrapping stays reliable.
+ * German letters are kept: umlauts + ß via Latin-1; capital ẞ folds to ß
+ * because WinAnsi has no U+1E9E glyph.
  */
-function sanitizePdfText(text) {
+function sanitizePdfText(text, { trim = true } = {}) {
   if (typeof text !== 'string' || !text) return ''
   let out = text.normalize('NFKC')
   // Soft / non-breaking / fancy hyphens and dashes → ASCII hyphen
   out = out.replace(/[\u00AD\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE63\uFF0D]/g, '-')
-  out = out.replace(/[\u2018\u2019\u2032\u0060\u00B4]/g, "'")
-  out = out.replace(/[\u201C\u201D\u2033]/g, '"')
+  out = out.replace(/[\u2018\u2019\u201A\u2032\u0060\u00B4]/g, "'")
+  out = out.replace(/[\u201C\u201D\u201E\u2033]/g, '"')
   out = out.replace(/[\u2022\u2023\u25E6\u00B7]/g, '-')
   out = out.replace(/\u2026/g, '...')
   out = out.replace(/[\u00A0\u202F\u2007\u2009\u200A\u2008]/g, ' ')
   out = out.replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, '')
-  // Drop any remaining non-printable / non-ASCII (fixes DC1/DLE soft-hyphen ghosts)
-  out = out.replace(/[^\t\n\r\x20-\x7E]/g, '')
+  // Capital sharp S is outside Latin-1; Helvetica can draw ß, not ẞ
+  out = out.replace(/\u1E9E/g, '\u00DF')
+  // Drop remaining non-printable; keep WinAnsi/Latin-1 (ä ö ü ß, etc.)
+  out = out.replace(/[^\t\n\r\x20-\x7E\u00A0-\u00FF]/g, '')
   out = out.replace(/(\w)\s+-\s+(\w)/g, '$1-$2')
   out = out.replace(/[ \t]+\n/g, '\n')
   out = out.replace(/[ \t]{2,}/g, ' ')
-  return out.trim()
+  return trim ? out.trim() : out
+}
+
+/** Route all jsPDF string metrics/draws through sanitizePdfText once at the doc level. */
+function wrapJsPdfTextSanitizer(doc) {
+  const origText = doc.text.bind(doc)
+  const origSplit = doc.splitTextToSize.bind(doc)
+  const origWidth = doc.getTextWidth.bind(doc)
+
+  // Keep trailing spaces: trim would collapse prefix/link gaps (privacy line overlap).
+  const safe = (text) => (typeof text === 'string' ? sanitizePdfText(text, { trim: false }) : text)
+
+  doc.text = function (text, ...args) {
+    if (Array.isArray(text)) {
+      return origText(text.map((line) => safe(line)), ...args)
+    }
+    return origText(safe(text), ...args)
+  }
+  doc.splitTextToSize = function (text, ...args) {
+    return origSplit(safe(text), ...args)
+  }
+  doc.getTextWidth = function (text, ...args) {
+    return origWidth(safe(text), ...args)
+  }
 }
 
 function wrapText(doc, text, x, y, maxWidth, lineHeight = 13) {
@@ -794,7 +810,7 @@ function drawSplitComparisonFrame(doc, x, y, w, h, beforeSrc, afterSrc, { gap = 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     setMuted(doc)
-    doc.text('Projected image pending', rx + (w / 2 - pad) / 2, y + h / 2, { align: 'center' })
+    doc.text(activePdfT('projectedImagePending'), rx + (w / 2 - pad) / 2, y + h / 2, { align: 'center' })
   }
 
   doc.setDrawColor(229, 231, 235)
@@ -838,7 +854,8 @@ function drawSummaryCard(
 ) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  const lines = doc.splitTextToSize(summary || '', w - pad * 2)
+  const textW = w - pad * 2
+  const lines = doc.splitTextToSize(summary || '', textW)
   // Title baseline at +16; leave more room before body (was 22 — cramped under "X Summary")
   const titleBlock = 30
   const naturalH = Math.max(minH, titleBlock + lines.length * lineH + pad)
@@ -862,7 +879,7 @@ function drawSummaryCard(
   }
 
   const maxLines = Math.max(1, Math.floor((cardH - titleBlock - pad / 2) / lineH))
-  const visible = lines.slice(0, maxLines)
+  const visible = splitTextAtSentences(doc, summary, textW, maxLines, lineH)
 
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
   doc.roundedRect(x, cardY, w, cardH, 6, 6, 'F')
@@ -1060,6 +1077,7 @@ function drawSummaryBar(doc, y, title, summary) {
   const pad = 12
   const gap = 10
   const lineH = 12
+  const bodyTop = 16
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
@@ -1071,25 +1089,31 @@ function drawSummaryBar(doc, y, title, summary) {
   doc.setFontSize(8)
   const bodyX = MARGIN + titleColW + gap
   const bodyW = Math.max(120, CONTENT_W - titleColW - gap - pad)
-  const summaryLines = doc.splitTextToSize(summary || '', bodyW)
-  let barH = Math.max(44, 20 + Math.min(summaryLines.length, 4) * lineH)
+  const fullLines = doc.splitTextToSize(summary || '', bodyW)
+  let barH = Math.max(44, bodyTop + Math.min(fullLines.length, 4) * lineH)
   let barY = y
   if (barY + barH > PAGE_BOTTOM) {
     // Never pull the bar above content already drawn above (e.g. BEFORE/AFTER row).
     barY = Math.max(y, PAGE_BOTTOM - barH)
     barH = Math.min(barH, Math.max(28, PAGE_BOTTOM - barY))
   }
+  const maxLines = Math.max(1, Math.floor((barH - bodyTop) / lineH))
+  const summaryLines = splitTextAtSentences(doc, summary, bodyW, maxLines, lineH)
+  barH = Math.max(44, bodyTop + summaryLines.length * lineH)
+  if (barY + barH > PAGE_BOTTOM) {
+    barH = Math.max(28, PAGE_BOTTOM - barY)
+  }
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
   doc.roundedRect(MARGIN, barY, CONTENT_W, barH, 6, 6, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   setInk(doc)
-  doc.text(title, MARGIN + pad, barY + 16)
+  doc.text(title, MARGIN + pad, barY + bodyTop)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
-  summaryLines.slice(0, 4).forEach((line, i) => {
-    doc.text(line, bodyX, barY + 16 + i * lineH)
+  summaryLines.forEach((line, i) => {
+    doc.text(line, bodyX, barY + bodyTop + i * lineH)
   })
   return barY + barH + 8
 }
@@ -1109,7 +1133,7 @@ function drawDumbbellChart(doc, x, y, w, h, items) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     setInk(doc)
-    doc.text(item.label, x, rowY + 2)
+  doc.text(sanitizePdfText(item.label), x, rowY + 2)
 
     doc.setDrawColor(229, 231, 235)
     doc.setLineWidth(0.5)
@@ -1134,10 +1158,10 @@ function drawDumbbellChart(doc, x, y, w, h, items) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   setMuted(doc)
-  doc.text('Client Values', x + 12, legendY + 2)
+  doc.text(sanitizePdfText(pm('chartClientValues')), x + 12, legendY + 2)
   doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
   doc.circle(x + 88, legendY, 3, 'F')
-  doc.text('Projected Potential', x + 96, legendY + 2)
+  doc.text(sanitizePdfText(pm('chartProjectedPotential')), x + 96, legendY + 2)
 
   return legendY + 14
 }
@@ -1239,7 +1263,7 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
     }
 
     setMuted(doc)
-    doc.text(item.label, textX, yLabel, { align })
+    doc.text(sanitizePdfText(item.label), textX, yLabel, { align })
   })
 
   // 3. Draw client values polygon (slate)
@@ -1284,12 +1308,12 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   setMuted(doc)
-  doc.text('Projected Potential', cx - 78, legendY)
+  doc.text(sanitizePdfText(pm('chartProjectedPotential')), cx - 78, legendY)
 
   // Legend: Client Values
   doc.setFillColor(SLATE.r, SLATE.g, SLATE.b)
   doc.rect(cx + 10, legendY - 6, boxW, boxW, 'F')
-  doc.text('Client Values', cx + 22, legendY)
+  doc.text(sanitizePdfText(pm('chartClientValues')), cx + 22, legendY)
 }
 
 async function loadImageAsDataUrl(url) {
@@ -1327,9 +1351,9 @@ function drawNorwoodPanel(doc, y, activeStage = 1, stageImages = []) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   setMuted(doc)
-  doc.text('Normal', MARGIN + 28, y + 14)
-  doc.text('Need Attention', MARGIN + CONTENT_W / 2, y + 14, { align: 'center' })
-  doc.text('Extreme', MARGIN + CONTENT_W - 28, y + 14, { align: 'right' })
+  doc.text(pm('scaleNormal'), MARGIN + 28, y + 14)
+  doc.text(pm('scaleNeedAttention'), MARGIN + CONTENT_W / 2, y + 14, { align: 'center' })
+  doc.text(pm('scaleExtreme'), MARGIN + CONTENT_W - 28, y + 14, { align: 'right' })
 
   const iconSize = 56
   const startX = MARGIN + 40
@@ -1768,8 +1792,7 @@ function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null
   const splitAfter = section.splitAfterJpeg || afterJpeg
   let leftY = drawSplitComparisonFrame(doc, MARGIN, diagY, COL_W, diagH, beforeJpeg, splitAfter, { gap: 10 })
 
-  const introText =
-    'The condition of the subject\'s facial skin is a key part of overall appearance and one of the main signals of youth. To improve how the skin looks and support its health, the following steps are recommended:'
+  const introText = pm('skinIntro')
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
@@ -1870,7 +1893,7 @@ function drawCompactRadarChart(doc, boxX, boxY, boxW, boxH, items) {
     if (cosVal > 0.15) align = 'left'
     else if (cosVal < -0.15) align = 'right'
     setMuted(doc)
-    doc.text(item.label, xLabel, yLabel, { align })
+    doc.text(sanitizePdfText(item.label || ''), xLabel, yLabel, { align })
   })
 
   const pts = items.map((item, i) => {
@@ -1918,12 +1941,14 @@ function drawProtocolDashboardPage1(doc, ctx) {
     createdAt = null,
     updatedAt = null,
     landmarks = null,
+    locale = 'en',
   } = ctx
 
   const dash = buildProtocolDashboardData({
     cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt,
   })
   const reportT = createReportTranslator(pdfMessages)
+  const tCv = createCvReportTranslator(pdfMessages)
   const treatment = resolveTreatmentPhases({ protocolNarrative, dash, t: reportT })
   const firstName = clientName.split(/\s+/)[0] || clientName
   const overviewText = protocolNarrative?.summary
@@ -2013,12 +2038,7 @@ function drawProtocolDashboardPage1(doc, ctx) {
     },
     {
       label: t('dashKpiAnalysisTime'),
-      parts: dash.analysisTimeDays != null
-        ? [
-            { text: String(dash.analysisTimeDays), brand: true },
-            { text: dash.analysisTimeDays === 1 ? ' day' : ' days', brand: false },
-          ]
-        : null,
+      parts: analysisTimeDaysParts(dash.analysisTimeDays, reportT),
     },
   ]
   kpiRows.forEach(({ label, parts }, i) => {
@@ -2153,7 +2173,8 @@ function drawProtocolDashboardPage1(doc, ctx) {
   )
 
   textY += 5
-  for (let i = 0; i < 3; i += 1) {
+  const heroFeatureCount = 1
+  for (let i = 0; i < heroFeatureCount; i += 1) {
     const featTitle = reportT(`executiveSummary.heroFeatures.${i}.title`)
     const featDetail = reportT(`executiveSummary.heroFeatures.${i}.detail`)
     const cy = textY + 2
@@ -2246,9 +2267,7 @@ function drawProtocolDashboardPage1(doc, ctx) {
       t('dashKpiEvaluated'),
     ],
     [
-      dash.analysisTimeDays
-        ? (dash.analysisTimeDays === 1 ? '1 day' : `${dash.analysisTimeDays} days`)
-        : '—',
+      formatAnalysisTimeDays(dash.analysisTimeDays, reportT) || '—',
       t('dashKpiAnalysisTime'),
     ],
   ]
@@ -2300,7 +2319,8 @@ function drawProtocolDashboardPage1(doc, ctx) {
     totalEst = miniCards.reduce((sum, c) => sum + estimateCardH(c), 0)
       + Math.max(0, miniCards.length - 1) * miniGap
   }
-  miniCards.forEach((card) => {
+  miniCards.forEach((rawCard) => {
+    const card = localizePriorityMiniCard(rawCard, { tReport: reportT, tCv, locale })
     const findings = (card.findings || []).filter((f) => f?.title).slice(0, 3)
     let cardH = estimateCardH(card)
     const remaining = bodyBottom - miniY
@@ -2308,10 +2328,7 @@ function drawProtocolDashboardPage1(doc, ctx) {
     cardH = Math.min(cardH, remaining)
     drawPanel(doc, leftX, miniY, leftW, cardH, 3)
     let textY = miniY + 10
-    const miniTitle = card.title
-      || pdfMessages?.Report?.executiveSummary?.miniCards?.[card.id]?.title
-      || card.id
-    const miniTitleText = String(miniTitle)
+    const miniTitleText = String(card.title || card.id)
     const scoreText = card.score ? String(card.score) : ''
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6)
@@ -2416,12 +2433,12 @@ function drawProtocolDashboardPage1(doc, ctx) {
   doc.text(t('dashHarmonyProfile'), centerX + 8, cy + 12)
   const radarBoxW = Math.min(98, Math.round(centerW * 0.42))
   const radarItems = [
-    { label: 'Sym', score: dash.radarScores.symmetry },
-    { label: 'Smo', score: dash.radarScores.smoothness },
-    { label: 'Jaw', score: dash.radarScores.jawline },
-    { label: 'Skin', score: dash.radarScores.skin },
-    { label: 'Vol', score: dash.radarScores.volume },
-    { label: 'Har', score: dash.radarScores.harmony },
+    { label: reportT('executiveSummary.radarAxesShort.symmetry'), score: dash.radarScores.symmetry },
+    { label: reportT('executiveSummary.radarAxesShort.smoothness'), score: dash.radarScores.smoothness },
+    { label: reportT('executiveSummary.radarAxesShort.jawline'), score: dash.radarScores.jawline },
+    { label: reportT('executiveSummary.radarAxesShort.skin'), score: dash.radarScores.skin },
+    { label: reportT('executiveSummary.radarAxesShort.volume'), score: dash.radarScores.volume },
+    { label: reportT('executiveSummary.radarAxesShort.harmony'), score: dash.radarScores.harmony },
   ]
   const hasRadar = radarItems.some((item) => item.score != null)
   if (hasRadar) {
@@ -2461,16 +2478,19 @@ function drawProtocolDashboardPage1(doc, ctx) {
   let rowY = cy + 34
   const rowStep = Math.min(11, Math.floor((tableH - 38) / Math.max(1, dash.featureRows.length)))
   dash.featureRows.forEach((row) => {
-    const finding = row.finding || '—'
-    const ref = row.ref || '—'
+    const localized = localizeFeatureRow(row, { tReport: reportT, tCv, locale })
+    const finding = localized.finding || '—'
+    const ref = localized.ref || '—'
+    const findingText = sanitizePdfText(finding)
+    const refText = sanitizePdfText(ref)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6)
     setInk(doc)
     doc.text(reportFeatureCopy(pdfMessages, row.zoneKey, 'zone'), colZone, rowY)
     doc.setFont('helvetica', 'normal')
     setMuted(doc)
-    doc.text(finding.length > 28 ? `${finding.slice(0, 27)}…` : finding, colFinding, rowY)
-    doc.text(ref.length > 22 ? `${ref.slice(0, 21)}…` : ref, colRef, rowY)
+    doc.text(findingText.length > 28 ? `${findingText.slice(0, 27)}…` : findingText, colFinding, rowY)
+    doc.text(refText.length > 22 ? `${refText.slice(0, 21)}…` : refText, colRef, rowY)
     rowY += rowStep
   })
 
@@ -2739,9 +2759,10 @@ export async function buildMyFacePdf({
   }
 
   const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
+  wrapJsPdfTextSanitizer(doc)
   let y = 0
   const clientName = getClientName(answers, user, assessmentOwner)
-  const monthLabel = formatProtocolMonth()
+  const monthLabel = formatProtocolMonth(undefined, locale)
   const closingParagraphs = buildClosingRecommendations(
     aiNarrative,
     cvReport,
@@ -2752,7 +2773,10 @@ export async function buildMyFacePdf({
   )
   const closingCols = buildClosingColumns(closingParagraphs)
   const contents = buildProtocolContents(clientName, activeReportT)
-  const chartItems = getFeatureComparisonData(cvReport)
+  const chartItems = getFeatureComparisonData(cvReport).map((item) => ({
+    ...item,
+    label: pm(`chartAxes.${item.id}`) || item.label,
+  }))
 
   try {
   const protocolId = formatProtocolId(assessmentId)
@@ -2789,6 +2813,7 @@ export async function buildMyFacePdf({
     createdAt,
     updatedAt,
     landmarks,
+    locale,
   }) || {}
 
   // ── Page 2: Disclaimer + Privacy (two columns) ──
@@ -2816,21 +2841,21 @@ export async function buildMyFacePdf({
   doc.setFontSize(8)
   
   // Disclaimer paragraphs
-  DISCLAIMER_PARAGRAPHS_PDF.forEach((para, idx) => {
-    if (idx === DISCLAIMER_PARAGRAPHS_PDF.length - 1) {
+  DISCLAIMER_PARAGRAPH_KEYS.forEach((key, idx) => {
+    if (idx === DISCLAIMER_PARAGRAPH_KEYS.length - 1) {
       doc.setFont('helvetica', 'bold')
       setInk(doc)
     } else {
       doc.setFont('helvetica', 'normal')
       setInk(doc)
     }
-    leftY = wrapText(doc, para, MARGIN, leftY, COL_W, 11.5) + 10
+    leftY = wrapText(doc, activeReportT(key), MARGIN, leftY, COL_W, 11.5) + 10
   })
 
   // Privacy paragraphs
   doc.setFont('helvetica', 'normal')
-  PRIVACY_PARAGRAPHS_PDF.forEach((para) => {
-    rightY = wrapText(doc, para, MARGIN + COL_W + COL_GAP, rightY, COL_W, 11.5) + 10
+  PRIVACY_PARAGRAPH_KEYS.forEach((key) => {
+    rightY = wrapText(doc, activeReportT(key), MARGIN + COL_W + COL_GAP, rightY, COL_W, 11.5) + 10
   })
 
   // Clickable Privacy Policy URL link at the bottom of the column
@@ -2990,19 +3015,14 @@ export async function buildMyFacePdf({
 
   const textY = protocolPairY + protocolPairH + IMAGE_TEXT_GAP
 
-  // Description text below BEFORE image
-  const beforeText = "To help the subject achieve aesthetic potential, this detailed science-based protocol has been developed. Following this evidence-based protocol supports progress toward the subject's full aesthetic potential."
+  // Description text below BEFORE / AFTER — height follows wrapped German copy
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
-  wrapText(doc, beforeText, MARGIN, textY, COL_W, 11)
+  const leadLeftEnd = wrapText(doc, pm('protocolLeadBefore'), MARGIN, textY, COL_W, 11)
+  const leadRightEnd = wrapText(doc, pm('protocolLeadAfter'), rightX, textY, COL_W, 11)
 
-  // Description text below AFTER image
-  const afterText = "The analysis is designed to be objective. Instead of comparing the subject to a universal ideal, it highlights strengths and areas for improvement, recognizing that each person's features offer unique possibilities."
-  wrapText(doc, afterText, rightX, textY, COL_W, 11)
-
-  // Bottom section: Projected potential (left column) and Radar chart (right column)
-  const bottomY = textY + 52
+  const bottomY = Math.max(leadLeftEnd, leadRightEnd) + 14
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   setInk(doc)
@@ -3011,7 +3031,7 @@ export async function buildMyFacePdf({
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
-  doc.text('This report is organised around 11 key features for facial aesthetics:', MARGIN, bottomY + 16)
+  const introEndY = wrapText(doc, pm('protocolFeaturesIntro'), MARGIN, bottomY + 16, COL_W, 10)
 
   const listCol1 = [
     localizedFeaturePrimary('hair', activeReportT),
@@ -3027,7 +3047,7 @@ export async function buildMyFacePdf({
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
-  const listY = bottomY + 32
+  const listY = Math.max(bottomY + 32, introEndY + 4)
   listCol1.forEach((label, i) => {
     doc.text(`•  ${label}`, MARGIN, listY + i * 12)
   })

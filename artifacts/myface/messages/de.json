@@ -410,34 +410,39 @@
       "dataUsageBody": "Deine Bilder dienen nur dieser Analyse. Die Auswertung ist vertraulich und sicher gespeichert. Die vollständigen Bedingungen findest du im Abschnitt Hinweis.",
       "journeyStart": "Wir wollen dir Wissen geben, dem du vertrauen kannst. Lass uns starten.",
       "paragraphs": {
-        "p1": "In diesem Bericht hat MyFace die beauftragte Gesichtsanalyse cephalometrisch angegangen: Weichteilmessungen werden mit etablierten wissenschaftlichen Referenzbereichen für Gesichtsharmonie und Proportionen verglichen.",
-        "p2": "So werden die Befunde weniger subjektiv, auch wenn Empfehlungen von Person zu Person unterschiedlich ausfallen können."
+        "p1": "In diesem Bericht wurde die beauftragte Gesichtsanalyse kephalometrisch durchgeführt: Weichteilmessungen werden mit etablierten wissenschaftlichen Referenzbereichen für Gesichtsharmonie und Proportionen verglichen.",
+        "p2": "Dadurch werden die Befunde weniger subjektiv, auch wenn Empfehlungen von Person zu Person unterschiedlich ausfallen können."
       }
     },
     "disclaimer": {
       "title": "Hinweis",
       "paragraphs": {
-        "p1": "Dieser Bericht dient nur der allgemeinen Information und Bildung. Er behandelt Themen rund um Gesichtsästhetik und Wellness. Er ist keine medizinische, klinische oder fachliche Beratung, Diagnose oder Behandlung.",
-        "p2": "Die Informationen in diesem MyFace-Bericht ersetzen keine Beratung durch eine qualifizierte medizinische Fachkraft. Bei medizinischen Fragen oder Behandlungsentscheidungen solltest du immer eine entsprechend zugelassene Fachperson hinzuziehen.",
-        "p3": "MyFace übernimmt keine Garantie für Richtigkeit oder Vollständigkeit dieses Berichts und schließt Haftung aus, die aus dem Vertrauen auf seinen Inhalt entsteht. Alles, was du auf Basis dieses Berichts tust, geschieht auf eigenes Risiko.",
-        "p4": "Ziel dieses Berichts ist es, Gesichtsmerkmale verständlich zu machen und zu zeigen, wie nicht-chirurgische Empfehlungen das Erscheinungsbild beeinflussen könnten. Verweise auf Behandlungen dienen nur dem Informationskontext."
+        "p1": "Dieser Bericht dient ausschließlich allgemeinen Informations- und Bildungszwecken. Er behandelt Themen aus den Bereichen Gesichtsästhetik, Kieferorthopädie und weiteren gesundheitsbezogenen Bereichen. Er stellt keine medizinische, klinische oder sonstige professionelle Beratung, Diagnose oder Behandlung dar und darf nicht als solche verstanden oder verwendet werden.",
+        "p2": "Die von MyFace, MyFace Inc. und den verbundenen Unternehmen bereitgestellten Informationen ersetzen keine Beratung durch eine qualifizierte medizinische oder andere Fachkraft im Gesundheitswesen. Bei medizinischen Beschwerden, Behandlungen oder Entscheidungen solltest du stets den Rat einer entsprechend zugelassenen Fachkraft einholen.",
+        "p3": "MyFace, MyFace Inc. und die verbundenen Unternehmen geben weder ausdrücklich noch stillschweigend Zusicherungen oder Gewährleistungen hinsichtlich der Richtigkeit, Zuverlässigkeit, Aktualität oder Vollständigkeit der in diesem Bericht enthaltenen Informationen ab und schließen ausdrücklich jede Haftung aus, die aus dem Vertrauen auf dessen Inhalte entsteht. Handlungen, die auf Grundlage dieses Berichts vorgenommen werden, erfolgen ausschließlich auf eigenes Risiko des Lesers.",
+        "p4": "Dieser Bericht dient ausschließlich dazu, dir deine Gesichtsmerkmale näherzubringen und zu erläutern, wie bestimmte Behandlungen oder Empfehlungen das Erscheinungsbild möglicherweise beeinflussen könnten. Hinweise auf Behandlungen, Verfahren oder mögliche Ergebnisse dienen ausschließlich der Information. Die endgültige Entscheidung darüber, ob eine Behandlung oder Maßnahme geeignet ist, muss von einer qualifizierten medizinischen oder anderen Fachkraft im Gesundheitswesen getroffen werden."
       },
       "privacy": {
-        "p1": "Die Gesichtsbilder und Fragebogenantworten der Person werden ausschließlich genutzt, um diesen personalisierten Analysebericht zu erstellen.",
-        "p2": "MyFace verkauft keine biometrischen Daten. Der Zugang ist auf autorisierte Prüfer für die Qualitätssicherung beschränkt, bevor der Bericht freigegeben wird.",
-        "p3": "Die Person kann die Löschung der Analysedaten beantragen, indem sie den Support kontaktiert.",
-        "p4": "Lies die vollständige Datenschutzerklärung unter myface.de/datenschutzerklaerung."
+        "p1": "Der Inhalt dieses Berichts wurde für den vorgesehenen Kunden erstellt. Sämtliche vom Kunden bereitgestellten Originalinhalte, einschließlich, aber nicht beschränkt auf Bilder und Videos, werden für 30 Tage offline gespeichert, damit bei Bedarf Überarbeitungen oder Korrekturen am Bericht vorgenommen werden können.",
+        "p2": "MyFace verwendet vom Kunden bereitgestelltes Material ausschließlich für den vorgesehenen Bericht, für den der Kunde seine Zustimmung erteilt hat. Durch die Bereitstellung visueller Inhalte (Bilder, Videos) an MyFace wird davon ausgegangen, dass der Kunde der Verwendung dieser Inhalte in seinem Bericht zustimmt.",
+        "p3": "Dieser erstellte Bericht ist ausschließlich für den Kunden bestimmt und wird nicht an andere Personen weitergegeben. MyFace behält sich das Recht vor, den Bericht zu Referenzzwecken bis zu 1 Jahr offline zu speichern.",
+        "p4": "Vom Kunden bereitgestellte Bilder, die von MyFace bearbeitet wurden, werden vollständig innerhalb des Berichts gespeichert.",
+        "p5": "MyFace verwendet auf der Website myface.club Cookies, um Navigation, Analysen und Browser-Metadaten zu unterstützen. Dabei wird die Nutzung des Browsers innerhalb der Website erfasst."
       }
     },
     "protocolModel": {
-      "limitations": "Einschränkungen: Neutrale Kopfhaltung, Licht, Kameraqualität und fehlende Röntgenaufnahmen können Messungen beeinflussen. Dieser Bericht ist keine medizinische Diagnose. Empfehlungen sind empirische Leitlinien auf Basis der Gesichtsmessungen der Person.",
+      "limitations": "Einschränkungen: Kopfhaltung, Beleuchtung, Kameraqualität und fehlende Röntgenaufnahmen können die Messungen beeinflussen. Dieser Bericht stellt keine medizinische Diagnose dar. Die Empfehlungen sind empirische Leitlinien auf Grundlage der individuellen Gesichtsmessungen.",
       "understandingResults": {
-        "p1": "Diese Empfehlungen fokussieren auf zentrale Marker für Hautgesundheit und Gesichtsharmonie. Ziel ist nicht, das Einzigartige zu ändern, sondern zu verstehen, was zu den vorhandenen Merkmalen am besten passt.",
-        "p2": "MyFace bewertet keine Attraktivität. Die Analyse zeigt, was zu den Merkmalen der Person passt, anhand objektiver cephalometrischer Messungen statt eines einzigen Universalstandards.",
-        "p3": "Das Protokoll mischt grundlegende und fortgeschrittene Empfehlungen. Grundlagen wie SPF, Schlaf und Hydration unterstützen gezieltere Hinweise.",
-        "p4": "Alle Empfehlungen dienen nur der Information und Ästhetik. Jede Behandlung in der Praxis oder jedes verschreibungspflichtige Produkt solltest du mit einer qualifizierten medizinischen Fachkraft besprechen."
+        "p1": "Diese Empfehlungen konzentrieren sich auf zentrale Merkmale der Hautgesundheit und Gesichtsharmonie. Ziel ist nicht, individuelle Merkmale zu verändern, sondern zu verstehen, was am besten zu den vorhandenen Merkmalen passt.",
+        "p2": "MyFace bewertet keine Attraktivität. Die Analyse zeigt anhand objektiver kephalometrischer Messungen, was zu den individuellen Merkmalen der Person passt, statt einen einzigen Universalstandard anzuwenden.",
+        "p3": "Das Protokoll kombiniert grundlegende und fortgeschrittene Empfehlungen. Grundlagen wie Sonnenschutz (SPF), Schlaf und ausreichende Feuchtigkeitsversorgung unterstützen gezieltere Empfehlungen.",
+        "p4": "Alle Empfehlungen dienen ausschließlich der Information und ästhetischen Orientierung. Jede Behandlung in der Praxis oder jedes verschreibungspflichtige Produkt solltest du mit einer qualifizierten medizinischen Fachkraft besprechen."
       },
       "closingPending": "Die abschließenden Empfehlungen für dieses Protokoll werden aus den gespeicherten Messungen vorbereitet. Öffne das Protokoll erneut, wenn die Erzeugung fertig ist, oder kontaktiere den Support, falls diese Meldung bestehen bleibt.",
+      "closingHarmony": "Deine Bewertung zeigt insgesamt eine als durchschnittlich beschriebene Gesichtsharmonie aus den Messungen unter den Licht- und Posebedingungen dieser Sitzung, keine medizinische Diagnose.",
+      "closingPlan30": "Ein praktischer 30-Tage-Plan für dich: täglicher breitbandiger Sonnenschutz SPF 50 im Freien; sanfte Reinigung morgens und abends; ausreichend Schlaf und Feuchtigkeitsversorgung; sowie die merkmalsbezogene Pflege auf den einzelnen Protokollseiten. Vermeide aggressive Wirkstoffe, bis die Verträglichkeit klar ist.",
+      "closingRepeat": "Wiederhole die Analyse bei gleichbleibender Beleuchtung, neutralem Gesichtsausdruck und gleichem Kameraabstand, um Fortschritte zu vergleichen. Besprich anhaltende oder zunehmende Anliegen mit einer qualifizierten medizinischen Fachkraft; dieser Bericht ersetzt keine klinische Untersuchung.",
+      "closingDisclaimer": "Dieses Protokoll ist Bildungsinhalt auf Grundlage deiner Gesichtsmessungen, keine medizinische Diagnose oder Behandlung.",
       "overviewPending": "Die Protokoll-Übersicht wird aus den gespeicherten Messungen erstellt. Öffne den Bericht erneut, wenn die Erzeugung abgeschlossen ist.",
       "narrativePending": "Das personalisierte Protokoll-Narrativ für diesen Abschnitt wird aus den gespeicherten Messungen erstellt. Öffne den Bericht erneut, wenn die Erzeugung abgeschlossen ist.",
       "introduction": "Einführung",
@@ -449,7 +454,26 @@
       "protocolSecondary": "Protokoll",
       "closingPrimary": "Abschluss",
       "projectedPotential": "Projiziertes Potenzial · 11 Schlüsselmerkmale",
-      "commissionedLine": "Der folgende Bericht wurde für {name} im {month} in Auftrag gegeben.",
+      "protocolLeadBefore": "Um dich dabei zu unterstützen, dein ästhetisches Potenzial bestmöglich auszuschöpfen, wurde dieses detaillierte, wissenschaftlich fundierte Protokoll entwickelt. Die Umsetzung der evidenzbasierten Empfehlungen kann dich dabei unterstützen, dich deinem individuellen ästhetischen Potenzial anzunähern.",
+      "protocolLeadAfter": "Die Analyse ist darauf ausgelegt, möglichst objektiv zu sein. Anstatt dich mit einem universellen Ideal zu vergleichen, zeigt sie Stärken und Bereiche mit Optimierungspotenzial auf und berücksichtigt, dass die individuellen Merkmale jedes Menschen unterschiedliche Möglichkeiten bieten.",
+      "protocolFeaturesIntro": "Dieser Bericht ist nach 11 zentralen Merkmalen der Gesichtsästhetik gegliedert:",
+      "skinIntro": "Der Zustand deiner Gesichtshaut ist ein wichtiger Bestandteil des Gesamterscheinungsbildes und eines der zentralen Merkmale eines jugendlichen Hautbildes. Um das Erscheinungsbild der Haut zu verbessern und ihre Gesundheit zu unterstützen, werden folgende Schritte empfohlen:",
+      "chartClientValues": "Kundenwerte",
+      "chartProjectedPotential": "Projiziertes Potenzial",
+      "chartAxes": {
+        "hair": "Haar",
+        "brows": "Brauen",
+        "eyes": "Augen",
+        "nose": "Nase",
+        "cheeks": "Wangen",
+        "jaw": "Kiefer",
+        "lips": "Lippen",
+        "chin": "Kinn",
+        "skin": "Haut",
+        "neck": "Hals",
+        "ears": "Ohren"
+      },
+      "commissionedLine": "Der folgende Bericht wurde erstellt für {name} im {month}.",
       "contentsUnderstanding": "Ergebnisse verstehen",
       "contentsProtocol": "Protokoll von {name}",
       "contentsClosing": "Abschließende Empfehlungen",
@@ -463,7 +487,7 @@
       "contentsChin": "Kinn",
       "contentsSkin": "Haut",
       "contentsNeck": "Hals",
-      "contentsEar": "Ohr",
+      "contentsEar": "Ohren",
       "recommendations": "Empfehlungen",
       "featureSummary": "{name} Zusammenfassung",
       "eyeRegionSummary": "Zusammenfassung Augenregion",
@@ -475,6 +499,9 @@
       "tagAnalysis": "ANALYSE",
       "tagEyes": "AUGEN",
       "tagLips": "LIPPEN",
+      "scaleNormal": "Normal",
+      "scaleNeedAttention": "Beobachten",
+      "scaleExtreme": "Ausgeprägt",
       "featurePrimary": {
         "hair": "Haar",
         "eyes": "Augen",
@@ -526,24 +553,18 @@
       "kpiAccuracy": "Genauigkeit",
       "kpiAnalysisTime": "Analysezeit",
       "kpiAnalysisTimeValue": "{days, plural, one {# Tag} other {# Tage}}",
+      "kpiAnalysisTimeDay": "{days} Tag",
+      "kpiAnalysisTimeDays": "{days} Tage",
       "kpiAnalysisTimeFallback": "-",
       "overviewHeading": "Überblick",
       "heroTitlePrefix": "Deine",
       "heroTitleAccent": "Gesichtsanalyse",
-      "heroBody": "Wissenschaftliche Gesichtsanalyse und regionale Bewertung auf Basis gemessener Morphologie. Sieh dir das gestufte nicht-chirurgische Protokoll an und priorisiere Verfeinerungen, die zu deinem Harmonieprofil passen.",
+      "heroBody": "Wissenschaftliche Gesichtsanalyse und regionale Bewertung auf Basis gemessener Morphologie.",
       "heroSummaryLabel": "Dein Zusammenfassungs-Score",
       "heroFeatures": {
         "0": {
-          "title": "Gemessene Morphologie",
-          "detail": "CV-basierte regionale Indizes"
-        },
-        "1": {
-          "title": "Projiziertes Potenzial",
-          "detail": "Vorher-/Nachher-Visualisierung"
-        },
-        "2": {
           "title": "Gestuftes Protokoll",
-          "detail": "Nicht-chirurgische Phasenführung"
+          "detail": "Nicht-chirurgischer Phasenplan"
         }
       },
       "treatmentProtocol": "Behandlungsprotokoll",
@@ -570,7 +591,40 @@
         },
         "eyes": {
           "title": "Augenanalyse"
+        },
+        "ears": {
+          "title": "Ohr"
         }
+      },
+      "miniCardMetrics": {
+        "widthLength": "Breite-Länge",
+        "width": "Breite",
+        "length": "Länge",
+        "definition": "Definition",
+        "projection": "Projektion",
+        "shape": "Form",
+        "fullness": "Fülle",
+        "prominence": "Prominenz",
+        "symmetry": "Symmetrie",
+        "texture": "Textur",
+        "color": "Farbe",
+        "hairline": "Haarlinie",
+        "density": "Dichte",
+        "recession": "Rezession",
+        "canthalTilt": "Cantus-Neigung",
+        "spacing": "Abstand",
+        "underEye": "Unterauge",
+        "tip": "Spitze",
+        "hollowing": "Einsenkung",
+        "ratio": "Verhältnis",
+        "cupidBow": "Amorbogen",
+        "profile": "Profil",
+        "laxity": "Erschlaffung",
+        "contour": "Kontur",
+        "blemishing": "Unreinheiten",
+        "evenness": "Gleichmäßigkeit",
+        "skin": "Haut",
+        "idealRatio": "Idealverhältnis"
       },
       "phases": {
         "phase01": {
@@ -637,6 +691,7 @@
       "harmonyProfile": "Harmonieprofil und Überblick",
       "analyzingNarrative": "Harmonie-Narrativ wird analysiert...",
       "fallbackNarrative": "Deine Analyse zeigt eine starke Gesichtsbalance mit gezielten Verbesserungsvorschlägen. Die Symmetrie-Scores liegen in den oberen Perzentilen. Fokus empfohlen auf Nasenbreite und Kieferlinien-Definition.",
+      "ratioValue": "Verhältnis {value}",
       "featureEvaluation": "Merkmalsbewertung",
       "zone": "Zone",
       "finding": "Befund",
@@ -649,6 +704,14 @@
         "skin": "Haut",
         "volume": "Volumen",
         "harmony": "Harmonie"
+      },
+      "radarAxesShort": {
+        "symmetry": "Sym",
+        "smoothness": "Glä",
+        "jawline": "Kie",
+        "skin": "Haut",
+        "volume": "Vol",
+        "harmony": "Har"
       },
       "featureRows": {
         "forehead": {
@@ -2212,7 +2275,7 @@
     "policy": "Richtlinie",
     "disclaimerPolicy": "Hinweisrichtlinie",
     "privacyPolicy": "Datenschutzerklärung",
-    "readPrivacyPrefix": "Lies die vollständige Datenschutzerklärung ",
+    "readPrivacyPrefix": "Lies die vollständige Datenschutzerklärung",
     "privacyLink": "hier (myface.de/datenschutzerklaerung)",
     "companyName": "MyFace Inc",
     "commissionedFor": "Der folgende Bericht wurde erstellt für",
@@ -2315,6 +2378,7 @@
       "veryFeminine": "Sehr feminin",
       "narrow": "Schmal",
       "wide": "Breit",
+      "angular": "Kantig",
       "oval": "Oval",
       "square": "Quadratisch",
       "round": "Rund",
@@ -2384,7 +2448,7 @@
       "lean": "Schlank",
       "high": "Hoch",
       "neutral": "Neutral",
-      "recessed": "Zurückgesetzt",
+      "recessed": "Zurückliegend",
       "deviated": "Abweichend",
       "pointed": "Spitz",
       "shallow": "Flach",

@@ -38,6 +38,7 @@ export const PRIVACY_PARAGRAPH_KEYS = [
   'disclaimer.privacy.p2',
   'disclaimer.privacy.p3',
   'disclaimer.privacy.p4',
+  'disclaimer.privacy.p5',
 ]
 
 /** @deprecated Use PRIVACY_PARAGRAPH_KEYS with useTranslations('Report') */
@@ -122,6 +123,14 @@ function isGenericClosingParagraph(text) {
   // Concatenated template dump
   if ((t.match(/non-surgical guidance for/g) || []).length >= 2) return true
   return false
+}
+
+/** Stitch/word-swap leftovers that survived DE translation (Du's assessment, for du, …). */
+function isDenglischClosingParagraph(text) {
+  if (typeof text !== 'string' || !text.trim()) return false
+  return /assessment shows|\bfor du\b|du's |from du's|A practical 30-day|Repeat analysis|under the lighting|Prioritize du|Focus on grooming|qualified clinician|informational guidance from du/i.test(
+    text,
+  )
 }
 
 /**
@@ -265,8 +274,9 @@ export function formatProtocolEditionDate(date = new Date()) {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' }).toUpperCase().replace(',', '')
 }
 
-export function formatProtocolMonth(date = new Date()) {
-  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' }).toUpperCase()
+export function formatProtocolMonth(date = new Date(), locale = 'en') {
+  const tag = locale === 'de' ? 'de-DE' : 'en-US'
+  return date.toLocaleDateString(tag, { year: 'numeric', month: 'long' })
 }
 
 export function buildProtocolContents(clientName, t = null) {
@@ -342,12 +352,20 @@ export function buildClosingRecommendations(aiNarrative, cvReport, clientName, p
   const stored = (protocolNarrative?.closing || [])
     .filter((p) => typeof p === 'string' && p.trim() && !isGenericClosingParagraph(p))
     .map(rewriteToSubjectVoice)
-  if (stored.length >= 1) {
-    return stored
-  }
 
   if (locale === 'de' && t) {
-    return [t('protocolModel.closingPending')]
+    const clean = stored.filter((p) => !isDenglischClosingParagraph(p))
+    if (clean.length >= 1 && clean.length === stored.length) return stored
+    return [
+      t('protocolModel.closingHarmony'),
+      t('protocolModel.closingPlan30'),
+      t('protocolModel.closingRepeat'),
+      t('protocolModel.closingDisclaimer'),
+    ]
+  }
+
+  if (stored.length >= 1) {
+    return stored
   }
 
   // Do not synthesize durable closing on the client — server persists closing with the protocol bundle.
@@ -630,17 +648,17 @@ export function buildFeaturePages(cvReport, eyeAnalysis, protocolNarrative, loca
 
 export function getFeatureComparisonData(cvReport) {
   const items = [
-    { label: 'Hair', score: cvReport?.hair?.score || 72 },
-    { label: 'Brows', score: cvReport?.eyebrows ? 78 : 72 },
-    { label: 'Eyes', score: cvReport?.eyes?.score || 76 },
-    { label: 'Nose', score: cvReport?.nose?.score || 74 },
-    { label: 'Cheeks', score: cvReport?.cheeks?.score || 75 },
-    { label: 'Jaw', score: cvReport?.jaw?.score || cvReport?.jawChin?.score || 73 },
-    { label: 'Lips', score: cvReport?.lips?.score || 76 },
-    { label: 'Chin', score: cvReport?.chin?.score || cvReport?.jawChin?.score || 74 },
-    { label: 'Skin', score: cvReport?.skin?.score || 70 },
-    { label: 'Neck', score: cvReport?.neck?.score || 73 },
-    { label: 'Ears', score: cvReport?.ears?.score || 75 },
+    { id: 'hair', label: 'Hair', score: cvReport?.hair?.score || 72 },
+    { id: 'brows', label: 'Brows', score: cvReport?.eyebrows ? 78 : 72 },
+    { id: 'eyes', label: 'Eyes', score: cvReport?.eyes?.score || 76 },
+    { id: 'nose', label: 'Nose', score: cvReport?.nose?.score || 74 },
+    { id: 'cheeks', label: 'Cheeks', score: cvReport?.cheeks?.score || 75 },
+    { id: 'jaw', label: 'Jaw', score: cvReport?.jaw?.score || cvReport?.jawChin?.score || 73 },
+    { id: 'lips', label: 'Lips', score: cvReport?.lips?.score || 76 },
+    { id: 'chin', label: 'Chin', score: cvReport?.chin?.score || cvReport?.jawChin?.score || 74 },
+    { id: 'skin', label: 'Skin', score: cvReport?.skin?.score || 70 },
+    { id: 'neck', label: 'Neck', score: cvReport?.neck?.score || 73 },
+    { id: 'ears', label: 'Ears', score: cvReport?.ears?.score || 75 },
   ]
   return items.map((item) => ({
     ...item,
@@ -1098,6 +1116,26 @@ export function parseAgeRangeBounds(ageRange) {
 export function formatAgeRangeDisplay(ageRange) {
   if (ageRange == null || ageRange === '') return null
   return String(ageRange).trim().replace(/-/g, '–')
+}
+
+/** Localized analysis duration, e.g. "7 days" / "7 Tage". */
+export function formatAnalysisTimeDays(days, t) {
+  const n = Number(days)
+  if (!Number.isFinite(n)) return null
+  const key = n === 1 ? 'executiveSummary.kpiAnalysisTimeDay' : 'executiveSummary.kpiAnalysisTimeDays'
+  return t(key, { days: n })
+}
+
+/** Split duration for KPI styling: brand number + muted unit suffix. */
+export function analysisTimeDaysParts(days, t) {
+  const full = formatAnalysisTimeDays(days, t)
+  if (full == null) return null
+  const m = String(full).match(/^(\d[\d,]*\+?)(.*)$/)
+  if (!m) return [{ text: full, brand: false }]
+  return [
+    { text: m[1], brand: true },
+    ...(m[2] ? [{ text: m[2], brand: false }] : []),
+  ]
 }
 
 export function buildProtocolDashboardData({ cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt }) {
