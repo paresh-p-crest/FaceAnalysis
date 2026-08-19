@@ -61,7 +61,7 @@ def test_json_schema_eyes_has_four_subsections():
 
 def test_json_schema_chin_summary_max_len():
     schema = feature_narrative_json_schema("chin")
-    assert schema["properties"]["summary"]["maxLength"] == 160
+    assert schema["properties"]["summary"]["maxLength"] == 500
 
 
 def test_hair_subsection_body_limits():
@@ -71,7 +71,7 @@ def test_hair_subsection_body_limits():
     assert subsection_body_limits("skin", "Further Skin Enhancement") == (80, 1000)
     assert subsection_body_limits("jaw", "Further Enhancement") == (80, 1000)
     assert subsection_body_limits("eyes", "Eyebrows") == (80, 2000)
-    assert subsection_body_limits("eyes", "Under eye") == (80, 2000)
+    assert subsection_body_limits("eyes", "Under eye") == (80, 450)
     assert subsection_body_limits("neck", "Neck Skin") == (80, 2000)
     assert subsection_body_limits("ears", "Ear Structure") == (80, 2000)
 
@@ -108,7 +108,7 @@ def test_treatment_phases_schema_and_validation():
     item_props = schema["properties"]["phase01"]["properties"]["items"]
     assert item_props["minItems"] == 1
     assert item_props["maxItems"] == 3
-    assert item_props["items"]["properties"]["detail"]["maxLength"] == 280
+    assert item_props["items"]["properties"]["detail"]["maxLength"] == 150
     assert item_props["items"]["properties"]["name"]["maxLength"] == 100
     assert schema["properties"]["summary"]["minLength"] == 20
     sample = {

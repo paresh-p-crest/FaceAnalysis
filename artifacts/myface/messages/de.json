@@ -563,6 +563,14 @@
       "heroSummaryLabel": "Dein Zusammenfassungs-Score",
       "heroFeatures": {
         "0": {
+          "title": "Gemessene Morphologie",
+          "detail": "CV-basierte regionale Indizes"
+        },
+        "1": {
+          "title": "Projiziertes Potenzial",
+          "detail": "Vorher-/Nachher-Visualisierung"
+        },
+        "2": {
           "title": "Gestuftes Protokoll",
           "detail": "Nicht-chirurgischer Phasenplan"
         }

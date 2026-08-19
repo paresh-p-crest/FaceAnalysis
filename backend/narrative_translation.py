@@ -19,7 +19,7 @@ from .clinical_guardrails_de import template_feature_narrative_de
 from .config import FEATURE_NARRATIVE_IDS, LLM_MAX_OUTPUT_TOKENS, PROTOCOL_FEATURE_IDS
 from .feature_context import build_feature_context
 from .llm_client import chat_structured_completion, chat_text_completion
-from .narrative_orchestrator import _clamp_treatment_phases_raw
+from .narrative_orchestrator import _clamp_summary_keep_sentence, _clamp_treatment_phases_raw
 from .narrative_schemas import FEATURE_SUMMARY_MAX_LENGTHS, subsection_body_limits
 from .narrative_provenance import resolve_feature_origin, should_llm_translate_en, stamp_origin
 
@@ -61,7 +61,7 @@ NARRATIVE_TRANSLATION_SYSTEM_PROMPT = (
 
 _CHAR_LIMIT_GUIDANCE = (
     "\n\nHard character limits for your German output — do not exceed: "
-    "feature summary <=500 (chin <=160); subsection body <=2000 (shorter for brief sections); "
+    "feature summary <=500 (chin target ~160, but keep a full sentence); subsection body <=2000 (shorter for brief sections); "
     "treatment item name <=100; item detail <=150; phase summary <=280; "
     "executive summary <=600; disclaimer <=300; list items <=200; closing paragraph <=900."
 )
@@ -633,6 +633,9 @@ async def _translate_feature_narrative_llm_plain(narrative: dict, feature_id: st
         bodies, label_prefix=f"feature_{feature_id}_body_de"
     )
     summary_de, bodies_de = await asyncio.gather(summary_task, bodies_task)
+    summary_cap = FEATURE_SUMMARY_MAX_LENGTHS.get(feature_id)
+    if summary_cap:
+        summary_de = _clamp_summary_keep_sentence(summary_de, summary_cap)
 
     subsections = [
         {"title": s.get("title"), "body": bodies_de[i]}
@@ -664,7 +667,8 @@ async def _translate_feature_narrative_llm(narrative: dict, feature_id: str) -> 
     # Build schema with per-field maxLength caps (same as EN)
     keys_and_limits: dict[str, int] = {}
     if "summary" in en_fields:
-        keys_and_limits["summary"] = FEATURE_SUMMARY_MAX_LENGTHS.get(feature_id, 500)
+        # Keep translation schema wide; apply feature-specific summary caps post-translation.
+        keys_and_limits["summary"] = 500
     for i, s in enumerate(subs_en):
         key = f"subsection_{i}"
         if key in en_fields:
@@ -691,6 +695,9 @@ async def _translate_feature_narrative_llm(narrative: dict, feature_id: str) -> 
             limit_hint=limit_hint,
         )
         summary_de = de_map.get("summary", "")
+        summary_cap = FEATURE_SUMMARY_MAX_LENGTHS.get(feature_id)
+        if summary_cap:
+            summary_de = _clamp_summary_keep_sentence(summary_de, summary_cap)
         subsections = []
         for i, s in enumerate(subs_en):
             key = f"subsection_{i}"

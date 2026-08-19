@@ -563,6 +563,14 @@
       "heroSummaryLabel": "Your summary score",
       "heroFeatures": {
         "0": {
+          "title": "Measured morphology",
+          "detail": "CV-based regional indices"
+        },
+        "1": {
+          "title": "Projected potential",
+          "detail": "Before/after visualization"
+        },
+        "2": {
           "title": "Staged protocol",
           "detail": "Non-surgical phase plan"
         }

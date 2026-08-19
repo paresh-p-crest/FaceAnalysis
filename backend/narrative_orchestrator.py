@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import sys
 from typing import Any, Optional
 
@@ -30,6 +31,7 @@ from .config import (
 from .feature_context import build_feature_context, feature_context_as_prompt_text
 from .llm_client import chat_structured_completion
 from .narrative_schemas import (
+    FEATURE_SUMMARY_MAX_LENGTHS,
     FEATURE_SUBSECTION_TITLES,
     TREATMENT_PHASE_DETAIL_MAX,
     TREATMENT_PHASE_DURATION_MAX,
@@ -367,6 +369,38 @@ def _clamp_str(value: Any, max_len: int) -> str:
     return cut.rstrip()
 
 
+_SENTENCE_SPLIT_RE = re.compile(r".+?[.!?](?:\s+|$)|.+$", re.DOTALL)
+
+
+def _clamp_summary_keep_sentence(value: Any, max_len: int) -> str:
+    """Clamp around full sentences; if first sentence exceeds cap, keep it whole."""
+    text = str(value or "").strip()
+    if len(text) <= max_len:
+        return text
+    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.findall(text) if s.strip()]
+    if not sentences:
+        return _clamp_str(text, max_len)
+    first = sentences[0]
+    if len(first) > max_len:
+        return first
+    kept = first
+    for sentence in sentences[1:]:
+        candidate = f"{kept} {sentence}".strip()
+        if len(candidate) > max_len:
+            break
+        kept = candidate
+    return kept or _clamp_str(text, max_len)
+
+
+def _apply_feature_summary_cap(feature_id: str, narrative: dict) -> dict:
+    cap = FEATURE_SUMMARY_MAX_LENGTHS.get(feature_id)
+    if not cap:
+        return narrative
+    out = dict(narrative or {})
+    out["summary"] = _clamp_summary_keep_sentence(out.get("summary"), cap)
+    return out
+
+
 _PHASE_KEY_ALIASES = {
     "phase01": "phase01",
     "phase02": "phase02",
@@ -524,9 +558,9 @@ async def generate_feature_narrative_async(
             if null_path_grounded(feature_id, ctx, validated):
                 label = "LLM accepted" if call_no == 1 else f"LLM accepted (call {call_no})"
                 logger.info("feature %s structured: %s", feature_id, label)
-                return stamp_origin(validated, "llm")
+                return stamp_origin(_apply_feature_summary_cap(feature_id, validated), "llm")
             # Schema/policy OK but null-path reads as ungrounded boilerplate.
-            last_usable = validated
+            last_usable = _apply_feature_summary_cap(feature_id, validated)
             if grounding_used >= max_grounding:
                 logger.warning(
                     "feature %s structured: null-path ungrounded after %s grounding retries; keeping last LLM copy",
@@ -564,7 +598,10 @@ async def generate_feature_narrative_async(
         )
         return stamp_origin(last_usable, "llm")
     logger.info("feature %s structured: TEMPLATE (schema/retry fail)", feature_id)
-    return validate_or_template(None, feature_id, ctx, answers=answers)
+    return _apply_feature_summary_cap(
+        feature_id,
+        validate_or_template(None, feature_id, ctx, answers=answers),
+    )
 
 
 def _is_generic_summary(text: str) -> bool:

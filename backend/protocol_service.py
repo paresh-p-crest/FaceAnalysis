@@ -259,13 +259,20 @@ async def refresh_protocol_closing_for_assessment(assessment: dict) -> Optional[
     if not pn.get("features") and feature_map:
         from .narrative_orchestrator import build_protocol_narrative_compat
 
-        pn = build_protocol_narrative_compat(
+        rebuilt = build_protocol_narrative_compat(
             feature_narratives=feature_map,
             overview_summary=pn.get("summary") or "",
             closing=closing,
+            treatment_phases=pn.get("treatmentPhases"),
             source=pn.get("source") or "orchestrator",
             model=pn.get("model"),
+            summary_origin=pn.get("summaryOrigin"),
+            closing_origin=pn.get("closingOrigin"),
         )
+        # Preserve already stored locale/custom keys when rebuilding compat shape.
+        pn = {**pn, **rebuilt}
+        if pn.get("model") is None and (assessment.get("protocolNarrative") or {}).get("model") is not None:
+            pn["model"] = (assessment.get("protocolNarrative") or {}).get("model")
 
     assessment["protocolNarrative"] = pn
     assessment["featureNarratives"] = features if features else feature_map
@@ -387,11 +394,18 @@ async def regenerate_protocol_section(assessment: dict, section_id: str) -> dict
         },
         overview_summary=overview_summary,
         closing=closing,
+        # Preserve existing treatment phases when regenerating only one section.
+        treatment_phases=pn.get("treatmentPhases"),
         source="admin_section",
         model=None,
         summary_origin=summary_origin,
         closing_origin=closing_origin,
     )
+    # Preserve previously stored protocol payload keys (not regenerated in this call),
+    # including locale blocks such as protocolNarrative.de and any custom metadata.
+    protocol_narrative = {**pn, **protocol_narrative}
+    if protocol_narrative.get("model") is None and pn.get("model") is not None:
+        protocol_narrative["model"] = pn.get("model")
 
     assessment["protocolNarrative"] = protocol_narrative
     assessment["featureNarratives"] = features

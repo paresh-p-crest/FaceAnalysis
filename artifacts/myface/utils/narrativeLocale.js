@@ -29,11 +29,18 @@ function mergeDeProtocol(protocolNarrative, featureNarratives) {
   const base = protocolNarrative || { summary: '', closing: [], features: {} }
   const de = base.de
   if (!de || typeof de !== 'object') return null
+  const dePhases = de.treatmentPhases
+  const hasDePhase01 =
+    dePhases
+    && typeof dePhases === 'object'
+    && dePhases.phase01
+    && Array.isArray(dePhases.phase01.items)
+    && dePhases.phase01.items.length > 0
   const merged = {
     ...base,
     summary: de.summary ?? '',
     closing: Array.isArray(de.closing) ? de.closing : [],
-    treatmentPhases: de.treatmentPhases ?? base.treatmentPhases,
+    treatmentPhases: hasDePhase01 ? dePhases : base.treatmentPhases,
   }
   const deFeatures = mergeDeFeatures(featureNarratives)
   if (Object.keys(deFeatures).length) {

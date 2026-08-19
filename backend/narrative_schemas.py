@@ -251,7 +251,9 @@ def feature_narrative_json_schema(feature_id: str) -> dict:
     titles = FEATURE_SUBSECTION_TITLES.get(feature_id)
     if not titles:
         raise ValueError(f"Unknown feature_id: {feature_id}")
-    summary_max = FEATURE_SUMMARY_MAX_LENGTHS.get(feature_id, 500)
+    # Keep schema max broad enough to avoid provider-side mid-token truncation.
+    # Feature-specific (e.g. chin) summary caps are applied post-generation.
+    summary_max = 500
 
     # Ordered prefix items so each title can have its own body maxLength.
     subsection_items = []

@@ -84,3 +84,24 @@ def test_clamp_treatment_phases_detail_word_safe():
     d = clamped["phase01"]["items"][0]["detail"]
     assert len(d) <= TREATMENT_PHASE_DETAIL_MAX
     assert not d.endswith("wor")
+
+
+def test_clamp_summary_keep_sentence_can_exceed_cap_for_first_sentence():
+    from backend.narrative_orchestrator import _clamp_summary_keep_sentence
+
+    first_sentence = (
+        "The chin contour appears narrow and elongated with a soft-square outline and a slightly open "
+        "labiomental angle that still reads as coherent in profile under neutral lighting."
+    )
+    text = f"{first_sentence} A second sentence should be dropped."
+    out = _clamp_summary_keep_sentence(text, 160)
+    assert out == first_sentence
+    assert len(out) > 160
+
+
+def test_clamp_summary_keep_sentence_prefers_full_sentences_within_cap():
+    from backend.narrative_orchestrator import _clamp_summary_keep_sentence
+
+    text = "First concise sentence. Second concise sentence. Third sentence is extra."
+    out = _clamp_summary_keep_sentence(text, 60)
+    assert out == "First concise sentence. Second concise sentence."
