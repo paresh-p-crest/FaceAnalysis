@@ -86,6 +86,11 @@ FEATURE_SUBSECTION_BODY_LIMITS: dict[str, dict[str, tuple[int, int]]] = {
     },
 }
 
+FEATURE_SUMMARY_MAX_LENGTHS: dict[str, int] = {
+    # Chin has a shorter summary-bar layout on the dedicated chin page.
+    "chin": 160,
+}
+
 
 def subsection_body_limits(feature_id: str, title: str) -> tuple[int, int]:
     """Return (min_length, max_length) for a feature subsection body."""
@@ -246,6 +251,7 @@ def feature_narrative_json_schema(feature_id: str) -> dict:
     titles = FEATURE_SUBSECTION_TITLES.get(feature_id)
     if not titles:
         raise ValueError(f"Unknown feature_id: {feature_id}")
+    summary_max = FEATURE_SUMMARY_MAX_LENGTHS.get(feature_id, 500)
 
     # Ordered prefix items so each title can have its own body maxLength.
     subsection_items = []
@@ -288,7 +294,7 @@ def feature_narrative_json_schema(feature_id: str) -> dict:
         "type": "object",
         "properties": {
             "featureId": {"type": "string", "enum": [feature_id]},
-            "summary": {"type": "string", "minLength": 10, "maxLength": 500},
+            "summary": {"type": "string", "minLength": 10, "maxLength": summary_max},
             "subsections": {
                 "type": "array",
                 "minItems": len(titles),

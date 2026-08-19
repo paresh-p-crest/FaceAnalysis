@@ -20,7 +20,7 @@ from .config import FEATURE_NARRATIVE_IDS, LLM_MAX_OUTPUT_TOKENS, PROTOCOL_FEATU
 from .feature_context import build_feature_context
 from .llm_client import chat_structured_completion, chat_text_completion
 from .narrative_orchestrator import _clamp_treatment_phases_raw
-from .narrative_schemas import subsection_body_limits
+from .narrative_schemas import FEATURE_SUMMARY_MAX_LENGTHS, subsection_body_limits
 from .narrative_provenance import resolve_feature_origin, should_llm_translate_en, stamp_origin
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ NARRATIVE_TRANSLATION_SYSTEM_PROMPT = (
 
 _CHAR_LIMIT_GUIDANCE = (
     "\n\nHard character limits for your German output — do not exceed: "
-    "feature summary <=500; subsection body <=2000 (shorter for brief sections); "
+    "feature summary <=500 (chin <=160); subsection body <=2000 (shorter for brief sections); "
     "treatment item name <=100; item detail <=150; phase summary <=280; "
     "executive summary <=600; disclaimer <=300; list items <=200; closing paragraph <=900."
 )
@@ -664,7 +664,7 @@ async def _translate_feature_narrative_llm(narrative: dict, feature_id: str) -> 
     # Build schema with per-field maxLength caps (same as EN)
     keys_and_limits: dict[str, int] = {}
     if "summary" in en_fields:
-        keys_and_limits["summary"] = 500
+        keys_and_limits["summary"] = FEATURE_SUMMARY_MAX_LENGTHS.get(feature_id, 500)
     for i, s in enumerate(subs_en):
         key = f"subsection_{i}"
         if key in en_fields:
@@ -675,7 +675,7 @@ async def _translate_feature_narrative_llm(narrative: dict, feature_id: str) -> 
     # Per-field limit hint in user message
     limit_parts = []
     if "summary" in keys_and_limits:
-        limit_parts.append("summary <=500")
+        limit_parts.append(f"summary <={keys_and_limits['summary']}")
     for i, s in enumerate(subs_en):
         key = f"subsection_{i}"
         if key in keys_and_limits:
