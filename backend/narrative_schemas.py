@@ -373,7 +373,7 @@ def closing_synthesis_json_schema() -> dict:
         "properties": {
             "paragraphs": {
                 "type": "array",
-                "items": {"type": "string", "minLength": 80, "maxLength": 900},
+                "items": {"type": "string", "minLength": 80},
                 "minItems": 3,
                 "maxItems": 5,
             },

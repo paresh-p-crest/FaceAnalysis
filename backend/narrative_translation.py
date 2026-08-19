@@ -716,12 +716,9 @@ async def _translate_closing_paragraphs(closing: list) -> list[str]:
     if not en_fields:
         return [p if isinstance(p, str) else "" for p in closing]
 
-    closing_limits = {k: 900 for k in en_fields}
-
     try:
         de_map = await _translate_flat_batch(
             en_fields, label="closing_paragraphs_de", schema_name="closing_paragraphs_de_flat",
-            keys_and_limits=closing_limits,
         )
         fallback_texts = [p if isinstance(p, str) else "" for p in closing]
         return _reassemble_indexed_list(
