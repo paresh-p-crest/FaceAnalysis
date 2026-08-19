@@ -166,10 +166,12 @@ def log_llm_usage(
 ) -> None:
     """Single-line token usage log for each LLM request."""
     status = "OK" if ok else "FAIL"
+    title = f"{op}" + (f"·{label}" if label else "")
     if ok:
         logger.info(
-            "LLM %s %s/%s in=%s out=%s total=%s duration=%s",
+            "LLM %s %s %s/%s in=%s out=%s total=%s duration=%s",
             status,
+            title,
             source,
             model,
             usage.get("prompt_tokens"),
@@ -179,8 +181,9 @@ def log_llm_usage(
         )
     else:
         logger.warning(
-            "LLM %s %s/%s duration=%s error=%s",
+            "LLM %s %s %s/%s duration=%s error=%s",
             status,
+            title,
             source,
             model,
             _fmt_duration(duration_s),
