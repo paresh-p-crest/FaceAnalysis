@@ -878,7 +878,7 @@ function drawSummaryCard(
     cardH = Math.max(36, maxBottom - cardY)
   }
 
-  const maxLines = Math.max(1, Math.floor((cardH - titleBlock - pad / 2) / lineH))
+  const maxLines = Math.max(1, Math.floor((cardH - titleBlock - pad) / lineH))
   const visible = splitTextAtSentences(doc, summary, textW, maxLines, lineH)
 
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
@@ -1078,6 +1078,7 @@ function drawSummaryBar(doc, y, title, summary) {
   const gap = 10
   const lineH = 12
   const bodyTop = 16
+  const bottomPad = pad
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
@@ -1089,20 +1090,21 @@ function drawSummaryBar(doc, y, title, summary) {
   doc.setFontSize(8)
   const bodyX = MARGIN + titleColW + gap
   const bodyW = Math.max(120, CONTENT_W - titleColW - gap - pad)
+  const barHeight = (n) => Math.max(44, bodyTop + Math.max(n, 1) * lineH + bottomPad)
+  const linesThatFit = (h) => Math.max(1, Math.floor((h - bodyTop - bottomPad) / lineH))
+
   const fullLines = doc.splitTextToSize(summary || '', bodyW)
-  let barH = Math.max(44, bodyTop + Math.min(fullLines.length, 4) * lineH)
+  let barH = barHeight(Math.min(fullLines.length, 4))
   let barY = y
   if (barY + barH > PAGE_BOTTOM) {
     // Never pull the bar above content already drawn above (e.g. BEFORE/AFTER row).
     barY = Math.max(y, PAGE_BOTTOM - barH)
     barH = Math.min(barH, Math.max(28, PAGE_BOTTOM - barY))
   }
-  const maxLines = Math.max(1, Math.floor((barH - bodyTop) / lineH))
-  const summaryLines = splitTextAtSentences(doc, summary, bodyW, maxLines, lineH)
-  barH = Math.max(44, bodyTop + summaryLines.length * lineH)
-  if (barY + barH > PAGE_BOTTOM) {
-    barH = Math.max(28, PAGE_BOTTOM - barY)
-  }
+  let summaryLines = splitTextAtSentences(doc, summary, bodyW, linesThatFit(barH), lineH)
+  barH = Math.min(barHeight(summaryLines.length), PAGE_BOTTOM - barY)
+  summaryLines = splitTextAtSentences(doc, summary, bodyW, linesThatFit(barH), lineH)
+
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
   doc.roundedRect(MARGIN, barY, CONTENT_W, barH, 6, 6, 'F')
   doc.setFont('helvetica', 'bold')

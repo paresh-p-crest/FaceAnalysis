@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Fixed
+- **PDF summary box padding** — Feature summary bars/cards keep a 12pt bottom inset and re-fit line count after the page-bottom clamp so descenders are not drawn on the mint edge.
 - **DE mini-card CV labels** — Map stored English `Needs attention` / `Good condition` / `Clear` and chin `protruded` through `ENGLISH_TO_KEY` so executive cards, protocol PDF, and feature panels show `Braucht Aufmerksamkeit` / `Vorstehend`. Compound details like `Moderate (13)` translate the classifier and keep the count.
 ### Changed
 - **GPT-5.6 Luna as the OpenAI text model (ADR-050)** — OpenRouter json_schema + vision allowlists use `openai/gpt-5.6-luna` (was `openai/gpt-5-mini`). `LLM_REASONING_EFFORT` (default `high`) is sent only for Luna on structured, JSON, and plain-text completions (EN generation and DE localization). Gemma and other models no longer get reasoning kwargs.
