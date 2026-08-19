@@ -2365,7 +2365,7 @@ export async function buildCvReport(landmarks, imageSrc, metrics, photos = {}, a
 
   // Enhanced hair analysis from top-head photo
   let hairData = {
-    score: 78, scoreLabel: 'Natural', hairline: 'Average',
+    score: 78, scoreLabel: CV_LABEL.natural, hairline: CV_LABEL.average,
     densityEstimate: 'Moderate', coverageEstimate: 'Good', foreheadExposure: 'Moderate',
     hairColor: 'Dark', hairColorHex: '#2a1a0a', textureType: 'Unknown',
     thinningArea: 'None detected', crownVisibility: 'N/A',

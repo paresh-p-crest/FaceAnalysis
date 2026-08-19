@@ -44,7 +44,7 @@ MINIMAL_SEVERITY_LENGTH_CARVEOUTS: dict[str, tuple[str, ...]] = {
 FEATURE_SUBSECTION_BODY_LIMITS: dict[str, dict[str, tuple[int, int]]] = {
     "hair": {
         "Hair Style": SUBSECTION_BODY_LONG,
-        "Hair Loss": SUBSECTION_BODY_STANDARD,
+        "Hair Loss": SUBSECTION_BODY_SHORT,
         "Hair Health": SUBSECTION_BODY_BRIEF,
     },
     "eyes": {
@@ -132,11 +132,11 @@ def minimal_severity_length_carveout_prompt(feature_id: str) -> str:
 
 # Treatment-phase string budgets (Pydantic + JSON schema + clamp must stay in lockstep).
 TREATMENT_PHASE_NAME_MAX = 100
-TREATMENT_PHASE_DETAIL_MAX = 280
+TREATMENT_PHASE_DETAIL_MAX = 150
 TREATMENT_PHASE_TITLE_MAX = 100
 TREATMENT_PHASE_DURATION_MAX = 100
 TREATMENT_PHASE_SUMMARY_MIN = 20
-TREATMENT_PHASE_SUMMARY_MAX = 500
+TREATMENT_PHASE_SUMMARY_MAX = 280
 TREATMENT_PHASE_ITEMS_MIN = 1
 TREATMENT_PHASE_ITEMS_MAX = 3
 
@@ -383,7 +383,7 @@ def closing_synthesis_json_schema() -> dict:
                 "maxItems": 10,
             },
         },
-        "required": ["paragraphs"],
+        "required": ["paragraphs", "referencedFeatures"],
         "additionalProperties": False,
     }
 

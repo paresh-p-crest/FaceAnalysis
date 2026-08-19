@@ -452,6 +452,7 @@ async def generate_feature_narrative_async(
     assessment_id: Optional[str] = None,
     photos_meta: Optional[dict] = None,
 ) -> dict:
+    logger.info("feature %s: generation start", feature_id)
     ctx = build_feature_context(
         feature_id,
         cv_report=cv_report,
@@ -728,6 +729,7 @@ async def generate_closing_synthesis_async(
 
     Always returns a non-empty list suitable for persistence (LLM or measured stitch).
     """
+    logger.info("closing_synthesis: generation start")
     from .answer_summary import format_answers_summary
     from .clinical_guardrails import rewrite_to_subject_voice, sanitize_report_ascii, strip_score_language
 
@@ -858,6 +860,7 @@ async def generate_treatment_phases_async(
     api_key: Optional[str] = None,
 ) -> Optional[dict]:
     """Three-phase dashboard treatment protocol (overview sidebar cards)."""
+    logger.info("treatment_phases: generation start")
     from .answer_summary import format_answers_summary
 
     profile = format_answers_summary(answers or {})
@@ -973,6 +976,7 @@ async def generate_protocol_overview_async(
     metrics: Optional[dict],
     api_key: Optional[str] = None,
 ) -> dict:
+    logger.info("protocol_overview: generation start")
     from .answer_summary import format_answers_summary
 
     profile = format_answers_summary(answers or {})

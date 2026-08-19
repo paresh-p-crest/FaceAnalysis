@@ -151,6 +151,39 @@ const ENGLISH_TO_KEY = {
   Slender: 'slender',
   'Mildly asymmetric': 'mildlyAsymmetric',
   Protruding: 'protruding',
+  // Hair color
+  Black: 'black',
+  'Dark Brown': 'darkBrown',
+  'Medium Brown': 'mediumBrown',
+  'Light Brown': 'lightBrown',
+  Blonde: 'blonde',
+  Dark: 'dark',
+  // Hair texture
+  'Curly/Wavy': 'curlyWavy',
+  Wavy: 'wavy',
+  Unknown: 'unknown',
+  // Hair density / coverage / thinning
+  Fine: 'fine',
+  'Good coverage': 'goodCoverage',
+  'Moderate coverage': 'moderateCoverage',
+  'Sparse coverage': 'sparseCoverage',
+  Receding: 'receding',
+  'Crown asymmetry detected': 'crownAsymmetry',
+  'Crown thinning': 'crownThinning',
+  'None detected': 'noneDetected',
+  'Visible thinning': 'visibleThinning',
+  'Normal coverage': 'normalCoverage',
+  // Smile / teeth
+  Natural: 'natural',
+  'Very White': 'veryWhite',
+  White: 'white',
+  Yellowish: 'yellowish',
+  Minimal: 'minimal',
+  'Consonant (ideal U-shape)': 'consonantArc',
+  Flat: 'flat',
+  Reverse: 'reverse',
+  'Gummy smile': 'gummySmile',
+  'Slight gum show': 'slightGumShow',
 }
 
 export function toCvLabelKey(value) {

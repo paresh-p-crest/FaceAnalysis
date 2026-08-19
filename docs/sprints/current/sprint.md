@@ -4,6 +4,7 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
+- [x] DE translation length caps — enforce EN char limits on DE translations (maxLength in schemas, prompt hints, tightened treatment caps) (status: completed)
 - [x] DE CV aliases: Needs attention + chin protruded (ENGLISH_TO_KEY) (status: completed)
 - [x] Locale persists across browser restart — `NEXT_LOCALE` 1-year cookie (`localeCookie.maxAge` + LocaleSwitcher write) (status: completed)
 - [x] Unmasked Square Ear Photo Crop — Updated `extract_profile_ear_crop` and `_bbox_from_mask` (`face_parsing.py`) to extract 1:1 square crops directly from unmasked profile photos with minimal padding (`pad=8`); updated `EarReportPanel.jsx` (`aspect-square object-cover`); added unit test `test_extract_profile_ear_crop_is_square_unmasked_photo` (status: completed)

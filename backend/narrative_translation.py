@@ -20,6 +20,7 @@ from .config import FEATURE_NARRATIVE_IDS, LLM_MAX_OUTPUT_TOKENS, PROTOCOL_FEATU
 from .feature_context import build_feature_context
 from .llm_client import chat_structured_completion, chat_text_completion
 from .narrative_orchestrator import _clamp_treatment_phases_raw
+from .narrative_schemas import subsection_body_limits
 from .narrative_provenance import resolve_feature_origin, should_llm_translate_en, stamp_origin
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,15 @@ NARRATIVE_TRANSLATION_SYSTEM_PROMPT = (
     "einen weichen Bogen, eine mittige Position, eine dichte Struktur und eine leicht "
     "nach oben gerichtete Ausrichtung."
 )
+
+_CHAR_LIMIT_GUIDANCE = (
+    "\n\nHard character limits for your German output — do not exceed: "
+    "feature summary <=500; subsection body <=2000 (shorter for brief sections); "
+    "treatment item name <=100; item detail <=150; phase summary <=280; "
+    "executive summary <=600; disclaimer <=300; list items <=200; closing paragraph <=900."
+)
+
+NARRATIVE_TRANSLATION_SYSTEM_PROMPT += _CHAR_LIMIT_GUIDANCE
 
 FLAT_TRANSLATION_BATCH_SUFFIX = (
     " You will receive a flat JSON object. Localize each string value into native German. "
@@ -210,6 +220,15 @@ def build_flat_translation_schema(keys: list[str]) -> dict:
     }
 
 
+def build_flat_translation_schema_with_limits(keys_and_limits: dict[str, int]) -> dict:
+    return {
+        "type": "object",
+        "properties": {k: {"type": "string", "maxLength": lim} for k, lim in keys_and_limits.items()},
+        "required": list(keys_and_limits.keys()),
+        "additionalProperties": False,
+    }
+
+
 def _reassemble_indexed_list(
     de_map: dict[str, str],
     prefix: str,
@@ -233,11 +252,28 @@ def _reassemble_indexed_list(
     return out
 
 
+async def _translate_flat_batch_with_limits(
+    en_fields: dict[str, str],
+    *,
+    keys_and_limits: dict[str, int],
+    label: str,
+    schema_name: str,
+    limit_hint: str = "",
+) -> dict[str, str]:
+    """Like _translate_flat_batch but uses maxLength-constrained schema."""
+    return await _translate_flat_batch(
+        en_fields, label=label, schema_name=schema_name,
+        keys_and_limits=keys_and_limits, user_suffix=limit_hint,
+    )
+
+
 async def _translate_flat_batch(
     en_fields: dict[str, str],
     *,
     label: str,
     schema_name: str,
+    keys_and_limits: dict[str, int] | None = None,
+    user_suffix: str = "",
 ) -> dict[str, str]:
     """Translate a flat dictionary of strings using chat_structured_completion in 1 batch call."""
     keys = list(en_fields.keys())
@@ -245,10 +281,14 @@ async def _translate_flat_batch(
         return {}
 
     max_tokens = _batch_max_tokens(len(keys))
-    schema = build_flat_translation_schema(keys)
+    if keys_and_limits:
+        schema = build_flat_translation_schema_with_limits(keys_and_limits)
+    else:
+        schema = build_flat_translation_schema(keys)
+    user_content = json.dumps(en_fields, ensure_ascii=False) + user_suffix
     messages = [
         {"role": "system", "content": NARRATIVE_TRANSLATION_FLAT_SYSTEM},
-        {"role": "user", "content": json.dumps(en_fields, ensure_ascii=False)},
+        {"role": "user", "content": user_content},
     ]
 
     for attempt in range(2):
@@ -531,9 +571,20 @@ async def _translate_executive_content(content: dict) -> dict:
     if not en_fields:
         return stamp_origin(copy.deepcopy(content), "llm")
 
+    # Build per-field limits matching EN caps
+    exec_limits: dict[str, int] = {}
+    for k in en_fields:
+        if k == "summary":
+            exec_limits[k] = 600
+        elif k == "disclaimer":
+            exec_limits[k] = 300
+        else:
+            exec_limits[k] = 200
+
     try:
         de_map = await _translate_flat_batch(
-            en_fields, label="executive_content_de", schema_name="executive_content_de_flat"
+            en_fields, label="executive_content_de", schema_name="executive_content_de_flat",
+            keys_and_limits=exec_limits,
         )
         out: dict[str, Any] = {}
         if "summary" in de_map:
@@ -610,11 +661,34 @@ async def _translate_feature_narrative_llm(narrative: dict, feature_id: str) -> 
         subsections = [{"title": s.get("title"), "body": ""} for s in subs_en]
         return stamp_origin({"summary": "", "subsections": subsections}, "llm")
 
+    # Build schema with per-field maxLength caps (same as EN)
+    keys_and_limits: dict[str, int] = {}
+    if "summary" in en_fields:
+        keys_and_limits["summary"] = 500
+    for i, s in enumerate(subs_en):
+        key = f"subsection_{i}"
+        if key in en_fields:
+            title = s.get("title") or ""
+            _min, max_len = subsection_body_limits(feature_id, title)
+            keys_and_limits[key] = max_len
+
+    # Per-field limit hint in user message
+    limit_parts = []
+    if "summary" in keys_and_limits:
+        limit_parts.append("summary <=500")
+    for i, s in enumerate(subs_en):
+        key = f"subsection_{i}"
+        if key in keys_and_limits:
+            limit_parts.append(f"{s.get('title', key)} <={keys_and_limits[key]}")
+    limit_hint = f"\n\nMax chars: {'; '.join(limit_parts)}." if limit_parts else ""
+
     try:
-        de_map = await _translate_flat_batch(
+        de_map = await _translate_flat_batch_with_limits(
             en_fields,
+            keys_and_limits=keys_and_limits,
             label=f"feature_{feature_id}_de",
             schema_name=f"feature_{feature_id}_de_flat",
+            limit_hint=limit_hint,
         )
         summary_de = de_map.get("summary", "")
         subsections = []
@@ -642,9 +716,12 @@ async def _translate_closing_paragraphs(closing: list) -> list[str]:
     if not en_fields:
         return [p if isinstance(p, str) else "" for p in closing]
 
+    closing_limits = {k: 900 for k in en_fields}
+
     try:
         de_map = await _translate_flat_batch(
-            en_fields, label="closing_paragraphs_de", schema_name="closing_paragraphs_de_flat"
+            en_fields, label="closing_paragraphs_de", schema_name="closing_paragraphs_de_flat",
+            keys_and_limits=closing_limits,
         )
         fallback_texts = [p if isinstance(p, str) else "" for p in closing]
         return _reassemble_indexed_list(

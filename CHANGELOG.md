@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Fixed
+- **DE mini-card hair/smile labels untranslated** — Added ~30 missing entries to `ENGLISH_TO_KEY` (hair color, texture, density, coverage, thinning, smile arc, teeth whiteness, gum exposure) and corresponding `CvReport.labels` in `de.json`/`en.json`. Fixed raw `'Natural'` string to use `CV_LABEL.natural`.
+- **DE translation length caps** — German translations now enforce the same character limits as EN: `maxLength` in flat-batch JSON schemas, per-field char hints in prompts, and tightened EN constants (`TREATMENT_PHASE_DETAIL_MAX` 280→150, `TREATMENT_PHASE_SUMMARY_MAX` 500→280). Prevents PDF overflow from longer German text.
 - **PDF summary box padding** — Feature summary bars/cards keep a 12pt bottom inset and re-fit line count after the page-bottom clamp so descenders are not drawn on the mint edge.
 - **DE mini-card CV labels** — Map stored English `Needs attention` / `Good condition` / `Clear` and chin `protruded` through `ENGLISH_TO_KEY` so executive cards, protocol PDF, and feature panels show `Braucht Aufmerksamkeit` / `Vorstehend`. Compound details like `Moderate (13)` translate the classifier and keep the count.
 ### Changed

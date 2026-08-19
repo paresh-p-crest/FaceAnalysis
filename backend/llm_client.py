@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-import sys
+
 import time
 from typing import Any, Optional
 
@@ -164,19 +164,8 @@ def log_llm_usage(
     ok: bool = True,
     error: Optional[str] = None,
 ) -> None:
-    """Single-line token usage log for each LLM request (always prints to stderr)."""
+    """Single-line token usage log for each LLM request."""
     status = "OK" if ok else "FAIL"
-    title = f"{op}" + (f"·{label}" if label else "")
-    err_part = f" error={error!r}" if error else ""
-    message = (
-        f"[LLM] {status} {title} | {source}/{model}"
-        f" | in={_fmt_tokens(usage.get('prompt_tokens'))}"
-        f" out={_fmt_tokens(usage.get('completion_tokens'))}"
-        f" total={_fmt_tokens(usage.get('total_tokens'))}"
-        f" dur={_fmt_duration(duration_s)}{err_part}"
-    )
-    print(message, file=sys.stderr, flush=True)
-
     if ok:
         logger.info(
             "LLM %s %s/%s in=%s out=%s total=%s duration=%s",
