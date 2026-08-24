@@ -40,6 +40,7 @@ import {
   UNDERSTANDING_RESULTS_KEYS,
 } from './reportProtocolModel'
 import { localizeFeatureRow, localizePriorityMiniCard } from './cvReportLocale'
+import { fitChinSummaryLines, chinBarHeight, chinLinesThatFit } from './chinSummaryFit'
 
 // MyFace theme tokens (docs/design/theme.md)
 const BRAND = { r: 94, g: 159, b: 139 }
@@ -926,21 +927,6 @@ function splitTextAtSentences(doc, text, maxW, maxLines, lineH) {
 }
 
 /**
- * Chin-summary variant: if no sentence fits in the target height, keep
- * the first full sentence anyway (even when it runs longer than maxLines).
- */
-function splitTextAtSentencesKeepFirst(doc, text, maxW, maxLines, lineH) {
-  const safe = sanitizePdfText(text || '')
-  if (!safe) return []
-  const base = splitTextAtSentences(doc, safe, maxW, maxLines, lineH)
-  if (base.length) return base
-
-  const firstSentence = (safe.match(/.+?[.!?](?:\s+|$)|.+$/g) || [safe])[0]?.trim() || ''
-  if (!firstSentence) return []
-  return doc.splitTextToSize(firstSentence, maxW).map((line) => sanitizePdfText(line))
-}
-
-/**
  * Bottom-row layout for Hair Health / Further Enhancement:
  * summary card stays bottom-anchored; left title aligns to card title, then
  * moves up independently (or sentence-truncates at topFloor) when body overflows.
@@ -1092,6 +1078,7 @@ function drawSummaryBar(doc, y, title, summary, opts = {}) {
   const {
     splitLines = splitTextAtSentences,
     maxBottom = PAGE_BOTTOM,
+    fitRemaining = false,
   } = opts
   const pad = 12
   const gap = 10
@@ -1111,18 +1098,37 @@ function drawSummaryBar(doc, y, title, summary, opts = {}) {
   const bodyW = Math.max(120, CONTENT_W - titleColW - gap - pad)
   const barHeight = (n) => Math.max(44, bodyTop + Math.max(n, 1) * lineH + bottomPad)
   const linesThatFit = (h) => Math.max(1, Math.floor((h - bodyTop - bottomPad) / lineH))
+  const pdfLineBreaks = (text, maxW) =>
+    doc.splitTextToSize(text || '', maxW).map((line) => sanitizePdfText(line))
 
-  const fullLines = doc.splitTextToSize(summary || '', bodyW)
-  let barH = barHeight(Math.min(fullLines.length, 4))
   let barY = y
-  if (barY + barH > maxBottom) {
-    // Never pull the bar above content already drawn above (e.g. BEFORE/AFTER row).
-    barY = Math.max(y, maxBottom - barH)
-    barH = Math.min(barH, Math.max(28, maxBottom - barY))
+  let barH
+  let summaryLines
+
+  if (fitRemaining) {
+    // Grow down from caller y only — never shrink content above or pin the bar to the footer.
+    const leftover = Math.max(0, maxBottom - y)
+    const fit = fitChinSummaryLines({
+      summary,
+      maxWidth: bodyW,
+      maxLines: chinLinesThatFit(leftover),
+      lineBreaks: pdfLineBreaks,
+      measureWidth: (text) => doc.getTextWidth(text),
+    })
+    summaryLines = fit.lines
+    barH = Math.min(chinBarHeight(summaryLines.length), leftover)
+  } else {
+    const fullLines = doc.splitTextToSize(summary || '', bodyW)
+    barH = barHeight(Math.min(fullLines.length, 4))
+    if (barY + barH > maxBottom) {
+      // Never pull the bar above content already drawn above (e.g. BEFORE/AFTER row).
+      barY = Math.max(y, maxBottom - barH)
+      barH = Math.min(barH, Math.max(28, maxBottom - barY))
+    }
+    summaryLines = splitLines(doc, summary, bodyW, linesThatFit(barH), lineH)
+    barH = Math.min(barHeight(summaryLines.length), maxBottom - barY)
+    summaryLines = splitLines(doc, summary, bodyW, linesThatFit(barH), lineH)
   }
-  let summaryLines = splitLines(doc, summary, bodyW, linesThatFit(barH), lineH)
-  barH = Math.min(barHeight(summaryLines.length), maxBottom - barY)
-  summaryLines = splitLines(doc, summary, bodyW, linesThatFit(barH), lineH)
 
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
   doc.roundedRect(MARGIN, barY, CONTENT_W, barH, 6, 6, 'F')
@@ -1794,6 +1800,7 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
   }
 
   y = Math.max(leftY, rightY) + SECTION_GAP
+  // Pair sizing unchanged (profiles + B/A as today). Summary grows down into leftover only.
   const summaryReserve = 52
   const maxPairH = PAGE_BOTTOM - y - summaryReserve - IMAGE_TEXT_GAP
   const pairH = Math.min(120, Math.max(60, maxPairH))
@@ -1804,9 +1811,9 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
     pm('featureSummary', { name: localizedFeaturePrimary('chin', activeReportT) }),
     section.summary,
     {
-      splitLines: splitTextAtSentencesKeepFirst,
-      // Allow a small controlled overflow so first full sentence can be shown.
-      maxBottom: PAGE_BOTTOM + 20,
+      fitRemaining: true,
+      // Last pixel of the sheet — extra space below the bar, not stolen from B/A.
+      maxBottom: PAGE_H - 1,
     },
   )
 }

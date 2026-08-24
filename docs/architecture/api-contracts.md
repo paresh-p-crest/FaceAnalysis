@@ -342,7 +342,7 @@ Saves admin review comments, PDF protocol text edits, and/or publishes reports.
   ```
   `treatmentPhases` bounds (Pydantic / structured LLM): `title`/`duration` ≤100 chars; item `name` ≤100; item `detail` ≤280; `items` 1–3 per phase; `summary` 20–500 chars. Soft overruns are clamped before validate.
   Optional legacy `aiNarrative` is still accepted. Protocol text is persisted via protocol storage + DB when `protocolNarrative` / `featureNarratives` are sent.
-  Optional `narrativeLocale` (`"en"` | `"de"`, default `"en"`) — when `"de"`, merges edited text into nested `.de` / `contentDe` blocks with `origin: "admin"` (no auto-retranslate). When `"en"`, saves English fields and retriggers DE translation for affected sections.
+  Optional `narrativeLocale` (`"en"` | `"de"`, default `"en"`) — when `"de"`, merges edited text into nested `.de` / `contentDe` blocks with `origin: "admin"`. When `"en"`, saves English fields only (no auto DE retranslate; use `POST …/narrative-translations` when DE refresh from EN is needed).
 - **400:** When assessment status is **Approved**, requests that include `protocolNarrative` or `featureNarratives` are rejected (`Cannot edit protocol narrative on approved reports.`).
 - **Response Shape (200 OK):** Complete updated assessment document.
 

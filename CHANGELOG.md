@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Changed
+- **Admin EN protocol save: no auto DE retranslate** — `PATCH …/admin-review` with `narrativeLocale: en` now persists English edits only; DE blocks stay untouched until admin runs `POST …/narrative-translations` or the rerun script (intentional — avoids EN/DE edit conflicts).
 ### Fixed
+- **Summary boxes grow with leftover on that page** — Skin/jaw/lips (and other mint summaries) grow down from their own top to that A4 page’s bottom, then drop extra copy. Height is not copied from hair or a fixed 110px cap.
+- **Summary bars collapsed to one line** — Lip/cheek bars use leftover page height as the wrap budget (not the collapsed one-line box), so copy wraps and stays visible down the mint bar.
+- **Jaw summary unfocus showed the tail** — Bottom-anchored cards are collapsed before leftover is measured, then height-capped, so unfocus keeps the opening and drops extra lines instead of growing the mint box up off the page.
+- **Jaw/other summary cards prune overflow** — Mint summary cards and bars (jaw, eyes, lips, …) cap to leftover page space and drop extra text from the end on blur, same as chin.
+- **Summary bar/card horizontal overflow** — Lip and other mint summaries wrap unbroken strings inside the box (`overflow-wrap: anywhere`, flex `min-width: 0`) instead of spilling past the A4 edge.
+- **Chin summary focus jumps to disclaimer** — Sheet overflow reset stops at the A4 page and no longer zeros the HTML preview scroller.
+- **Chin summary HTML preview prune on blur** — Unfocus now binary-searches the longest prefix that fits the leftover bar (real DOM height, start kept, tail deleted). A4 sheet uses `overflow: clip` so caret-scroll cannot hide the opening.
+- **FeaturePageHtml missing images prop** — Protocol HTML preview passes resolved feature images into `FeaturePageHtml`; fixes runtime `Cannot read properties of undefined (reading 'features')`.
+- **Protocol HTML summary cards mint** — Admin preview summary cards use the same mint `#dbeee8` and ink text as summary bars (match PDF).
+- **Hair stage strip in protocol HTML** — Hair feature page preview shows the Norwood/Ludwig 1–7 stage row (same assets and active-stage ring as the PDF).
+- **Chin summary grows down only (no B/A shrink)** — Profiles and BEFORE/AFTER keep today’s pair math. The mint bar starts under the pair and grows toward `PAGE_H - 1` so the first sentence can use leftover space; HTML preview matches that leftover-from-top fit.
+- **Chin summary bar leftover grow (PDF + admin preview)** — Chin `drawSummaryBar` grows into space below BEFORE/AFTER only (cap `PAGE_BOTTOM`, no +20 overflow). Shared `chinSummaryFit.js` picks first sentence when summary >160 chars, wraps to leftover height, ellipsis only when display text still overflows. Admin protocol chin page uses bottom `SummaryBar` with the same fitted/ellipsis copy (full stored summary while editing).
 - **DE mini-card hair/smile labels untranslated** — Added ~30 missing entries to `ENGLISH_TO_KEY` (hair color, texture, density, coverage, thinning, smile arc, teeth whiteness, gum exposure) and corresponding `CvReport.labels` in `de.json`/`en.json`. Fixed raw `'Natural'` string to use `CV_LABEL.natural`.
 - **DE translation length caps** — German translations now enforce the same character limits as EN: `maxLength` in flat-batch JSON schemas, per-field char hints in prompts, and tightened EN constants (`TREATMENT_PHASE_DETAIL_MAX` 280→150, `TREATMENT_PHASE_SUMMARY_MAX` 500→280). Prevents PDF overflow from longer German text.
 - **Chin summary length cap (EN+DE)** — Cap `featureNarratives.chin.summary` to ~160 chars in JSON schema + DE translation schema to prevent PDF summary-bar truncation.

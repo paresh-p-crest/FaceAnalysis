@@ -26,7 +26,6 @@ from ..protocol_service import (
     regenerate_narrative_translations,
     regenerate_protocol_section,
 )
-from ..narrative_translation import ensure_narrative_translations
 from ..assessment_limits import require_assessment_slot
 from ..repositories.assessment_repository import (
     count_submitted_assessments_for_user,
@@ -852,16 +851,21 @@ async def patch_assessment_admin_review(
                 updated = persisted["assessment"]
             else:
                 updated = await get_assessment_by_id(assessment_id) or updated
-            if narrative_locale != "de" and updated:
-                merged = dict(updated)
-                await ensure_narrative_translations(merged, force=True)
-                persisted = await persist_protocol_bundle(
-                    assessment_id,
-                    protocol_narrative=merged.get("protocolNarrative"),
-                    feature_narratives=merged.get("featureNarratives"),
-                )
-                if persisted.get("assessment"):
-                    updated = persisted["assessment"]
+            # INTENTIONAL (2026-08-24): disabled auto DE regen on admin EN manual edits.
+            # EN and DE protocol blocks are saved independently; force=True retranslate
+            # overwrote admin DE copy and conflicted with locale-specific edits.
+            # To refresh DE from EN, use POST …/narrative-translations or
+            # scripts/rerun_narrative_translations.py --language de.
+            # if narrative_locale != "de" and updated:
+            #     merged = dict(updated)
+            #     await ensure_narrative_translations(merged, force=True)
+            #     persisted = await persist_protocol_bundle(
+            #         assessment_id,
+            #         protocol_narrative=merged.get("protocolNarrative"),
+            #         feature_narratives=merged.get("featureNarratives"),
+            #     )
+            #     if persisted.get("assessment"):
+            #         updated = persisted["assessment"]
         except Exception as exc:
             raise HTTPException(
                 status_code=400,

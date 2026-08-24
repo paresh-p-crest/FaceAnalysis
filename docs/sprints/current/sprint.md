@@ -6,6 +6,10 @@
 
 - [x] DE translation length caps — enforce EN char limits on DE translations (maxLength in schemas, prompt hints, tightened treatment caps) (status: completed)
 - [x] Chin summary sentence-safe clamp (~160 target) — remove hard 160 schema cap (EN+DE), clamp post-generation to full sentences, and if sentence 1 exceeds 160 keep sentence 1 intact (status: completed)
+- [x] Admin EN protocol save: disable auto DE retranslate on manual edits (EN/DE stay independent; use narrative-translations endpoint when needed) (status: completed)
+- [x] Protocol HTML: mint summary cards + hair Norwood/Ludwig stage strip matching PDF (status: completed)
+- [x] Protocol HTML summaries prune to leftover page height (jaw/lips/eyes/chin keep start, drop tail) (status: completed)
+- [x] Chin summary bar leftover grow (PDF + admin preview) — grow mint bar into space below B/A only (no pair shrink); first sentence when summary >160; shared fit/ellipsis helper; HTML preview matches PDF clip; full text on edit focus (status: completed)
 - [x] Executive page-1 hero tiles restored — re-enable two localized hero rows (`Staged protocol` + `Projected potential`) in PDF (status: completed)
 - [x] Preserve `protocolNarrative.treatmentPhases` on section-only regen (e.g. `feature_chin`) to avoid dashboard/PDF fallback cards (status: completed)
 - [x] Preserve `protocolNarrative.de` + custom metadata on section-only regen (e.g. `feature_chin`) to avoid DE closing fallback and payload data loss (status: completed)

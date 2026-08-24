@@ -1110,13 +1110,13 @@
     aspect-ratio: auto;
     flex: 0 0 auto;
     min-height: 0;
-    overflow: hidden;
+    overflow: clip;
     /* Same visual scale as PDF viewer fit-to-width (Chromium zoom) */
     zoom: min(1.4, (100cqi - 16px) / 595);
   }
 
   .report-protocol-scroll--html .report-view-a4-inner {
-    @apply overflow-hidden;
+    overflow: clip;
   }
 
   .report-protocol-pdf-frame {
@@ -1355,7 +1355,8 @@
 
   /* PDF-parity sheet chrome (matches reportPdf.js constants) */
   .report-view-a4-inner--pdf {
-    @apply relative flex flex-col overflow-hidden;
+    @apply relative flex flex-col;
+    overflow: clip;
     --report-pdf-font: Helvetica;
     --report-pdf-margin-x: 48px;
     --report-pdf-top-pad: 28px;
@@ -1440,9 +1441,13 @@
     margin-top: var(--report-pdf-section-gap);
   }
 
-  /* Hair / Jaw: pin bottom row to page footer; left title inset matches summary card p-3 */
+  /* Hair / Jaw: pin bottom row to page footer without growing upward over content */
   .report-pdf-cols--bottom-anchor {
     margin-top: auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow: clip;
+    align-items: end;
   }
 
   .report-pdf-cols--bottom-anchor .report-pdf-bottom-left {
@@ -1519,18 +1524,20 @@
   }
 
   .report-pdf-summary-card {
-    @apply rounded-md p-3 text-white shrink-0;
-    background: #374151;
+    @apply rounded-md p-3 text-ink shrink-0 min-w-0;
+    background: #dbeee8;
     min-height: var(--report-pdf-summary-min-h);
     font-family: var(--report-pdf-font);
+    overflow-x: clip;
   }
 
   .report-pdf-summary-bar {
-    @apply rounded-md p-3 text-white flex items-start shrink-0;
-    background: #374151;
+    @apply rounded-md p-3 flex items-start shrink-0 min-w-0 text-ink;
+    background: #dbeee8;
     margin-top: var(--report-pdf-section-gap);
     gap: calc(var(--report-pdf-col-gap) * 0.8);
     font-family: var(--report-pdf-font);
+    overflow-x: clip;
   }
 
   .report-pdf-summary-title {
@@ -1538,14 +1545,132 @@
   }
 
   .report-pdf-summary-body {
-    @apply text-white/95;
+    @apply text-ink min-w-0;
     font-family: var(--report-pdf-font);
     font-size: 8px;
     line-height: 11.5px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
   }
 
   .report-pdf-summary-bar .report-pdf-summary-title {
     @apply min-w-28 max-w-[42%];
+  }
+
+  .report-pdf-summary-bar .report-pdf-summary-body {
+    flex: 1 1 0;
+  }
+
+  .report-pdf-summary-bar-anchor {
+    @apply shrink-0;
+    height: 0;
+    margin-top: var(--report-pdf-section-gap);
+  }
+
+  .report-pdf-summary-card--page-fit {
+    display: flex;
+    flex-direction: column;
+    overflow: clip;
+    overflow-anchor: none;
+    min-height: 0;
+    height: auto;
+  }
+
+  .report-pdf-summary-card--page-fit .report-pdf-summary-body-wrap {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: clip;
+  }
+
+  .report-pdf-summary-card--page-fit .report-pdf-summary-body {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .report-pdf-summary-bar--page-fit {
+    align-items: flex-start;
+    overflow-x: clip;
+    overflow-y: visible;
+    overflow-anchor: none;
+  }
+
+  .report-pdf-summary-bar--page-fit .report-pdf-summary-body-wrap {
+    min-width: 0;
+    flex: 1 1 0;
+    overflow: visible;
+  }
+
+  .report-pdf-summary-bar--page-fit .report-pdf-summary-body {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .report-pdf-summary-bar--chin-fit {
+    margin-top: 0;
+    align-items: stretch;
+    overflow: clip;
+    overflow-anchor: none;
+  }
+
+  .report-pdf-summary-bar--chin-fit .report-pdf-summary-body-wrap {
+    min-height: 0;
+    max-height: 100%;
+    overflow: clip;
+    overflow-anchor: none;
+    display: flex;
+    align-items: stretch;
+  }
+
+  .report-pdf-summary-bar--chin-fit .report-pdf-summary-body {
+    overflow: clip;
+    max-height: 100%;
+    overflow-anchor: none;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    align-self: stretch;
+  }
+
+  .report-pdf-baldness-panel {
+    @apply shrink-0 rounded-md border border-surface-border;
+    margin-top: var(--report-pdf-section-gap);
+    padding: 8px 10px 10px;
+    background: #fafbfd;
+  }
+
+  .report-pdf-baldness-scale {
+    @apply flex justify-between text-ink-muted;
+    font-size: 7px;
+    margin-bottom: 6px;
+    font-family: var(--report-pdf-font);
+  }
+
+  .report-pdf-baldness-stages {
+    @apply flex items-center justify-between;
+    padding: 0 20px;
+  }
+
+  .report-pdf-baldness-stage {
+    @apply flex items-center justify-center;
+    width: 56px;
+    height: 56px;
+    border-radius: 4px;
+  }
+
+  .report-pdf-baldness-stage img {
+    @apply w-full h-full object-contain;
+  }
+
+  .report-pdf-baldness-stage--active {
+    box-shadow: 0 0 0 1.5px #5e9f8b;
+    padding: 2px;
+  }
+
+  .report-view-a4-page,
+  .report-view-a4-inner--pdf {
+    overflow-anchor: none;
   }
 
   /* Inline admin editing — box-shadow affordance only (no layout shift, preserves PDF scale) */
@@ -1567,8 +1692,8 @@
 
   .report-pdf-summary-body.report-editable:focus,
   .report-pdf-summary-body.report-editable:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+    background-color: rgba(94, 159, 139, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(94, 159, 139, 0.35);
   }
 
   .report-protocol-edit-status {
