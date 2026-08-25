@@ -1355,7 +1355,7 @@
 
   /* PDF-parity sheet chrome (matches reportPdf.js constants) */
   .report-view-a4-inner--pdf {
-    @apply relative flex flex-col;
+    @apply relative flex flex-col h-full min-h-0;
     overflow: clip;
     --report-pdf-font: Helvetica;
     --report-pdf-margin-x: 48px;
@@ -1441,17 +1441,25 @@
     margin-top: var(--report-pdf-section-gap);
   }
 
-  /* Hair / Jaw: pin bottom row to page footer without growing upward over content */
+  /* Hair / Jaw: fill leftover; equal 1fr columns; card sits at bottom of its cell */
   .report-pdf-cols--bottom-anchor {
     margin-top: auto;
+    flex: 1 1 auto;
     min-height: 0;
-    max-height: 100%;
-    overflow: clip;
-    align-items: end;
+    align-items: stretch;
   }
 
   .report-pdf-cols--bottom-anchor .report-pdf-bottom-left {
-    padding-top: 12px;
+    min-width: 0;
+  }
+
+  .report-pdf-cols--bottom-anchor .report-pdf-summary-card--pin-bottom {
+    align-self: end;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    overflow: visible;
+    position: static;
   }
 
   .report-pdf-feature-fill {
@@ -1468,8 +1476,27 @@
     margin-top: var(--report-pdf-section-gap);
   }
 
+  .report-pdf-col-stack--frames {
+    gap: var(--report-pdf-image-text-gap);
+  }
+
   .report-pdf-labeled-body {
     @apply min-w-0;
+  }
+
+  .report-pdf-labeled-body--page-fit {
+    min-height: 0;
+    overflow: clip;
+  }
+
+  .report-pdf-labeled-body--page-fit .report-pdf-body-fit-wrap {
+    overflow: clip;
+    min-height: 0;
+  }
+
+  .report-pdf-labeled-body--page-fit .report-pdf-body-text {
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 
   .report-pdf-label {
@@ -1500,7 +1527,10 @@
   }
 
   .report-pdf-image-frame img {
-    @apply absolute inset-0 w-full h-full;
+    @apply absolute object-center;
+    inset: 4px;
+    width: calc(100% - 8px);
+    height: calc(100% - 8px);
   }
 
   .report-pdf-image-empty {
@@ -1509,8 +1539,35 @@
   }
 
   .report-pdf-image-tag {
-    @apply absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider text-white;
-    background: rgb(55 65 81 / 0.85);
+    @apply absolute z-10 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider text-white;
+    top: 10px;
+    left: 10px;
+    background: rgb(80 80 80);
+  }
+
+  .report-pdf-split-frame {
+    @apply relative overflow-hidden bg-surface-warm border border-surface-border shrink-0 w-full;
+    border-radius: 6px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .report-pdf-split-frame__half {
+    @apply relative min-w-0 overflow-hidden;
+  }
+
+  .report-pdf-split-frame__half img {
+    @apply absolute inset-0 w-full h-full object-cover;
+  }
+
+  .report-pdf-split-frame__rule {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 50%;
+    width: 0;
+    border-left: 1px dashed #fff;
+    pointer-events: none;
   }
 
   .report-pdf-ba-row {
@@ -1549,8 +1606,8 @@
     font-family: var(--report-pdf-font);
     font-size: 8px;
     line-height: 11.5px;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
     max-width: 100%;
   }
 
@@ -1560,12 +1617,6 @@
 
   .report-pdf-summary-bar .report-pdf-summary-body {
     flex: 1 1 0;
-  }
-
-  .report-pdf-summary-bar-anchor {
-    @apply shrink-0;
-    height: 0;
-    margin-top: var(--report-pdf-section-gap);
   }
 
   .report-pdf-summary-card--page-fit {
@@ -1585,8 +1636,8 @@
 
   .report-pdf-summary-card--page-fit .report-pdf-summary-body {
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 
   .report-pdf-summary-bar--page-fit {
@@ -1604,33 +1655,8 @@
 
   .report-pdf-summary-bar--page-fit .report-pdf-summary-body {
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .report-pdf-summary-bar--chin-fit {
-    margin-top: 0;
-    align-items: stretch;
-    overflow: clip;
-    overflow-anchor: none;
-  }
-
-  .report-pdf-summary-bar--chin-fit .report-pdf-summary-body-wrap {
-    min-height: 0;
-    max-height: 100%;
-    overflow: clip;
-    overflow-anchor: none;
-    display: flex;
-    align-items: stretch;
-  }
-
-  .report-pdf-summary-bar--chin-fit .report-pdf-summary-body {
-    overflow: clip;
-    max-height: 100%;
-    overflow-anchor: none;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    align-self: stretch;
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 
   .report-pdf-baldness-panel {

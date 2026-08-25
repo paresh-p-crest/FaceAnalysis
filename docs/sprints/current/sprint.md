@@ -4,11 +4,20 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
+- [ ] Landing paid-account import — canonical `Landing-Account-Import-API.md` (architecture path is a pointer) (status: proposed)
+- [x] Hair/jaw/skin: truncateAtSentences splits glued DE periods; no mid-word fallback (PDF + preview) (status: completed)
+- [x] HTML jaw/hair bottom row: layoutBottomAnchoredClip (PDF card+body geometry); titles align; reportPdf.js untouched (status: completed)
+- [x] HTML preview uses pdfTextFit copy of reportPdf truncateAtSentences (last sentence matches PDF; reportPdf.js untouched) (status: completed)
+- [x] Protocol HTML/PDF parity — same sentence clip, hair/jaw card placement, image pad/crop, skin half-split, hair-loss columns (status: completed)
 - [x] DE translation length caps — enforce EN char limits on DE translations (maxLength in schemas, prompt hints, tightened treatment caps) (status: completed)
 - [x] Chin summary sentence-safe clamp (~160 target) — remove hard 160 schema cap (EN+DE), clamp post-generation to full sentences, and if sentence 1 exceeds 160 keep sentence 1 intact (status: completed)
 - [x] Admin EN protocol save: disable auto DE retranslate on manual edits (EN/DE stay independent; use narrative-translations endpoint when needed) (status: completed)
 - [x] Protocol HTML: mint summary cards + hair Norwood/Ludwig stage strip matching PDF (status: completed)
 - [x] Protocol HTML summaries prune to leftover page height (jaw/lips/eyes/chin keep start, drop tail) (status: completed)
+- [x] PDF summary leftover-grow (nose/skin cards + lips/cheeks bars): grow down to PAGE_H-1, keep whole sentences that fit; chin 160 rule unchanged (status: completed)
+- [x] Chin summary display matches other bars (drop PDF/HTML 160 first-sentence special path) (status: completed)
+- [x] Backend feature summary clamp uniform at 500 (sentence-safe) for all features incl. chin (status: completed)
+- [x] Sentence-clamp Weitere Hautoptimierung, Weitere Optimierung, Haargesundheit (PDF + HTML leftover) (status: completed)
 - [x] Chin summary bar leftover grow (PDF + admin preview) — grow mint bar into space below B/A only (no pair shrink); first sentence when summary >160; shared fit/ellipsis helper; HTML preview matches PDF clip; full text on edit focus (status: completed)
 - [x] Executive page-1 hero tiles restored — re-enable two localized hero rows (`Staged protocol` + `Projected potential`) in PDF (status: completed)
 - [x] Preserve `protocolNarrative.treatmentPhases` on section-only regen (e.g. `feature_chin`) to avoid dashboard/PDF fallback cards (status: completed)

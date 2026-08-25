@@ -59,9 +59,18 @@ def test_json_schema_eyes_has_four_subsections():
     assert set(schema["required"]) == {"featureId", "summary", "subsections"}
 
 
-def test_json_schema_chin_summary_max_len():
-    schema = feature_narrative_json_schema("chin")
-    assert schema["properties"]["summary"]["maxLength"] == 500
+def test_json_schema_feature_summary_max_len_uniform():
+    for feature_id in ("chin", "nose", "lips", "eyes"):
+        schema = feature_narrative_json_schema(feature_id)
+        assert schema["properties"]["summary"]["maxLength"] == 500
+
+
+def test_feature_summary_max_lengths_uniform():
+    from backend.narrative_schemas import FEATURE_SUMMARY_MAX, FEATURE_SUMMARY_MAX_LENGTHS, FEATURE_SUBSECTION_TITLES
+
+    assert FEATURE_SUMMARY_MAX == 500
+    assert set(FEATURE_SUMMARY_MAX_LENGTHS) == set(FEATURE_SUBSECTION_TITLES)
+    assert all(v == 500 for v in FEATURE_SUMMARY_MAX_LENGTHS.values())
 
 
 def test_hair_subsection_body_limits():

@@ -86,9 +86,10 @@ FEATURE_SUBSECTION_BODY_LIMITS: dict[str, dict[str, tuple[int, int]]] = {
     },
 }
 
+FEATURE_SUMMARY_MAX = 500
+# Uniform post-gen / post-translate sentence-safe clamp for every feature summary.
 FEATURE_SUMMARY_MAX_LENGTHS: dict[str, int] = {
-    # Chin has a shorter summary-bar layout on the dedicated chin page.
-    "chin": 160,
+    feature_id: FEATURE_SUMMARY_MAX for feature_id in FEATURE_SUBSECTION_TITLES
 }
 
 
@@ -252,8 +253,8 @@ def feature_narrative_json_schema(feature_id: str) -> dict:
     if not titles:
         raise ValueError(f"Unknown feature_id: {feature_id}")
     # Keep schema max broad enough to avoid provider-side mid-token truncation.
-    # Feature-specific (e.g. chin) summary caps are applied post-generation.
-    summary_max = 500
+    # Uniform summary cap is applied post-generation (FEATURE_SUMMARY_MAX).
+    summary_max = FEATURE_SUMMARY_MAX
 
     # Ordered prefix items so each title can have its own body maxLength.
     subsection_items = []

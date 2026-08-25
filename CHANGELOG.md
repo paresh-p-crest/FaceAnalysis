@@ -6,8 +6,22 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Changed
+- **Landing paid-account import (merged canonical doc)** — Full spec lives only in root `Landing-Account-Import-API.md` (import API, password setup, Postgres mapping, acceptance criteria, open questions). `docs/architecture/myface-landing-account-import-api.md` is a pointer to that file.
+### Fixed
+- **Hair/jaw bottom-row column width** — Restored equal `1fr / 1fr` grid cells (removed absolute card + half-width calc that narrowed Haargesundheit / Zusammenfassung).
+- **Hair / jaw / skin body clip mid-sentence** — `truncateAtSentences` (PDF + `pdfTextFit`) splits DE glued periods (`wollen.Ein`), joins with spaces, and never falls back to mid-word line cuts; Weitere Optimierung / Haargesundheit / Weitere Hautoptimierung keep whole sentences only.
+- **HTML jaw/hair last sentence = PDF** — Bottom row maps leftover height to PDF `PAGE_BOTTOM`, pins the mint card there, and shows `truncateAtSentences` copy (no CSS `overflow: clip` mid-word cuts). `reportPdf.js` still untouched.
+- **HTML preview last-sentence = PDF** — Protocol preview bodies/summaries clip via a verbatim copy of `reportPdf` `truncateAtSentences` + jsPDF `splitTextToSize` (`pdfTextFit.js`); DOM wrap no longer decides the last kept sentence. `reportPdf.js` unchanged.
+- **Protocol HTML/PDF visual parity** — Preview now matches PDF sentence clipping (no mid-word cuts), hair/jaw mint-card title alignment (top-align in the bottom-pinned row), 4px cover-crop image insets, hair loss two-column split, stacked-frame 22pt gaps, lips plate 240pt, and skin half-split (240pt + intro + aligned AFTER) instead of a 160pt analysis tile.
+### Changed
 - **Admin EN protocol save: no auto DE retranslate** — `PATCH …/admin-review` with `narrativeLocale: en` now persists English edits only; DE blocks stay untouched until admin runs `POST …/narrative-translations` or the rerun script (intentional — avoids EN/DE edit conflicts).
 ### Fixed
+- **Skin PDF image gap** — Vorher/Nachher again sits under the split frame (`leftY + SECTION_GAP`); long Hautpflegeprotokoll no longer pushes the pair down via `Math.max(left, right)`.
+- **Hair/jaw summary stay bottom-pinned** — Long hair/jaw mint cards grow upward from `PAGE_BOTTOM` again (`stickToBottom`); leftover-grow-from-top no longer lifts them off the footer.
+- **Weitere Hautoptimierung / Weitere Optimierung / Haargesundheit sentence clamp** — Those three body blocks keep whole sentences that fit under the page edge (`PAGE_H - 1`); leftover tail is dropped in PDF and HTML preview (same policy as mint summaries).
+- **Uniform feature summary clamp (500)** — Chin no longer uses a 160-char backend clamp. EN generation and DE translation apply the same sentence-safe `FEATURE_SUMMARY_MAX` (500) to every feature summary; PDF leftover clip remains the visual limit.
+- **Chin summary same as other bars** — PDF/HTML chin summary no longer uses the 160-char first-sentence / `fitRemaining` path. Same leftover-grow + whole-sentence clip as lips/cheeks.
+- **PDF summaries leftover-grow like preview** — Nose/skin (and other cards) grow down from the box top to `PAGE_H - 1` when wrap exceeds the compact 110pt card; whole sentences that fit are kept. Lip/cheek bars grow the same way when wrap exceeds 4 lines. Chin still uses the 160 first-sentence helper. Images above are unchanged.
 - **Summary boxes grow with leftover on that page** — Skin/jaw/lips (and other mint summaries) grow down from their own top to that A4 page’s bottom, then drop extra copy. Height is not copied from hair or a fixed 110px cap.
 - **Summary bars collapsed to one line** — Lip/cheek bars use leftover page height as the wrap budget (not the collapsed one-line box), so copy wraps and stays visible down the mint bar.
 - **Jaw summary unfocus showed the tail** — Bottom-anchored cards are collapsed before leftover is measured, then height-capped, so unfocus keeps the opening and drops extra lines instead of growing the mint box up off the page.

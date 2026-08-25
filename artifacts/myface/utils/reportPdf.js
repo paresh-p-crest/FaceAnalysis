@@ -40,7 +40,6 @@ import {
   UNDERSTANDING_RESULTS_KEYS,
 } from './reportProtocolModel'
 import { localizeFeatureRow, localizePriorityMiniCard } from './cvReportLocale'
-import { fitChinSummaryLines, chinBarHeight, chinLinesThatFit } from './chinSummaryFit'
 
 // MyFace theme tokens (docs/design/theme.md)
 const BRAND = { r: 94, g: 159, b: 139 }
@@ -828,7 +827,8 @@ function drawSplitComparisonFrame(doc, x, y, w, h, beforeSrc, afterSrc, { gap = 
 }
 
 /** Labeled body block; returns Y after the last text line. EN title → localized display. */
-function drawLabeledBody(doc, x, y, title, body, maxW, lineH = 11.5) {
+function drawLabeledBody(doc, x, y, title, body, maxW, lineH = 11.5, opts = {}) {
+  const { maxBottom = null } = opts
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   setInk(doc)
@@ -836,13 +836,21 @@ function drawLabeledBody(doc, x, y, title, body, maxW, lineH = 11.5) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
-  return wrapText(doc, body || '', x, y + 22, maxW, lineH)
+  const bodyTop = y + 22
+  let text = body || ''
+  if (maxBottom != null) {
+    const maxBodyHeight = Math.max(lineH, maxBottom - bodyTop)
+    text = truncateAtSentences(doc, text, maxW, maxBodyHeight, lineH)
+  }
+  return wrapText(doc, text, x, bodyTop, maxW, lineH)
 }
 
 /**
- * Summary card whose height grows with wrapped copy.
- * Column cards stick to PAGE_BOTTOM (without overlapping content above)
- * and never draw past maxBottom — even when minH cannot fit.
+ * Summary card. Short copy keeps today’s compact size.
+ * stickToBottom (hair/jaw/eyes default): pin card bottom to maxBottom; long copy
+ * grows upward into leftover (never above caller y / topFloor).
+ * Grow-from-top (!stickToBottom): long copy grows down from y to PAGE_H - 1.
+ * Whole sentences that fit are kept; the tail is dropped.
  */
 function drawSummaryCard(
   doc,
@@ -857,30 +865,55 @@ function drawSummaryCard(
   doc.setFontSize(8)
   const textW = w - pad * 2
   const lines = doc.splitTextToSize(summary || '', textW)
-  // Title baseline at +16; leave more room before body (was 22 — cramped under "X Summary")
   const titleBlock = 30
-  const naturalH = Math.max(minH, titleBlock + lines.length * lineH + pad)
+  const neededH = Math.max(minH, titleBlock + Math.max(lines.length, 1) * lineH + pad)
   const topFloor = Math.max(80, y)
-  const available = Math.max(0, maxBottom - topFloor)
+  const growCap = PAGE_H - 1
+  const bottomEdge = stickToBottom ? Math.min(maxBottom, growCap) : growCap
+  const leftover = Math.max(0, bottomEdge - topFloor)
+  const compactH = Math.min(minH, leftover || minH)
+  const wantsGrow = neededH > minH + 0.5
 
-  // Never exceed remaining space — minH is a preference, not a license to overflow
-  let cardH = available > 0 ? Math.min(naturalH, available) : 0
-  if (cardH < 36) {
-    // Almost no room below content: pin to bottom and use whatever fits above footer
-    cardH = Math.min(naturalH, Math.max(36, maxBottom - 80))
+  let cardY
+  let cardH
+  if (wantsGrow) {
+    cardH = Math.max(36, leftover)
+    cardY = stickToBottom ? bottomEdge - cardH : topFloor
+    if (cardY < topFloor) {
+      cardY = topFloor
+      cardH = Math.max(36, leftover)
+    }
+  } else {
+    cardH = Math.max(36, compactH)
+    if (stickToBottom) {
+      cardY = bottomEdge - cardH
+      if (cardY < topFloor) {
+        cardY = topFloor
+        cardH = Math.max(36, Math.min(cardH, leftover))
+      }
+    } else {
+      cardY = topFloor
+    }
   }
-
-  let cardY = stickToBottom ? maxBottom - cardH : topFloor
-  if (cardY < topFloor) {
-    cardH = Math.max(36, maxBottom - topFloor)
-    cardY = maxBottom - cardH
-  }
-  if (cardY + cardH > maxBottom) {
-    cardH = Math.max(36, maxBottom - cardY)
+  if (cardY + cardH > bottomEdge) {
+    cardH = Math.max(36, bottomEdge - cardY)
   }
 
   const maxLines = Math.max(1, Math.floor((cardH - titleBlock - pad) / lineH))
   const visible = splitTextAtSentences(doc, summary, textW, maxLines, lineH)
+  if (wantsGrow) {
+    cardH = Math.min(
+      leftover,
+      Math.max(compactH, titleBlock + Math.max(visible.length, 1) * lineH + pad),
+    )
+    if (stickToBottom) {
+      cardY = bottomEdge - cardH
+      if (cardY < topFloor) {
+        cardY = topFloor
+        cardH = Math.max(36, bottomEdge - cardY)
+      }
+    }
+  }
 
   doc.setFillColor(SUMMARY_BG.r, SUMMARY_BG.g, SUMMARY_BG.b)
   doc.roundedRect(x, cardY, w, cardH, 6, 6, 'F')
@@ -899,7 +932,8 @@ function drawSummaryCard(
 
 /**
  * Keep full sentences that fit in maxBodyHeight; drop the rest.
- * If even the first sentence is too long, fall back to line-clip with ellipsis.
+ * If even the first sentence is too long, keep that first sentence intact
+ * (no mid-word line clip — DE often glues sentences as "wollen.Ein").
  */
 function truncateAtSentences(doc, text, maxW, maxBodyHeight, lineH = 11.5) {
   const safe = sanitizePdfText(text || '')
@@ -907,16 +941,21 @@ function truncateAtSentences(doc, text, maxW, maxBodyHeight, lineH = 11.5) {
   const maxLines = Math.max(1, Math.floor(maxBodyHeight / lineH))
   if (doc.splitTextToSize(safe, maxW).length <= maxLines) return safe
 
-  const sentences = safe.match(/.+?[.!?](?:\s+|$)|.+$/g) || [safe]
+  // Space missing after period (common in DE): "wollen.Ein" → "wollen. Ein"
+  const spaced = safe.replace(/([.!?])([A-ZÄÖÜÀ-ÖØ-Þ])/g, '$1 $2')
+  const sentences = spaced.match(/.+?[.!?](?:\s+|$)|.+$/g) || [spaced]
   let kept = ''
   for (const sentence of sentences) {
-    const candidate = `${kept}${sentence}`.trim()
+    const piece = sentence.trim()
+    if (!piece) continue
+    const candidate = kept ? `${kept} ${piece}` : piece
     if (doc.splitTextToSize(candidate, maxW).length > maxLines) break
     kept = candidate
   }
   if (kept) return kept
 
-  return splitTextMaxLines(doc, safe, maxW, maxLines).join(' ')
+  // First sentence alone exceeds the budget — still keep it whole (no "können" mid-cut).
+  return (sentences[0] || spaced).trim()
 }
 
 /** Wrap text to lines, truncating at the last full sentence that fits. */
@@ -941,35 +980,29 @@ function layoutBottomAnchoredLeftColumn(
   colW,
   { bodyOffset = 18, drawTier = false, lineH = 11.5, pdfT = activePdfT } = {},
 ) {
-  const card = drawSummaryCard(doc, rightX, topFloor, colW, summaryTitle, summaryText)
+  const card = drawSummaryCard(doc, rightX, topFloor, colW, summaryTitle, summaryText, {
+    stickToBottom: true,
+    maxBottom: PAGE_BOTTOM,
+  })
   if (!sub) return card
 
   const showTier =
     drawTier && sub.evidenceTier && EVIDENCE_TIER_LABELS[sub.evidenceTier]
   const tierH = showTier ? 12 : 0
+  const growCap = PAGE_H - 1
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
 
-  const measureBlockH = (bodyText) => {
-    const safe = sanitizePdfText(bodyText || '')
-    const lineCount = safe ? doc.splitTextToSize(safe, colW).length : 0
-    return bodyOffset + lineCount * lineH + tierH
-  }
-
-  let body = sub.body || ''
-  let titleY = card.cardY + 16
-  let blockH = measureBlockH(body)
-
-  if (titleY + blockH > PAGE_BOTTOM) {
-    titleY = Math.max(topFloor, PAGE_BOTTOM - blockH)
-  }
-
-  if (titleY <= topFloor && titleY + measureBlockH(body) > PAGE_BOTTOM) {
+  // Align title with summary card title when room allows; otherwise start at topFloor.
+  let titleY = Math.max(topFloor, card.cardY + 16)
+  let maxBodyHeight = growCap - titleY - bodyOffset - tierH
+  if (maxBodyHeight < lineH * 2) {
     titleY = topFloor
-    const maxBodyHeight = Math.max(lineH, PAGE_BOTTOM - titleY - bodyOffset - tierH)
-    body = truncateAtSentences(doc, body, colW, maxBodyHeight, lineH)
+    maxBodyHeight = growCap - titleY - bodyOffset - tierH
   }
+  maxBodyHeight = Math.max(lineH, maxBodyHeight)
+  const body = truncateAtSentences(doc, sub.body || '', colW, maxBodyHeight, lineH)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
@@ -1078,7 +1111,6 @@ function drawSummaryBar(doc, y, title, summary, opts = {}) {
   const {
     splitLines = splitTextAtSentences,
     maxBottom = PAGE_BOTTOM,
-    fitRemaining = false,
   } = opts
   const pad = 12
   const gap = 10
@@ -1098,35 +1130,28 @@ function drawSummaryBar(doc, y, title, summary, opts = {}) {
   const bodyW = Math.max(120, CONTENT_W - titleColW - gap - pad)
   const barHeight = (n) => Math.max(44, bodyTop + Math.max(n, 1) * lineH + bottomPad)
   const linesThatFit = (h) => Math.max(1, Math.floor((h - bodyTop - bottomPad) / lineH))
-  const pdfLineBreaks = (text, maxW) =>
-    doc.splitTextToSize(text || '', maxW).map((line) => sanitizePdfText(line))
 
   let barY = y
   let barH
   let summaryLines
 
-  if (fitRemaining) {
-    // Grow down from caller y only — never shrink content above or pin the bar to the footer.
-    const leftover = Math.max(0, maxBottom - y)
-    const fit = fitChinSummaryLines({
-      summary,
-      maxWidth: bodyW,
-      maxLines: chinLinesThatFit(leftover),
-      lineBreaks: pdfLineBreaks,
-      measureWidth: (text) => doc.getTextWidth(text),
-    })
-    summaryLines = fit.lines
-    barH = Math.min(chinBarHeight(summaryLines.length), leftover)
-  } else {
-    const fullLines = doc.splitTextToSize(summary || '', bodyW)
+  // Same flow for all bars (incl. chin): compact ≤4 lines; longer → grow to PAGE_H-1, keep whole sentences.
+  const fullLines = doc.splitTextToSize(summary || '', bodyW)
+  const leftover = Math.max(0, (PAGE_H - 1) - barY)
+  if (fullLines.length <= 4) {
     barH = barHeight(Math.min(fullLines.length, 4))
     if (barY + barH > maxBottom) {
-      // Never pull the bar above content already drawn above (e.g. BEFORE/AFTER row).
       barY = Math.max(y, maxBottom - barH)
       barH = Math.min(barH, Math.max(28, maxBottom - barY))
     }
     summaryLines = splitLines(doc, summary, bodyW, linesThatFit(barH), lineH)
     barH = Math.min(barHeight(summaryLines.length), maxBottom - barY)
+    summaryLines = splitLines(doc, summary, bodyW, linesThatFit(barH), lineH)
+  } else {
+    barY = y
+    const growH = leftover
+    summaryLines = splitLines(doc, summary, bodyW, linesThatFit(growH), lineH)
+    barH = Math.min(barHeight(summaryLines.length), growH)
     summaryLines = splitLines(doc, summary, bodyW, linesThatFit(barH), lineH)
   }
 
@@ -1810,11 +1835,6 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
     y,
     pm('featureSummary', { name: localizedFeaturePrimary('chin', activeReportT) }),
     section.summary,
-    {
-      fitRemaining: true,
-      // Last pixel of the sheet — extra space below the bar, not stolen from B/A.
-      maxBottom: PAGE_H - 1,
-    },
   )
 }
 
@@ -1837,14 +1857,31 @@ function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null
   let rightY = wrapText(doc, introText, rightX, y, COL_W, 11.5) + 12
   rightY = drawLabeledBody(doc, rightX, rightY, 'Skincare Protocol', subs[0]?.body, COL_W)
 
-  y = Math.max(leftY, rightY) + SECTION_GAP
-
-  // Side-by-side pair uses the tight single-cheek crop (eye→lips, nose excluded);
-  // the half-split above stays on the wide beforeJpeg.
+  // Vorher/Nachher sits under the split frame only — do not wait on right-column protocol height.
+  const pairY = leftY + SECTION_GAP
   const pairBefore = section.imageSlots?.pairBefore || beforeJpeg
-  leftY = drawBeforeAfterPair(doc, MARGIN, y, COL_W, pairBefore, afterJpeg, 150, true)
-  if (subs[1]) leftY = drawLabeledBody(doc, MARGIN, leftY, 'Further Skin Enhancement', subs[1].body, COL_W)
-  drawSummaryCard(doc, rightX, y, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('skin', activeReportT) }), section.summary)
+  leftY = drawBeforeAfterPair(doc, MARGIN, pairY, COL_W, pairBefore, afterJpeg, 150, true)
+  if (subs[1]) {
+    leftY = drawLabeledBody(
+      doc,
+      MARGIN,
+      leftY,
+      'Further Skin Enhancement',
+      subs[1].body,
+      COL_W,
+      11.5,
+      { maxBottom: PAGE_H - 1 },
+    )
+  }
+  // Summary top-floor is below protocol (or pair row); stickToBottom keeps the mint card on the footer.
+  drawSummaryCard(
+    doc,
+    rightX,
+    Math.max(rightY + 8, pairY),
+    COL_W,
+    pm('featureSummary', { name: localizedFeaturePrimary('skin', activeReportT) }),
+    section.summary,
+  )
 }
 
 function drawNeckFeaturePage(doc, section, pageNum, beforeJpeg) {

@@ -31,7 +31,7 @@ from .config import (
 from .feature_context import build_feature_context, feature_context_as_prompt_text
 from .llm_client import chat_structured_completion
 from .narrative_schemas import (
-    FEATURE_SUMMARY_MAX_LENGTHS,
+    FEATURE_SUMMARY_MAX,
     FEATURE_SUBSECTION_TITLES,
     TREATMENT_PHASE_DETAIL_MAX,
     TREATMENT_PHASE_DURATION_MAX,
@@ -393,11 +393,9 @@ def _clamp_summary_keep_sentence(value: Any, max_len: int) -> str:
 
 
 def _apply_feature_summary_cap(feature_id: str, narrative: dict) -> dict:
-    cap = FEATURE_SUMMARY_MAX_LENGTHS.get(feature_id)
-    if not cap:
-        return narrative
+    """Sentence-safe clamp to FEATURE_SUMMARY_MAX for every feature (same rule)."""
     out = dict(narrative or {})
-    out["summary"] = _clamp_summary_keep_sentence(out.get("summary"), cap)
+    out["summary"] = _clamp_summary_keep_sentence(out.get("summary"), FEATURE_SUMMARY_MAX)
     return out
 
 

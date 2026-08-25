@@ -35,7 +35,14 @@ import {
   rewriteToSubjectVoice,
   resolveTreatmentPhases,
 } from '../../utils/reportProtocolModel'
-import { longestPrefixThatFits } from '../../utils/chinSummaryFit'
+import {
+  layoutBottomAnchoredClip,
+  PDF_PAGE_BOTTOM,
+  PDF_PAGE_H,
+  truncatePdfBody,
+  truncatePdfSummaryBar,
+  truncatePdfSummaryCard,
+} from '../../utils/pdfTextFit'
 import { BrandLogo } from '../BrandLogo'
 import { FeatureAnalysisHero } from './FeaturePreviewPortrait'
 import { NameProtocolPlate } from './NameProtocolPlate'
@@ -71,6 +78,24 @@ function leftoverCssPx(anchor, page) {
   const scale = pageRect.height / Math.max(page.clientHeight, 1)
   const raw = (pageRect.bottom - 1 - anchor.getBoundingClientRect().top) / scale
   return Math.max(0, Math.min(raw, page.clientHeight))
+}
+
+/** Space from el top down to PDF PAGE_BOTTOM (785.89pt), not the sheet edge. */
+function leftoverToPdfBottom(anchor, page) {
+  if (!anchor || !page) return 0
+  const pageRect = page.getBoundingClientRect()
+  const scale = pageRect.height / Math.max(page.clientHeight, 1)
+  const pdfBottom = pageRect.top + PDF_PAGE_BOTTOM * scale
+  return Math.max(0, (pdfBottom - 1 - anchor.getBoundingClientRect().top) / scale)
+}
+
+/** Space from el top to PDF grow cap (PAGE_H - 1) — skin Weitere Hautoptimierung. */
+function leftoverToPdfGrowCap(anchor, page) {
+  if (!anchor || !page) return 0
+  const pageRect = page.getBoundingClientRect()
+  const scale = pageRect.height / Math.max(page.clientHeight, 1)
+  const growCap = pageRect.top + (PDF_PAGE_H - 1) * scale
+  return Math.max(0, (growCap - 1 - anchor.getBoundingClientRect().top) / scale)
 }
 
 function EditableText({
@@ -206,6 +231,40 @@ function ImageFrame({
   )
 }
 
+/** Match reportPdf drawSplitComparisonFrame — half-split cover crop, dashed midline. */
+function SplitComparisonFrame({ beforeSrc, afterSrc = null, height = 240 }) {
+  const tPdf = useTranslations('Pdf')
+  return (
+    <div className="report-pdf-split-frame" style={{ height }}>
+      <div className="report-pdf-split-frame__half">
+        {beforeSrc ? (
+          <img src={beforeSrc} alt="" className="object-cover" />
+        ) : (
+          <span className="report-pdf-image-empty">{tPdf('projectedImagePending')}</span>
+        )}
+      </div>
+      <div className="report-pdf-split-frame__half">
+        {afterSrc ? (
+          <img src={afterSrc} alt="" className="object-cover" />
+        ) : (
+          <span className="report-pdf-image-empty">{tPdf('projectedImagePending')}</span>
+        )}
+      </div>
+      <div className="report-pdf-split-frame__rule" aria-hidden />
+    </div>
+  )
+}
+
+/** Same mid-body split as drawHairFeaturePage. */
+function splitHairLossColumns(body) {
+  const text = String(body || '')
+  if (!text) return ['', '']
+  const mid = Math.floor(text.length / 2)
+  const splitAt = text.indexOf('. ', mid)
+  const splitIdx = splitAt > 0 ? splitAt + 1 : mid
+  return [text.slice(0, splitIdx).trim(), text.slice(splitIdx).trim()]
+}
+
 function BeforeAfterPair({ beforeSrc, afterSrc = null, stacked = false, height = 120 }) {
   const t = useTranslations('Report.protocolModel')
   if (stacked) {
@@ -238,6 +297,225 @@ function LabeledBody({ title, body, evidenceTier, editable = false, onCommit, di
           editable={editable}
           onCommit={onCommit}
         />
+      ) : null}
+      {evidenceTier && EVIDENCE_TIER_LABELS[evidenceTier] && (
+        <p className="report-pdf-tier">Recommendation tier: {EVIDENCE_TIER_LABELS[evidenceTier]}</p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Hair / Jaw bottom row — same clip + title/card geometry as
+ * reportPdf.layoutBottomAnchoredLeftColumn (via pdfTextFit copy).
+ */
+function BottomAnchoredFeatureRow({
+  bodyTitle,
+  bodyDisplayTitle,
+  body,
+  evidenceTier,
+  summaryTitle,
+  summary,
+  bodyOffset = 18,
+  drawTier = false,
+  bodyEdit = {},
+  summaryEdit = {},
+}) {
+  const rowRef = useRef(null)
+  const [clip, setClip] = useState(null)
+  const [editingBody, setEditingBody] = useState(false)
+  const [editingSummary, setEditingSummary] = useState(false)
+  const [pendingBody, setPendingBody] = useState(null)
+  const [pendingSummary, setPendingSummary] = useState(null)
+
+  const activeBody = pendingBody ?? body
+  const activeSummary = pendingSummary ?? summary
+
+  useEffect(() => {
+    if (pendingBody != null && pendingBody === body) setPendingBody(null)
+  }, [body, pendingBody])
+  useEffect(() => {
+    if (pendingSummary != null && pendingSummary === summary) setPendingSummary(null)
+  }, [summary, pendingSummary])
+
+  const refit = useCallback(() => {
+    if (editingBody || editingSummary) return
+    const row = rowRef.current
+    const page = row?.closest('.report-view-a4-page')
+    if (!row || !page) return
+    // Map HTML leftover onto PDF Y so stickToBottom lands on PAGE_BOTTOM.
+    const leftover = leftoverToPdfBottom(row, page)
+    if (leftover < 36) return
+    const topFloor = PDF_PAGE_BOTTOM - leftover
+    const next = layoutBottomAnchoredClip(activeBody, activeSummary, topFloor, {
+      bodyOffset,
+      drawTier,
+    })
+    setClip(next)
+  }, [activeBody, activeSummary, bodyOffset, drawTier, editingBody, editingSummary])
+
+  useEffect(() => {
+    refit()
+    const inner = rowRef.current?.closest('.report-view-a4-inner--pdf')
+    if (!inner || typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(() => refit())
+    ro.observe(inner)
+    return () => ro.disconnect()
+  }, [refit])
+
+  const shownBody = clip?.body ?? activeBody ?? ''
+  const shownSummary = clip?.summary ?? activeSummary ?? ''
+  const titlePad = clip?.titlePad ?? 0
+  const cardH = clip?.cardH ?? 110
+
+  return (
+    <div
+      ref={rowRef}
+      className="report-pdf-cols report-pdf-cols--bottom report-pdf-cols--bottom-anchor"
+    >
+      <div className="report-pdf-bottom-left" style={{ paddingTop: titlePad }}>
+        {(bodyTitle || body != null) && (
+          <div className="report-pdf-labeled-body">
+            {(bodyDisplayTitle || bodyTitle) ? (
+              <h3 className="report-pdf-label">{bodyDisplayTitle || bodyTitle}</h3>
+            ) : null}
+            <EditableText
+              as="p"
+              className="report-pdf-body-text"
+              value={editingBody ? (activeBody || '') : shownBody}
+              editable={Boolean(bodyEdit.editable)}
+              onCommit={(next) => {
+                setPendingBody(next)
+                bodyEdit.onCommit?.(next)
+                return next
+              }}
+              onFocus={() => setEditingBody(true)}
+              onBlurAfter={() => {
+                setEditingBody(false)
+                requestAnimationFrame(() => refit())
+              }}
+            />
+            {drawTier && evidenceTier && EVIDENCE_TIER_LABELS[evidenceTier] && (
+              <p className="report-pdf-tier">Recommendation tier: {EVIDENCE_TIER_LABELS[evidenceTier]}</p>
+            )}
+          </div>
+        )}
+      </div>
+      <div
+        className="report-pdf-summary-card report-pdf-summary-card--pin-bottom"
+        style={{ height: cardH, minHeight: cardH }}
+      >
+        <p className="report-pdf-summary-title">{summaryTitle}</p>
+        <div className="report-pdf-summary-body-wrap">
+          <EditableText
+            as="p"
+            className="report-pdf-summary-body"
+            value={editingSummary ? (activeSummary || '') : shownSummary}
+            editable={Boolean(summaryEdit.editable)}
+            onCommit={(next) => {
+              setPendingSummary(next)
+              summaryEdit.onCommit?.(next)
+              return next
+            }}
+            onFocus={() => setEditingSummary(true)}
+            onBlurAfter={() => {
+              setEditingSummary(false)
+              requestAnimationFrame(() => refit())
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Body copy clipped with the same truncateAtSentences path as reportPdf.js. */
+function FittedLabeledBody({
+  title,
+  body,
+  evidenceTier,
+  editable = false,
+  onCommit,
+  displayTitle = null,
+}) {
+  const rootRef = useRef(null)
+  const bodyWrapRef = useRef(null)
+  const [editing, setEditing] = useState(false)
+  const [pendingBody, setPendingBody] = useState(null)
+  const [fittedText, setFittedText] = useState(body || '')
+
+  const activeBody = pendingBody ?? body
+  const shownTitle = displayTitle || title
+
+  useEffect(() => {
+    if (pendingBody != null && pendingBody === body) setPendingBody(null)
+  }, [body, pendingBody])
+
+  const pruneToStart = useCallback((node, text) => {
+    const wrap = bodyWrapRef.current
+    const root = rootRef.current
+    const page = root?.closest('.report-view-a4-page')
+    const raw = String(text || '')
+    if (!wrap || !page) return raw
+    // Same grow cap as drawLabeledBody({ maxBottom: PAGE_H - 1 }) for skin.
+    const leftover = leftoverToPdfGrowCap(wrap, page)
+    const maxH = Math.max(1, leftover)
+    wrap.style.maxHeight = `${maxH}px`
+    const kept = truncatePdfBody(raw, maxH)
+    if (node) {
+      node.textContent = kept
+      resetSheetScroll(node)
+    }
+    return kept
+  }, [])
+
+  const refit = useCallback(() => {
+    if (editing) return
+    const node = bodyWrapRef.current?.querySelector('.report-pdf-body-text')
+    const kept = pruneToStart(node, activeBody)
+    setFittedText(kept)
+    if (node) resetSheetScroll(node)
+  }, [activeBody, editing, pruneToStart])
+
+  useEffect(() => {
+    refit()
+    const inner = rootRef.current?.closest('.report-view-a4-inner--pdf')
+    if (!inner || typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(() => { if (!editing) refit() })
+    ro.observe(inner)
+    return () => ro.disconnect()
+  }, [refit, editing])
+
+  if (!title && body == null && !editable) return null
+
+  return (
+    <div ref={rootRef} className="report-pdf-labeled-body report-pdf-labeled-body--page-fit">
+      {shownTitle ? <h3 className="report-pdf-label">{shownTitle}</h3> : null}
+      {body != null || editable ? (
+        <div ref={bodyWrapRef} className="report-pdf-body-fit-wrap">
+          <EditableText
+            as="p"
+            className="report-pdf-body-text"
+            value={fittedText}
+            editable={editable}
+            rewriteOnBlur={pruneToStart}
+            onCommit={(next) => {
+              setFittedText(next)
+              setPendingBody(next)
+              onCommit?.(next)
+              return next
+            }}
+            onFocus={(e) => {
+              if (!editable) return
+              setEditing(true)
+              resetSheetScroll(e.currentTarget)
+            }}
+            onBlurAfter={() => {
+              setEditing(false)
+              requestAnimationFrame(() => resetSheetScroll(bodyWrapRef.current))
+            }}
+          />
+        </div>
       ) : null}
       {evidenceTier && EVIDENCE_TIER_LABELS[evidenceTier] && (
         <p className="report-pdf-tier">Recommendation tier: {EVIDENCE_TIER_LABELS[evidenceTier]}</p>
@@ -317,8 +595,8 @@ function PageFittedSummary({
   summary,
   editable = false,
   onCommit,
+  pinBottom = false,
 }) {
-  const originRef = useRef(null)
   const boxRef = useRef(null)
   const bodyWrapRef = useRef(null)
   const [editing, setEditing] = useState(false)
@@ -327,14 +605,11 @@ function PageFittedSummary({
   const [boxMaxH, setBoxMaxH] = useState(undefined)
 
   const activeSummary = pendingSummary ?? summary
-  const isChinBar = variant === 'chin-bar'
   const isCard = variant === 'card'
-  const pad = isCard ? 40 : 24
-  const boxClass = isCard
-    ? 'report-pdf-summary-card report-pdf-summary-card--page-fit'
-    : isChinBar
-      ? 'report-pdf-summary-bar report-pdf-summary-bar--chin-fit'
-      : 'report-pdf-summary-bar report-pdf-summary-bar--page-fit'
+  const boxClass = [
+    isCard ? 'report-pdf-summary-card report-pdf-summary-card--page-fit' : 'report-pdf-summary-bar report-pdf-summary-bar--page-fit',
+    pinBottom ? 'report-pdf-summary-card--pin-bottom' : '',
+  ].filter(Boolean).join(' ')
 
   useEffect(() => {
     if (pendingSummary != null && pendingSummary === summary) {
@@ -343,36 +618,35 @@ function PageFittedSummary({
   }, [summary, pendingSummary])
 
   const capBoxToPage = useCallback(() => {
-    const origin = originRef.current || boxRef.current
     const box = boxRef.current
-    const page = origin?.closest('.report-view-a4-page')
-    if (!origin || !box || !page) return 0
+    const page = box?.closest('.report-view-a4-page')
+    if (!box || !page) return 0
     resetSheetScroll(box)
-    const leftover = leftoverCssPx(origin, page)
+    const leftover = leftoverCssPx(box, page)
     box.style.maxHeight = `${leftover}px`
     setBoxMaxH(leftover)
     return leftover
   }, [])
 
   const pruneToStart = useCallback((node, text) => {
-    const wrap = bodyWrapRef.current
     const box = boxRef.current
     const raw = String(text || '')
-    if (!node || !box) return raw
+    if (!box) return raw
     // Collapse first so bottom-anchored cards sit at compact top; leftover then grows down only.
-    node.textContent = '\u00a0'
+    if (node) node.textContent = '\u00a0'
     void box.offsetHeight
     const leftover = capBoxToPage()
     void box.offsetHeight
-    const bodyBudget = Math.max(1, leftover - pad)
-    const kept = longestPrefixThatFits(raw, (slice) => {
-      node.textContent = slice || '\u00a0'
-      return node.scrollHeight <= bodyBudget + 1
-    })
-    node.textContent = kept
-    resetSheetScroll(node)
+    // Same jsPDF truncateAtSentences path as drawSummaryCard / drawSummaryBar (pdfTextFit copy).
+    const kept = isCard
+      ? truncatePdfSummaryCard(raw, leftover)
+      : truncatePdfSummaryBar(raw, leftover, title)
+    if (node) {
+      node.textContent = kept
+      resetSheetScroll(node)
+    }
     return kept
-  }, [capBoxToPage, pad])
+  }, [capBoxToPage, isCard, title])
 
   const refit = useCallback(() => {
     if (editing) return
@@ -385,7 +659,7 @@ function PageFittedSummary({
 
   useEffect(() => {
     refit()
-    const inner = (originRef.current || boxRef.current)?.closest('.report-view-a4-inner--pdf')
+    const inner = boxRef.current?.closest('.report-view-a4-inner--pdf')
     if (!inner || typeof ResizeObserver === 'undefined') return undefined
     const ro = new ResizeObserver(() => { if (!editing) refit() })
     ro.observe(inner)
@@ -429,16 +703,10 @@ function PageFittedSummary({
     </div>
   )
 
-  if (!isChinBar) return box
-  return (
-    <>
-      <div ref={originRef} className="report-pdf-summary-bar-anchor" aria-hidden />
-      {box}
-    </>
-  )
+  return box
 }
 
-function SummaryCard({ title, summary, editable = false, onCommit }) {
+function SummaryCard({ title, summary, editable = false, onCommit, pinBottom = false }) {
   return (
     <PageFittedSummary
       variant="card"
@@ -446,27 +714,16 @@ function SummaryCard({ title, summary, editable = false, onCommit }) {
       summary={summary}
       editable={editable}
       onCommit={onCommit}
+      pinBottom={pinBottom}
     />
   )
 }
 
-/** Match jsPDF drawSummaryBar — full-width dark bar. */
+/** Match jsPDF drawSummaryBar — full-width mint bar (chin uses the same path). */
 function SummaryBar({ title, summary, editable = false, onCommit }) {
   return (
     <PageFittedSummary
       variant="bar"
-      title={title}
-      summary={summary}
-      editable={editable}
-      onCommit={onCommit}
-    />
-  )
-}
-
-function ChinSummaryBar({ title, summary, editable = false, onCommit }) {
-  return (
-    <PageFittedSummary
-      variant="chin-bar"
       title={title}
       summary={summary}
       editable={editable}
@@ -554,37 +811,50 @@ function FeaturePageHtml({
   }
 
   if (page.id === 'hair') {
+    const hairLossCols = splitHairLossColumns(subs[1]?.body)
     return (
       <PdfPageShell page={pageNum} sectionId={page.id}>
         <PdfSplitTitle primary={primary} secondary={secondary} />
-        <div className="report-pdf-cols">
+        <div className="report-pdf-cols report-pdf-cols--top">
           <div>
             {subs[0] && (
               <LabeledBody title={subs[0].title} displayTitle={subLabel(subs[0].title)} body={subs[0].body} evidenceTier={subs[0].evidenceTier} {...bodyEdit(subs[0].title)} />
             )}
           </div>
-          <div className="report-pdf-col-stack">
+          <div className="report-pdf-col-stack report-pdf-col-stack--frames">
             <ImageFrame src={beforeSrc} tag={t('tagBefore')} height={120} />
             <ImageFrame src={pageAfterSrc} tag={t('tagAfter')} height={120} />
           </div>
         </div>
         {subs[1] && (
           <div className="report-pdf-block">
-            <LabeledBody title={subs[1].title} displayTitle={subLabel(subs[1].title)} body={subs[1].body} evidenceTier={subs[1].evidenceTier} {...bodyEdit(subs[1].title)} />
+            <h3 className="report-pdf-label">{subLabel(subs[1].title)}</h3>
+            {editable ? (
+              <LabeledBody title="" body={subs[1].body} evidenceTier={subs[1].evidenceTier} {...bodyEdit(subs[1].title)} />
+            ) : (
+              <div className="report-pdf-cols report-pdf-cols--top">
+                <p className="report-pdf-body-text">{hairLossCols[0]}</p>
+                <p className="report-pdf-body-text">{hairLossCols[1]}</p>
+              </div>
+            )}
           </div>
         )}
         <BaldnessStagePanel
           stage={page.layoutHints?.norwoodStage ?? page.norwoodStage ?? 1}
           feminine={String(answers?.genderPreference || '').trim().toLowerCase() === 'feminine'}
         />
-        <div className="report-pdf-cols report-pdf-cols--bottom report-pdf-cols--bottom-anchor">
-          <div className="report-pdf-bottom-left">
-            {subs[2] && (
-              <LabeledBody title={subs[2].title} displayTitle={subLabel(subs[2].title)} body={subs[2].body} evidenceTier={subs[2].evidenceTier} {...bodyEdit(subs[2].title)} />
-            )}
-          </div>
-          <SummaryCard title={summaryTitle} summary={page.summary} {...summaryEdit} />
-        </div>
+        <BottomAnchoredFeatureRow
+          bodyTitle={subs[2]?.title}
+          bodyDisplayTitle={subs[2] ? subLabel(subs[2].title) : null}
+          body={subs[2]?.body}
+          evidenceTier={subs[2]?.evidenceTier}
+          summaryTitle={summaryTitle}
+          summary={page.summary}
+          bodyOffset={18}
+          drawTier
+          bodyEdit={subs[2] ? bodyEdit(subs[2].title) : {}}
+          summaryEdit={summaryEdit}
+        />
       </PdfPageShell>
     )
   }
@@ -610,19 +880,24 @@ function FeaturePageHtml({
     return (
       <PdfPageShell page={pageNum} sectionId={page.id}>
         <PdfSplitTitle primary={primary} secondary={secondary} />
-        <div className="report-pdf-cols">
+        <div className="report-pdf-cols report-pdf-cols--top">
           <LabeledBody title="Jaw Structure" displayTitle={subLabel('Jaw Structure')} body={subs[0]?.body} evidenceTier={subs[0]?.evidenceTier} {...bodyEdit('Jaw Structure')} />
           <ImageFrame src={profileSrc || beforeSrc} tag={t('tagProfile')} height={300} />
         </div>
         <div className="report-pdf-block">
           <BeforeAfterPair beforeSrc={beforeSrc} afterSrc={pageAfterSrc} height={150} />
         </div>
-        <div className="report-pdf-cols report-pdf-cols--bottom report-pdf-cols--bottom-anchor">
-          <div className="report-pdf-bottom-left">
-            <LabeledBody title="Further Enhancement" displayTitle={subLabel('Further Enhancement')} body={subs[1]?.body} evidenceTier={subs[1]?.evidenceTier} {...bodyEdit('Further Enhancement')} />
-          </div>
-          <SummaryCard title={t('jawRegionSummary')} summary={page.summary} {...summaryEdit} />
-        </div>
+        <BottomAnchoredFeatureRow
+          bodyTitle="Further Enhancement"
+          bodyDisplayTitle={subLabel('Further Enhancement')}
+          body={subs[1]?.body}
+          evidenceTier={subs[1]?.evidenceTier}
+          summaryTitle={t('jawRegionSummary')}
+          summary={page.summary}
+          bodyOffset={22}
+          bodyEdit={bodyEdit('Further Enhancement')}
+          summaryEdit={summaryEdit}
+        />
       </PdfPageShell>
     )
   }
@@ -633,7 +908,7 @@ function FeaturePageHtml({
         <PdfSplitTitle primary={primary} secondary={secondary} />
         <div className="report-pdf-cols">
           <LabeledBody title="Lips" displayTitle={subLabel('Lips')} body={subs[0]?.body} evidenceTier={subs[0]?.evidenceTier} {...bodyEdit('Lips')} />
-          <ImageFrame src={previewSrc} tag={t('tagLips')} height={249} />
+          <ImageFrame src={previewSrc} tag={t('tagLips')} height={240} />
         </div>
         <div className="report-pdf-block">
           <BeforeAfterPair beforeSrc={beforeSrc} afterSrc={pageAfterSrc} height={200} />
@@ -649,7 +924,7 @@ function FeaturePageHtml({
         <PdfSplitTitle primary={primary} secondary={secondary} />
         <div className="report-pdf-cols report-pdf-feature-fill">
           <LabeledBody title="Chin" displayTitle={subLabel('Chin')} body={subs[0]?.body} evidenceTier={subs[0]?.evidenceTier} {...bodyEdit('Chin')} />
-          <div className="report-pdf-col-stack">
+          <div className="report-pdf-col-stack report-pdf-col-stack--frames">
             {profileSrc && (
               <>
                 <ImageFrame src={profileSrc} tag={t('tagProfile')} height={200} cover={false} />
@@ -661,7 +936,7 @@ function FeaturePageHtml({
         <div className="report-pdf-block">
           <BeforeAfterPair beforeSrc={beforeSrc} afterSrc={pageAfterSrc} height={120} />
         </div>
-        <ChinSummaryBar title={summaryTitle} summary={page.summary} {...summaryEdit} />
+        <SummaryBar title={summaryTitle} summary={page.summary} {...summaryEdit} />
       </PdfPageShell>
     )
   }
@@ -676,7 +951,7 @@ function FeaturePageHtml({
             <LabeledBody title="Neck Skin" displayTitle={subLabel('Neck Skin')} body={subs[1]?.body} evidenceTier={subs[1]?.evidenceTier} {...bodyEdit('Neck Skin')} />
             <SummaryCard title={summaryTitle} summary={page.summary} {...summaryEdit} />
           </div>
-          <div className="report-pdf-col-stack">
+          <div className="report-pdf-col-stack report-pdf-col-stack--frames">
             <ImageFrame src={beforeSrc} tag={t('tagBefore')} height={240} />
             <ImageFrame src={pageAfterSrc} tag={t('tagAfter')} height={240} />
           </div>
@@ -696,7 +971,7 @@ function FeaturePageHtml({
             ))}
             <SummaryCard title={summaryTitle} summary={page.summary} {...summaryEdit} />
           </div>
-          <div className="report-pdf-col-stack">
+          <div className="report-pdf-col-stack report-pdf-col-stack--frames">
             <ImageFrame src={beforeSrc} tag={t('tagBefore')} height={220} />
             <ImageFrame src={pageAfterSrc} tag={t('tagAfter')} height={220} />
           </div>
@@ -705,7 +980,46 @@ function FeaturePageHtml({
     )
   }
 
-  // Default / skin — two-col PDF-like: text left, images + summary right
+  if (page.id === 'skin') {
+    const splitBefore = pair.before || beforeSrc
+    const splitAfter = images.skinSplitAfter || pageAfterSrc
+    const pairBefore = slots.pairBefore || beforeSrc
+    return (
+      <PdfPageShell page={pageNum} sectionId={page.id}>
+        <PdfSplitTitle primary={primary} secondary={secondary} />
+        <div className="report-pdf-cols report-pdf-cols--top report-pdf-feature-fill">
+          <div className="report-pdf-col-stack">
+            <SplitComparisonFrame beforeSrc={splitBefore} afterSrc={splitAfter} height={240} />
+            <BeforeAfterPair beforeSrc={pairBefore} afterSrc={pageAfterSrc} height={150} />
+            {subs[1] && (
+              <FittedLabeledBody
+                title={subs[1].title || 'Further Skin Enhancement'}
+                displayTitle={subLabel(subs[1].title || 'Further Skin Enhancement')}
+                body={subs[1].body}
+                evidenceTier={subs[1].evidenceTier}
+                {...bodyEdit(subs[1].title || 'Further Skin Enhancement')}
+              />
+            )}
+          </div>
+          <div className="report-pdf-col-stack">
+            <p className="report-pdf-body-text">{t('skinIntro')}</p>
+            {subs[0] && (
+              <LabeledBody
+                title={subs[0].title || 'Skincare Protocol'}
+                displayTitle={subLabel(subs[0].title || 'Skincare Protocol')}
+                body={subs[0].body}
+                evidenceTier={subs[0].evidenceTier}
+                {...bodyEdit(subs[0].title || 'Skincare Protocol')}
+              />
+            )}
+            <SummaryCard title={summaryTitle} summary={page.summary} {...summaryEdit} />
+          </div>
+        </div>
+      </PdfPageShell>
+    )
+  }
+
+  // Default — two-col PDF-like: text left, images + summary right
   return (
     <PdfPageShell page={pageNum} sectionId={page.id}>
       <PdfSplitTitle primary={primary} secondary={secondary} />
@@ -831,12 +1145,14 @@ export default function ProtocolReport({
         })
         let fullAfter = null
         let featureAfter = {}
+        let afterUnaligned = null
         if (afterFullUrl) {
           try {
             fullAfter = await normalizeToJpegDataUrl(afterFullUrl)
           } catch {
             fullAfter = afterFullUrl
           }
+          afterUnaligned = fullAfter
           featureAfter = await resolveAllFeatureAfterImages({
             featurePages: activeFeaturePages,
             afterFullUrl: fullAfter || afterFullUrl,
@@ -855,8 +1171,18 @@ export default function ProtocolReport({
             }
           }
         }
+        let skinSplitAfter = null
+        const skinBefore = features.skin?.before
+        if (skinBefore && (afterUnaligned || featureAfter.skin)) {
+          try {
+            skinSplitAfter = await alignAfterToBefore(skinBefore, afterUnaligned || featureAfter.skin)
+          } catch (err) {
+            console.warn('[MyFace] Skin split AFTER align failed; using unaligned AFTER', err)
+            skinSplitAfter = featureAfter.skin || afterUnaligned
+          }
+        }
         if (cancelled) return
-        setImages({ fullBefore: photoJpeg, fullAfter, features, featureAfter })
+        setImages({ fullBefore: photoJpeg, fullAfter, features, featureAfter, skinSplitAfter })
       } catch (err) {
         console.warn('Protocol image load failed:', err)
         if (!cancelled) {
