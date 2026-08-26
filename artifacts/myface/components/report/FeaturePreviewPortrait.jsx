@@ -31,6 +31,8 @@ export function FeaturePreviewPortrait({
   className = '',
   compact = false,
   sideLabels = false,
+  /** Larger portrait (customer dashboard web view); markers remapped via ResizeObserver. */
+  enlarged = false,
 }) {
   const boxRef = useRef(null)
   const [box, setBox] = useState({ w: 0, h: 0 })
@@ -63,9 +65,9 @@ export function FeaturePreviewPortrait({
   }, [landmarks, natural.w, natural.h, box.w, box.h, catalog, sideLabels])
 
   if (sideLabels) {
-    // Larger photo (face-centered cover); chips further right with a clearer gap
-    const frameH = compact ? 188 : 230
-    const photoPct = 66
+    // PDF compact ~188; customer dashboard web enlarged ~300 so markers track the bigger box
+    const frameH = enlarged ? (compact ? 300 : 340) : (compact ? 188 : 230)
+    const photoPct = enlarged ? 70 : 66
     const n = Math.max(1, callouts.length)
     return (
       <div
@@ -102,8 +104,8 @@ export function FeaturePreviewPortrait({
                 style={{
                   left: `${c.cx * 100}%`,
                   top: `${c.cy * 100}%`,
-                  width: compact ? 2.5 : 3.5,
-                  height: compact ? 2.5 : 3.5,
+                  width: enlarged ? 5 : compact ? 2.5 : 3.5,
+                  height: enlarged ? 5 : compact ? 2.5 : 3.5,
                 }}
               />
             ))}
@@ -119,9 +121,9 @@ export function FeaturePreviewPortrait({
               key={c.id}
               className="block w-fit max-w-full box-border rounded-[3px] bg-slate-100 border border-slate-200 text-left font-medium text-ink truncate leading-none shrink-0"
               style={{
-                fontSize: 8,
-                padding: compact ? '2px 5px' : '2.5px 6px',
-                minHeight: compact ? 12 : 14,
+                fontSize: enlarged ? 11 : 8,
+                padding: enlarged ? '3px 7px' : compact ? '2px 5px' : '2.5px 6px',
+                minHeight: enlarged ? 16 : compact ? 12 : 14,
               }}
             >
               {labelFor(t, c.id)}
@@ -241,6 +243,8 @@ export function FeatureAnalysisHero({
   compact = false,
   showMetrics = true,
   variant = 'default',
+  /** Customer dashboard web view — larger face map; markers follow image box size. */
+  enlarged = false,
 }) {
   const metrics = [
     {
@@ -258,21 +262,22 @@ export function FeatureAnalysisHero({
   ]
 
   if (variant === 'analysisCard') {
+    const snug = compact && !enlarged
     return (
       <section
         className={`rounded-xl border border-surface-border bg-white dark:bg-surface-card overflow-hidden ${className}`.trim()}
       >
-        <div className={`flex flex-col ${compact ? 'gap-1 p-2' : 'gap-3 p-4'}`}>
+        <div className={`flex flex-col ${snug ? 'gap-1 p-2' : 'gap-3 p-4'}`}>
           <div className="shrink-0">
             <h2
               className={`font-sans font-bold tracking-tight leading-tight text-ink ${
-                compact ? 'text-[11px]' : 'text-2xl'
+                snug ? 'text-[11px]' : 'text-2xl'
               }`}
             >
               {t('executiveSummary.heroTitlePrefix')}{' '}
               <span className="text-brand-dark">{t('executiveSummary.heroTitleAccent')}</span>
             </h2>
-            <p className={`text-ink-muted leading-snug mt-0.5 ${compact ? 'text-[7px]' : 'text-sm'}`}>
+            <p className={`text-ink-muted leading-snug mt-0.5 ${snug ? 'text-[7px]' : 'text-sm'}`}>
               {t('executiveSummary.heroGlance')}
             </p>
           </div>
@@ -283,15 +288,16 @@ export function FeatureAnalysisHero({
             t={t}
             landmarks={landmarks}
             compact={compact}
+            enlarged={enlarged}
             sideLabels
           />
 
-          <ul className={`shrink-0 ${compact ? 'space-y-2 mt-1' : 'space-y-2.5'}`}>
+          <ul className={`shrink-0 ${snug ? 'space-y-2 mt-1' : 'space-y-2.5'}`}>
             {Array.from({ length: HERO_FEATURE_COUNT }, (_, i) => i).map((i) => (
-              <li key={i} className={`flex items-start ${compact ? 'gap-2' : 'gap-1.5'}`}>
+              <li key={i} className={`flex items-start ${snug ? 'gap-2' : 'gap-1.5'}`}>
                 <span
                   className={`rounded-full bg-brand-100 text-brand flex items-center justify-center shrink-0 font-bold ${
-                    compact ? 'mt-0.5 w-3.5 h-3.5 text-[7px]' : 'mt-0.5 w-7 h-7 text-[10px]'
+                    snug ? 'mt-0.5 w-3.5 h-3.5 text-[7px]' : 'mt-0.5 w-7 h-7 text-[10px]'
                   }`}
                   aria-hidden
                 >
@@ -300,14 +306,14 @@ export function FeatureAnalysisHero({
                 <span className="min-w-0">
                   <span
                     className={`block font-semibold text-ink leading-snug ${
-                      compact ? 'text-[8px]' : 'text-[13px]'
+                      snug ? 'text-[8px]' : 'text-[13px]'
                     }`}
                   >
                     {t(`executiveSummary.heroFeatures.${i}.title`)}
                   </span>
                   <span
                     className={`block text-ink-muted leading-snug ${
-                      compact ? 'text-[7px] mt-0.5' : 'text-[11px]'
+                      snug ? 'text-[7px] mt-0.5' : 'text-[11px] mt-0.5'
                     }`}
                   >
                     {t(`executiveSummary.heroFeatures.${i}.detail`)}

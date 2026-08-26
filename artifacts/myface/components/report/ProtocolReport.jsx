@@ -53,7 +53,7 @@ import { TreatmentProtocolPhases } from './TreatmentProtocolPhases'
 import { FacialAgePanel } from './FacialAgePanel'
 import { localizeFeatureRow, localizePriorityMiniCard } from '../../utils/cvReportLocale'
 
-function DashboardRadarChart({ items, t }) {
+function DashboardRadarChart({ items, t, enlarged = false }) {
   const cx = 100
   const cy = 100
   const rMax = 56
@@ -85,10 +85,14 @@ function DashboardRadarChart({ items, t }) {
   if (!items?.length) {
     return <p className="report-pdf-body-text text-center text-ink-muted">—</p>
   }
-  // Same dual-series feature radar as page 5 PDF
+  // Same dual-series feature radar as page 5 PDF; enlarged for customer dashboard web view
   return (
-    <div className="w-full flex flex-col items-center gap-3 pt-2 pb-2">
-      <div className="w-full max-w-[158px] mx-auto aspect-square flex items-center justify-center">
+    <div className={`w-full flex flex-col items-center gap-3 ${enlarged ? 'pt-3 pb-3' : 'pt-2 pb-2'}`}>
+      <div
+        className={`w-full mx-auto aspect-square flex items-center justify-center ${
+          enlarged ? 'max-w-[min(100%,220px)]' : 'max-w-[158px]'
+        }`}
+      >
         <svg className="w-full h-full overflow-visible" viewBox="0 0 200 200">
           {backgroundPolygons.map((pts, idx) => (
             <polygon key={idx} points={pts} fill="none" stroke="#E5E7EB" strokeWidth="0.7" />
@@ -108,7 +112,7 @@ function DashboardRadarChart({ items, t }) {
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="fill-slate-400 font-sans"
-                  style={{ fontSize: 6.5 }}
+                  style={{ fontSize: enlarged ? 8.5 : 6.5 }}
                 >
                   {item.label}
                 </text>
@@ -119,13 +123,17 @@ function DashboardRadarChart({ items, t }) {
           <polygon points={projectedPoints} fill="none" stroke="#5e9f8b" strokeWidth="1.6" />
         </svg>
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[6px] text-ink-muted pt-0.5">
+      <div
+        className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-ink-muted pt-0.5 ${
+          enlarged ? 'text-[11px]' : 'text-[6px]'
+        }`}
+      >
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-[1px] bg-brand shrink-0" />
+          <span className={`rounded-[1px] bg-brand shrink-0 ${enlarged ? 'w-2.5 h-2.5' : 'w-1.5 h-1.5'}`} />
           {t('protocolModel.chartProjectedPotential')}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-[1px] bg-slate-500 shrink-0" />
+          <span className={`rounded-[1px] bg-slate-500 shrink-0 ${enlarged ? 'w-2.5 h-2.5' : 'w-1.5 h-1.5'}`} />
           {t('protocolModel.chartClientValues')}
         </span>
       </div>
@@ -1201,11 +1209,18 @@ export default function ProtocolReport({
   updatedAt = null,
   pageIndex = 0,
   paginated = false,
+  /**
+   * Customer dashboard web view only (`CustomerOverviewDashboard` / `/dashboard`).
+   * When true: full-width web layout, no A4 sheet, no PROTOKOLL/MyFace PDF header.
+   * Leave false for protocol HTML/PDF preview (admin review, report modal).
+   */
+  webLayout = false,
   editable = false,
   onEditFeatureSubsection,
   onEditFeatureSummary,
   onEditClosing,
   onEditOverview,
+  onPriorityFeatureClick = null,
 }) {
   const t = useTranslations('Report')
   const tCv = useTranslations('CvReport')
@@ -1359,21 +1374,29 @@ export default function ProtocolReport({
     (
       <section
         key="cover"
-        className="report-protocol-page report-view-a4-page report-protocol-dashboard-page"
+        className={
+          webLayout
+            ? 'report-protocol-dashboard-page report-protocol-dashboard-page--web'
+            : 'report-protocol-page report-view-a4-page report-protocol-dashboard-page'
+        }
       >
         <div className="report-protocol-dashboard-frame">
-          <div className="report-protocol-dashboard-accent" aria-hidden />
-          <div className="report-protocol-dashboard-header">
-            <div className="report-protocol-dashboard-meta">
-              <span className="report-protocol-dashboard-meta-label">{t('executiveSummary.protocolLabel')}</span>
-              <span className="report-protocol-dashboard-meta-sep" aria-hidden />
-              <span>{clientName}</span>
-              <span>#{protocolId}</span>
-            </div>
-            <div className="report-protocol-dashboard-brand">
-              <BrandLogo size="md" />
-            </div>
-          </div>
+          {!webLayout && (
+            <>
+              <div className="report-protocol-dashboard-accent" aria-hidden />
+              <div className="report-protocol-dashboard-header">
+                <div className="report-protocol-dashboard-meta">
+                  <span className="report-protocol-dashboard-meta-label">{t('executiveSummary.protocolLabel')}</span>
+                  <span className="report-protocol-dashboard-meta-sep" aria-hidden />
+                  <span>{clientName}</span>
+                  <span>#{protocolId}</span>
+                </div>
+                <div className="report-protocol-dashboard-brand">
+                  <BrandLogo size="md" />
+                </div>
+              </div>
+            </>
+          )}
           <div className="report-protocol-dashboard-grid report-protocol-dashboard-grid--v2">
             <div className="report-protocol-dashboard-left">
               <NameProtocolPlate
@@ -1384,7 +1407,7 @@ export default function ProtocolReport({
                 assessedLine={t('executiveSummary.namePlateAssessed', { date: reportDate })}
                 className="mb-4"
               />
-              <p className="text-[9px] font-bold text-ink mb-1.5 leading-tight">
+              <p className="report-protocol-dashboard-priority-title text-[9px] font-bold text-ink mb-1.5 leading-tight">
                 {t('executiveSummary.priorityFeatures')}
               </p>
               {(dash.miniCards || []).map((card) => {
@@ -1396,6 +1419,10 @@ export default function ProtocolReport({
                     type="button"
                     className="report-protocol-dashboard-mini-card report-protocol-dashboard-mini-card--link"
                     onClick={() => {
+                      if (onPriorityFeatureClick) {
+                        onPriorityFeatureClick(card.id)
+                        return
+                      }
                       const el = document.querySelector(`[data-protocol-section="${card.id}"]`)
                       el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }}
@@ -1405,7 +1432,9 @@ export default function ProtocolReport({
                       {localized.score && <p className="report-pdf-label font-bold text-ink tabular-nums shrink-0">{localized.score}</p>}
                     </div>
                     {localized.scoreLabel && (
-                      <p className="text-[6px] text-ink-muted text-right">{localized.scoreLabel}</p>
+                      <p className="report-protocol-dashboard-mini-score-label text-[6px] text-ink-muted text-right">
+                        {localized.scoreLabel}
+                      </p>
                     )}
                     {findings.length > 0 && (
                       <div className="report-protocol-dashboard-mini-lines">
@@ -1432,8 +1461,12 @@ export default function ProtocolReport({
                   <span>{t('executiveSummary.before')}</span>
                 </div>
                 <div className="report-protocol-dashboard-photo report-protocol-dashboard-photo--potential">
-                  {(images.fullAfter || images.fullBefore) && (
-                    <img src={images.fullAfter || images.fullBefore} alt="" className="w-full h-full object-cover" />
+                  {images.fullAfter ? (
+                    <img src={images.fullAfter} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center px-2 text-center text-[8px] text-ink-muted leading-snug">
+                      {tPdf('projectedImagePending')}
+                    </div>
                   )}
                   <span>{t('executiveSummary.potential')}</span>
                 </div>
@@ -1449,8 +1482,8 @@ export default function ProtocolReport({
               </div>
               <div className="report-protocol-dashboard-panel report-protocol-dashboard-panel--stack report-protocol-dashboard-panel--harmony shrink-0 mb-0">
                 <p className="report-pdf-label mb-2">{t('executiveSummary.harmonyProfile')}</p>
-                <div className="flex items-center justify-center px-1 py-3">
-                  <DashboardRadarChart items={featureRadarItems} t={t} />
+                <div className={`flex items-center justify-center ${webLayout ? 'px-2 py-4' : 'px-1 py-3'}`}>
+                  <DashboardRadarChart items={featureRadarItems} t={t} enlarged={webLayout} />
                 </div>
               </div>
             </div>
@@ -1467,6 +1500,7 @@ export default function ProtocolReport({
                 analysisTimeLabel={formatAnalysisTimeDays(dash.analysisTimeDays, t) || '—'}
                 className="report-protocol-dashboard-hero mb-2"
                 compact
+                enlarged={webLayout}
                 showMetrics={false}
                 variant="analysisCard"
               />
@@ -1491,10 +1525,12 @@ export default function ProtocolReport({
             <p className="report-pdf-label">{t('executiveSummary.overviewHeading')}</p>
             <p className="report-pdf-body-text">{overviewText || '—'}</p>
           </div>
-          <div className="report-protocol-dashboard-footer">
-            <span>{t('executiveSummary.footerBrand')}</span>
-            <span>{t('executiveSummary.footerMetrics', { points: String(dash.evaluatedPoints || '—') })}</span>
-          </div>
+          {!webLayout && (
+            <div className="report-protocol-dashboard-footer">
+              <span>{t('executiveSummary.footerBrand')}</span>
+              <span>{t('executiveSummary.footerMetrics', { points: String(dash.evaluatedPoints || '—') })}</span>
+            </div>
+          )}
         </div>
       </section>
     ),

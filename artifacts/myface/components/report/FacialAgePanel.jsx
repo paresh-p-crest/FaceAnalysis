@@ -41,7 +41,9 @@ function AgeScaleRow({
     <div className={`flex items-center gap-2.5 ${compact ? 'min-h-[2.75rem]' : 'min-h-[56px]'}`}>
       <div className={`shrink-0 text-left leading-none ${compact ? 'w-[4.75rem]' : 'w-[3.25rem]'}`}>
         {label ? (
-          <p className={`${compact ? 'text-[6px]' : 'text-[8px]'} text-ink-muted leading-tight ${compact ? 'mb-1' : 'mb-0.5'}`}>
+          <p
+            className={`facial-age-row-label ${compact ? 'text-[6px]' : 'text-[8px]'} text-ink-muted leading-tight ${compact ? 'mb-1' : 'mb-0.5'}`}
+          >
             {label}
           </p>
         ) : null}

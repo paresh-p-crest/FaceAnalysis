@@ -8,6 +8,15 @@ All notable changes to this project will be documented in this file. The format 
 ### Added
 - **Skin-heuristic facial age** — `metrics.visualAge` (+ `visualAgeSource: skin-heuristic`) from default base 28 + skin `roughnessRin` / under-eye darkness after LAB (`backend/visual_age.py`). Questionnaire `ageRange` only soft-clamps to midpoint ±8 (does not set the base). Written on front CV into `analysis` and on projected AFTER CV into `projected_analysis`. Neutral RIN 0.11. Replaces hardcoded 28.
 ### Changed
+- **Customer dashboard web typography** — Larger “Deine Gesichtsanalyse”, Harmonieprofil, Überblick, and Gesichtsalter headings (~14–22px) on `webLayout`.
+- **Customer dashboard harmony** — Heading is “Harmonieprofil” / “Harmony Profile” only; radar enlarged on `webLayout` (220px).
+- **Customer dashboard web typography** — Larger priority title, Merkmalsbewertung title, Altersprofil/Potenzialprofil, and mini-card score labels (~10px); finding rows stay ~10px / ~9px (`webLayout` only).
+- **Customer dashboard face map** — Larger analysis portrait when `webLayout`; markers remapped from live image box size (ResizeObserver + cover-center).
+- **Customer dashboard web layout** — Hide protocol footer (MyFace Protokoll / points); drop outer page chrome/border so content uses full available width.
+- **Customer dashboard docs** — Explicit comments that `/dashboard` webLayout path is the customer web view (not PDF/A4 report preview) in `CustomerOverviewDashboard`, `ProtocolReport`, and `globals.css`.
+- **Customer dashboard web layout** — Protocol page-1 on dashboard uses `webLayout` (full-width, no A4 sheet, no PROTOKOLL/MyFace PDF header); report/PDF preview unchanged.
+- **Customer dashboard** — Body uses protocol page-1 layout (`ProtocolReport`); keeps existing top bar (protocol meta + Share/PDF). No KPI strip. Potential slot shows pending when AFTER missing; priority cards open the report section.
+- **Customer dashboard overview** — Potential slot shows “Projected image pending” when AFTER is missing (no landmark fallback); dual facial age includes potential age via `projectedAnalysis`.
 - **Questionnaire footer Back/Next** — Back uses `←` to match Next’s `→` (header chevron unchanged).
 - **Open report button** — Show “Opening…” immediately on tap (`flushSync`); admin Open no longer pre-fetches before that UI update.
 - **Feature Evaluation LLM prompt** — Soft topic guide (not a rigid bullet split); natural flowing prose; omit missing cues instead of announcing them; no semicolons. Schema/labels/fallbacks unchanged.

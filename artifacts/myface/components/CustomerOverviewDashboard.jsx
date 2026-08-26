@@ -1,16 +1,31 @@
 'use client'
 
+/**
+ * Customer dashboard web view (`/dashboard`).
+ *
+ * This is NOT the protocol PDF / A4 HTML report preview. It reuses
+ * `ProtocolReport` page 1 (`pageIndex={0}`, `paginated`, `webLayout`) for the
+ * same content layout as the report cover, but rendered as a full-width web
+ * dashboard under the Share/PDF top bar.
+ *
+ * - Entry: `app/[locale]/dashboard/page.jsx` → `CustomerOverviewDashboard`
+ * - Layout CSS: `.report-protocol-dashboard-page--web` in `app/globals.css`
+ * - Do not enable `webLayout` for admin/PDF protocol document viewers.
+ */
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
-import { Loader2 } from 'lucide-react'
+import { Download, Loader2, Share2 } from 'lucide-react'
 import { downloadAssessmentPdf, fetchAssessment, isBackendApiEnabled } from '../utils/apiClient'
 import { resolveAssessmentFrontPhoto, resolveAssessmentPosePhotos } from '../utils/assessmentPhotos'
+import { pickLocalizedNarratives } from '../utils/narrativeLocale'
+import { formatProtocolId, getClientName } from '../utils/reportProtocolModel'
+import { shareReportPage } from '../utils/reportShare'
 import { canDownloadReportPdf } from '../utils/reportWorkflow'
-import { ROUTES } from '../utils/routes'
 import { translateApiError } from '../utils/translateApiError'
 import { CustomerAssessmentGate } from './CustomerAssessmentGate'
 import { StandalonePageShell } from './StandalonePageShell'
-import { ExecutiveSummary } from './report/ExecutiveSummary'
+import ProtocolReport from './report/ProtocolReport'
 import { useApp } from './providers/AppProvider'
 
 function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
@@ -67,10 +82,42 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
     return assessment?.userId ? { id: assessment.userId } : null
   }, [assessment, user])
 
+  const localized = useMemo(
+    () =>
+      pickLocalizedNarratives(
+        {
+          aiNarrative: assessment?.aiNarrative || analysis?.aiNarrative || null,
+          protocolNarrative: assessment?.protocolNarrative || null,
+          featureNarratives: assessment?.featureNarratives || null,
+        },
+        locale,
+        { t: tReport },
+      ),
+    [assessment, analysis, locale, tReport],
+  )
+
+  const clientName = getClientName(assessment?.answers, user, assessmentOwner)
+  const protocolId = formatProtocolId(assessment?.id)
+  const reportDate = (() => {
+    const raw = assessment?.updatedAt || assessment?.createdAt
+    if (!raw) return '—'
+    const ms = Date.parse(raw)
+    if (!Number.isFinite(ms)) return '—'
+    return new Date(ms).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+  })()
+
   const handleNavigate = useCallback((sectionId) => {
     if (!assessment) return
     onNavigateSection?.(assessment, sectionId)
   }, [assessment, onNavigateSection])
+
+  const handleShare = useCallback(async () => {
+    try {
+      await shareReportPage(tReport('executiveSummary.shareTitle'))
+    } catch {
+      /* user cancelled */
+    }
+  }, [tReport])
 
   const isAdmin = user?.role === 'admin'
   const canDownloadPdf = canDownloadReportPdf(assessment?.status, true, isAdmin)
@@ -83,20 +130,10 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
       if (frontPhoto) {
         const { downloadMyFacePdf } = await import('../utils/reportPdf')
         const { mergeNarrativesForPdf } = await import('../utils/protocolSections')
-        const { pickLocalizedNarratives } = await import('../utils/narrativeLocale')
         const messagesModule = locale === 'de'
           ? await import('../messages/de.json')
           : await import('../messages/en.json')
         const pdfMessages = messagesModule?.default || messagesModule
-        const localized = pickLocalizedNarratives(
-          {
-            aiNarrative: assessment.aiNarrative || analysis?.aiNarrative || null,
-            protocolNarrative: assessment.protocolNarrative,
-            featureNarratives: assessment.featureNarratives,
-          },
-          locale,
-          { t: tReport },
-        )
         await downloadMyFacePdf({
           photo: frontPhoto,
           photos: posePhotos,
@@ -127,7 +164,6 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
       }
     } catch (err) {
       console.error('PDF export failed:', err)
-      // Fallback: server PDF when client build fails (bad photo metadata, CORS, etc.)
       if (assessment?.id && isBackendApiEnabled()) {
         try {
           await downloadAssessmentPdf(assessment.id, locale)
@@ -147,6 +183,7 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
     cvReport,
     photo,
     analysis,
+    localized,
     user,
     assessmentOwner,
     locale,
@@ -185,35 +222,72 @@ function OverviewContent({ user, assessmentSummary, onNavigateSection }) {
 
   return (
     <StandalonePageShell scrollable compactTop>
-      <div className="report-view-page report-view-page--overview py-2 sm:py-3">
-        <ExecutiveSummary
-          cvReport={cvReport}
-          eyeAnalysis={analysis?.eyeAnalysis ?? null}
-          aiNarrative={assessment?.aiNarrative || analysis?.aiNarrative || null}
-          aiNarrativeLoading={false}
-          protocolNarrative={assessment?.protocolNarrative || null}
+      <div className="report-view-page report-view-page--overview py-2 sm:py-3 space-y-5 sm:space-y-6">
+        {/* Keep current dashboard top bar (meta + Share / PDF) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-surface-border">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] min-w-0">
+            <span className="font-bold uppercase tracking-[0.14em] text-ink">
+              {tReport('executiveSummary.protocolLabel')}
+            </span>
+            <span className="hidden sm:inline-block w-px h-3.5 bg-surface-border" aria-hidden />
+            <span className="text-ink-muted font-sans truncate">{clientName}</span>
+            <span className="text-ink-muted font-mono shrink-0">#{protocolId}</span>
+            <span className="text-ink-muted shrink-0">{reportDate}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={!canDownloadPdf || pdfLoading}
+              className="inline-flex items-center gap-1.5 rounded-full border border-surface-border bg-white px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink hover:bg-surface-warm disabled:opacity-50"
+              title={!canDownloadPdf ? tReport('shell.pdfAfterApproval') : tReport('shell.downloadPdf')}
+            >
+              {pdfLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+              {tReport('shell.downloadPdf')}
+            </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              className="inline-flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-brand/90"
+            >
+              <Share2 className="w-3 h-3" />
+              {tReport('executiveSummary.shareButton')}
+            </button>
+          </div>
+        </div>
+
+        {/*
+          Customer dashboard web view only: protocol page-1 content with webLayout.
+          Report modal / PDF HTML preview must omit webLayout (A4 sheet + PDF header).
+        */}
+        <ProtocolReport
           photo={photo}
+          photos={resolveAssessmentPosePhotos(assessment)}
           landmarks={analysis?.landmarks ?? null}
+          cvReport={cvReport}
           metrics={analysis?.metrics ?? null}
           answers={assessment?.answers ?? null}
           user={user}
           assessmentOwner={assessmentOwner}
+          eyeAnalysis={analysis?.eyeAnalysis ?? null}
+          protocolNarrative={localized.protocolNarrative}
+          aiNarrative={localized.aiNarrative}
           projectedAfter={assessment?.projectedAfter || analysis?.projectedAfter || null}
+          projectedAnalysis={assessment?.projectedAnalysis || analysis?.projectedAnalysis || null}
           assessmentId={assessment.id}
           createdAt={assessment.createdAt ?? null}
           updatedAt={assessment.updatedAt ?? null}
-          onNavigate={handleNavigate}
-          reportHref={ROUTES.report}
-          onDownloadPdf={handleDownloadPdf}
-          pdfLoading={pdfLoading}
-          canDownloadPdf={canDownloadPdf}
+          pageIndex={0}
+          paginated
+          webLayout
+          onPriorityFeatureClick={handleNavigate}
         />
       </div>
     </StandalonePageShell>
   )
 }
 
-/** Customer home at `/dashboard` — protocol overview (ExecutiveSummary) with shared gates. */
+/** Customer home at `/dashboard` — web-view overview (not PDF report preview). */
 export default function CustomerOverviewDashboard({
   user,
   hasAnalysisAccess,

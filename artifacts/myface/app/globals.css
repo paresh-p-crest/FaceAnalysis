@@ -1170,6 +1170,133 @@
     border-color: rgb(94 159 139 / 0.25);
   }
 
+  /* -------------------------------------------------------------------------
+   * Customer dashboard WEB VIEW only (not protocol PDF / A4 HTML preview).
+   * Used when ProtocolReport is rendered with webLayout from
+   * CustomerOverviewDashboard (`/dashboard`). Do not apply these rules to the
+   * report document viewer or PDF page-1 preview.
+   * ----------------------------------------------------------------------- */
+  .report-protocol-dashboard-page--web {
+    display: block;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-frame {
+    @apply p-0 overflow-visible;
+    height: auto;
+    font-family: inherit;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-footer {
+    display: none;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-grid {
+    @apply gap-4 text-[11px];
+  }
+
+  @media (max-width: 1023px) {
+    .report-protocol-dashboard-page--web .report-protocol-dashboard-grid--v2 {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-pair {
+    @apply gap-3;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-photo {
+    @apply min-h-[160px] rounded-xl;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-photo span {
+    @apply text-[8px] px-2 py-0.5 bottom-2 left-2;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-panel {
+    @apply rounded-xl bg-white dark:bg-surface-card p-4;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-mini-card {
+    @apply rounded-xl bg-white dark:bg-surface-card;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-overview {
+    @apply rounded-xl bg-white dark:bg-surface-card px-5 py-5 mt-4 mb-0;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-overview .report-pdf-label {
+    @apply text-[14px] font-bold mb-2;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-panel--harmony > .report-pdf-label {
+    @apply text-[14px] font-bold mb-2;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-panel--age > .report-pdf-label {
+    @apply text-[14px] font-bold mb-3;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-overview .report-pdf-body-text {
+    @apply text-[13px] leading-relaxed;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-merkmals-title {
+    @apply text-[14px] font-bold mb-2;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-merkmals-text {
+    @apply text-[12px] leading-relaxed;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-priority-title {
+    @apply text-[14px] font-bold mb-2.5 leading-snug;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-mini-finding-title {
+    @apply text-[10px] font-semibold leading-snug;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-mini-finding-detail {
+    @apply text-[9px] leading-snug;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-mini-score-label {
+    @apply text-[10px] leading-snug mt-0.5;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-hero h2 {
+    @apply text-[22px] leading-tight;
+  }
+
+  .report-protocol-dashboard-page--web .report-protocol-dashboard-hero h2 + p {
+    @apply text-[13px] mt-1;
+  }
+
+  .report-protocol-dashboard-page--web .facial-age-row-label {
+    font-size: 11px !important;
+    line-height: 1.25;
+    margin-bottom: 0.35rem !important;
+  }
+
+  .report-protocol-dashboard-page--web .report-pdf-label {
+    @apply text-[10px];
+  }
+
   .report-protocol-dashboard-frame {
     @apply relative h-full flex flex-col p-4 sm:p-5 overflow-hidden;
     font-family: Helvetica;
