@@ -329,6 +329,11 @@ Saves admin review comments, PDF protocol text edits, and/or publishes reports.
     "protocolNarrative": {
       "summary": "...",
       "closing": ["..."],
+      "featureHighlights": [
+        "You have an oval face with high cheekbones, a clear U-shaped jawline, and a distinct chin.",
+        "This is complemented by a full hairline, a moderately visible forehead, and overall good skin with mild tone variation."
+      ],
+      "featureHighlightsOrigin": "llm",
       "features": {},
       "treatmentPhases": {
         "phase01": { "title": "...", "duration": "...", "items": [{ "name": "...", "detail": "..." }] },
@@ -340,6 +345,7 @@ Saves admin review comments, PDF protocol text edits, and/or publishes reports.
     "featureNarratives": { "hair": { "summary": "...", "subsections": [] } }
   }
   ```
+  `featureHighlights` — exactly 2 bullets (min 40 chars; soft target ~280; hard store max 500, sentence-clamped only if over). LLM prompt uses a soft topic guide (structure vs hair/skin), natural flowing prose, omits missing cues (no “not supplied”), and avoids semicolons. Full text stored; page-1 PDF/HTML display uses `truncateAtSentences` (≤5 lines/bullet). DE under `protocolNarrative.de.featureHighlights`. CV template fallback when LLM fails.
   `treatmentPhases` bounds (Pydantic / structured LLM): `title`/`duration` ≤100 chars; item `name` ≤100; item `detail` ≤280; `items` 1–3 per phase; `summary` 20–500 chars. Soft overruns are clamped before validate.
   Optional legacy `aiNarrative` is still accepted. Protocol text is persisted via protocol storage + DB when `protocolNarrative` / `featureNarratives` are sent.
   Optional `narrativeLocale` (`"en"` | `"de"`, default `"en"`) — when `"de"`, merges edited text into nested `.de` / `contentDe` blocks with `origin: "admin"`. When `"en"`, saves English fields only (no auto DE retranslate; use `POST …/narrative-translations` when DE refresh from EN is needed).
@@ -380,7 +386,7 @@ Loads persisted protocol from media storage (`assessments/{id}/protocol.json`) w
 - **404:** Protocol not yet generated.
 
 ### `POST /api/assessments/{assessment_id}/ai-protocol`
-Generates protocol via `narrative_orchestrator` (per-feature structured LLM calls + overview + **treatment phases** + closing), writes JSON to protocol storage, and syncs `featureNarratives` / `protocolNarrative` to the database.
+Generates protocol via `narrative_orchestrator` (per-feature structured LLM calls + overview + **featureHighlights** + **treatment phases** + closing), writes JSON to protocol storage, and syncs `featureNarratives` / `protocolNarrative` to the database.
 - **Auth:** Owner User or Admin (paid AI access)
 - **Query:** `force=true` — **admin-only** full regenerate (overwrites existing PDF narrative text)
 - **400:** Rejected when assessment status is **Approved**.
@@ -402,7 +408,7 @@ Admin-only on-demand projected AFTER image. Always runs (ignores `PROJECTED_AFTE
 - **Response Shape (200 OK):** Updated assessment with `projectedAfter.status === "ready"` and `projectedAnalysis` (`status` `ready` \| `failed`, plus `cvReport` / `landmarks` / `metrics` / `eyeAnalysis` when ready).
 - **400:** Missing front photo / landmarks / generation failure.
 
-Assessment `GET` payloads include `projectedAnalysis` alongside `projectedAfter` when present. Protocol UI and PDF feature AFTER images use `projectedAnalysis.landmarks` + the same `getFeatureBox` crop keys as BEFORE for eyes/jaw/chin/ears/neck/hair. When AFTER aspect or pixel size differs from front BEFORE, AFTER is cover-fitted onto the BEFORE canvas (AFTER-only; landmarks remapped) before cropping; `FEATURE_MIN_PX` is scaled by short-side ratio. Other features prefer `projectedAnalysis.cvReport` / `eyeAnalysis` stored crops when `status === "ready"`. Fallback: client MediaPipe on AFTER, then BEFORE landmarks, then stored crops. Skin PDF half-split does not use this path.
+Assessment `GET` payloads include `projectedAnalysis` alongside `projectedAfter` when present. When `projectedAnalysis.status === "ready"`, `projectedAnalysis.metrics` includes `visualAge` / `visualAgeSource` (skin-heuristic on the AFTER image; sibling of BEFORE `analysis.metrics.visualAge`). Protocol dashboard facial age (HTML + PDF) reads BOTH: current = BEFORE `visualAge` (fallback 28); potential = AFTER `visualAge` when ready (else current−5), then display-clamped to `[current−8, current−1]` (if ≥ current → current−2). Does not rewrite stored metrics. Protocol UI and PDF feature AFTER images use `projectedAnalysis.landmarks` + the same `getFeatureBox` crop keys as BEFORE for eyes/jaw/chin/ears/neck/hair. When AFTER aspect or pixel size differs from front BEFORE, AFTER is cover-fitted onto the BEFORE canvas (AFTER-only; landmarks remapped) before cropping; `FEATURE_MIN_PX` is scaled by short-side ratio. Other features prefer `projectedAnalysis.cvReport` / `eyeAnalysis` stored crops when `status === "ready"`. Fallback: client MediaPipe on AFTER, then BEFORE landmarks, then stored crops. Skin PDF half-split does not use this path.
 
 ### `POST /api/assessments/{assessment_id}/visuals`
 Triggers hairstyle, outfit, and healthy-aging visual variants via OpenAI Images Edits (`OPENAI_IMAGE_MODEL`, default `gpt-image-1`).

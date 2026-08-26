@@ -30,15 +30,18 @@ import {
   LIMITATIONS_PARAGRAPH_KEY,
   localizedSubsectionTitle,
   PRIVACY_PARAGRAPH_KEYS,
+  PRIVACY_POLICY_URL,
   REPORT_PROTOCOL_FEATURES,
   UNDERSTANDING_RESULTS_KEYS,
   rewriteToSubjectVoice,
   resolveTreatmentPhases,
+  resolveFeatureHighlights,
 } from '../../utils/reportProtocolModel'
 import {
   layoutBottomAnchoredClip,
   PDF_PAGE_BOTTOM,
   PDF_PAGE_H,
+  truncateFeatureHighlightBullet,
   truncatePdfBody,
   truncatePdfSummaryBar,
   truncatePdfSummaryCard,
@@ -48,7 +51,87 @@ import { FeatureAnalysisHero } from './FeaturePreviewPortrait'
 import { NameProtocolPlate } from './NameProtocolPlate'
 import { TreatmentProtocolPhases } from './TreatmentProtocolPhases'
 import { FacialAgePanel } from './FacialAgePanel'
-import { localizePriorityMiniCard } from '../../utils/cvReportLocale'
+import { localizeFeatureRow, localizePriorityMiniCard } from '../../utils/cvReportLocale'
+
+function DashboardRadarChart({ items, t }) {
+  const cx = 100
+  const cy = 100
+  const rMax = 56
+  const n = Math.max(1, items?.length || 0)
+  const backgroundPolygons = [0.2, 0.4, 0.6, 0.8, 1].map((scale) => {
+    const points = []
+    for (let i = 0; i < n; i++) {
+      const angle = (i * 2 * Math.PI) / n - Math.PI / 2
+      points.push(`${cx + rMax * scale * Math.cos(angle)},${cy + rMax * scale * Math.sin(angle)}`)
+    }
+    return points.join(' ')
+  })
+  const clientPoints = (items || [])
+    .map((item, i) => {
+      const angle = (i * 2 * Math.PI) / n - Math.PI / 2
+      const pct = Math.min(100, Math.max(0, Number(item.score) || 0)) / 100
+      return `${cx + rMax * pct * Math.cos(angle)},${cy + rMax * pct * Math.sin(angle)}`
+    })
+    .join(' ')
+  const projectedPoints = (items || [])
+    .map((item, i) => {
+      const angle = (i * 2 * Math.PI) / n - Math.PI / 2
+      const base = Math.min(100, Math.max(0, Number(item.score) || 0))
+      const proj = Number(item.projected)
+      const pct = (Number.isFinite(proj) ? Math.min(100, Math.max(0, proj)) : base) / 100
+      return `${cx + rMax * pct * Math.cos(angle)},${cy + rMax * pct * Math.sin(angle)}`
+    })
+    .join(' ')
+  if (!items?.length) {
+    return <p className="report-pdf-body-text text-center text-ink-muted">—</p>
+  }
+  // Same dual-series feature radar as page 5 PDF
+  return (
+    <div className="w-full flex flex-col items-center gap-3 pt-2 pb-2">
+      <div className="w-full max-w-[158px] mx-auto aspect-square flex items-center justify-center">
+        <svg className="w-full h-full overflow-visible" viewBox="0 0 200 200">
+          {backgroundPolygons.map((pts, idx) => (
+            <polygon key={idx} points={pts} fill="none" stroke="#E5E7EB" strokeWidth="0.7" />
+          ))}
+          {(items || []).map((item, i) => {
+            const angle = (i * 2 * Math.PI) / n - Math.PI / 2
+            const xLine = cx + rMax * Math.cos(angle)
+            const yLine = cy + rMax * Math.sin(angle)
+            const xLabel = cx + (rMax + 20) * Math.cos(angle)
+            const yLabel = cy + (rMax + 20) * Math.sin(angle)
+            return (
+              <g key={item.id || item.label}>
+                <line x1={cx} y1={cy} x2={xLine} y2={yLine} stroke="#F3F4F6" strokeWidth="0.7" />
+                <text
+                  x={xLabel}
+                  y={yLabel}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="fill-slate-400 font-sans"
+                  style={{ fontSize: 6.5 }}
+                >
+                  {item.label}
+                </text>
+              </g>
+            )
+          })}
+          <polygon points={clientPoints} fill="none" stroke="#64748b" strokeWidth="1.4" />
+          <polygon points={projectedPoints} fill="none" stroke="#5e9f8b" strokeWidth="1.6" />
+        </svg>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[6px] text-ink-muted pt-0.5">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-[1px] bg-brand shrink-0" />
+          {t('protocolModel.chartProjectedPotential')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-[1px] bg-slate-500 shrink-0" />
+          {t('protocolModel.chartClientValues')}
+        </span>
+      </div>
+    </div>
+  )
+}
 
 const EVIDENCE_TIER_LABELS = {
   lifestyle: 'Routine / Topical',
@@ -255,7 +338,7 @@ function SplitComparisonFrame({ beforeSrc, afterSrc = null, height = 240 }) {
   )
 }
 
-/** Same mid-body split as drawHairFeaturePage. */
+/** Same mid-body split as drawHairFeaturePage (Frisur / Haarausfall). */
 function splitHairLossColumns(body) {
   const text = String(body || '')
   if (!text) return ['', '']
@@ -741,6 +824,7 @@ function FeaturePageHtml({
   images = { fullBefore: null, fullAfter: null, features: {}, featureAfter: {} },
   pageNum,
   answers = null,
+  treatment = null,
   editable = false,
   onEditFeatureSubsection,
   onEditFeatureSummary,
@@ -798,12 +882,14 @@ function FeaturePageHtml({
     return (
       <PdfPageShell page={pageNum} sectionId={page.id}>
         <PdfSplitTitle primary={primary} secondary={secondary} />
-        <div className="report-pdf-cols report-pdf-feature-fill">
-          <LabeledBody title="Nose" displayTitle={subLabel('Nose')} body={subs[0]?.body} evidenceTier={subs[0]?.evidenceTier} {...bodyEdit('Nose')} />
+        <div className="report-pdf-cols report-pdf-feature-fill report-pdf-cols--nose">
+          <div className="report-pdf-col-stack report-pdf-nose-left">
+            <LabeledBody title="Nose" displayTitle={subLabel('Nose')} body={subs[0]?.body} evidenceTier={subs[0]?.evidenceTier} {...bodyEdit('Nose')} />
+            <SummaryCard title={summaryTitle} summary={page.summary} {...summaryEdit} />
+          </div>
           <div className="report-pdf-col-stack">
             {profileSrc && <ImageFrame src={profileSrc} tag={t('tagProfile')} height={300} />}
             <BeforeAfterPair beforeSrc={beforeSrc} afterSrc={pageAfterSrc} height={120} />
-            <SummaryCard title={summaryTitle} summary={page.summary} {...summaryEdit} />
           </div>
         </div>
       </PdfPageShell>
@@ -811,21 +897,25 @@ function FeaturePageHtml({
   }
 
   if (page.id === 'hair') {
+    const styleCols = splitHairLossColumns(subs[0]?.body)
     const hairLossCols = splitHairLossColumns(subs[1]?.body)
     return (
       <PdfPageShell page={pageNum} sectionId={page.id}>
         <PdfSplitTitle primary={primary} secondary={secondary} />
-        <div className="report-pdf-cols report-pdf-cols--top">
-          <div>
-            {subs[0] && (
-              <LabeledBody title={subs[0].title} displayTitle={subLabel(subs[0].title)} body={subs[0].body} evidenceTier={subs[0].evidenceTier} {...bodyEdit(subs[0].title)} />
+        <BeforeAfterPair beforeSrc={beforeSrc} afterSrc={pageAfterSrc} height={140} />
+        {subs[0] && (
+          <div className="report-pdf-block">
+            <h3 className="report-pdf-label">{subLabel(subs[0].title)}</h3>
+            {editable ? (
+              <LabeledBody title="" body={subs[0].body} evidenceTier={subs[0].evidenceTier} {...bodyEdit(subs[0].title)} />
+            ) : (
+              <div className="report-pdf-cols report-pdf-cols--top">
+                <p className="report-pdf-body-text">{styleCols[0]}</p>
+                <p className="report-pdf-body-text">{styleCols[1]}</p>
+              </div>
             )}
           </div>
-          <div className="report-pdf-col-stack report-pdf-col-stack--frames">
-            <ImageFrame src={beforeSrc} tag={t('tagBefore')} height={120} />
-            <ImageFrame src={pageAfterSrc} tag={t('tagAfter')} height={120} />
-          </div>
-        </div>
+        )}
         {subs[1] && (
           <div className="report-pdf-block">
             <h3 className="report-pdf-label">{subLabel(subs[1].title)}</h3>
@@ -887,17 +977,16 @@ function FeaturePageHtml({
         <div className="report-pdf-block">
           <BeforeAfterPair beforeSrc={beforeSrc} afterSrc={pageAfterSrc} height={150} />
         </div>
-        <BottomAnchoredFeatureRow
-          bodyTitle="Further Enhancement"
-          bodyDisplayTitle={subLabel('Further Enhancement')}
-          body={subs[1]?.body}
-          evidenceTier={subs[1]?.evidenceTier}
-          summaryTitle={t('jawRegionSummary')}
-          summary={page.summary}
-          bodyOffset={22}
-          bodyEdit={bodyEdit('Further Enhancement')}
-          summaryEdit={summaryEdit}
-        />
+        <div className="report-pdf-cols report-pdf-jaw-bottom">
+          <LabeledBody
+            title="Further Enhancement"
+            displayTitle={subLabel('Further Enhancement')}
+            body={subs[1]?.body}
+            evidenceTier={subs[1]?.evidenceTier}
+            {...bodyEdit('Further Enhancement')}
+          />
+          <SummaryCard title={t('jawRegionSummary')} summary={page.summary} {...summaryEdit} />
+        </div>
       </PdfPageShell>
     )
   }
@@ -919,19 +1008,30 @@ function FeaturePageHtml({
   }
 
   if (page.id === 'chin') {
+    const chinCols = splitHairLossColumns(subs[0]?.body)
     return (
       <PdfPageShell page={pageNum} sectionId={page.id}>
         <PdfSplitTitle primary={primary} secondary={secondary} />
-        <div className="report-pdf-cols report-pdf-feature-fill">
-          <LabeledBody title="Chin" displayTitle={subLabel('Chin')} body={subs[0]?.body} evidenceTier={subs[0]?.evidenceTier} {...bodyEdit('Chin')} />
-          <div className="report-pdf-col-stack report-pdf-col-stack--frames">
-            {profileSrc && (
-              <>
-                <ImageFrame src={profileSrc} tag={t('tagProfile')} height={200} cover={false} />
-                <ImageFrame src={profileSrc} tag={t('tagProfile')} height={200} cover={false} />
-              </>
-            )}
+        {profileSrc ? (
+          <div className="report-pdf-ba-row">
+            <ImageFrame src={profileSrc} tag={t('tagProfile')} height={200} cover={false} />
+            <ImageFrame src={profileSrc} tag={t('tagProfile')} height={200} cover={false} />
           </div>
+        ) : null}
+        <div className="report-pdf-block report-pdf-chin-body">
+          {editable ? (
+            <LabeledBody title="Chin" displayTitle={subLabel('Chin')} body={subs[0]?.body} evidenceTier={subs[0]?.evidenceTier} {...bodyEdit('Chin')} />
+          ) : (
+            <div className="report-pdf-cols report-pdf-cols--top report-pdf-chin-cols">
+              <div>
+                <h3 className="report-pdf-label">{subLabel('Chin')}</h3>
+                <p className="report-pdf-body-text">{chinCols[0]}</p>
+              </div>
+              <div className="report-pdf-chin-cols-right">
+                <p className="report-pdf-body-text">{chinCols[1]}</p>
+              </div>
+            </div>
+          )}
         </div>
         <div className="report-pdf-block">
           <BeforeAfterPair beforeSrc={beforeSrc} afterSrc={pageAfterSrc} height={120} />
@@ -949,33 +1049,45 @@ function FeaturePageHtml({
           <div className="report-pdf-col-stack">
             <LabeledBody title="Neck Size" displayTitle={subLabel('Neck Size')} body={subs[0]?.body} evidenceTier={subs[0]?.evidenceTier} {...bodyEdit('Neck Size')} />
             <LabeledBody title="Neck Skin" displayTitle={subLabel('Neck Skin')} body={subs[1]?.body} evidenceTier={subs[1]?.evidenceTier} {...bodyEdit('Neck Skin')} />
-            <SummaryCard title={summaryTitle} summary={page.summary} {...summaryEdit} />
           </div>
           <div className="report-pdf-col-stack report-pdf-col-stack--frames">
             <ImageFrame src={beforeSrc} tag={t('tagBefore')} height={240} />
             <ImageFrame src={pageAfterSrc} tag={t('tagAfter')} height={240} />
           </div>
         </div>
+        <SummaryBar title={summaryTitle} summary={page.summary} {...summaryEdit} />
       </PdfPageShell>
     )
   }
 
   if (page.id === 'ears') {
+    const earCols = splitHairLossColumns(subs[0]?.body)
     return (
       <PdfPageShell page={pageNum} sectionId={page.id}>
         <PdfSplitTitle primary={primary} secondary={secondary} />
-        <div className="report-pdf-cols report-pdf-feature-fill">
-          <div className="report-pdf-col-stack">
-            {subs.map((sub) => (
-              <LabeledBody key={sub.title} title={sub.title} displayTitle={subLabel(sub.title)} body={sub.body} evidenceTier={sub.evidenceTier} {...bodyEdit(sub.title)} />
-            ))}
-            <SummaryCard title={summaryTitle} summary={page.summary} {...summaryEdit} />
-          </div>
-          <div className="report-pdf-col-stack report-pdf-col-stack--frames">
-            <ImageFrame src={beforeSrc} tag={t('tagBefore')} height={220} />
-            <ImageFrame src={pageAfterSrc} tag={t('tagAfter')} height={220} />
-          </div>
+        <BeforeAfterPair beforeSrc={beforeSrc} afterSrc={pageAfterSrc} height={240} />
+        <div className="report-pdf-block report-pdf-chin-body">
+          {editable ? (
+            <LabeledBody
+              title={subs[0]?.title || 'Ear Structure'}
+              displayTitle={subLabel(subs[0]?.title || 'Ear Structure')}
+              body={subs[0]?.body}
+              evidenceTier={subs[0]?.evidenceTier}
+              {...bodyEdit(subs[0]?.title || 'Ear Structure')}
+            />
+          ) : (
+            <div className="report-pdf-cols report-pdf-cols--top report-pdf-chin-cols">
+              <div>
+                <h3 className="report-pdf-label">{subLabel(subs[0]?.title || 'Ear Structure')}</h3>
+                <p className="report-pdf-body-text">{earCols[0]}</p>
+              </div>
+              <div className="report-pdf-chin-cols-right">
+                <p className="report-pdf-body-text">{earCols[1]}</p>
+              </div>
+            </div>
+          )}
         </div>
+        <SummaryBar title={summaryTitle} summary={page.summary} {...summaryEdit} />
       </PdfPageShell>
     )
   }
@@ -984,36 +1096,54 @@ function FeaturePageHtml({
     const splitBefore = pair.before || beforeSrc
     const splitAfter = images.skinSplitAfter || pageAfterSrc
     const pairBefore = slots.pairBefore || beforeSrc
+    const treatmentTitle = t.has('treatmentProtocol')
+      ? t('treatmentProtocol')
+      : 'Behandlungsprotokoll'
     return (
       <PdfPageShell page={pageNum} sectionId={page.id}>
         <PdfSplitTitle primary={primary} secondary={secondary} />
-        <div className="report-pdf-cols report-pdf-cols--top report-pdf-feature-fill">
-          <div className="report-pdf-col-stack">
-            <SplitComparisonFrame beforeSrc={splitBefore} afterSrc={splitAfter} height={240} />
-            <BeforeAfterPair beforeSrc={pairBefore} afterSrc={pageAfterSrc} height={150} />
+        <div className="report-pdf-skin-layout">
+          <div className="report-pdf-skin-main">
+            <div className="report-pdf-skin-top">
+              <div className="report-pdf-col-stack">
+                <SplitComparisonFrame beforeSrc={splitBefore} afterSrc={splitAfter} height={220} />
+                <BeforeAfterPair beforeSrc={pairBefore} afterSrc={pageAfterSrc} height={100} />
+              </div>
+              <div className="report-pdf-col-stack report-pdf-skin-mid">
+                <p className="report-pdf-body-text">{t('skinIntro')}</p>
+                {subs[0] && (
+                  <LabeledBody
+                    title={subs[0].title || 'Skincare Protocol'}
+                    displayTitle={subLabel(subs[0].title || 'Skincare Protocol')}
+                    body={subs[0].body}
+                    evidenceTier={subs[0].evidenceTier}
+                    {...bodyEdit(subs[0].title || 'Skincare Protocol')}
+                  />
+                )}
+              </div>
+            </div>
             {subs[1] && (
-              <FittedLabeledBody
-                title={subs[1].title || 'Further Skin Enhancement'}
-                displayTitle={subLabel(subs[1].title || 'Further Skin Enhancement')}
-                body={subs[1].body}
-                evidenceTier={subs[1].evidenceTier}
-                {...bodyEdit(subs[1].title || 'Further Skin Enhancement')}
-              />
+              <div className="report-pdf-skin-further">
+                <LabeledBody
+                  title={subs[1].title || 'Further Skin Enhancement'}
+                  displayTitle={subLabel(subs[1].title || 'Further Skin Enhancement')}
+                  body={subs[1].body}
+                  evidenceTier={subs[1].evidenceTier}
+                  {...bodyEdit(subs[1].title || 'Further Skin Enhancement')}
+                />
+              </div>
             )}
           </div>
-          <div className="report-pdf-col-stack">
-            <p className="report-pdf-body-text">{t('skinIntro')}</p>
-            {subs[0] && (
-              <LabeledBody
-                title={subs[0].title || 'Skincare Protocol'}
-                displayTitle={subLabel(subs[0].title || 'Skincare Protocol')}
-                body={subs[0].body}
-                evidenceTier={subs[0].evidenceTier}
-                {...bodyEdit(subs[0].title || 'Skincare Protocol')}
-              />
-            )}
-            <SummaryCard title={summaryTitle} summary={page.summary} {...summaryEdit} />
+          <div className="report-pdf-skin-phases">
+            <TreatmentProtocolPhases
+              title={treatmentTitle}
+              phases={treatment?.phases}
+              className="report-pdf-skin-phases-inner"
+            />
           </div>
+        </div>
+        <div className="report-pdf-block">
+          <SummaryBar title={summaryTitle} summary={page.summary} {...summaryEdit} />
         </div>
       </PdfPageShell>
     )
@@ -1104,11 +1234,19 @@ export default function ProtocolReport({
   )
   const closingCols = useMemo(() => buildClosingColumns(closingParagraphs), [closingParagraphs])
   const chartItems = useMemo(() => getFeatureComparisonData(cvReport), [cvReport])
+  const featureRadarItems = useMemo(
+    () =>
+      chartItems.map((item) => ({
+        ...item,
+        label: t(`protocolModel.chartAxes.${item.id}`) || item.label,
+      })),
+    [chartItems, t],
+  )
   const dash = useMemo(
     () => buildProtocolDashboardData({
-      cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt,
+      cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt, projectedAnalysis,
     }),
-    [cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt],
+    [cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt, projectedAnalysis],
   )
   const protocolId = formatProtocolId(assessmentId)
   const firstName = clientName.split(/\s+/)[0] || clientName
@@ -1116,6 +1254,10 @@ export default function ProtocolReport({
   const treatment = useMemo(
     () => resolveTreatmentPhases({ protocolNarrative, dash, t }),
     [protocolNarrative, dash, t],
+  )
+  const featureHighlights = useMemo(
+    () => resolveFeatureHighlights({ protocolNarrative, cvReport, locale }),
+    [protocolNarrative, cvReport, locale],
   )
   const afterFullUrl = useMemo(() => resolveProjectedAfterUrl(projectedAfter), [projectedAfter])
   const afterLandmarks = useMemo(() => resolveAfterLandmarks(projectedAnalysis), [projectedAnalysis])
@@ -1232,46 +1374,19 @@ export default function ProtocolReport({
               <BrandLogo size="md" />
             </div>
           </div>
-          <div className="report-protocol-dashboard-kpis">
-            {[
-              [t('executiveSummary.kpiOverallScore'), dash.overallScore != null ? `${dash.overallScore} / 100` : '—'],
-              [t('executiveSummary.kpiEvaluated'), dash.evaluatedPoints
-                ? t('executiveSummary.kpiEvaluatedValue', { count: dash.evaluatedPoints })
-                : '—'],
-              [t('executiveSummary.kpiAnalysisTime'), formatAnalysisTimeDays(dash.analysisTimeDays, t) || '—'],
-            ].map(([label, value]) => (
-              <div key={label} className="report-protocol-dashboard-kpi">
-                <p className="report-pdf-label">{label}</p>
-                <p className="report-protocol-dashboard-kpi-value">{value}</p>
-              </div>
-            ))}
-          </div>
-          <div className="report-protocol-dashboard-grid">
+          <div className="report-protocol-dashboard-grid report-protocol-dashboard-grid--v2">
             <div className="report-protocol-dashboard-left">
               <NameProtocolPlate
                 firstName={firstName}
                 clientName={clientName}
-                protocolLine={t('executiveSummary.protocolIdLine', { id: protocolId })}
+                customerLabel={t('executiveSummary.namePlateCustomer')}
+                protocolBrandLine={t('executiveSummary.namePlateProtocolBrand')}
                 assessedLine={t('executiveSummary.namePlateAssessed', { date: reportDate })}
-                scoreLine={dash.overallScore != null
-                  ? t('executiveSummary.namePlateOverallScore', { score: dash.overallScore })
-                  : null}
-                className="mb-2"
+                className="mb-4"
               />
-              <FeatureAnalysisHero
-                photo={images.fullBefore || photo}
-                alt={t('executiveSummary.originalAlt')}
-                t={t}
-                landmarks={landmarks}
-                overallScore={dash.overallScore}
-                evaluatedLabel={dash.evaluatedPoints
-                  ? t('executiveSummary.kpiEvaluatedValue', { count: dash.evaluatedPoints })
-                  : '—'}
-                analysisTimeLabel={formatAnalysisTimeDays(dash.analysisTimeDays, t) || '—'}
-                className="report-protocol-dashboard-hero mb-3"
-                compact
-              />
-                    <p className="report-pdf-label font-bold text-ink mb-0.5">{t('executiveSummary.priorityFeatures')}</p>
+              <p className="text-[9px] font-bold text-ink mb-1.5 leading-tight">
+                {t('executiveSummary.priorityFeatures')}
+              </p>
               {(dash.miniCards || []).map((card) => {
                 const localized = localizePriorityMiniCard(card, { tReport: t, tCv, locale })
                 const findings = (localized.findings || []).filter((f) => f?.title)
@@ -1323,36 +1438,61 @@ export default function ProtocolReport({
                   <span>{t('executiveSummary.potential')}</span>
                 </div>
               </div>
-              <div className="report-protocol-dashboard-panel">
-                <p className="report-pdf-label">{t('executiveSummary.facialAge')}</p>
-                <FacialAgePanel faceAge={dash.faceAge} t={t} compact />
+              <div className="report-protocol-dashboard-panel report-protocol-dashboard-panel--age">
+                <p className="report-pdf-label mb-3">{t('executiveSummary.facialAge')}</p>
+                <FacialAgePanel
+                  faceAge={dash.faceAge}
+                  potentialAge={dash.potentialAge}
+                  t={t}
+                  compact
+                />
               </div>
-              <div className="report-protocol-dashboard-center-stack">
-                <div className="report-protocol-dashboard-panel report-protocol-dashboard-panel--stack">
-                  <p className="report-pdf-label">{t('executiveSummary.harmonyProfile')}</p>
-                  <p className="report-pdf-body-text text-center text-ink-muted">—</p>
-                </div>
-                <div className="report-protocol-dashboard-panel report-protocol-dashboard-panel--stack">
-                  <p className="report-pdf-label">{t('executiveSummary.overviewHeading')}</p>
-                  <p className="report-pdf-body-text">{overviewText || '—'}</p>
-                </div>
-                <div className="report-protocol-dashboard-panel report-protocol-dashboard-panel--stack">
-                  <p className="report-pdf-label">{t('executiveSummary.featureEvaluation')}</p>
-                  <p className="report-pdf-body-text text-ink-muted">—</p>
+              <div className="report-protocol-dashboard-panel report-protocol-dashboard-panel--stack report-protocol-dashboard-panel--harmony shrink-0 mb-0">
+                <p className="report-pdf-label mb-2">{t('executiveSummary.harmonyProfile')}</p>
+                <div className="flex items-center justify-center px-1 py-3">
+                  <DashboardRadarChart items={featureRadarItems} t={t} />
                 </div>
               </div>
             </div>
             <div className="report-protocol-dashboard-right">
-              <TreatmentProtocolPhases
-                title={t('executiveSummary.treatmentProtocol')}
-                phases={treatment.phases}
-                summary={treatment.summary}
-                className="report-protocol-dashboard-phases"
+              <FeatureAnalysisHero
+                photo={images.fullBefore || photo}
+                alt={t('executiveSummary.originalAlt')}
+                t={t}
+                landmarks={landmarks}
+                overallScore={dash.overallScore}
+                evaluatedLabel={dash.evaluatedPoints
+                  ? t('executiveSummary.kpiEvaluatedValue', { count: dash.evaluatedPoints })
+                  : '—'}
+                analysisTimeLabel={formatAnalysisTimeDays(dash.analysisTimeDays, t) || '—'}
+                className="report-protocol-dashboard-hero mb-2"
+                compact
+                showMetrics={false}
+                variant="analysisCard"
               />
+              <div className="report-protocol-dashboard-panel report-protocol-dashboard-merkmals-card shrink-0 mb-0">
+                <p className="report-protocol-dashboard-merkmals-title">
+                  {t('executiveSummary.featureEvaluation')}
+                </p>
+                <ul className="report-protocol-dashboard-merkmals">
+                  {featureHighlights.map((bullet, idx) => (
+                    <li key={idx} className="report-protocol-dashboard-merkmals-item">
+                      <span className="report-protocol-dashboard-merkmals-dot" aria-hidden />
+                      <span className="report-protocol-dashboard-merkmals-text">
+                        {truncateFeatureHighlightBullet(bullet)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
+          <div className="report-protocol-dashboard-overview">
+            <p className="report-pdf-label">{t('executiveSummary.overviewHeading')}</p>
+            <p className="report-pdf-body-text">{overviewText || '—'}</p>
+          </div>
           <div className="report-protocol-dashboard-footer">
-            <span>—</span>
+            <span>{t('executiveSummary.footerBrand')}</span>
             <span>{t('executiveSummary.footerMetrics', { points: String(dash.evaluatedPoints || '—') })}</span>
           </div>
         </div>
@@ -1364,8 +1504,8 @@ export default function ProtocolReport({
         splitTitle={{ primary: tPdf('disclaimer'), secondary: tPdf('policy') }}
         page={2}
       >
-        <div className="report-pdf-cols report-pdf-cols--top">
-          <div>
+        <div className="report-pdf-disclaimer-stack">
+          <div className="report-pdf-disclaimer-box">
             <h3 className="report-pdf-label">{tPdf('disclaimerPolicy')}</h3>
             <div className="report-pdf-body-stack">
               {DISCLAIMER_PARAGRAPH_KEYS.map((key, i) => (
@@ -1373,42 +1513,55 @@ export default function ProtocolReport({
               ))}
             </div>
           </div>
-          <div>
-            <h3 className="report-pdf-label">{t('protocolModel.privacyPolicy')}</h3>
+          <div className="report-pdf-disclaimer-privacy">
+            <h3 className="report-pdf-label">{tPdf('privacyPolicy')}</h3>
             <div className="report-pdf-body-stack">
               {PRIVACY_PARAGRAPH_KEYS.map((key, i) => (
                 <p key={i} className="report-pdf-body-text">{t(key)}</p>
               ))}
             </div>
+            <a
+              href={PRIVACY_POLICY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="report-pdf-privacy-link"
+            >
+              {tPdf('readPrivacyPrefix')} {tPdf('privacyLink')}
+            </a>
+          </div>
+          <div className="report-pdf-disclaimer-company">
+            <h3 className="report-pdf-label mb-1">{tPdf('companyName')}</h3>
+            <p className="report-pdf-body-text text-ink-muted">
+              {t('protocolModel.commissionedLine', { name: clientName, month })}
+            </p>
           </div>
         </div>
-        <p className="report-pdf-tier mt-4">
-          {t('protocolModel.commissionedLine', { name: clientName, month })}
-        </p>
       </SectionBlock>
     ),
     (
       <SectionBlock key="intro" title={t('protocolModel.introduction')} page={3}>
-        <div className="report-pdf-cols report-pdf-cols--top">
-          <div className="report-pdf-body-stack">
-            {INTRODUCTION_PARAGRAPH_KEYS.map((key, i) => (
-              <p key={i} className="report-pdf-body-text">{t(key)}</p>
-            ))}
+        <div className="report-pdf-intro-stack">
+          <div className="report-pdf-cols report-pdf-cols--top report-pdf-cols--divider">
+            <div className="report-pdf-body-stack">
+              {INTRODUCTION_PARAGRAPH_KEYS.map((key, i) => (
+                <p key={i} className="report-pdf-body-text">{t(key)}</p>
+              ))}
+            </div>
             <div>
-              <h3 className="report-pdf-label">{t('protocolModel.limitationsLabel')}</h3>
-              <p className="report-pdf-body-text">{t(LIMITATIONS_PARAGRAPH_KEY)}</p>
+              <p className="report-pdf-label mb-2">{t('protocolModel.contents')}</p>
+              <ul className="report-pdf-toc">
+                {contents.map((item) => (
+                  <li key={item.label} className="report-pdf-toc-item">
+                    <span className="report-pdf-body-text">{item.label}</span>
+                    <span className="report-pdf-toc-page">{String(item.page).padStart(2, '0')}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
-          <div>
-            <p className="report-pdf-label mb-2">{t('protocolModel.contents')}</p>
-            <ul className="space-y-1.5 font-sans">
-              {contents.map((item) => (
-                <li key={item.label} className="flex justify-between gap-4 border-b border-surface-border/60 pb-1.5">
-                  <span className="report-pdf-body-text">{item.label}</span>
-                  <span className="text-[10px] text-ink-muted tabular-nums">{String(item.page).padStart(2, '0')}</span>
-                </li>
-              ))}
-            </ul>
+          <div className="report-pdf-disclaimer-box report-pdf-intro-limitations">
+            <h3 className="report-pdf-label">{t('protocolModel.limitationsLabel')}</h3>
+            <p className="report-pdf-body-text">{t(LIMITATIONS_PARAGRAPH_KEY)}</p>
           </div>
         </div>
       </SectionBlock>
@@ -1547,6 +1700,7 @@ export default function ProtocolReport({
             images={images}
             answers={answers}
             pageNum={reportMeta?.page}
+            treatment={page.id === 'skin' ? treatment : null}
             editable={editable}
             onEditFeatureSubsection={onEditFeatureSubsection}
             onEditFeatureSummary={onEditFeatureSummary}

@@ -78,6 +78,7 @@ Front face failure fails the whole analysis. Other poses soft-fail (empty landma
 | Module | Role |
 |--------|------|
 | `opencv_metrics.py` | Image quality + geometry from landmarks |
+| `visual_age.py` | Facial age heuristic (base 28 + skin roughness / under-eye; ageRange midpoint ±8 clamp only); written onto `metrics.visualAge` after `build_cv_report` (front `analysis` and projected AFTER `projected_analysis`) |
 | `eye_analysis.py` | Eye tilt, lids, sclera, under-eye, etc. |
 | `cv_report.py` → `build_cv_report` | Full feature report + crops |
 | `pose_analysis.py` | Neck / posture from MediaPipe Pose |
@@ -321,6 +322,7 @@ This is the core of the product: photos in → structured `cvReport` out.
 | `mediapipe_analysis.py` | MediaPipe FaceMesh — 478 face landmarks. |
 | `pose_analysis.py` | MediaPipe Pose — shoulders/ears for neck length and posture. |
 | `opencv_metrics.py` | Geometry and image quality stats from landmarks. |
+| `visual_age.py` | Skin-heuristic `visualAge` (base 28 + LAB nudges; ageRange ±8 clamp). |
 | `face_crop.py` | Landmark groups, bounding boxes, crop helpers. |
 | `cv_report.py` | **Largest module** — all feature metrics + `build_cv_report()`. |
 | `eye_analysis.py` | Eye metrics (tilt, lids, sclera, under-eye, etc.). |

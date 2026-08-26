@@ -244,6 +244,26 @@ def cv_report_summary_for_narrative(
     return cv_report_summary(cv_report, metrics, include_numeric_scores=False)
 
 
+def cv_labels_for_feature_highlights(cv_report: Optional[dict]) -> str:
+    """Qualitative labels only for Merkmalsbewertung prompts — no ratios, scores, or explanations."""
+    report = cv_report or {}
+    face = report.get("faceShape") or {}
+    cheeks = report.get("cheeks") or {}
+    jaw = report.get("jaw") or report.get("jawChin") or {}
+    chin = report.get("chin") or {}
+    hair = report.get("hair") or {}
+    skin = report.get("skin") or {}
+    lines = [
+        f"Face shape: {face.get('shape') or 'oval'}",
+        f"Cheekbones: {cheeks.get('cheekboneHeightLabel') or cheeks.get('prominenceLabel') or cheeks.get('scoreLabel') or 'defined'}",
+        f"Jawline: {jaw.get('jawlineDefinition') or jaw.get('jawShape') or jaw.get('scoreLabel') or 'defined'}",
+        f"Chin: {chin.get('chinType') or chin.get('scoreLabel') or 'distinct'}",
+        f"Hair: {hair.get('scoreLabel') or hair.get('classification') or 'balanced density'}",
+        f"Skin: {skin.get('toneLabel') or skin.get('texture') or skin.get('scoreLabel') or 'generally healthy with mild variation'}",
+    ]
+    return "\n".join(lines)
+
+
 def _profile_summary(answers: dict) -> str:
     profile = format_answers_summary(answers or {})
     return (

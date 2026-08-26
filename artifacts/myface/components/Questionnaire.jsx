@@ -1,6 +1,5 @@
 'use client'
 
-import { ChevronLeft } from 'lucide-react'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import {
@@ -377,7 +376,7 @@ export default function Questionnaire({ answers, setAnswers, onComplete, onBack,
             onClick={handlePrev}
             className="flex-1 flex items-center justify-start gap-2.5 px-6 py-3 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded-[50px] text-sm font-medium transition-all"
           >
-            <ChevronLeft className="w-4 h-4 shrink-0" aria-hidden />
+            <span aria-hidden>←</span>
             <span className="text-slate-300 dark:text-slate-700">|</span>
             <span>{t('common.back').replace(/^←\s*/, '')}</span>
           </button>

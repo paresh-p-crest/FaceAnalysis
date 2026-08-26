@@ -11,6 +11,7 @@ from .profile_cephalometrics import build_profile_report, _naso_aural_explanatio
 from .quarter_analysis import build_quarter_report
 from .smile_analysis import analyze_smile_photo
 from .hair_analysis import analyze_hair_photo
+from .visual_age import estimate_visual_age
 from . import cv_report_explanations_de as expl_de
 
 
@@ -163,6 +164,13 @@ def run_local_cv_path(
     metrics = compute_metrics_from_landmarks(landmarks, answers, image_stats)
     eye_analysis = analyze_eyes(landmarks, photo_bytes)
     cv_report = build_cv_report(landmarks, photo_bytes, metrics, photos, answers)
+    age_est = estimate_visual_age(answers, cv_report.get("skin"))
+    metrics["visualAge"] = age_est["visualAge"]
+    metrics["visualAgeSource"] = age_est["visualAgeSource"]
+    overall = cv_report.get("overall")
+    if isinstance(overall, dict):
+        overall["visualAge"] = age_est["visualAge"]
+        overall["visualAgeSource"] = age_est["visualAgeSource"]
     brow_metrics = (cv_report.get("eyebrows") or {}).get("metrics") or {}
     cv_report["eyes"] = assemble_eyes_region(landmarks, photo_bytes, brow_metrics, eye_analysis)
     cv_report = _enrich_cv_report(cv_report, answers, photos, multi_view)

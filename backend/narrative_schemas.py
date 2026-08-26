@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -146,6 +147,11 @@ TREATMENT_PHASE_SUMMARY_MAX = 280
 TREATMENT_PHASE_ITEMS_MIN = 1
 TREATMENT_PHASE_ITEMS_MAX = 3
 
+# Merkmalsbewertung: soft prompt ~280; store up to MAX (sentence-clamp only if over).
+FEATURE_HIGHLIGHT_BULLET_MIN = 40
+FEATURE_HIGHLIGHT_BULLET_SOFT = 280
+FEATURE_HIGHLIGHT_BULLET_MAX = 500
+
 
 class FeatureSubsection(BaseModel):
     title: str
@@ -205,6 +211,59 @@ class FeatureNarrative(BaseModel):
 
 class ProtocolOverview(BaseModel):
     summary: str = Field(..., min_length=40, max_length=500)
+
+
+class ProtocolFeatureHighlights(BaseModel):
+    """Two Merkmalsbewertung bullets for protocol page-1 (face structure + hair/skin).
+
+    Soft target ~FEATURE_HIGHLIGHT_BULLET_SOFT; store full sentences up to MAX.
+    Display (PDF/HTML) sentence-truncates to fit — never mid-sentence store trim.
+    """
+
+    bullets: list[str] = Field(..., min_length=2, max_length=2)
+
+    @field_validator("bullets")
+    @classmethod
+    def strip_and_bound_bullets(cls, v: list[str]) -> list[str]:
+        out: list[str] = []
+        for item in v:
+            text = (item or "").strip()
+            if len(text) < FEATURE_HIGHLIGHT_BULLET_MIN:
+                raise ValueError(
+                    f"each highlight bullet must be at least {FEATURE_HIGHLIGHT_BULLET_MIN} characters"
+                )
+            if len(text) > FEATURE_HIGHLIGHT_BULLET_MAX:
+                text = _clamp_highlight_at_sentences(text, FEATURE_HIGHLIGHT_BULLET_MAX)
+            if len(text) < FEATURE_HIGHLIGHT_BULLET_MIN:
+                raise ValueError(
+                    f"each highlight bullet must be at least {FEATURE_HIGHLIGHT_BULLET_MIN} characters"
+                )
+            out.append(text)
+        if len(out) != 2:
+            raise ValueError("featureHighlights requires exactly 2 bullets")
+        return out
+
+
+def _clamp_highlight_at_sentences(text: str, max_len: int) -> str:
+    """Keep leading full sentences that fit under max_len (no mid-sentence chop)."""
+    if len(text) <= max_len:
+        return text
+    spaced = re.sub(r"([.!?])([A-ZÄÖÜÀ-ÖØ-Þ])", r"\1 \2", text)
+    sentences = re.findall(r".+?[.!?](?:\s+|$)|.+$", spaced) or [spaced]
+    kept = ""
+    for sentence in sentences:
+        piece = sentence.strip()
+        if not piece:
+            continue
+        candidate = f"{kept} {piece}".strip() if kept else piece
+        if len(candidate) > max_len:
+            break
+        kept = candidate
+    if kept:
+        return kept
+    # First sentence alone exceeds max — keep whole first sentence (display will fit).
+    first = (sentences[0] or spaced).strip()
+    return first if first else text[:max_len]
 
 
 class TreatmentPhaseItem(BaseModel):
@@ -318,6 +377,26 @@ def protocol_overview_json_schema() -> dict:
             "summary": {"type": "string", "minLength": 40, "maxLength": 500},
         },
         "required": ["summary"],
+        "additionalProperties": False,
+    }
+
+
+def protocol_feature_highlights_json_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "bullets": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                    "type": "string",
+                    "minLength": FEATURE_HIGHLIGHT_BULLET_MIN,
+                    "maxLength": FEATURE_HIGHLIGHT_BULLET_MAX,
+                },
+            },
+        },
+        "required": ["bullets"],
         "additionalProperties": False,
     }
 

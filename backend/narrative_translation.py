@@ -86,6 +86,11 @@ _OVERVIEW_FALLBACK_DE = (
     "Dieses evidenzbasierte, nicht-invasive Protokoll basiert auf deinen gemessenen Gesichtsdaten."
 )
 
+_FEATURE_HIGHLIGHTS_FALLBACK_DE = (
+    "Du hast ein ovales Gesicht mit ausgeprägten Wangenknochen, einer klar geformten Kieferlinie und einem markanten Kinn.",
+    "Dazu kommen ein voller Haaransatz, eine wenig sichtbare Stirn und insgesamt gute Haut mit leicht ungleichmäßigem Hautton.",
+)
+
 # Longest-first exact phrases only. Never substring-replace "base".
 DE_EXACT_GLOSSARY: tuple[tuple[str, str], ...] = (
     ("alar base", "Nasenflügelbasis"),
@@ -924,6 +929,22 @@ async def translate_protocol_section_de(
         else:
             de_block["summary"] = _OVERVIEW_FALLBACK_DE
             de_block["summaryOrigin"] = "template"
+        highlights = pn.get("featureHighlights") or []
+        highlights_origin = pn.get("featureHighlightsOrigin")
+        if should_llm_translate_en(highlights_origin) and len(highlights) >= 2:
+            try:
+                de_block["featureHighlights"] = [
+                    await translate_text_en_to_de(highlights[0], label="feature_highlight_0_de"),
+                    await translate_text_en_to_de(highlights[1], label="feature_highlight_1_de"),
+                ]
+                de_block["featureHighlightsOrigin"] = "llm"
+            except Exception:
+                logger.exception("DE featureHighlights translation failed")
+                de_block["featureHighlights"] = list(_FEATURE_HIGHLIGHTS_FALLBACK_DE)
+                de_block["featureHighlightsOrigin"] = "template"
+        elif highlights:
+            de_block["featureHighlights"] = list(_FEATURE_HIGHLIGHTS_FALLBACK_DE)
+            de_block["featureHighlightsOrigin"] = "template"
         pn["de"] = de_block
     elif section_id == "closing":
         de_block = dict(pn.get("de") or {})
@@ -1048,6 +1069,25 @@ async def ensure_narrative_translations(assessment: dict, *, force: bool = False
         elif pn.get("summary"):
             de_pn["summary"] = _OVERVIEW_FALLBACK_DE
             de_pn["summaryOrigin"] = "template"
+
+    # Merkmalsbewertung bullets
+    highlights = pn.get("featureHighlights") or []
+    highlights_origin = pn.get("featureHighlightsOrigin")
+    if force or not de_pn.get("featureHighlights"):
+        if should_llm_translate_en(highlights_origin) and len(highlights) >= 2:
+            try:
+                de_pn["featureHighlights"] = [
+                    await translate_text_en_to_de(highlights[0], label="feature_highlight_0_de"),
+                    await translate_text_en_to_de(highlights[1], label="feature_highlight_1_de"),
+                ]
+                de_pn["featureHighlightsOrigin"] = "llm"
+            except Exception:
+                logger.exception("DE featureHighlights batch translation failed")
+                de_pn["featureHighlights"] = list(_FEATURE_HIGHLIGHTS_FALLBACK_DE)
+                de_pn["featureHighlightsOrigin"] = "template"
+        elif highlights:
+            de_pn["featureHighlights"] = list(_FEATURE_HIGHLIGHTS_FALLBACK_DE)
+            de_pn["featureHighlightsOrigin"] = "template"
 
     # Closing
     closing_origin = pn.get("closingOrigin")

@@ -58,6 +58,8 @@ Indexes: unique `email`, `role`.
 ### Analysis JSON (`analysis`)
 Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolWarnings`, etc. (see prior MediaPipe/`cvReport` documentation). Stored as JSONB — not normalized into metric tables.
 
+**Facial age:** `metrics.visualAge` (int) and `metrics.visualAgeSource` (`"skin-heuristic"`) are set after skin LAB in `run_local_cv_path` (`backend/visual_age.py`). Also mirrored on `cvReport.overall.visualAge` / `visualAgeSource`. No dedicated age column.
+
 ### Generated text (latest-only)
 | Surface | Column / table | Locale |
 |---------|----------------|--------|
@@ -68,7 +70,7 @@ Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolW
 | Async pipeline state | `pipeline` (`status`, `stage`, `attempts`, timestamps) |
 | SegFormer parsing (interactive only) | `feature_parsing` (`crops`, `metrics`, `scaleNote`); `parsing/*.jpg` — front white-mask (incl. neck) / rect chin·cheeks·jaw; lips from front DB landmarks; smile from smile mesh; earsLeft/earsRight from profiles |
 | Projected AFTER (protocol/PDF) | `projected_after` (`status`, `full.publicUrl` → `projected/full.jpg` or `full.png`) |
-| Projected AFTER CV (immutable sibling of BEFORE) | `projected_analysis` (`status`, `cvReport`, `landmarks`, `metrics`, `eyeAnalysis`, `source: projected_full`) — never writes into `analysis` |
+| Projected AFTER CV (immutable sibling of BEFORE) | `projected_analysis` (`status`, `cvReport`, `landmarks`, `metrics`, `eyeAnalysis`, `source: projected_full`) — never writes into `analysis`. When `status=ready`, `metrics.visualAge` / `visualAgeSource` are the AFTER-image heuristic (same `run_face_analysis` as BEFORE). |
 | Beauty Assistant | `conversations` + `conversation_messages` |
 
 **German narrative nesting (ADR-042):** no new columns. `ai_narrative.contentDe` mirrors `content`; `protocol_narrative.de` holds `{ summary, closing[], treatmentPhases?, origin }`; each `feature_narratives[id].de` holds `{ summary, subsections[], origin }`. Disk backup `assessments/{id}/protocol.json` stores the same nested shape. `origin` / `contentDeOrigin` values: `llm` | `template` | `stitch` | `admin`.

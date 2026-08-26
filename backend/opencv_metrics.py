@@ -92,7 +92,7 @@ def compute_metrics_from_landmarks(landmarks: list, answers: Optional[dict] = No
         "symmetry": "85.0", "proportionality": "82.0", "averageness": "78.0",
         "jawlineAngle": "120", "eyebrowTilt": "3.5", "nasalAngle": "95",
         "canthalTilt": "4.8", "upperThird": "0.33", "middleThird": "0.34",
-        "lowerThird": "0.33", "visualAge": 28, "harmonyScore": "84",
+        "lowerThird": "0.33", "visualAge": None, "harmonyScore": "84",
         "source": "mediapipe",
     }
 
@@ -161,10 +161,7 @@ def compute_metrics_from_landmarks(landmarks: list, answers: Optional[dict] = No
         brightness * 0.07
     ))
 
-    # Visual age estimate from proportions
-    face_ratio = dist(jaw_pts(landmarks)) if False else face_w / (face_h or 0.3)
-    visual_age = 28  # baseline
-
+    # visualAge is overwritten in analyze_face after skin LAB (see visual_age.py).
     return {
         **fallback,
         "symmetry": symmetry,
@@ -176,11 +173,6 @@ def compute_metrics_from_landmarks(landmarks: list, answers: Optional[dict] = No
         "eyebrowTilt": str(eyebrow_tilt),
         "jawlineAngle": jawline_angle,
         "harmonyScore": str(harmony),
-        "visualAge": visual_age,
+        "visualAge": None,
         "source": "mediapipe",
     }
-
-
-def jaw_pts(landmarks):
-    """Placeholder — not used in metrics path."""
-    return landmarks[0]

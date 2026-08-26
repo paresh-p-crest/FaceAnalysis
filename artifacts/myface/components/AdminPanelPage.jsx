@@ -17,7 +17,6 @@ import {
 import {
   deleteAssessment,
   deleteAdminUser,
-  fetchAssessment,
   isBackendApiEnabled,
   updateAssessmentStatus,
 } from '../utils/apiClient'
@@ -295,14 +294,10 @@ export default function AdminPanelPage({ user, onViewCloudItem, activeTab }) {
     return <span className="text-xs text-amber-700">{t('unlinkedReport')}</span>
   }
 
-  const handleOpenAssessment = async (assessment) => {
+  const handleOpenAssessment = (assessment) => {
     setError('')
-    try {
-      const full = await fetchAssessment(assessment.id)
-      onViewCloudItem?.(full)
-    } catch (err) {
-      setError(translateApiError(err, tErrors))
-    }
+    // Let viewCloudAssessment paint Opening… immediately (no pre-fetch delay).
+    void (onViewCloudItem || viewCloudAssessment)?.(assessment)
   }
 
   const renderReportRow = (assessment, { showStatus = false } = {}) => {

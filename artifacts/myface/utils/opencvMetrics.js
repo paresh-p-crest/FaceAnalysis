@@ -36,7 +36,7 @@ export function computeMetricsFromLandmarks(landmarks, answers, imageStats = {})
     upperThird: '0.33',
     middleThird: '0.34',
     lowerThird: '0.33',
-    visualAge: 28,
+    visualAge: null,
     harmonyScore: '84',
     source: 'mediapipe',
   }
@@ -125,7 +125,7 @@ export function computeMetricsFromLandmarks(landmarks, answers, imageStats = {})
     upperThird,
     middleThird,
     lowerThird,
-    visualAge: 24 + Math.round((1 - sharpness / 100) * 12),
+    visualAge: null, // set by backend visual_age after skin LAB
     harmonyScore: String(harmonyScore),
     source: 'mediapipe+opencv',
     landmarkCount: landmarks.length,

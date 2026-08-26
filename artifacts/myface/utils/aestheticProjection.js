@@ -215,7 +215,11 @@ function getFeatureBox(landmarks, featureKey) {
       const halfW = Math.max(0.09, Math.min((medialX - cheek.x) * 0.42, h * 0.7))
       const x0 = Math.max(0, cheekCenterX - halfW)
       const x1 = Math.min(1, medialX, cheekCenterX + halfW)
-      return { x: x0, y: y0, w: Math.max(0.1, x1 - x0), h: Math.max(0.08, h) }
+      // Mild zoom-out around the same cheek center (pair / AFTER tiles).
+      return expandBoxFromCenter(
+        { x: x0, y: y0, w: Math.max(0.1, x1 - x0), h: Math.max(0.08, h) },
+        1.12,
+      )
     }
     case 'neck': {
       // Lower face + neck: nostrils through jaw to collar (not a thin under-chin strip)
@@ -262,6 +266,20 @@ function expandBoxToMinSize(box, minPx, canvasW, canvasH) {
   if (x + w > canvasW) x = canvasW - w
   if (y + h > canvasH) y = canvasH - h
   return { x: x / canvasW, y: y / canvasH, w: w / canvasW, h: h / canvasH }
+}
+
+/** Enlarge a normalized box around its center (`zoomOut` > 1 → less zoom). */
+export function expandBoxFromCenter(box, zoomOut = 1) {
+  if (!box || !Number.isFinite(zoomOut) || zoomOut <= 1) return box
+  const w = Math.min(1, box.w * zoomOut)
+  const h = Math.min(1, box.h * zoomOut)
+  let x = box.x + box.w / 2 - w / 2
+  let y = box.y + box.h / 2 - h / 2
+  if (x < 0) x = 0
+  if (y < 0) y = 0
+  if (x + w > 1) x = 1 - w
+  if (y + h > 1) y = 1 - h
+  return { x, y, w, h }
 }
 
 function cropDataUrl(canvas, box, minPx = 0) {
@@ -726,7 +744,7 @@ export async function cropFeatureBefore(imageSrc, landmarks, featureKey, zoomIn 
  * BEFORE/AFTER pair framing for skin: box centered between nose tip and upper lip,
  * slightly zoomed out vs a tight cheek crop (`zoomOut` > 1 → larger box → less zoom).
  */
-export function getMidfacePairBox(landmarks, zoomOut = 1.22) {
+export function getMidfacePairBox(landmarks, zoomOut = 1.35) {
   const lmArr = landmarksFromOverlay(landmarks)
   if (!lmArr?.length) return null
   const face = bboxFullFace(lmArr, 0.02)
@@ -734,7 +752,7 @@ export function getMidfacePairBox(landmarks, zoomOut = 1.22) {
   const upperLip = lm(lmArr, 13)
   const cx = (nose.x + upperLip.x) / 2
   const cy = (nose.y + upperLip.y) / 2
-  const z = Number.isFinite(zoomOut) && zoomOut > 0 ? zoomOut : 1.22
+  const z = Number.isFinite(zoomOut) && zoomOut > 0 ? zoomOut : 1.35
   let w = Math.min(1, face.w * 0.78 * z)
   let h = Math.min(1, face.h * 0.7 * z)
   let x = cx - w / 2
@@ -747,12 +765,24 @@ export function getMidfacePairBox(landmarks, zoomOut = 1.22) {
 }
 
 /** Crop AFTER for side-by-side pair: midface center, reduced zoom. */
-export async function cropAfterMidfaceForPair(imageSrc, landmarks, { zoomOut = 1.22, minPx = 0 } = {}) {
+export async function cropAfterMidfaceForPair(imageSrc, landmarks, { zoomOut = 1.35, minPx = 0 } = {}) {
   const lmArr = landmarksFromOverlay(landmarks)
   const base = await normalizeToJpegDataUrl(imageSrc)
   const box = getMidfacePairBox(lmArr, zoomOut)
   if (!box) return base
 
+  const img = await loadImage(base)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+  return cropDataUrl(canvas, box, minPx)
+}
+
+/** Crop a precomputed normalized box from an image (same center, caller may expand first). */
+export async function cropImageToNormalizedBox(imageSrc, box, minPx = 0) {
+  if (!box) return null
+  const base = await normalizeToJpegDataUrl(imageSrc)
   const img = await loadImage(base)
   const canvas = document.createElement('canvas')
   canvas.width = img.width

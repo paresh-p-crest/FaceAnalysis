@@ -304,8 +304,8 @@ export async function resolveFeatureImageSlots({
       }
     }
     case 'skin': {
-      // `before` = wide cheek crop for the PDF half-split (unchanged framing).
-      // `pairBefore` = tight single-cheek crop (eye→lips, nose excluded) for the side-by-side pair.
+      // `before` = stored wide cheek crop for the PDF half-split (pre–zoom-out framing).
+      // `pairBefore` = single-cheek crop with mild zoom-out via getFeatureBox('skin').
       const tight = await resolveFeatureBeforeImage({ featureId: 'skin', photoJpeg, landmarks, cvReport, eyeAnalysis, photos })
       const wide = storedCrop(cvReport, eyeAnalysis, 'skin') || photoJpeg || tight
       return { before: wide, pairBefore: tight || wide }

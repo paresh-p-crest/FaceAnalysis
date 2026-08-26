@@ -431,7 +431,7 @@
       }
     },
     "protocolModel": {
-      "limitations": "Einschränkungen: Kopfhaltung, Beleuchtung, Kameraqualität und fehlende Röntgenaufnahmen können die Messungen beeinflussen. Dieser Bericht stellt keine medizinische Diagnose dar. Die Empfehlungen sind empirische Leitlinien auf Grundlage der individuellen Gesichtsmessungen.",
+      "limitations": "Kopfhaltung, Beleuchtung, Kameraqualität und fehlende Röntgenaufnahmen können die Messungen beeinflussen. Dieser Bericht stellt keine medizinische Diagnose dar. Die Empfehlungen sind empirische Leitlinien auf Grundlage der individuellen Gesichtsmessungen.",
       "understandingResults": {
         "p1": "Diese Empfehlungen konzentrieren sich auf zentrale Merkmale der Hautgesundheit und Gesichtsharmonie. Ziel ist nicht, individuelle Merkmale zu verändern, sondern zu verstehen, was am besten zu den vorhandenen Merkmalen passt.",
         "p2": "MyFace bewertet keine Attraktivität. Die Analyse zeigt anhand objektiver kephalometrischer Messungen, was zu den individuellen Merkmalen der Person passt, statt einen einzigen Universalstandard anzuwenden.",
@@ -458,6 +458,7 @@
       "protocolLeadAfter": "Die Analyse ist darauf ausgelegt, möglichst objektiv zu sein. Anstatt dich mit einem universellen Ideal zu vergleichen, zeigt sie Stärken und Bereiche mit Optimierungspotenzial auf und berücksichtigt, dass die individuellen Merkmale jedes Menschen unterschiedliche Möglichkeiten bieten.",
       "protocolFeaturesIntro": "Dieser Bericht ist nach 11 zentralen Merkmalen der Gesichtsästhetik gegliedert:",
       "skinIntro": "Der Zustand deiner Gesichtshaut ist ein wichtiger Bestandteil des Gesamterscheinungsbildes und eines der zentralen Merkmale eines jugendlichen Hautbildes. Um das Erscheinungsbild der Haut zu verbessern und ihre Gesundheit zu unterstützen, werden folgende Schritte empfohlen:",
+      "treatmentProtocol": "Behandlungsprotokoll",
       "chartClientValues": "Kundenwerte",
       "chartProjectedPotential": "Projiziertes Potenzial",
       "chartAxes": {
@@ -542,6 +543,8 @@
       "protocolLabel": "PROTOKOLL",
       "protocolIdLine": "PROTOKOLL #{id}",
       "namePlateAssessed": "Bewertet am {date}",
+      "namePlateCustomer": "Kunde",
+      "namePlateProtocolBrand": "MyFace Protokoll / Report",
       "namePlateOverallScore": "Gesamt {score}/100",
       "namePlateViewReport": "Vollständigen Bericht anzeigen",
       "pdfButton": "PDF",
@@ -560,34 +563,42 @@
       "heroTitlePrefix": "Deine",
       "heroTitleAccent": "Gesichtsanalyse",
       "heroBody": "Wissenschaftliche Gesichtsanalyse und regionale Bewertung auf Basis gemessener Morphologie.",
+      "heroGlance": "Alle ausgewerteten Bereiche auf einen Blick.",
       "heroSummaryLabel": "Dein Zusammenfassungs-Score",
       "heroFeatures": {
         "0": {
-          "title": "Gemessene Morphologie",
-          "detail": "CV-basierte regionale Indizes"
+          "title": "Gemessene Gesichtsmerkmale",
+          "detail": "Mehr als 170 sichtbare Punkte"
         },
         "1": {
           "title": "Projiziertes Potenzial",
-          "detail": "Vorher-/Nachher-Visualisierung"
+          "detail": "Vergleich von Vorher und Potenzial"
         },
         "2": {
-          "title": "Gestuftes Protokoll",
-          "detail": "Nicht-chirurgischer Phasenplan"
+          "title": "Persönlicher Plan",
+          "detail": "Klare Schritte ohne Eingriff"
         }
       },
       "treatmentProtocol": "Behandlungsprotokoll",
       "hinweis": "Hinweis: Empfehlungen sind informativ und nicht-invasiv. Sprich vor jeder klinischen Behandlung mit einem qualifizierten Dermatologen.",
       "footerModel": "MyFace · Modell v3.2",
       "footerMetrics": "{points} Auswertungspunkte",
+      "footerBrand": "MyFace Protokoll / Report",
       "faceMap": {
-        "forehead": "STIRN",
-        "eyes": "AUGEN",
-        "eyeL": "AUGE L",
-        "eyeR": "AUGE R",
-        "nose": "NASE",
-        "cheeks": "WANGEN",
-        "mouth": "MUND",
-        "jawline": "KIEFERLINIE"
+        "hair": "Haare",
+        "forehead": "Stirn",
+        "eyes": "Augen",
+        "ears": "Ohren",
+        "skin": "Haut",
+        "eyeL": "Auge L",
+        "eyeR": "Auge R",
+        "nose": "Nase",
+        "cheeks": "Wangen",
+        "mouth": "Mund",
+        "jaw": "Kiefer",
+        "jawline": "Kieferlinie",
+        "chin": "Kinn",
+        "neck": "Hals"
       },
       "priorityFeatures": "Prioritäre Merkmale zur Verbesserung",
       "miniCards": {
@@ -694,6 +705,8 @@
       "landmarksAlt": "Messpunkt-Overlay",
       "potentialScan": "Potenzial-Scan",
       "facialAge": "Gesichtsalter",
+      "ageProfile": "Altersprofil",
+      "potentialAgeProfile": "Potenzialprofil",
       "facialAgeVsBio": "Gesichtsalter vs. biologischer Altersbereich",
       "ageOutlier": "Ausreißer",
       "harmonyProfile": "Harmonieprofil und Überblick",
@@ -2283,8 +2296,8 @@
     "policy": "Richtlinie",
     "disclaimerPolicy": "Hinweisrichtlinie",
     "privacyPolicy": "Datenschutzerklärung",
-    "readPrivacyPrefix": "Lies die vollständige Datenschutzerklärung",
-    "privacyLink": "hier (myface.de/datenschutzerklaerung)",
+    "readPrivacyPrefix": "Vollständige Datenschutzerklärung:",
+    "privacyLink": "myface.de/datenschutzerklaerung",
     "companyName": "MyFace Inc",
     "commissionedFor": "Der folgende Bericht wurde erstellt für",
     "commissionedOn": "{name} im {month}.",
@@ -2303,7 +2316,9 @@
     "dashKpiAnalysisTime": "Analysezeit",
     "dashKpiAnalysisTimeFallback": "-",
     "dashFacialAge": "Gesichtsalter",
-    "dashFacialAgeLabel": "CV-SCHÄTZUNG",
+    "dashAgeProfile": "Altersprofil",
+    "dashPotentialAgeProfile": "Potenzialprofil",
+    "dashFacialAgeLabel": "Geschätzt",
     "dashFacialAgeVsBio": "Gesichtsalter vs. biologischer Altersbereich",
     "dashAgeOutlier": "Ausreißer",
     "dashFace": "FACE",
@@ -2323,6 +2338,7 @@
     "dashTreatmentProtocol": "Behandlungsprotokoll",
     "dashHinweis": "Hinweis: Empfehlungen sind informativ und nicht-invasiv. Sprich vor jeder klinischen Behandlung mit einem qualifizierten Dermatologen.",
     "dashFooterModel": "MyFace · Modell v3.2",
+    "dashFooterBrand": "MyFace Protokoll / Report",
     "dashFooterMetrics": "{points} Auswertungspunkte",
     "dashFaceMapForehead": "STIRN",
     "dashFaceMapEyes": "AUGEN",

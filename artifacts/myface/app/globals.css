@@ -1230,11 +1230,33 @@
   }
 
   .report-protocol-dashboard-center {
-    @apply flex flex-col min-h-0;
+    @apply flex flex-col gap-2.5 min-h-0;
   }
 
   .report-protocol-dashboard-grid {
-    @apply grid grid-cols-3 gap-2 flex-1 min-h-0 text-[8px];
+    @apply grid grid-cols-3 gap-2 shrink-0 text-[8px];
+  }
+
+  /* Page-1: wider center; right analysis card 0.95fr */
+  .report-protocol-dashboard-grid--v2 {
+    grid-template-columns: 0.8fr 1.65fr 0.95fr;
+  }
+
+  .report-protocol-dashboard-right {
+    @apply flex flex-col min-h-0;
+  }
+
+  /* Content-sized under columns; roomy padding for a larger page block */
+  .report-protocol-dashboard-overview {
+    @apply rounded-lg border border-surface-border bg-white dark:bg-surface-card px-6 py-6 mt-2 mb-3 shrink-0 min-h-[5.5rem];
+  }
+
+  .report-protocol-dashboard-overview .report-pdf-label {
+    @apply text-[8.5px] font-bold text-ink-muted tracking-normal normal-case mb-3;
+  }
+
+  .report-protocol-dashboard-overview .report-pdf-body-text {
+    @apply mt-0 text-[8px] leading-[1.5] text-ink;
   }
 
   .report-protocol-dashboard-map {
@@ -1243,25 +1265,11 @@
   }
 
   .report-protocol-dashboard-hero {
-    @apply text-[6px];
+    @apply shrink-0;
   }
 
   .report-protocol-dashboard-hero h2 {
-    @apply text-[9px] leading-tight;
-  }
-
-  .report-protocol-dashboard-hero p,
-  .report-protocol-dashboard-hero li {
-    @apply text-[5.5px] leading-snug;
-  }
-
-  .report-protocol-dashboard-hero .min-h-\[160px\] {
-    min-height: 3.75rem;
-    max-height: 5rem;
-  }
-
-  .report-protocol-dashboard-hero span {
-    @apply text-[3px] px-0.5;
+    @apply text-[11px] leading-tight;
   }
 
   .report-protocol-dashboard-map-labels {
@@ -1273,11 +1281,11 @@
   }
 
   .report-protocol-dashboard-pair {
-    @apply grid grid-cols-2 gap-1 mb-2;
+    @apply grid grid-cols-2 gap-1.5 mb-0;
   }
 
   .report-protocol-dashboard-photo {
-    @apply relative aspect-[3/4] rounded overflow-hidden bg-surface-warm border border-surface-border;
+    @apply relative aspect-[3/4] min-h-[118px] rounded overflow-hidden bg-surface-warm border border-surface-border;
   }
 
   .report-protocol-dashboard-photo span {
@@ -1289,7 +1297,39 @@
   }
 
   .report-protocol-dashboard-panel {
-    @apply rounded border border-surface-border bg-surface-warm p-2 mb-2;
+    @apply rounded-lg border border-surface-border bg-surface-warm p-2.5 mb-0;
+  }
+
+  .report-protocol-dashboard-panel--age {
+    @apply px-3 py-3;
+  }
+
+  .report-protocol-dashboard-panel--harmony {
+    @apply px-2.5 pt-3 pb-3.5;
+  }
+
+  .report-protocol-dashboard-merkmals-card {
+    @apply rounded-lg border border-surface-border bg-white dark:bg-surface-card p-2.5;
+  }
+
+  .report-protocol-dashboard-merkmals-title {
+    @apply text-[9px] font-bold text-ink-muted tracking-normal normal-case mb-0;
+  }
+
+  .report-protocol-dashboard-merkmals-item {
+    @apply flex items-start gap-1.5;
+  }
+
+  .report-protocol-dashboard-merkmals-dot {
+    @apply mt-[4px] w-1.5 h-1.5 rounded-full bg-brand shrink-0;
+  }
+
+  .report-protocol-dashboard-merkmals-text {
+    @apply text-[8px] leading-snug text-ink;
+  }
+
+  .report-protocol-dashboard-merkmals {
+    @apply list-none m-0 p-0 mt-2.5 space-y-2.5;
   }
 
   .report-protocol-dashboard-panel--stack {
@@ -1321,11 +1361,11 @@
   }
 
   .report-protocol-dashboard-mini-lines {
-    @apply mt-1.5 pt-1.5 border-t border-surface-border space-y-1.5;
+    @apply mt-1.5 pt-2 border-t border-surface-border divide-y divide-surface-border;
   }
 
   .report-protocol-dashboard-mini-finding {
-    @apply flex items-start justify-between gap-1;
+    @apply flex items-start justify-between gap-1 py-2.5;
   }
 
   .report-protocol-dashboard-mini-finding-title {
@@ -1345,7 +1385,7 @@
   }
 
   .report-protocol-dashboard-footer {
-    @apply flex justify-between gap-2 pt-2 mt-auto text-[7px] text-ink-muted border-t border-surface-border;
+    @apply flex justify-between gap-2 pt-2 mt-auto shrink-0 text-[7px] text-ink-muted border-t border-surface-border;
   }
 
   .report-view-a4-inner {
@@ -1437,6 +1477,22 @@
     margin-top: 4px;
   }
 
+  .report-pdf-cols--divider {
+    position: relative;
+  }
+
+  .report-pdf-cols--divider::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 0.75px;
+    background: #ececec;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
   .report-pdf-cols--bottom {
     margin-top: var(--report-pdf-section-gap);
   }
@@ -1464,6 +1520,103 @@
 
   .report-pdf-feature-fill {
     margin-top: 4px;
+  }
+
+  /* Nose: summary snug under left body (fixed gap; height from copy) */
+  .report-pdf-cols--nose {
+    align-items: start;
+  }
+
+  .report-pdf-nose-left {
+    gap: calc(var(--report-pdf-section-gap) * 2.5);
+  }
+
+  /* Jaw: hard gap under B/A; bottom row not page-pinned; left title ≈ card title */
+  .report-pdf-jaw-bottom {
+    margin-top: var(--report-pdf-image-text-gap);
+    align-items: start;
+  }
+
+  .report-pdf-jaw-bottom > :first-child {
+    /* Match summary card pad (p-3) so "Weitere Optimierung" lines up with card title */
+    padding-top: 12px;
+  }
+
+  /* Chin / ears: two-col body — body lines share the same top under the heading */
+  .report-pdf-chin-body .report-pdf-cols--top {
+    align-items: start;
+  }
+
+  .report-pdf-chin-cols-right {
+    /* Match .report-pdf-label height + margin so right body lines up with left body */
+    padding-top: calc(10px + 8px);
+  }
+
+  /* Skin: left ~2/3 (images | copy, Weitere under) + right phases */
+  .report-pdf-skin-layout {
+    display: grid;
+    grid-template-columns: 2.3fr 1fr;
+    gap: 12px;
+    align-items: start;
+    margin-top: 4px;
+  }
+
+  /* Skin only: narrow tiles — wrap pending label instead of overflowing into copy */
+  .report-pdf-skin-layout .report-pdf-image-empty {
+    @apply text-[6px] leading-tight px-1.5;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .report-pdf-skin-layout .report-pdf-ba-row .report-pdf-image-tag {
+    @apply text-[6px] px-1 py-0.5;
+    top: 8px;
+    left: 8px;
+  }
+
+  .report-pdf-skin-main {
+    @apply flex flex-col min-w-0;
+    gap: var(--report-pdf-section-gap);
+  }
+
+  .report-pdf-skin-top {
+    display: grid;
+    grid-template-columns: 0.9fr 1.2fr;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .report-pdf-skin-mid {
+    gap: 12px;
+  }
+
+  .report-pdf-skin-further {
+    min-width: 0;
+  }
+
+  .report-pdf-skin-phases-inner {
+    font-family: var(--report-pdf-font);
+  }
+
+  .report-pdf-skin-phases-inner > p:first-child {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    color: #6b7280;
+    margin-bottom: 8px;
+  }
+
+  .report-pdf-skin-phases-inner .rounded-xl {
+    border-radius: 6px;
+    padding: 8px;
+  }
+
+  .report-pdf-skin-phases-inner .text-brand {
+    color: var(--color-brand, #5e9f8b);
   }
 
   .report-pdf-col-stack {
@@ -1514,6 +1667,67 @@
 
   .report-pdf-body-stack {
     @apply space-y-2;
+  }
+
+  /* Page 2: stacked disclaimer (boxed) → privacy → company */
+  .report-pdf-disclaimer-stack {
+    @apply flex flex-col min-h-0 flex-1;
+    margin-top: 4px;
+  }
+
+  .report-pdf-disclaimer-box {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 24px;
+  }
+
+  .report-pdf-disclaimer-privacy {
+    margin-top: 28px;
+  }
+
+  .report-pdf-privacy-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-family: var(--report-pdf-font);
+    font-size: 8px;
+    line-height: 11.5px;
+    font-weight: 700;
+    color: var(--color-brand, #5e9f8b);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .report-pdf-disclaimer-company {
+    margin-top: auto;
+    padding-top: 28px;
+  }
+
+  /* Page 3: intro columns + bottom limitations callout */
+  .report-pdf-intro-stack {
+    @apply flex flex-col min-h-0 flex-1;
+  }
+
+  .report-pdf-intro-limitations {
+    margin-top: 56px;
+  }
+
+  .report-pdf-toc {
+    @apply list-none p-0 m-0;
+  }
+
+  .report-pdf-toc-item {
+    @apply flex justify-between gap-4;
+    padding: 3px 0;
+  }
+
+  .report-pdf-toc-page {
+    font-family: var(--report-pdf-font);
+    font-size: 8.5px;
+    line-height: 11.5px;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
   }
 
   .report-pdf-tier {

@@ -5,9 +5,62 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Added
+- **Skin-heuristic facial age** — `metrics.visualAge` (+ `visualAgeSource: skin-heuristic`) from default base 28 + skin `roughnessRin` / under-eye darkness after LAB (`backend/visual_age.py`). Questionnaire `ageRange` only soft-clamps to midpoint ±8 (does not set the base). Written on front CV into `analysis` and on projected AFTER CV into `projected_analysis`. Neutral RIN 0.11. Replaces hardcoded 28.
 ### Changed
+- **Questionnaire footer Back/Next** — Back uses `←` to match Next’s `→` (header chevron unchanged).
+- **Open report button** — Show “Opening…” immediately on tap (`flushSync`); admin Open no longer pre-fetches before that UI update.
+- **Feature Evaluation LLM prompt** — Soft topic guide (not a rigid bullet split); natural flowing prose; omit missing cues instead of announcing them; no semicolons. Schema/labels/fallbacks unchanged.
+- **Protocol page 1 facial age** — Current = front `visualAge` (fallback 28); potential = AFTER `projectedAnalysis.metrics.visualAge` when ready (else current−5); display-clamped to `[current−8, current−1]` (if ≥ current → current−2). Shared `resolveProtocolFacialAges` for HTML + PDF; DB unchanged.
+- **Facial age label** — Protocol dashboard `dashFacialAgeLabel`: Estimated / Geschätzt (no longer “CV ESTIMATE”).
+- **Protocol PDF page 1 header** — Dot separator between protocol id and date (`#id  .  date`).
+- **Protocol page 1 analysis chips** — Label type matches Feature Evaluation body (HTML 8px / PDF 6.5pt).
+- **Protocol page 1 columns** — Right analysis card `0.95fr`; wider center; Facial Analysis chips size to label text (HTML + PDF).
+- **Protocol page 1 Merkmalsbewertung** — Store full bullets (soft ~280, hard max 500, sentence-clamp only); PDF/HTML display via `truncateAtSentences` (no mid-line/mid-sentence clip).
+- **Protocol page 1 name card** — Slightly shorter plate; name sits lower; Customer clustered with Protocol/Assessed at the bottom (HTML + PDF).
+- **Protocol page 1 name card** — More top padding on the name; Protocol/Assessed block pinned toward the plate bottom (HTML + PDF).
+- **Protocol page 1 priority features title** — More space under name card; larger title type (HTML + PDF).
+- **Protocol page 1 Überblick** — More height and padding (HTML + PDF).
+- **Protocol page 1 analysis face map** — Taller/wider photo, larger gap before fixed chips, face-centered cover crop (HTML + PDF).
+- **Protocol page 1 priority mini-cards** — More vertical padding between detail text and separator lines (HTML + PDF).
+- **Protocol page 1 name card** — Taller slate plate with roomier padding and stepped gaps (name → customer → brand → date; HTML + PDF).
+- **Protocol page 1 Überblick** — Content-sized with roomier padding (more page presence, still not flush to footer; HTML + PDF).
+- **Protocol page 1 Facial Age / Harmonieprofil spacing** — More gap under Facial Age title and between age rows; Harmony radar gets more top/bottom padding so the chart sits centered (HTML + PDF).
+- **Protocol page 1 Merkmalsbewertung** — Larger title/body type; more space under title and between the two bullets (HTML + PDF).
+- **Protocol page 1 priority mini-cards** — When a feature has 2+ detail rows, show hairline separators between them (HTML + PDF; matches client).
+- **Protocol page 1 Überblick** — Content-sized card (follows text); clear margin above footer (no longer stretched flush to page bottom; HTML + PDF).
+- **Protocol page 1 Facial Age** — Slightly thicker age bars; potential-profile age number uses mint brand green (HTML + PDF).
+- **Protocol page 1 analysis face map** — Dropped skin, cheeks, and mouth markers/labels; keep hair, forehead, eyes, ears, nose, jaw, chin, neck; smaller bowtie markers; labels stay evenly stacked; more gap between the 3 numbered steps (HTML + PDF).
+- **Protocol page 1 center spacing** — More padding/gaps in Gesichtsalter + Harmonieprofil (row spacing, radar label/legend breathing room; HTML + PDF).
+### Fixed
+- **Merkmalsbewertung DE + metrics** — DE locale no longer shows English/metric CV explanations; LLM prompts use labels only (no ratios/scores); fallbacks are qualitative EN/DE templates.
+### Changed
+- **Protocol page 1 Merkmalsbewertung** — Two prose bullets under Gesichtsanalyse (LLM `protocolNarrative.featureHighlights` + CV fallback; HTML + PDF; DE via `de.featureHighlights`).
+- **Protocol page 1 column widths** — Narrower right analysis card; wider center; larger VORHER/POTENZIAL pair (HTML + PDF).
+- **Protocol page 1 Überblick** — Starts under max of the 3 columns (not footer-pinned).
+- **Protocol page 1 Harmonieprofil** — Replaced 6-axis harmony radar with the same 11-axis feature radar as page 5 (client + projected series + legend; HTML + PDF).
+- **Protocol page 1 name card** — Left-aligned slate plate: uppercase name, customer label, MyFace Protocol/Report, assessed date (HTML + PDF); page-1 header loads centered MyFace wordmark PNG.
+- **Protocol page 1 analysis card labels** — Even tabular label stack (not Y-aligned to face); connector lines from bowtie markers to each label; hero steps sit directly under the photo (content-sized card, not bottom-pinned).
+- **Protocol page 1 analysis card** — Portrait capped to a compact headshot plate; tiny bowtie markers + tightly stacked side labels (HTML + PDF). Center column stays wider / right column narrower.
+- **Protocol PDF/HTML ears page** — Side-by-side VORHER/NACHHER under title; Ohrstruktur mid-sentence two-column body (same split as hair/chin); full-width summary bar (replaces left-text / stacked-images layout).
+- **Neck page summary** — Full-width mint summary bar under both columns (HTML + PDF); left-column card removed.
+- **Skin page B/A tiles** — Height fixed at 100; VORHER/NACHHER tag type slightly smaller (skin page only).
+- **Skin page split frame** — Half-split height raised further (~1.18× width; HTML height 220); width unchanged.
+- **Skin page B/A crop zoom** — Half-split restored to stored cheek crop (pre–zoom-out); VORHER/NACHHER pair mild zoom-out (1.22×) around the same cheek center.
+- **Skin page B/A image height** — Split frame and VORHER/NACHHER pair slightly taller (HTML + PDF).
+### Fixed
+- **Skin page pending-label overflow** — “Projiziertes Bild ausstehend” / “Projected image pending” wraps at 6pt inside narrow split + NACHHER frames (skin page only; PDF + HTML preview).
+### Changed
+- **Protocol PDF/HTML skin page** — Client layout: left ~69% (images ~44% / center copy nested; Weitere under) + right phases ~31%; full-width summary bar. Fixed missing `protocolModel.treatmentProtocol` i18n key.
+- **Protocol PDF/HTML chin page** — Side-by-side PROFIL frames under title; Kinn body mid-split into two columns below; then VORHER/NACHHER + full-width summary bar (replaces text-left / stacked-profiles layout).
+- **Protocol PDF/HTML jaw page** — Bottom Weitere Optimierung + Zusammenfassung no longer page-bottom pinned; fixed ~22pt gap under B/A; left title baseline aligns with summary card title; summary height follows copy.
+- **Protocol PDF/HTML nose page** — Mint Nase Zusammenfassung sits under left body with ~55pt gap; height follows summary copy (`stickToBottom: false`); right column is PROFIL + VORHER/NACHHER only.
+- **Protocol PDF/HTML hair page** — Side-by-side VORHER/NACHHER under title; Frisur and Haarausfall each use heading + mid-sentence two-column body; Norwood strip and bottom Haargesundheit + mint summary unchanged.
+- **Protocol PDF/HTML page 3 (introduction)** — Left column intro only; right column Inhaltsverzeichnis; vertical rule ends at taller column text; full-width light-grey Einschränkungen callout sits just below the rule (~56pt gap). Limitations body no longer repeats the section title prefix.
+- **Protocol PDF/HTML page 2 (disclaimer)** — Single-column stacked layout matching design: light-grey rounded Hinweisrichtlinie box, Datenschutzerklärung below with mint full-line privacy URL, MyFace Inc + commissioned line at bottom (replaces two-column divider layout).
 - **Landing paid-account import (merged canonical doc)** — Full spec lives only in root `Landing-Account-Import-API.md` (import API, password setup, Postgres mapping, acceptance criteria, open questions). `docs/architecture/myface-landing-account-import-api.md` is a pointer to that file.
 ### Fixed
+- **Chin two-column body alignment** — Right column body starts at the same Y as the left body under “Kinn” (not at the heading baseline).
 - **Hair/jaw bottom-row column width** — Restored equal `1fr / 1fr` grid cells (removed absolute card + half-width calc that narrowed Haargesundheit / Zusammenfassung).
 - **Hair / jaw / skin body clip mid-sentence** — `truncateAtSentences` (PDF + `pdfTextFit`) splits DE glued periods (`wollen.Ein`), joins with spaces, and never falls back to mid-word line cuts; Weitere Optimierung / Haargesundheit / Weitere Hautoptimierung keep whole sentences only.
 - **HTML jaw/hair last sentence = PDF** — Bottom row maps leftover height to PDF `PAGE_BOTTOM`, pins the mint card there, and shows `truncateAtSentences` copy (no CSS `overflow: clip` mid-word cuts). `reportPdf.js` still untouched.

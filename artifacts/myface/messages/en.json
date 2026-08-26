@@ -431,7 +431,7 @@
       }
     },
     "protocolModel": {
-      "limitations": "Limitations apply: neutral head position, lighting, camera quality, and the absence of radiographic imaging may influence measurements. This report is not a medical diagnosis. Recommendations throughout should be taken as empirical guidelines grounded in the subject's facial measurements.",
+      "limitations": "Neutral head position, lighting, camera quality, and the absence of radiographic imaging may influence measurements. This report is not a medical diagnosis. Recommendations throughout should be taken as empirical guidelines grounded in the subject's facial measurements.",
       "understandingResults": {
         "p1": "These recommendations focus on key markers of facial health and harmony. The goal is not to change what makes the subject unique, but to understand what works best with the subject's existing features.",
         "p2": "MyFace does not rate attractiveness. The assessment highlights what works best for the subject's features using objective cephalometric measurements rather than a single universal standard.",
@@ -458,6 +458,7 @@
       "protocolLeadAfter": "The analysis is designed to be objective. Instead of comparing the subject to a universal ideal, it highlights strengths and areas for improvement, recognizing that each person's features offer unique possibilities.",
       "protocolFeaturesIntro": "This report is organised around 11 key features for facial aesthetics:",
       "skinIntro": "The condition of the facial skin is a key part of overall appearance and one of the main signals of youth. To improve how the skin looks and support its health, the following steps are recommended:",
+      "treatmentProtocol": "Treatment Protocol",
       "chartClientValues": "Client Values",
       "chartProjectedPotential": "Projected Potential",
       "chartAxes": {
@@ -542,6 +543,8 @@
       "protocolLabel": "PROTOCOL",
       "protocolIdLine": "PROTOCOL #{id}",
       "namePlateAssessed": "Assessed {date}",
+      "namePlateCustomer": "Customer",
+      "namePlateProtocolBrand": "MyFace Protocol / Report",
       "namePlateOverallScore": "Overall {score}/100",
       "namePlateViewReport": "View full report",
       "pdfButton": "PDF",
@@ -560,34 +563,42 @@
       "heroTitlePrefix": "Your",
       "heroTitleAccent": "Facial Analysis",
       "heroBody": "Scientific facial analysis and regional assessment grounded in measured morphology.",
+      "heroGlance": "All evaluated areas at a glance.",
       "heroSummaryLabel": "Your summary score",
       "heroFeatures": {
         "0": {
-          "title": "Measured morphology",
-          "detail": "CV-based regional indices"
+          "title": "Measured facial features",
+          "detail": "More than 170 visible points"
         },
         "1": {
           "title": "Projected potential",
-          "detail": "Before/after visualization"
+          "detail": "Before and potential comparison"
         },
         "2": {
-          "title": "Staged protocol",
-          "detail": "Non-surgical phase plan"
+          "title": "Personal plan",
+          "detail": "Clear steps without intervention"
         }
       },
       "treatmentProtocol": "Treatment Protocol",
       "hinweis": "Note: Recommendations are informational and non-invasive. Consult a qualified dermatologist before any clinical treatment.",
       "footerModel": "MyFace – Model v3.2",
       "footerMetrics": "{points} evaluation points",
+      "footerBrand": "MyFace Protocol / Report",
       "faceMap": {
-        "forehead": "FOREHEAD",
-        "eyes": "EYES",
-        "eyeL": "EYE L",
-        "eyeR": "EYE R",
-        "nose": "NOSE",
-        "cheeks": "CHEEKS",
-        "mouth": "MOUTH",
-        "jawline": "JAWLINE"
+        "hair": "Hair",
+        "forehead": "Forehead",
+        "eyes": "Eyes",
+        "ears": "Ears",
+        "skin": "Skin",
+        "eyeL": "Eye L",
+        "eyeR": "Eye R",
+        "nose": "Nose",
+        "cheeks": "Cheeks",
+        "mouth": "Mouth",
+        "jaw": "Jaw",
+        "jawline": "Jawline",
+        "chin": "Chin",
+        "neck": "Neck"
       },
       "priorityFeatures": "Priority features to improve",
       "miniCards": {
@@ -691,6 +702,8 @@
       "landmarksAlt": "Landmarks overlay",
       "potentialScan": "Potential Scan",
       "facialAge": "Facial Age",
+      "ageProfile": "Age profile",
+      "potentialAgeProfile": "Potential profile",
       "facialAgeVsBio": "Facial Age vs. Biological Age Range",
       "ageOutlier": "Outlier",
       "harmonyProfile": "Harmony Profile & Overview",
@@ -2280,8 +2293,8 @@
     "policy": "Policy",
     "disclaimerPolicy": "Disclaimer Policy",
     "privacyPolicy": "Privacy Policy",
-    "readPrivacyPrefix": "Read the full privacy policy ",
-    "privacyLink": "here (myface.de/datenschutzerklaerung)",
+    "readPrivacyPrefix": "Full privacy policy:",
+    "privacyLink": "myface.de/datenschutzerklaerung",
     "companyName": "MyFace Inc",
     "commissionedFor": "The following report was commissioned for",
     "commissionedOn": "{name} on {month}.",
@@ -2300,7 +2313,9 @@
     "dashKpiAnalysisTime": "Analysis Time",
     "dashKpiAnalysisTimeFallback": "—",
     "dashFacialAge": "Facial Age",
-    "dashFacialAgeLabel": "CV ESTIMATE",
+    "dashAgeProfile": "Age profile",
+    "dashPotentialAgeProfile": "Potential profile",
+    "dashFacialAgeLabel": "Estimated",
     "dashFacialAgeVsBio": "Facial Age vs. Biological Age Range",
     "dashAgeOutlier": "Outlier",
     "dashFace": "FACE",
@@ -2320,6 +2335,7 @@
     "dashTreatmentProtocol": "Treatment Protocol",
     "dashHinweis": "Note: Recommendations are informational and non-invasive. Consult a qualified dermatologist before any clinical treatment.",
     "dashFooterModel": "MyFace – Model v3.2",
+    "dashFooterBrand": "MyFace Protocol / Report",
     "dashFooterMetrics": "{points} evaluation points",
     "dashFaceMapForehead": "FOREHEAD",
     "dashFaceMapEyes": "EYES",

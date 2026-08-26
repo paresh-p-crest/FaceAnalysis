@@ -35,8 +35,11 @@ import {
   localizedSubsectionTitle,
   PRIVACY_POLICY_URL,
   resolveTreatmentPhases,
+  resolveFeatureHighlights,
   resolveFeaturePreviewCallouts,
   mapCoverTopCenter,
+  mapCoverCenter,
+  ANALYSIS_CARD_CALLOUTS,
   UNDERSTANDING_RESULTS_KEYS,
 } from './reportProtocolModel'
 import { localizeFeatureRow, localizePriorityMiniCard } from './cvReportLocale'
@@ -754,7 +757,20 @@ function addPdfImage(doc, dataUrl, x, y, maxW, maxH, cover = false, poseId = nul
   return { w, h, ox, oy }
 }
 
-function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IMAGE_TEXT_GAP, pdfT = activePdfT, poseId = null } = {}) {
+/** Centered wrap for empty-frame labels (narrow skin tiles need smaller type). */
+function drawPendingLabel(doc, text, cx, cy, maxW, fontSize = 8) {
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(fontSize)
+  setMuted(doc)
+  const lines = doc.splitTextToSize(sanitizePdfText(text), Math.max(12, maxW))
+  const lineH = fontSize + 2
+  const startY = cy - ((lines.length - 1) * lineH) / 2
+  lines.forEach((line, i) => {
+    doc.text(line, cx, startY + i * lineH, { align: 'center' })
+  })
+}
+
+function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IMAGE_TEXT_GAP, pdfT = activePdfT, poseId = null, pendingFontSize = 8, tagFontSize = 7 } = {}) {
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.roundedRect(x, y, w, h, 6, 6, 'F')
   doc.setDrawColor(229, 231, 235)
@@ -765,20 +781,19 @@ function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IM
     const pad = 4
     addPdfImage(doc, dataUrl, x + pad, y + pad, w - pad * 2, h - pad * 2, cover, poseId)
   } else {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    setMuted(doc)
-    doc.text(pdfT('projectedImagePending'), x + w / 2, y + h / 2, { align: 'center' })
+    drawPendingLabel(doc, pdfT('projectedImagePending'), x + w / 2, y + h / 2, w - 12, pendingFontSize)
   }
 
   if (tag) {
+    const tagH = tagFontSize <= 6 ? 11 : 14
+    const tagPadX = tagFontSize <= 6 ? 8 : 10
     doc.setFillColor(80, 80, 80)
-    const tagW = Math.min(72, tag.length * 5.5 + 14)
-    doc.roundedRect(x + 6, y + 6, tagW, 14, 2, 2, 'F')
+    const tagW = Math.min(72, tag.length * (tagFontSize <= 6 ? 4.6 : 5.5) + 12)
+    doc.roundedRect(x + 6, y + 6, tagW, tagH, 2, 2, 'F')
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
+    doc.setFontSize(tagFontSize)
     setWhite(doc)
-    doc.text(tag, x + 10, y + 16)
+    doc.text(tag, x + tagPadX, y + 6 + tagH - 3)
   }
   return y + h + gap
 }
@@ -787,7 +802,7 @@ function drawImageFrame(doc, x, y, w, h, dataUrl, tag, { cover = false, gap = IM
  * Before | After split frame. Right side shows after when available; otherwise "Projected image pending"
  * (never falls back to the before photo on the right).
  */
-function drawSplitComparisonFrame(doc, x, y, w, h, beforeSrc, afterSrc, { gap = IMAGE_TEXT_GAP } = {}) {
+function drawSplitComparisonFrame(doc, x, y, w, h, beforeSrc, afterSrc, { gap = IMAGE_TEXT_GAP, pendingFontSize = 8 } = {}) {
   doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
   doc.roundedRect(x, y, w, h, 6, 6, 'F')
 
@@ -805,12 +820,17 @@ function drawSplitComparisonFrame(doc, x, y, w, h, beforeSrc, afterSrc, { gap = 
 
   if (!afterSrc) {
     const rx = x + w / 2
+    const halfW = w / 2 - pad
     doc.setFillColor(SURFACE_WARM.r, SURFACE_WARM.g, SURFACE_WARM.b)
-    doc.rect(rx, y + pad, w / 2 - pad, innerH, 'F')
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    setMuted(doc)
-    doc.text(activePdfT('projectedImagePending'), rx + (w / 2 - pad) / 2, y + h / 2, { align: 'center' })
+    doc.rect(rx, y + pad, halfW, innerH, 'F')
+    drawPendingLabel(
+      doc,
+      activePdfT('projectedImagePending'),
+      rx + halfW / 2,
+      y + h / 2,
+      halfW - 10,
+      pendingFontSize,
+    )
   }
 
   doc.setDrawColor(229, 231, 235)
@@ -1091,19 +1111,20 @@ function drawCheekMeasurementOverlay(
   doc.circle(m1.x, m1.y, 1.6, 'F')
 }
 
-function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 100, horizontal = true, cover = true) {
+function drawBeforeAfterPair(doc, x, y, w, beforeSrc, afterSrc = null, imgH = 100, horizontal = true, cover = true, pendingFontSize = 8, tagFontSize = 7) {
   const gap = 8
   const frameW = horizontal ? (w - gap) / 2 : w
   const frameH = horizontal ? imgH : (imgH - gap) / 2
+  const frameOpts = { cover, pendingFontSize, tagFontSize }
 
   if (horizontal) {
-    drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, tagBefore(), { cover })
-    drawImageFrame(doc, x + frameW + gap, y, frameW, frameH, afterSrc, tagAfter(), { cover })
+    drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, tagBefore(), frameOpts)
+    drawImageFrame(doc, x + frameW + gap, y, frameW, frameH, afterSrc, tagAfter(), frameOpts)
     return y + frameH + IMAGE_TEXT_GAP
   }
 
-  drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, tagBefore(), { cover })
-  drawImageFrame(doc, x, y + frameH + gap, frameW, frameH, afterSrc, tagAfter(), { cover })
+  drawImageFrame(doc, x, y, frameW, frameH, beforeSrc, tagBefore(), frameOpts)
+  drawImageFrame(doc, x, y + frameH + gap, frameW, frameH, afterSrc, tagAfter(), frameOpts)
   return y + frameH * 2 + gap + IMAGE_TEXT_GAP
 }
 
@@ -1254,9 +1275,14 @@ function drawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, profile
   drawSummaryBar(doc, Math.max(textY, imgY) + SECTION_GAP, summaryTitle, section.summary)
 }
 
-function drawRadarChart(doc, cx, cy, rMax, items) {
+function drawRadarChart(doc, cx, cy, rMax, items, opts = {}) {
   const numAxes = items.length
   if (!numAxes) return
+
+  const fontSize = opts.fontSize ?? 7
+  const legendFontSize = opts.legendFontSize ?? 7
+  const legendOffset = opts.legendOffset ?? 24
+  const showLegend = opts.showLegend !== false
 
   const axisScore = (item) => {
     const n = Number(item?.score)
@@ -1266,7 +1292,7 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
     const n = Number(item?.projected)
     return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : axisScore(item)
   }
-  
+
   // 1. Draw concentric background polygons (gridlines at 20%, 40%, 60%, 80%, 100%)
   doc.setLineWidth(0.5)
   doc.setDrawColor(229, 231, 235) // very light grey
@@ -1289,12 +1315,12 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
 
   // 2. Draw axis lines and labels
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
+  doc.setFontSize(fontSize)
   items.forEach((item, i) => {
     const angle = (i * 2 * Math.PI) / numAxes - Math.PI / 2
     const xLine = cx + rMax * Math.cos(angle)
     const yLine = cy + rMax * Math.sin(angle)
-    
+
     // Draw axis line
     doc.setDrawColor(243, 244, 246)
     doc.line(cx, cy, xLine, yLine)
@@ -1302,7 +1328,7 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
     // Draw axis label
     const cosVal = Math.cos(angle)
     const sinVal = Math.sin(angle)
-    const labelDist = rMax + 12
+    const labelDist = rMax + (opts.labelPad ?? 12)
     const xLabel = cx + labelDist * cosVal
     const yLabel = cy + labelDist * sinVal + 2
 
@@ -1325,7 +1351,7 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
     const dist = rMax * (axisScore(item) / 100)
     clientPts.push({ x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) })
   })
-  
+
   doc.setDrawColor(SLATE.r, SLATE.g, SLATE.b)
   doc.setLineWidth(1)
   for (let i = 0; i < numAxes; i++) {
@@ -1341,7 +1367,7 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
     const dist = rMax * (axisProjected(item) / 100)
     projectedPts.push({ x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) })
   })
-  
+
   doc.setDrawColor(BRAND.r, BRAND.g, BRAND.b)
   doc.setLineWidth(1.25)
   for (let i = 0; i < numAxes; i++) {
@@ -1350,22 +1376,25 @@ function drawRadarChart(doc, cx, cy, rMax, items) {
     doc.line(p1.x, p1.y, p2.x, p2.y)
   }
 
+  if (!showLegend) return
+
   // 5. Draw legend below
-  const legendY = cy + rMax + 24
-  const boxW = 8
-  
+  const legendY = cy + rMax + legendOffset
+  const boxW = opts.legendBox ?? 8
+  const legendSpread = opts.legendSpread ?? 90
+
   // Legend: Projected Potential
   doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
-  doc.rect(cx - 90, legendY - 6, boxW, boxW, 'F')
+  doc.rect(cx - legendSpread, legendY - 6, boxW, boxW, 'F')
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
+  doc.setFontSize(legendFontSize)
   setMuted(doc)
-  doc.text(sanitizePdfText(pm('chartProjectedPotential')), cx - 78, legendY)
+  doc.text(sanitizePdfText(pm('chartProjectedPotential')), cx - legendSpread + boxW + 4, legendY)
 
   // Legend: Client Values
   doc.setFillColor(SLATE.r, SLATE.g, SLATE.b)
-  doc.rect(cx + 10, legendY - 6, boxW, boxW, 'F')
-  doc.text(sanitizePdfText(pm('chartClientValues')), cx + 22, legendY)
+  doc.rect(cx + 8, legendY - 6, boxW, boxW, 'F')
+  doc.text(sanitizePdfText(pm('chartClientValues')), cx + 8 + boxW + 4, legendY)
 }
 
 async function loadImageAsDataUrl(url) {
@@ -1443,34 +1472,29 @@ function drawHairFeaturePage(doc, section, pageNum, beforeJpeg, norwoodImages = 
 
   const subs = section.subsections || []
   const rightX = MARGIN + COL_W + COL_GAP
-  const frameH = 120
   const norwoodStage = section.layoutHints?.norwoodStage ?? section.norwoodStage ?? 1
 
-  let leftY = y
-  let rightY = y
-  if (subs[0]) leftY = wrapSubsectionText(doc, subs[0], MARGIN, leftY, COL_W)
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, beforeJpeg, tagBefore(), { cover: true })
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, frameH, section.afterJpeg || null, tagAfter(), {
-    cover: true,
-  })
-  y = Math.max(leftY, rightY) + SECTION_GAP
+  // Side-by-side BEFORE/AFTER under title
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, section.afterJpeg || null, 140, true)
 
-  if (subs[1]) {
+  // Frisur + Haarausfall: heading then mid-sentence two-column body
+  ;[subs[0], subs[1]].forEach((sub) => {
+    if (!sub) return
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     setInk(doc)
-    doc.text(subLabel('Hair Loss'), MARGIN, y)
+    doc.text(subLabel(sub.title), MARGIN, y)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
-    const body = subs[1].body || ''
+    const body = sub.body || ''
     const mid = Math.floor(body.length / 2)
     const splitAt = body.indexOf('. ', mid)
     const splitIdx = splitAt > 0 ? splitAt + 1 : mid
     const textTop = y + 18
-    leftY = wrapText(doc, body.slice(0, splitIdx).trim(), MARGIN, textTop, COL_W, 11.5)
-    rightY = wrapText(doc, body.slice(splitIdx).trim(), rightX, textTop, COL_W, 11.5)
+    const leftY = wrapText(doc, body.slice(0, splitIdx).trim(), MARGIN, textTop, COL_W, 11.5)
+    const rightY = wrapText(doc, body.slice(splitIdx).trim(), rightX, textTop, COL_W, 11.5)
     y = Math.max(leftY, rightY) + SECTION_GAP
-  }
+  })
 
   y = drawNorwoodPanel(doc, y, norwoodStage, norwoodImages)
 
@@ -1526,16 +1550,26 @@ function drawNoseFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, pro
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
-  drawLabeledBody(doc, MARGIN, y, 'Nose', subs[0]?.body, COL_W)
+  // Right: profile + BEFORE/AFTER only
   let rightY = y
-
   if (profileJpeg && profileIsReal) {
     rightY = drawImageFrame(doc, rightX, rightY, COL_W, PROFILE_FRAME_H, profileJpeg, tagProfile(), {
       cover: true,
     })
   }
-  rightY = drawBeforeAfterPair(doc, rightX, rightY, COL_W, beforeJpeg, section.afterJpeg || null, 120, true)
-  drawSummaryCard(doc, rightX, rightY, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('nose', activeReportT) }), section.summary)
+  drawBeforeAfterPair(doc, rightX, rightY, COL_W, beforeJpeg, section.afterJpeg || null, 120, true)
+
+  // Left: body + mint summary snug under it (height from summary copy only)
+  const leftEnd = drawLabeledBody(doc, MARGIN, y, 'Nose', subs[0]?.body, COL_W)
+  drawSummaryCard(
+    doc,
+    MARGIN,
+    leftEnd + SECTION_GAP * 2.5,
+    COL_W,
+    pm('featureSummary', { name: localizedFeaturePrimary('nose', activeReportT) }),
+    section.summary,
+    { stickToBottom: false },
+  )
 }
 
 function drawCheeksFeaturePage(doc, section, pageNum) {
@@ -1598,22 +1632,25 @@ function drawJawFeaturePage(doc, section, pageNum, beforeJpeg, profileJpeg, prof
   )
   y = Math.max(leftY, rightY) + SECTION_GAP
 
-  // BEFORE/AFTER larger than before, but still smaller than the profile plate
+  // BEFORE/AFTER — return already includes IMAGE_TEXT_GAP (hard gap before bottom row)
   y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, section.afterJpeg || null, 150, true)
 
-  const furtherSub = subs[1]
-    ? { ...subs[1], title: subs[1].title || 'Further Enhancement' }
-    : null
-  layoutBottomAnchoredLeftColumn(
+  // Bottom row: flow under B/A; left title baseline aligns with summary title (cardY + 16)
+  const card = drawSummaryCard(
     doc,
-    furtherSub,
+    rightX,
+    y,
+    COL_W,
     pm('jawRegionSummary'),
     section.summary,
-    y,
-    rightX,
-    COL_W,
-    { bodyOffset: 22, drawTier: false },
+    { stickToBottom: false },
   )
+  const furtherTitle = subs[1]?.title || 'Further Enhancement'
+  if (subs[1]) {
+    drawLabeledBody(doc, MARGIN, card.cardY + 16, furtherTitle, subs[1].body, COL_W, 11.5, {
+      maxBottom: PAGE_BOTTOM,
+    })
+  }
 }
 
 function drawLipsFeaturePage(doc, section, pageNum) {
@@ -1803,29 +1840,49 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
   const profileSrc = profileJpeg && profileIsReal ? profileJpeg : null
   const rawOverlay = section.profileOverlay
   const poseId = section.profilePoseId || 'rightProfile'
+  const pairGap = 8
+  const profileW = (CONTENT_W - pairGap) / 2
 
-  let leftY = drawLabeledBody(doc, MARGIN, y, 'Chin', subs[0]?.body, COL_W)
-  let rightY = y
-
+  // Side-by-side PROFIL frames under title
   if (profileSrc) {
-    const showSrc = profileSrc
-
-    const topAnnotated = await generateAnnotatedChinProfileImage(showSrc, 'thirds', poseId, rawOverlay, COL_W, CHIN_PROFILE_FRAME_H)
-    const botAnnotated = await generateAnnotatedChinProfileImage(showSrc, 'projection', poseId, rawOverlay, COL_W, CHIN_PROFILE_FRAME_H)
-
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, topAnnotated, tagProfile(), {
+    const topAnnotated = await generateAnnotatedChinProfileImage(
+      profileSrc, 'thirds', poseId, rawOverlay, profileW, CHIN_PROFILE_FRAME_H,
+    )
+    const botAnnotated = await generateAnnotatedChinProfileImage(
+      profileSrc, 'projection', poseId, rawOverlay, profileW, CHIN_PROFILE_FRAME_H,
+    )
+    drawImageFrame(doc, MARGIN, y, profileW, CHIN_PROFILE_FRAME_H, topAnnotated, tagProfile(), {
       cover: false,
       poseId,
+      gap: 0,
     })
-
-    rightY = drawImageFrame(doc, rightX, rightY, COL_W, CHIN_PROFILE_FRAME_H, botAnnotated, tagProfile(), {
+    drawImageFrame(doc, MARGIN + profileW + pairGap, y, profileW, CHIN_PROFILE_FRAME_H, botAnnotated, tagProfile(), {
       cover: false,
       poseId,
+      gap: 0,
     })
+    y += CHIN_PROFILE_FRAME_H + SECTION_GAP
   }
 
-  y = Math.max(leftY, rightY) + SECTION_GAP
-  // Pair sizing unchanged (profiles + B/A as today). Summary grows down into leftover only.
+  // Kinn body: heading left + mid-sentence two-column text (tops aligned)
+  const body = subs[0]?.body || ''
+  const mid = Math.floor(body.length / 2)
+  const splitAt = body.indexOf('. ', mid)
+  const splitIdx = splitAt > 0 ? splitAt + 1 : mid
+  const leftBody = body.slice(0, splitIdx).trim()
+  const rightBody = body.slice(splitIdx).trim()
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  setInk(doc)
+  doc.text(subLabel('Chin'), MARGIN, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  const textTop = y + 18
+  const leftEnd = wrapText(doc, leftBody, MARGIN, textTop, COL_W, 11.5)
+  const rightEnd = wrapText(doc, rightBody, rightX, textTop, COL_W, 11.5)
+  y = Math.max(leftEnd, rightEnd) + SECTION_GAP
+
   const summaryReserve = 52
   const maxPairH = PAGE_BOTTOM - y - summaryReserve - IMAGE_TEXT_GAP
   const pairH = Math.min(120, Math.max(60, maxPairH))
@@ -1838,47 +1895,173 @@ async function drawChinFeaturePage(doc, section, pageNum, beforeJpeg, profileJpe
   )
 }
 
-function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null) {
+function drawSkinTreatmentPhases(doc, x, y, w, maxBottom, treatment, title) {
+  if (!treatment?.phases) return y
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  setMuted(doc)
+  doc.text(title || 'Treatment Protocol', x, y)
+  let ry = y + 14
+
+  const phaseKeys = ['phase01', 'phase02', 'phase03'].filter((k) => treatment.phases?.[k])
+  if (!phaseKeys.length) return ry
+
+  const phaseGap = 6
+  const textX = x + 6
+  const textW = w - 12
+  const {
+    titleLineH, bodyLineH, padTop, padBottom, labelToTitle, titleToDurationGap, durationToDivider, dividerToItems,
+  } = PHASE_CARD_LAYOUT
+  const columnBudget = Math.max(40, maxBottom - ry)
+  const layouts = layoutTreatmentPhaseCards(doc, {
+    phaseKeys,
+    phases: treatment.phases,
+    textW,
+    columnBudget,
+    phaseGap,
+  })
+
+  layouts.forEach((layout) => {
+    const drawH = layout.height
+    doc.setFillColor(255, 255, 255)
+    doc.setDrawColor(236, 236, 236)
+    doc.roundedRect(x, ry, w, drawH, 4, 4, 'FD')
+
+    let cursorY = ry + padTop
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6)
+    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.text(layout.phase?.label || layout.phaseKey.toUpperCase(), textX, cursorY)
+
+    cursorY += labelToTitle
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    setInk(doc)
+    layout.titleLines.forEach((line, i) => {
+      doc.text(line, textX, cursorY + i * titleLineH)
+    })
+    cursorY += layout.titleLines.length * titleLineH + titleToDurationGap
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6)
+    setMuted(doc)
+    layout.durationLines.forEach((line, i) => {
+      doc.text(line, textX, cursorY + i * bodyLineH)
+    })
+    cursorY += layout.durationLines.length * bodyLineH + durationToDivider
+
+    doc.setDrawColor(236, 236, 236)
+    doc.line(textX, cursorY, x + w - 6, cursorY)
+    cursorY += dividerToItems
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6)
+    setInk(doc)
+    const contentBottom = ry + drawH - padBottom
+    layout.itemLineGroups.forEach((lines) => {
+      if (!lines.length) return
+      const lastBaseline = cursorY + (lines.length - 1) * bodyLineH
+      if (lastBaseline > contentBottom) return
+      lines.forEach((line) => {
+        doc.text(line, textX, cursorY)
+        cursorY += bodyLineH
+      })
+    })
+
+    ry += drawH + phaseGap
+  })
+  return ry
+}
+
+function drawSkinFeaturePage(doc, section, pageNum, beforeJpeg, afterJpeg = null, treatment = null) {
   drawHeader(doc, pageNum, activePdfT)
   let y = drawSplitTitle(doc, MARGIN, 85, ...featureSplit('skin'), 26) + 4
-  const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
-  const diagH = 240
-  const diagY = y
-  // Half-split only: use face-aligned AFTER so midline features match. Side-by-side pair stays unaligned.
-  const splitAfter = section.splitAfterJpeg || afterJpeg
-  let leftY = drawSplitComparisonFrame(doc, MARGIN, diagY, COL_W, diagH, beforeJpeg, splitAfter, { gap: 10 })
+  // Client layout: left ~72% (images | copy, Weitere under) + right ~28% phases
+  const OUTER_GAP = 12
+  const INNER_GAP = 12
+  // Right phases ~31%; left gets the rest
+  const RIGHT_W = Math.round((CONTENT_W - OUTER_GAP) * 0.31)
+  const LEFT_W = CONTENT_W - OUTER_GAP - RIGHT_W
+  // Nested: images a bit narrower so copy stays wider
+  const IMG_W = Math.round((LEFT_W - INNER_GAP) * 0.44)
+  const COPY_W = LEFT_W - INNER_GAP - IMG_W
+  const xCopy = MARGIN + IMG_W + INNER_GAP
+  const xRight = MARGIN + LEFT_W + OUTER_GAP
+  const startY = y
+  const summaryReserve = 56
+  const contentBottom = PAGE_BOTTOM - summaryReserve
 
+  // Left-top: half-split (taller than square) + BEFORE/AFTER
+  const diagH = Math.round(IMG_W * 1.18)
+  const splitAfter = section.splitAfterJpeg || afterJpeg
+  // Narrow image column: wrap/shrink pending label so DE "Projiziertes Bild ausstehend" stays inside
+  const skinPendingPt = 6
+  let imgY = drawSplitComparisonFrame(doc, MARGIN, startY, IMG_W, diagH, beforeJpeg, splitAfter, {
+    gap: 8,
+    pendingFontSize: skinPendingPt,
+  })
+  const pairBefore = section.imageSlots?.pairBefore || beforeJpeg
+  const pairH = 100
+  imgY = drawBeforeAfterPair(doc, MARGIN, imgY, IMG_W, pairBefore, afterJpeg, pairH, true, true, skinPendingPt, 6)
+  // Drop trailing IMAGE_TEXT_GAP for tighter stack under images when measuring Weitere top
+  const imagesBottom = imgY - IMAGE_TEXT_GAP + 8
+
+  // Beside images: intro + Hautpflegeprotokoll only
+  let copyY = startY
   const introText = pm('skinIntro')
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
-  let rightY = wrapText(doc, introText, rightX, y, COL_W, 11.5) + 12
-  rightY = drawLabeledBody(doc, rightX, rightY, 'Skincare Protocol', subs[0]?.body, COL_W)
-
-  // Vorher/Nachher sits under the split frame only — do not wait on right-column protocol height.
-  const pairY = leftY + SECTION_GAP
-  const pairBefore = section.imageSlots?.pairBefore || beforeJpeg
-  leftY = drawBeforeAfterPair(doc, MARGIN, pairY, COL_W, pairBefore, afterJpeg, 150, true)
-  if (subs[1]) {
-    leftY = drawLabeledBody(
+  copyY = wrapText(doc, introText, xCopy, copyY, COPY_W, 11.5) + 12
+  if (subs[0]) {
+    copyY = drawLabeledBody(
       doc,
-      MARGIN,
-      leftY,
-      'Further Skin Enhancement',
-      subs[1].body,
-      COL_W,
+      xCopy,
+      copyY,
+      subs[0].title || 'Skincare Protocol',
+      subs[0].body,
+      COPY_W,
       11.5,
-      { maxBottom: PAGE_H - 1 },
+      { maxBottom: contentBottom },
     )
   }
-  // Summary top-floor is below protocol (or pair row); stickToBottom keeps the mint card on the footer.
-  drawSummaryCard(
+
+  // Weitere Hautoptimierung spans full left block under images + copy
+  let leftBottom = Math.max(imagesBottom, copyY) + SECTION_GAP
+  if (subs[1]) {
+    leftBottom = drawLabeledBody(
+      doc,
+      MARGIN,
+      leftBottom,
+      subs[1].title || 'Further Skin Enhancement',
+      subs[1].body,
+      LEFT_W,
+      11.5,
+      { maxBottom: contentBottom },
+    )
+  }
+
+  // Right: Behandlungsprotokoll aligned with image/intro top
+  const treatmentTitle =
+    (activeReportT.has?.('protocolModel.treatmentProtocol') && pm('treatmentProtocol')) ||
+    activeReportT('executiveSummary.treatmentProtocol') ||
+    'Behandlungsprotokoll'
+  const rightEnd = drawSkinTreatmentPhases(
     doc,
-    rightX,
-    Math.max(rightY + 8, pairY),
-    COL_W,
+    xRight,
+    startY,
+    RIGHT_W,
+    contentBottom,
+    treatment,
+    treatmentTitle,
+  )
+
+  y = Math.max(leftBottom, rightEnd) + SECTION_GAP
+  drawSummaryBar(
+    doc,
+    y,
     pm('featureSummary', { name: localizedFeaturePrimary('skin', activeReportT) }),
     section.summary,
   )
@@ -1896,7 +2079,12 @@ function drawNeckFeaturePage(doc, section, pageNum, beforeJpeg) {
   let rightY = drawImageFrame(doc, rightX, y, COL_W, 240, beforeJpeg, tagBefore(), { cover: true })
   rightY = drawImageFrame(doc, rightX, rightY, COL_W, 240, section.afterJpeg || null, tagAfter(), { cover: true })
 
-  drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('neck', activeReportT) }), section.summary)
+  drawSummaryBar(
+    doc,
+    Math.max(leftY, rightY) + SECTION_GAP,
+    pm('featureSummary', { name: localizedFeaturePrimary('neck', activeReportT) }),
+    section.summary,
+  )
 }
 
 function drawEarsFeaturePage(doc, section, pageNum, beforeJpeg) {
@@ -1905,13 +2093,37 @@ function drawEarsFeaturePage(doc, section, pageNum, beforeJpeg) {
   const rightX = MARGIN + COL_W + COL_GAP
   const subs = section.subsections || []
 
-  let leftY = drawLabeledBody(doc, MARGIN, y, 'Ear Structure', subs[0]?.body, COL_W)
+  // Side-by-side VORHER/NACHHER under title (client layout)
+  const summaryReserve = 52
+  const maxPairH = PAGE_BOTTOM - y - summaryReserve - IMAGE_TEXT_GAP - 90
+  const pairH = Math.min(260, Math.max(180, maxPairH))
+  y = drawBeforeAfterPair(doc, MARGIN, y, CONTENT_W, beforeJpeg, section.afterJpeg || null, pairH, true)
 
-  // Front-facing ear crop only — no measurement overlays for now
-  let rightY = drawImageFrame(doc, rightX, y, COL_W, 220, beforeJpeg, tagBefore(), { cover: true })
-  rightY = drawImageFrame(doc, rightX, rightY, COL_W, 220, section.afterJpeg || null, tagAfter(), { cover: true })
+  // Ohrstruktur: heading left + mid-sentence two-column body (same split as hair/chin)
+  const body = subs[0]?.body || ''
+  const mid = Math.floor(body.length / 2)
+  const splitAt = body.indexOf('. ', mid)
+  const splitIdx = splitAt > 0 ? splitAt + 1 : mid
+  const leftBody = body.slice(0, splitIdx).trim()
+  const rightBody = body.slice(splitIdx).trim()
 
-  drawSummaryCard(doc, MARGIN, Math.max(leftY, rightY) + SECTION_GAP, COL_W, pm('featureSummary', { name: localizedFeaturePrimary('ears', activeReportT) }), section.summary)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  setInk(doc)
+  doc.text(subLabel(subs[0]?.title || 'Ear Structure'), MARGIN, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  const textTop = y + 18
+  const leftEnd = wrapText(doc, leftBody, MARGIN, textTop, COL_W, 11.5)
+  const rightEnd = wrapText(doc, rightBody, rightX, textTop, COL_W, 11.5)
+  y = Math.max(leftEnd, rightEnd) + SECTION_GAP
+
+  drawSummaryBar(
+    doc,
+    y,
+    pm('featureSummary', { name: localizedFeaturePrimary('ears', activeReportT) }),
+    section.summary,
+  )
 }
 
 function reportFeatureCopy(pdfMessages, zoneKey, field) {
@@ -1935,13 +2147,14 @@ function drawCompactRadarChart(doc, boxX, boxY, boxW, boxH, items) {
     return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0
   }
 
+  // Same visual language as HTML Harmonieprofil / executive radar (5 rings + brand fill)
   const cx = boxX + boxW / 2
-  const cy = boxY + boxH / 2 + 2
-  const rMax = Math.min(boxW, boxH) / 2 - 16
+  const cy = boxY + boxH / 2
+  const rMax = Math.min(boxW, boxH) / 2 - 12
 
-  doc.setLineWidth(0.4)
+  doc.setLineWidth(0.45)
   doc.setDrawColor(229, 231, 235)
-  ;[0.4, 0.7, 1].forEach((scale) => {
+  ;[0.2, 0.4, 0.6, 0.8, 1].forEach((scale) => {
     const pts = []
     for (let i = 0; i < numAxes; i++) {
       const angle = (i * 2 * Math.PI) / numAxes - Math.PI / 2
@@ -1954,16 +2167,18 @@ function drawCompactRadarChart(doc, boxX, boxY, boxW, boxH, items) {
     }
   })
 
-  doc.setFont('helvetica', 'normal')
+  doc.setFont('helvetica', 'bold')
   doc.setFontSize(5)
   items.forEach((item, i) => {
     const angle = (i * 2 * Math.PI) / numAxes - Math.PI / 2
     const xLine = cx + rMax * Math.cos(angle)
     const yLine = cy + rMax * Math.sin(angle)
+    doc.setDrawColor(229, 231, 235)
+    doc.setLineWidth(0.45)
     doc.line(cx, cy, xLine, yLine)
     const cosVal = Math.cos(angle)
-    const xLabel = cx + (rMax + 10) * cosVal
-    const yLabel = cy + (rMax + 10) * Math.sin(angle) + 2
+    const xLabel = cx + (rMax + 9) * cosVal
+    const yLabel = cy + (rMax + 9) * Math.sin(angle) + 1.5
     let align = 'center'
     if (cosVal > 0.15) align = 'left'
     else if (cosVal < -0.15) align = 'right'
@@ -1977,8 +2192,14 @@ function drawCompactRadarChart(doc, boxX, boxY, boxW, boxH, items) {
     return { x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) }
   })
 
+  // Soft brand fill (triangle fan — jsPDF has no polygon fill)
+  doc.setFillColor(220, 235, 230)
+  for (let i = 1; i < numAxes - 1; i++) {
+    doc.triangle(pts[0].x, pts[0].y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, 'F')
+  }
+
   doc.setDrawColor(BRAND.r, BRAND.g, BRAND.b)
-  doc.setLineWidth(1.2)
+  doc.setLineWidth(1.35)
   for (let i = 0; i < numAxes; i++) {
     const p1 = pts[i]
     const p2 = pts[(i + 1) % numAxes]
@@ -2011,27 +2232,25 @@ function drawProtocolDashboardPage1(doc, ctx) {
     eyeAnalysis,
     protocolNarrative,
     aiNarrative,
-    miniPreviews = {},
     featurePageById = {},
     createdAt = null,
     updatedAt = null,
     landmarks = null,
     locale = 'en',
+    projectedAnalysis = null,
   } = ctx
 
   const dash = buildProtocolDashboardData({
-    cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt,
+    cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt, projectedAnalysis,
   })
   const reportT = createReportTranslator(pdfMessages)
   const tCv = createCvReportTranslator(pdfMessages)
-  const treatment = resolveTreatmentPhases({ protocolNarrative, dash, t: reportT })
   const firstName = clientName.split(/\s+/)[0] || clientName
   const overviewText = protocolNarrative?.summary
     || aiNarrative?.content?.summary
     || ''
   const miniLinks = []
 
-  // Full-page light grey (no mint frame / brand hairline)
   doc.setFillColor(PAGE1_BG.r, PAGE1_BG.g, PAGE1_BG.b)
   doc.rect(0, 0, PAGE_W, PAGE_H, 'F')
 
@@ -2039,7 +2258,6 @@ function drawProtocolDashboardPage1(doc, ctx) {
   const innerRight = PAGE_W - pad
   const headerH = 36
 
-  // Soft-grey header bar — PROTOCOL | meta left, MyFace centered, empty right (no buttons)
   doc.setFillColor(238, 240, 243)
   doc.rect(0, 0, PAGE_W, headerH, 'F')
   doc.setDrawColor(220, 223, 228)
@@ -2058,361 +2276,115 @@ function drawProtocolDashboardPage1(doc, ctx) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   setMuted(doc)
-  doc.text(`${clientName}  #${protocolId}  ${reportDate}`, pad + protocolLabelW + 12, headerY)
+  doc.text(`${clientName}  #${protocolId}  .  ${reportDate}`, pad + protocolLabelW + 12, headerY)
 
   const logoDataUrl = ctx.brandWordmarkDataUrl
   if (logoDataUrl) {
-    const logoH = 12
-    const logoW = 48
+    const logoH = 14
+    const logoW = 57
     try {
-      doc.addImage(logoDataUrl, 'PNG', PAGE_W / 2 - logoW / 2, headerY - 9, logoW, logoH)
+      doc.addImage(logoDataUrl, 'PNG', PAGE_W / 2 - logoW / 2, headerY - 10, logoW, logoH)
     } catch {
-  doc.setFont('helvetica', 'bold')
-      doc.setFontSize(13)
-  setInk(doc)
+      doc.setFont('times', 'bold')
+      doc.setFontSize(14)
+      setInk(doc)
       doc.text('MyFace', PAGE_W / 2, headerY - 1, { align: 'center' })
     }
   } else {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(13)
+    doc.setFont('times', 'bold')
+    doc.setFontSize(14)
     setInk(doc)
     doc.text('MyFace', PAGE_W / 2, headerY - 1, { align: 'center' })
   }
 
-  let y = headerH + 22
-
-  // KPI strip — labels/units muted/ink; numeric values brand green
-  const kpiGap = 8
-  const kpiW = (innerRight - pad - kpiGap * 2) / 3
-  const kpiH = 48
-  const evaluatedFull = dash.evaluatedPoints != null
-      ? t('dashKpiEvaluatedValue', { count: dash.evaluatedPoints })
-    : null
-  const splitLeadingNum = (text) => {
-    if (text == null) return null
-    // Keep trailing + with the number (e.g. "170+ points")
-    const m = String(text).match(/^(\d[\d,]*\+?)(.*)$/)
-    if (!m) return [{ text: String(text), brand: false }]
-    const parts = [{ text: m[1], brand: true }]
-    if (m[2]) parts.push({ text: m[2], brand: false })
-    return parts
-  }
-  const kpiRows = [
-    {
-      label: t('dashKpiOverall'),
-      parts: dash.overallScore != null
-        ? [
-            { text: String(dash.overallScore), brand: true },
-            { text: ' / 100', brand: false },
-          ]
-        : null,
-    },
-    {
-      label: t('dashKpiEvaluated'),
-      parts: splitLeadingNum(evaluatedFull),
-    },
-    {
-      label: t('dashKpiAnalysisTime'),
-      parts: analysisTimeDaysParts(dash.analysisTimeDays, reportT),
-    },
-  ]
-  kpiRows.forEach(({ label, parts }, i) => {
-    const kx = pad + i * (kpiW + kpiGap)
-    drawPanel(doc, kx, y, kpiW, kpiH, 5)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
-    setMuted(doc)
-    doc.text(label, kx + 8, y + 15)
-    doc.setFontSize(13)
-    let vx = kx + 8
-    if (!parts) {
-    setInk(doc)
-      doc.text('—', vx, y + 36)
-      return
-    }
-    parts.forEach(({ text, brand }) => {
-      if (brand) setBrand(doc)
-      else setInk(doc)
-      doc.text(text, vx, y + 36)
-      vx += doc.getTextWidth(text)
-    })
-  })
-  y += kpiH + 18
-
+  let y = headerH + 12
   const footerY = PAGE_H - 18
-  const bodyBottom = footerY - 12
+  // Überblick is content-sized with a margin above the footer (not flush)
+  const overviewFooterGap = 16
+  const minOverviewH = 72
+  const colsCapY = footerY - overviewFooterGap - minOverviewH - 8
   const colGap = 10
   const innerW = innerRight - pad
-  // Left a bit wider for hero copy; right a bit narrower for treatment phases
-  const leftW = Math.round(innerW * 0.30)
-  const rightW = Math.round(innerW * 0.24)
+  const leftW = Math.round(innerW * 0.26)
+  const rightW = Math.round(innerW * 0.25)
   const centerW = innerW - leftW - rightW - colGap * 2
   const leftX = pad
   const centerX = leftX + leftW + colGap
   const rightX = centerX + centerW + colGap
 
-  // Name / protocol plate — same box size; first name + protocol + assessed + overall score
+  // Client name card: compact plate; name lower; customer with brand/assessed at bottom
   const namePlateW = leftW
-  const namePlateH = Math.round(leftW * 0.72)
-  const treatmentTop = y
+  const namePlateH = 102
+  const colsTop = y
+  const platePadX = 10
+  const plateTextX = leftX + platePadX
+  const nameTitle = sanitizePdfText((clientName || firstName || '').toUpperCase())
   doc.setFillColor(FACE_MAP_BG.r, FACE_MAP_BG.g, FACE_MAP_BG.b)
-  doc.roundedRect(leftX, y, namePlateW, namePlateH, 8, 8, 'F')
-  const plateCx = leftX + namePlateW / 2
-  // Pack four lines into the fixed plate height (centered stack, no box resize)
-  const plateMid = y + namePlateH / 2
+  doc.roundedRect(leftX, y, namePlateW, namePlateH, 10, 10, 'F')
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
+  doc.setFontSize(10)
   setWhite(doc)
-  doc.text(firstName, plateCx, plateMid - 14, { align: 'center' })
+  const nameLines = doc.splitTextToSize(nameTitle || '—', namePlateW - platePadX * 2)
+  const nameTop = y + 32
+  doc.text(nameLines.slice(0, 2), plateTextX, nameTop)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(5)
   doc.setTextColor(255, 255, 255)
+  // Customer + brand + assessed clustered near plate bottom
+  const assessedY = y + namePlateH - 14
+  const brandY = assessedY - 11
+  const customerY = brandY - 12
+  doc.setFontSize(5.5)
   doc.text(
-    reportT('executiveSummary.protocolIdLine', { id: protocolId }),
-    plateCx,
-    plateMid - 3,
-    { align: 'center' },
+    sanitizePdfText(reportT('executiveSummary.namePlateCustomer')),
+    plateTextX,
+    customerY,
   )
-  doc.setFontSize(4.5)
-  doc.setTextColor(235, 238, 240)
+  doc.setFontSize(6.5)
   doc.text(
-    reportT('executiveSummary.namePlateAssessed', { date: reportDate }),
-    plateCx,
-    plateMid + 7,
-    { align: 'center' },
+    sanitizePdfText(reportT('executiveSummary.namePlateProtocolBrand')),
+    plateTextX,
+    brandY,
   )
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(5)
-  setWhite(doc)
+  doc.setFontSize(5.5)
   doc.text(
-    dash.overallScore != null
-      ? reportT('executiveSummary.namePlateOverallScore', { score: dash.overallScore })
-      : '—',
-    plateCx,
-    plateMid + 16,
-    { align: 'center' },
+    sanitizePdfText(reportT('executiveSummary.namePlateAssessed', { date: reportDate })),
+    plateTextX,
+    assessedY,
   )
-  y += namePlateH + 8
+  y += namePlateH + 16
 
-  // Hero — mirrors FeatureAnalysisHero: copy | portrait, metrics full-width below
-  const heroH = 168
-  const heroW = leftW
-  doc.setFillColor(255, 255, 255)
-  doc.setDrawColor(229, 231, 235)
-  doc.setLineWidth(0.5)
-  doc.roundedRect(leftX, y, heroW, heroH, 7, 7, 'FD')
-  const heroPad = 7
-  const metricsBandH = 28
-  const topBandH = heroH - metricsBandH - heroPad
-  const heroImgW = Math.round((heroW - heroPad * 3) * 0.42)
-  const heroImgH = topBandH - 2
-  const heroImgX = leftX + heroW - heroPad - heroImgW
-  const heroImgY = y + heroPad
-  const heroTextX = leftX + heroPad
-  const heroTextW = Math.max(36, heroImgX - heroTextX - heroPad)
-
-  const heroPrefix = reportT('executiveSummary.heroTitlePrefix')
-  const heroAccent = reportT('executiveSummary.heroTitleAccent')
-  let textY = y + heroPad + 9
+  let miniY = y
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7.5)
-  const titleOneLine = `${heroPrefix} ${heroAccent}`
-  if (doc.getTextWidth(sanitizePdfText(titleOneLine)) <= heroTextW) {
-    setInk(doc)
-    doc.text(sanitizePdfText(heroPrefix), heroTextX, textY)
-    const pw = doc.getTextWidth(`${sanitizePdfText(heroPrefix)} `)
-    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
-    doc.text(sanitizePdfText(heroAccent), heroTextX + pw, textY)
-    textY += 10
-  } else {
-    setInk(doc)
-    doc.text(sanitizePdfText(heroPrefix), heroTextX, textY)
-    textY += 9
-    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
-    const accentLines = doc.splitTextToSize(sanitizePdfText(heroAccent), heroTextW)
-    doc.text(accentLines[0] || heroAccent, heroTextX, textY)
-    textY += 10
-  }
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(5)
-  setMuted(doc)
-  textY = wrapTextMaxLines(
-    doc,
-    reportT('executiveSummary.heroBody'),
-    heroTextX,
-    textY + 1,
-    heroTextW,
-    6,
-    3,
-  )
-
-  textY += 5
-  const heroFeatures = pdfMessages?.Report?.executiveSummary?.heroFeatures || {}
-  const heroFeatureCount = Math.max(1, Math.min(3, Object.keys(heroFeatures).length || 0))
-  for (let i = 0; i < heroFeatureCount; i += 1) {
-    const featTitle = reportT(`executiveSummary.heroFeatures.${i}.title`)
-    const featDetail = reportT(`executiveSummary.heroFeatures.${i}.detail`)
-    const cy = textY + 2
-    const featTextW = heroTextW - 12
-    doc.setFillColor(219, 238, 232)
-    doc.circle(heroTextX + 3.5, cy, 3.5, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(5)
-    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
-    doc.text(String(i + 1), heroTextX + 3.5, cy + 1.5, { align: 'center' })
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(5.5)
-    setInk(doc)
-    const titleParts = doc.splitTextToSize(sanitizePdfText(featTitle), featTextW)
-    doc.text(titleParts[0] || featTitle, heroTextX + 10, cy + 1)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(4.5)
-    setMuted(doc)
-    const detailParts = doc.splitTextToSize(sanitizePdfText(featDetail), featTextW)
-    doc.text(detailParts[0] || featDetail, heroTextX + 10, cy + 7)
-    textY += 14
-  }
-
-  doc.setFillColor(232, 240, 238)
-  doc.setDrawColor(229, 231, 235)
-  doc.roundedRect(heroImgX, heroImgY, heroImgW, heroImgH, 5, 5, 'FD')
-  let imgNatW = 0
-  let imgNatH = 0
-  if (photoJpeg) {
-    try {
-      const props = doc.getImageProperties(photoJpeg)
-      imgNatW = props.width
-      imgNatH = props.height
-      addPdfImage(doc, photoJpeg, heroImgX + 1, heroImgY + 1, heroImgW - 2, heroImgH - 2, true)
-    } catch {
-      /* mint fill */
-    }
-  }
-  const faceMapKey = {
-    forehead: 'dashFaceMapForehead',
-    eyes: 'dashFaceMapEyes',
-    nose: 'dashFaceMapNose',
-    mouth: 'dashFaceMapMouth',
-  }
-  const callouts = resolveFeaturePreviewCallouts(landmarks)
-  const boxW = heroImgW - 2
-  const boxH = heroImgH - 2
-  callouts.forEach((c) => {
-    const mapped = imgNatW && imgNatH
-      ? mapCoverTopCenter(c.x, c.y, imgNatW, imgNatH, boxW, boxH)
-      : { x: c.x, y: c.y }
-    const ax = heroImgX + 1 + mapped.x * boxW
-    const ay = heroImgY + 1 + mapped.y * boxH
-    const lx = heroImgX + heroImgW - 3
-    doc.setFillColor(255, 255, 255)
-    doc.circle(ax, ay, 1.1, 'F')
-    doc.setDrawColor(255, 255, 255)
-    doc.setLineWidth(0.35)
-    doc.line(ax, ay, lx, ay)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(3.5)
-    setInk(doc)
-    const label = t(faceMapKey[c.id] || 'dashFaceMapNose')
-    const tw = doc.getTextWidth(label) + 3
-    doc.setFillColor(255, 255, 255)
-    doc.setDrawColor(229, 231, 235)
-    doc.setLineWidth(0.3)
-    doc.roundedRect(lx - tw, ay - 2.4, tw, 5, 1.5, 1.5, 'FD')
-    doc.text(label, lx - 1.5, ay + 1, { align: 'right' })
-  })
-
-  // Metrics band — same labels/values as interactive hero summary row
-  const metricTop = y + heroH - metricsBandH
-  doc.setDrawColor(229, 231, 235)
-  doc.setLineWidth(0.4)
-  doc.line(leftX + heroPad, metricTop, leftX + heroW - heroPad, metricTop)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(4)
-  setMuted(doc)
-  doc.text(reportT('executiveSummary.heroSummaryLabel').toUpperCase(), leftX + heroPad, metricTop + 7)
-  const metricVals = [
-    [
-      dash.overallScore != null ? `${dash.overallScore} / 100` : '—',
-      t('dashKpiOverall'),
-    ],
-    [
-      dash.evaluatedPoints
-        ? t('dashKpiEvaluatedValue', { count: dash.evaluatedPoints })
-        : '—',
-      t('dashKpiEvaluated'),
-    ],
-    [
-      formatAnalysisTimeDays(dash.analysisTimeDays, reportT) || '—',
-      t('dashKpiAnalysisTime'),
-    ],
-  ]
-  const metricColW = (heroW - heroPad * 2) / 3
-  metricVals.forEach(([value, label], i) => {
-    const mx = leftX + heroPad + i * metricColW
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
-    setInk(doc)
-    const clipped = String(value)
-    doc.text(clipped.length > 14 ? `${clipped.slice(0, 13)}…` : clipped, mx, metricTop + 18)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(4)
-    setMuted(doc)
-    doc.text(label, mx, metricTop + 24)
-  })
-
-  y += heroH + 12
-
-  const bodyH = bodyBottom - y
-  const bodyTop = y
-
-  // ── Left column: priority mini cards (same column as name + hero) ──
-  let miniY = bodyTop
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(6)
-  setMuted(doc)
+  setInk(doc)
   doc.text(reportT('executiveSummary.priorityFeatures'), leftX, miniY)
-  miniY += 8
+  miniY += 10
   const miniGap = 3
   const miniCards = dash.miniCards?.length ? dash.miniCards : []
-  const availableMiniH = Math.max(0, bodyBottom - miniY)
-  // Content-sized cards — no equal-height stretch (avoids empty whitespace)
   const estimateCardH = (card) => {
     const findings = (card.findings || []).filter((f) => f?.title).slice(0, 3)
-    let h = 10 // padding / title row
-    h += 8
+    let h = 18
     if (card.scoreLabel) h += 6
     if (findings.length) {
-      h += 6
-      h += findings.length * 8
+      // header rule + rows + padded rules between rows when 2+
+      h += 8 + findings.length * 10 + Math.max(0, findings.length - 1) * 6
     }
     return h + 4
-  }
-  let totalEst = miniCards.reduce((sum, c) => sum + estimateCardH(c), 0)
-    + Math.max(0, miniCards.length - 1) * miniGap
-  if (totalEst > availableMiniH && miniCards.length) {
-    // Content already compact without thumbs — no further thumb shrink needed
-    totalEst = miniCards.reduce((sum, c) => sum + estimateCardH(c), 0)
-      + Math.max(0, miniCards.length - 1) * miniGap
   }
   miniCards.forEach((rawCard) => {
     const card = localizePriorityMiniCard(rawCard, { tReport: reportT, tCv, locale })
     const findings = (card.findings || []).filter((f) => f?.title).slice(0, 3)
     let cardH = estimateCardH(card)
-    const remaining = bodyBottom - miniY
+    const remaining = colsCapY - miniY
     if (remaining < 28) return
     cardH = Math.min(cardH, remaining)
     drawPanel(doc, leftX, miniY, leftW, cardH, 3)
     let textY = miniY + 10
-    const miniTitleText = String(card.title || card.id)
-    const scoreText = card.score ? String(card.score) : ''
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6)
     setInk(doc)
-    doc.text(miniTitleText, leftX + 5, textY)
-    if (scoreText) {
-      doc.text(scoreText, leftX + leftW - 5, textY, { align: 'right' })
-    }
+    doc.text(String(card.title || card.id), leftX + 5, textY)
+    if (card.score) doc.text(String(card.score), leftX + leftW - 5, textY, { align: 'right' })
     textY += 7
     if (card.scoreLabel && textY < miniY + cardH - 2) {
       doc.setFont('helvetica', 'normal')
@@ -2424,270 +2396,324 @@ function drawProtocolDashboardPage1(doc, ctx) {
     if (findings.length && textY < miniY + cardH - 4) {
       doc.setDrawColor(229, 231, 235)
       doc.line(leftX + 5, textY, leftX + leftW - 5, textY)
-      textY += 6
-      findings.forEach((finding) => {
+      textY += 8
+      findings.forEach((finding, fi) => {
         if (textY > miniY + cardH - 3) return
-        const key = String(finding.title || '')
-        const val = finding.detail != null && finding.detail !== '' ? String(finding.detail) : '—'
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(5)
         setInk(doc)
-        doc.text(key, leftX + 5, textY)
+        doc.text(String(finding.title || ''), leftX + 5, textY)
         doc.setFont('helvetica', 'normal')
         setMuted(doc)
-        doc.text(val, leftX + leftW - 5, textY, { align: 'right' })
-        textY += 7
+        doc.text(
+          finding.detail != null && finding.detail !== '' ? String(finding.detail) : '—',
+          leftX + leftW - 5,
+          textY,
+          { align: 'right' },
+        )
+        textY += 5
+        if (fi < findings.length - 1 && textY < miniY + cardH - 2) {
+          doc.setDrawColor(229, 231, 235)
+          doc.setLineWidth(0.25)
+          doc.line(leftX + 5, textY, leftX + leftW - 5, textY)
+          textY += 7
+        }
       })
     }
     const pageNumber = featurePageById[card.id] || card.pdfPage
-    if (pageNumber) {
-      miniLinks.push({ x: leftX, y: miniY, w: leftW, h: cardH, pageNumber })
-    }
+    if (pageNumber) miniLinks.push({ x: leftX, y: miniY, w: leftW, h: cardH, pageNumber })
     miniY += cardH + miniGap
   })
 
-  // ── Center column (proportional stack) ──
-  let cy = treatmentTop
+  const leftBottom = miniY
+
+  let cy = colsTop
   const pairGap = 6
-  // Center column height from name plate top down — fills beside hero + priority
-  const pairH = Math.round((bodyBottom - treatmentTop) * 0.29)
   const halfW = (centerW - pairGap) / 2
+  // Larger B/A plates — taller aspect, less cap from remaining column budget
+  const pairH = Math.min(
+    Math.round(halfW * 1.38),
+    Math.max(110, colsCapY - colsTop - 200),
+  )
   drawImageFrame(doc, centerX, cy, halfW, pairH, photoJpeg, t('dashBefore'), { cover: true, gap: 0, pdfT: t })
   drawImageFrame(doc, centerX + halfW + pairGap, cy, halfW, pairH, overviewAfterJpeg, t('dashPotential'), { cover: true, gap: 0, pdfT: t })
-  cy += pairH + 8
+  cy += pairH + 10
 
-  const ageH = 52
+  const faceAge = dash.faceAge
+  const potentialAge = dash.potentialAge
+  const ageH = 102
   drawPanel(doc, centerX, cy, centerW, ageH)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(6.5)
   setMuted(doc)
-  doc.text(t('dashFacialAge'), centerX + 8, cy + 10)
-  const faceAge = dash.faceAge
-  const faceText = faceAge != null ? String(faceAge) : '—'
-  doc.setFontSize(18)
-  setInk(doc)
-  doc.text(faceText, centerX + 10, cy + 32)
-
+  doc.text(t('dashFacialAge'), centerX + 8, cy + 13)
   const axisMin = 5
   let axisMax = 65
-  if (faceAge != null) {
-    axisMax = Math.max(axisMax, faceAge + 4)
-  }
-  const barX = centerX + 42
-  const barW = centerW - 52
-  const barY = cy + 22
-  const barH = 4
-  const toX = (val) => barX + ((val - axisMin) / (axisMax - axisMin)) * barW
-  doc.setFillColor(226, 232, 240)
-  doc.roundedRect(barX, barY, barW, barH, 1.5, 1.5, 'F')
-  if (faceAge != null) {
-    const fx = toX(faceAge)
-    doc.setDrawColor(BRAND.r, BRAND.g, BRAND.b)
-    doc.setLineWidth(1.1)
-    doc.line(fx, barY - 2, fx, barY + barH + 12)
+  if (faceAge != null) axisMax = Math.max(axisMax, faceAge + 4)
+  if (potentialAge != null) axisMax = Math.max(axisMax, potentialAge + 4)
+  const barX = centerX + 58
+  const barW = centerW - 68
+  const drawAgeRow = (label, age, rowY, brandNeedle) => {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(5)
+    setMuted(doc)
+    doc.text(label, centerX + 8, rowY)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6)
-    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
-    doc.text(String(faceAge), fx, barY + barH + 18, { align: 'center' })
+    doc.setFontSize(11)
+    if (brandNeedle) {
+      doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+    } else {
+      setInk(doc)
+    }
+    doc.text(age != null ? String(age) : '—', centerX + 8, rowY + 13)
+    const trackY = rowY + 4
+    const trackH = 5
+    doc.setFillColor(226, 232, 240)
+    doc.roundedRect(barX, trackY, barW, trackH, 2, 2, 'F')
+    if (age != null) {
+      const fx = barX + ((age - axisMin) / (axisMax - axisMin)) * barW
+      if (brandNeedle) {
+        doc.setDrawColor(BRAND.r, BRAND.g, BRAND.b)
+        doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+      } else {
+        doc.setDrawColor(55, 65, 81)
+        doc.setTextColor(55, 65, 81)
+      }
+      doc.setLineWidth(1.1)
+      doc.line(fx, trackY - 2, fx, trackY + trackH + 7)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(5.5)
+      doc.text(String(age), fx, trackY + trackH + 12, { align: 'center' })
+    }
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(4)
+    setMuted(doc)
+    doc.text(String(axisMin), barX, trackY + trackH + 8)
+    doc.text(String(Math.round(axisMax)), barX + barW, trackY + trackH + 8, { align: 'right' })
   }
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(4.5)
-  setMuted(doc)
-  doc.text(String(axisMin), barX, barY + barH + 9)
-  doc.text(String(Math.round(axisMax)), barX + barW, barY + barH + 9, { align: 'right' })
-  cy += ageH + 8
+  drawAgeRow(t('dashAgeProfile'), faceAge, cy + 28, false)
+  drawAgeRow(t('dashPotentialAgeProfile'), potentialAge, cy + 64, true)
+  cy += ageH + 10
 
-  const stackH = bodyBottom - cy - 16
-  const graphH = Math.floor(stackH * (1 / 3.35))
-  const overviewH = Math.floor(stackH * (1.35 / 3.35))
-  const tableH = stackH - graphH - overviewH
-
+  // Same 11-axis feature radar as page 5 (client + projected)
+  const featureRadarItems = getFeatureComparisonData(cvReport).map((item) => ({
+    ...item,
+    label: reportT(`protocolModel.chartAxes.${item.id}`) || item.label,
+  }))
+  const rMax = Math.min(36, Math.round(centerW * 0.26))
+  const labelPad = 11
+  const titleBlock = 18
+  const topGap = 16
+  const legendOffset = 22
+  const bottomPad = 16
+  const graphH = titleBlock + topGap + 2 * (rMax + labelPad) + legendOffset + 8 + bottomPad
   drawPanel(doc, centerX, cy, centerW, graphH)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(6.5)
   setMuted(doc)
-  doc.text(t('dashHarmonyProfile'), centerX + 8, cy + 12)
-  const radarBoxW = Math.min(98, Math.round(centerW * 0.42))
-  const radarItems = [
-    { label: reportT('executiveSummary.radarAxesShort.symmetry'), score: dash.radarScores.symmetry },
-    { label: reportT('executiveSummary.radarAxesShort.smoothness'), score: dash.radarScores.smoothness },
-    { label: reportT('executiveSummary.radarAxesShort.jawline'), score: dash.radarScores.jawline },
-    { label: reportT('executiveSummary.radarAxesShort.skin'), score: dash.radarScores.skin },
-    { label: reportT('executiveSummary.radarAxesShort.volume'), score: dash.radarScores.volume },
-    { label: reportT('executiveSummary.radarAxesShort.harmony'), score: dash.radarScores.harmony },
-  ]
-  const hasRadar = radarItems.some((item) => item.score != null)
-  if (hasRadar) {
-    drawCompactRadarChart(doc, centerX + (centerW - radarBoxW) / 2, cy + 14, radarBoxW, graphH - 22, radarItems)
+  doc.text(t('dashHarmonyProfile'), centerX + 8, cy + 13)
+  if (featureRadarItems.length) {
+    drawRadarChart(
+      doc,
+      centerX + centerW / 2,
+      cy + titleBlock + topGap + rMax + labelPad,
+      rMax,
+      featureRadarItems,
+      { fontSize: 4.5, labelPad, legendFontSize: 4.5, legendOffset, legendBox: 5, legendSpread: 62 },
+    )
   } else {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     setMuted(doc)
     doc.text('—', centerX + centerW / 2, cy + graphH / 2 + 2, { align: 'center' })
   }
-  cy += graphH + 8
+  const centerBottom = cy + graphH
 
-  drawPanel(doc, centerX, cy, centerW, overviewH)
-  const overviewLineH = 7.5
-  const overviewMaxLines = Math.max(4, Math.floor((overviewH - 28) / overviewLineH))
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(6.5)
-  setMuted(doc)
-  doc.text(t('dashOverview'), centerX + 8, cy + 12)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(6.5)
-  setInk(doc)
-  wrapTextMaxLines(doc, overviewText || '—', centerX + 8, cy + 22, centerW - 16, overviewLineH, overviewMaxLines)
-  cy += overviewH + 8
-
-  drawPanel(doc, centerX, cy, centerW, tableH)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(6.5)
-  setMuted(doc)
-  doc.text(t('dashFeatureEvaluation'), centerX + 8, cy + 12)
-  const colZone = centerX + 8
-  const colFinding = centerX + Math.round(centerW * 0.28)
-  const colRef = centerX + Math.round(centerW * 0.58)
-  ;[t('dashZone'), t('dashFinding'), t('dashReference')].forEach((h, i) => {
-    doc.text(h, [colZone, colFinding, colRef][i], cy + 24)
-  })
-  let rowY = cy + 34
-  const rowStep = Math.min(11, Math.floor((tableH - 38) / Math.max(1, dash.featureRows.length)))
-  dash.featureRows.forEach((row) => {
-    const localized = localizeFeatureRow(row, { tReport: reportT, tCv, locale })
-    const finding = localized.finding || '—'
-    const ref = localized.ref || '—'
-    const findingText = sanitizePdfText(finding)
-    const refText = sanitizePdfText(ref)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6)
-    setInk(doc)
-    doc.text(reportFeatureCopy(pdfMessages, row.zoneKey, 'zone'), colZone, rowY)
-    doc.setFont('helvetica', 'normal')
-    setMuted(doc)
-    doc.text(findingText.length > 28 ? `${findingText.slice(0, 27)}…` : findingText, colFinding, rowY)
-    doc.text(refText.length > 22 ? `${refText.slice(0, 21)}…` : refText, colRef, rowY)
-    rowY += rowStep
-  })
-
-  // ── Right column: treatment protocol (aligned with name plate, not below hero) ──
-  const treatmentTitleBaseline = treatmentTop + 7
+  let ry = colsTop
+  // Analysis card sized to content (photo + even label stack + steps)
+  const headerBlockH = 22
+  const stepsBlockH = 62
+  const labelColW = Math.round(rightW * 0.28)
+  const photoLabelGap = 10
+  const photoW = rightW - 10 - labelColW - photoLabelGap
+  // Larger plate — face-centered cover crop
+  const photoH = Math.min(195, Math.round(photoW * 1.72))
+  const rightCardH = headerBlockH + photoH + 6 + stepsBlockH + 8
+  drawPanel(doc, rightX, ry, rightW, rightCardH, 5)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
-  setMuted(doc)
-  doc.text(t('dashTreatmentProtocol'), rightX, treatmentTitleBaseline)
-  let ry = treatmentTitleBaseline + 12
-
-  const phaseKeys = ['phase01', 'phase02', 'phase03'].filter((k) => treatment.phases?.[k])
-  const phaseGap = 5
-  const textX = rightX + 6
-  const textW = rightW - 12
-  const titleLineH = PHASE_CARD_LAYOUT.titleLineH
-  const bodyLineH = PHASE_CARD_LAYOUT.bodyLineH
-  const padTop = PHASE_CARD_LAYOUT.padTop
-  const padBottom = PHASE_CARD_LAYOUT.padBottom
-  const labelToTitle = PHASE_CARD_LAYOUT.labelToTitle
-  const titleToDurationGap = PHASE_CARD_LAYOUT.titleToDurationGap
-  const durationToDivider = PHASE_CARD_LAYOUT.durationToDivider
-  const dividerToItems = PHASE_CARD_LAYOUT.dividerToItems
-
-  const summaryLineH = 7
-  const summaryGap = 10
+  setInk(doc)
+  const heroPrefix = reportT('executiveSummary.heroTitlePrefix')
+  const heroAccent = reportT('executiveSummary.heroTitleAccent')
+  doc.text(sanitizePdfText(heroPrefix), rightX + 5, ry + 11)
+  const prefixW = doc.getTextWidth(`${sanitizePdfText(heroPrefix)} `)
+  doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+  doc.text(sanitizePdfText(heroAccent), rightX + 5 + prefixW, ry + 11)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(5.5)
-  const summaryFullLines = treatment.summary
-    ? doc.splitTextToSize(sanitizePdfText(treatment.summary), rightW)
-    : []
-  // Reserve up to 4 lines for summary so phase cards don't eat the footer band.
-  const summaryReserve = summaryFullLines.length
-    ? Math.min(4, summaryFullLines.length) * summaryLineH + summaryGap
-    : 0
-
-  const columnBudget = Math.max(40, bodyBottom - 8 - ry - summaryReserve)
-  const layouts = layoutTreatmentPhaseCards(doc, {
-    phaseKeys,
-    phases: treatment.phases,
-    textW,
-    columnBudget,
-    phaseGap,
-  })
-
-  layouts.forEach((layout) => {
-    const drawH = layout.height
-
-    doc.setFillColor(255, 255, 255)
-    doc.setDrawColor(236, 236, 236)
-    doc.roundedRect(rightX, ry, rightW, drawH, 4, 4, 'FD')
-
-    let cursorY = ry + padTop
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6)
-    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
-    doc.text(
-      layout.phase?.label || reportPhaseCopy(pdfMessages, layout.phaseKey, 'label'),
-      textX,
-      cursorY,
-    )
-
-    cursorY += labelToTitle
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7.5)
-    setInk(doc)
-    layout.titleLines.forEach((line, i) => {
-      doc.text(line, textX, cursorY + i * titleLineH)
-    })
-    cursorY += layout.titleLines.length * titleLineH + titleToDurationGap
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6)
-    setMuted(doc)
-    layout.durationLines.forEach((line, i) => {
-      doc.text(line, textX, cursorY + i * bodyLineH)
-    })
-    cursorY += layout.durationLines.length * bodyLineH + durationToDivider
-
-    doc.setDrawColor(236, 236, 236)
-    doc.line(textX, cursorY, rightX + rightW - 6, cursorY)
-    cursorY += dividerToItems
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6)
-    setInk(doc)
-    const contentBottom = ry + drawH - padBottom
-    layout.itemLineGroups.forEach((lines) => {
-      if (!lines.length) return
-      // Whole bullet only — if the last line baseline would pass the card floor, drop the bullet.
-      const lastBaseline = cursorY + (lines.length - 1) * bodyLineH
-      if (lastBaseline > contentBottom) return
-      lines.forEach((line) => {
-        doc.text(line, textX, cursorY)
-        cursorY += bodyLineH
-      })
-    })
-
-    ry += drawH + phaseGap
-  })
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(5.5)
+  doc.setFontSize(5)
   setMuted(doc)
-  if (treatment.summary && ry < bodyBottom - 12) {
-    const summaryMaxLines = Math.max(1, Math.floor((bodyBottom - 12 - ry) / summaryLineH))
-    const summaryLines = splitTextWordBoundary(doc, treatment.summary, rightW, summaryMaxLines)
-    summaryLines.forEach((line, i) => {
-      doc.text(line, rightX, ry + 2 + i * summaryLineH)
-    })
+  doc.text(sanitizePdfText(reportT('executiveSummary.heroGlance')), rightX + 5, ry + 19)
+
+  const photoX = rightX + 5
+  const photoY = ry + headerBlockH
+  const labelColX = photoX + photoW + photoLabelGap
+
+  doc.setFillColor(232, 240, 238)
+  doc.roundedRect(photoX, photoY, photoW, photoH, 3, 3, 'F')
+  let imgNatW = 0
+  let imgNatH = 0
+  if (photoJpeg) {
+    try {
+      const props = doc.getImageProperties(photoJpeg)
+      imgNatW = props.width
+      imgNatH = props.height
+      addPdfImage(doc, photoJpeg, photoX + 1, photoY + 1, photoW - 2, photoH - 2, true)
+    } catch {
+      /* mint fill */
+    }
   }
 
-  // Footer
+  const callouts = resolveFeaturePreviewCallouts(landmarks, ANALYSIS_CARD_CALLOUTS)
+  const nCall = Math.max(1, callouts.length)
+  const chipH = 8
+  callouts.forEach((c, i) => {
+    const mapped = imgNatW && imgNatH
+      ? mapCoverCenter(c.x, c.y, imgNatW, imgNatH, photoW - 2, photoH - 2)
+      : { x: c.x, y: c.y }
+    const ax = photoX + 1 + mapped.x * (photoW - 2)
+    const ay = photoY + 1 + mapped.y * (photoH - 2)
+    // Even tabular stack — independent of feature Y
+    const ly = photoY + ((i + 0.5) / nCall) * photoH
+    doc.setDrawColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.setLineWidth(0.3)
+    doc.line(ax, ay, labelColX, ly)
+    doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.circle(ax, ay, 0.55, 'F')
+    const label = sanitizePdfText(reportT(`executiveSummary.faceMap.${c.id}`))
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6.5)
+    const chipW = Math.min(labelColW, Math.max(18, doc.getTextWidth(label) + 5))
+    doc.setFillColor(241, 245, 249)
+    doc.setDrawColor(226, 232, 240)
+    doc.setLineWidth(0.25)
+    doc.roundedRect(labelColX, ly - chipH / 2, chipW, chipH, 1.4, 1.4, 'FD')
+    setInk(doc)
+    doc.text(label, labelColX + 2, ly + 1.6)
+  })
+
+  // Steps sit directly under the photo plate
+  let stepY = photoY + photoH + 12
+  for (let i = 0; i < 3; i += 1) {
+    const featTitle = reportT(`executiveSummary.heroFeatures.${i}.title`)
+    const featDetail = reportT(`executiveSummary.heroFeatures.${i}.detail`)
+    doc.setFillColor(219, 238, 232)
+    doc.circle(rightX + 9, stepY, 4, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(5.5)
+    doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+    doc.text(String(i + 1), rightX + 9, stepY + 1.5, { align: 'center' })
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(5.5)
+    setInk(doc)
+    doc.text(sanitizePdfText(featTitle), rightX + 16, stepY)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(4.5)
+    setMuted(doc)
+    doc.text(sanitizePdfText(featDetail), rightX + 16, stepY + 7)
+    stepY += 18
+  }
+  let rightBottom = ry + rightCardH
+
+  // Merkmalsbewertung — two prose bullets; store full text, display via sentence truncate
+  const highlights = resolveFeatureHighlights({ protocolNarrative, cvReport, locale })
+  if (highlights.length) {
+    const merkY = rightBottom + 6
+    const bulletLineH = 7.5
+    const bulletGap = 8
+    const titleToFirst = 12
+    const bulletMaxLines = 5
+    const bulletTextW = rightW - 16
+    const bulletLines = []
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6.5)
+    highlights.forEach((bullet) => {
+      bulletLines.push(splitTextAtSentences(doc, bullet, bulletTextW, bulletMaxLines, bulletLineH))
+    })
+    const bulletsH = bulletLines.reduce(
+      (sum, lines, i) => sum + Math.max(1, lines.length) * bulletLineH + (i < bulletLines.length - 1 ? bulletGap : 2),
+      0,
+    )
+    const merkH = 12 + titleToFirst + bulletsH + 6
+    drawPanel(doc, rightX, merkY, rightW, merkH, 4)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    setMuted(doc)
+    doc.text(t('dashFeatureEvaluation'), rightX + 5, merkY + 11)
+    let by = merkY + 11 + titleToFirst
+    highlights.forEach((_, i) => {
+      const lines = bulletLines[i] || []
+      doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
+      doc.circle(rightX + 7, by + 1, 1.2, 'F')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6.5)
+      setInk(doc)
+      lines.forEach((line, li) => {
+        doc.text(line, rightX + 11, by + 2 + li * bulletLineH)
+      })
+      by += Math.max(1, lines.length) * bulletLineH + bulletGap
+    })
+    rightBottom = merkY + merkH
+  }
+
+  // Überblick: content height from text; taller padding block; margin above footer
+  const colsBottom = Math.max(leftBottom, centerBottom, rightBottom)
+  const overviewY = colsBottom + 8
+  const overviewMaxBottom = footerY - overviewFooterGap
+  const overviewPadX = 18
+  const overviewPadTop = 24
+  const overviewTitleToBody = 16
+  const overviewBodyLineH = 8.5
+  const overviewPadBottom = 28
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  const overviewLines = doc.splitTextToSize(
+    sanitizePdfText(overviewText || '—'),
+    innerW - overviewPadX * 2,
+  )
+  const naturalOverviewH =
+    overviewPadTop + 8 + overviewTitleToBody + overviewLines.length * overviewBodyLineH + overviewPadBottom
+  const maxOverviewH = Math.max(minOverviewH, overviewMaxBottom - overviewY)
+  const overviewBandH = Math.min(Math.max(minOverviewH, naturalOverviewH), maxOverviewH)
+  drawPanel(doc, pad, overviewY, innerW, overviewBandH, 5)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  setMuted(doc)
+  doc.text(t('dashOverview'), pad + overviewPadX, overviewY + overviewPadTop)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  setInk(doc)
+  const overviewMaxLines = Math.max(
+    1,
+    Math.floor(
+      (overviewBandH - overviewPadTop - 8 - overviewTitleToBody - overviewPadBottom) / overviewBodyLineH,
+    ),
+  )
+  wrapTextMaxLines(
+    doc,
+    overviewText || '—',
+    pad + overviewPadX,
+    overviewY + overviewPadTop + overviewTitleToBody,
+    innerW - overviewPadX * 2,
+    overviewBodyLineH,
+    overviewMaxLines,
+  )
+
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(6)
   setMuted(doc)
-  doc.text('—', pad, footerY)
+  doc.text(t('dashFooterBrand'), pad, footerY)
   doc.text(
-    t('dashFooterMetrics', {
-      points: String(dash.evaluatedPoints || '—'),
-    }),
+    t('dashFooterMetrics', { points: String(dash.evaluatedPoints || '—') }),
     innerRight,
     footerY,
     { align: 'right' },
@@ -2853,6 +2879,14 @@ export async function buildMyFacePdf({
     ...item,
     label: pm(`chartAxes.${item.id}`) || item.label,
   }))
+  const dashForPhases = buildProtocolDashboardData({
+    cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt, projectedAnalysis,
+  })
+  const skinTreatment = resolveTreatmentPhases({
+    protocolNarrative,
+    dash: dashForPhases,
+    t: activeReportT,
+  })
 
   try {
   const protocolId = formatProtocolId(assessmentId)
@@ -2870,6 +2904,13 @@ export async function buildMyFacePdf({
       s.imageSlots?.preview || s.imageSlots?.pairBefore || s.beforeJpeg || featureImages[s.id]?.before || photoJpeg,
     ]),
   )
+  let brandWordmarkDataUrl = null
+  try {
+    brandWordmarkDataUrl = await loadImageAsDataUrl('/brand/myface-wordmark.png')
+  } catch {
+    /* text fallback in page-1 header */
+  }
+
   const { miniLinks = [] } = drawProtocolDashboardPage1(doc, {
     t,
     pdfMessages,
@@ -2890,117 +2931,116 @@ export async function buildMyFacePdf({
     updatedAt,
     landmarks,
     locale,
+    projectedAnalysis,
+    brandWordmarkDataUrl,
   }) || {}
 
-  // ── Page 2: Disclaimer + Privacy (two columns) ──
+  // ── Page 2: Disclaimer (boxed) + Privacy + company (single column) ──
   doc.addPage()
   drawHeader(doc, 2, t)
   y = drawSplitTitle(doc, MARGIN, 85, t('disclaimer'), t('policy'), 26)
 
-  // Draw vertical separator line down the middle
-  doc.setDrawColor(236, 236, 236) // #ECECEC
-  doc.setLineWidth(0.75)
-  doc.line(PAGE_W / 2, 150, PAGE_W / 2, PAGE_H - 120)
+  const DISCLAIMER_BOX_PAD = 14
+  const DISCLAIMER_BOX_RADIUS = 8
+  const DISCLAIMER_BOX_BG = PAGE1_BG
+  const bodyLineH = 11.5
+  const paraGap = 10
+  const textW = CONTENT_W - DISCLAIMER_BOX_PAD * 2
 
-  // Start column headers
-  let columnHeaderY = 155
+  // Measure disclaimer box height, then paint fill + content
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  const headerH = 9.5
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  let measureH = headerH + 12
+  DISCLAIMER_PARAGRAPH_KEYS.forEach((key, idx) => {
+    const lines = doc.splitTextToSize(sanitizePdfText(activeReportT(key) || ''), textW)
+    measureH += lines.length * bodyLineH
+    if (idx < DISCLAIMER_PARAGRAPH_KEYS.length - 1) measureH += paraGap
+  })
+  const boxTop = y + 28
+  const boxH = DISCLAIMER_BOX_PAD * 2 + measureH
+  doc.setFillColor(DISCLAIMER_BOX_BG.r, DISCLAIMER_BOX_BG.g, DISCLAIMER_BOX_BG.b)
+  doc.roundedRect(MARGIN, boxTop, CONTENT_W, boxH, DISCLAIMER_BOX_RADIUS, DISCLAIMER_BOX_RADIUS, 'F')
+
+  let boxY = boxTop + DISCLAIMER_BOX_PAD + headerH
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   setInk(doc)
-  doc.text(t('disclaimerPolicy'), MARGIN, columnHeaderY)
-  doc.text(t('privacyPolicy'), MARGIN + COL_W + COL_GAP, columnHeaderY)
-
-  // Draw paragraphs
-  let leftY = columnHeaderY + 18
-  let rightY = columnHeaderY + 18
+  doc.text(t('disclaimerPolicy'), MARGIN + DISCLAIMER_BOX_PAD, boxY)
+  boxY += 12
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  
-  // Disclaimer paragraphs
+  setInk(doc)
   DISCLAIMER_PARAGRAPH_KEYS.forEach((key, idx) => {
-    if (idx === DISCLAIMER_PARAGRAPH_KEYS.length - 1) {
-      doc.setFont('helvetica', 'bold')
-      setInk(doc)
-    } else {
-      doc.setFont('helvetica', 'normal')
-      setInk(doc)
-    }
-    leftY = wrapText(doc, activeReportT(key), MARGIN, leftY, COL_W, 11.5) + 10
+    boxY = wrapText(doc, activeReportT(key), MARGIN + DISCLAIMER_BOX_PAD, boxY, textW, bodyLineH)
+    if (idx < DISCLAIMER_PARAGRAPH_KEYS.length - 1) boxY += paraGap
   })
+  y = boxTop + boxH + 28
 
-  // Privacy paragraphs
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  setInk(doc)
+  doc.text(t('privacyPolicy'), MARGIN, y)
+  y += 16
   doc.setFont('helvetica', 'normal')
-  PRIVACY_PARAGRAPH_KEYS.forEach((key) => {
-    rightY = wrapText(doc, activeReportT(key), MARGIN + COL_W + COL_GAP, rightY, COL_W, 11.5) + 10
-  })
-
-  // Clickable Privacy Policy URL link at the bottom of the column
   doc.setFontSize(8)
-  rightY = drawWrappedPrivacyLink(
+  setInk(doc)
+  PRIVACY_PARAGRAPH_KEYS.forEach((key) => {
+    y = wrapText(doc, activeReportT(key), MARGIN, y, CONTENT_W, bodyLineH) + paraGap
+  })
+  // Whole line brand-colored (matches design: prefix + URL mint)
+  y = drawWrappedPrivacyLink(
     doc,
-    MARGIN + COL_W + COL_GAP,
-    rightY,
-    COL_W,
-    t('readPrivacyPrefix'),
-    t('privacyLink'),
+    MARGIN,
+    y,
+    CONTENT_W,
+    '',
+    `${t('readPrivacyPrefix')} ${t('privacyLink')}`,
     PRIVACY_POLICY_URL,
-    11.5,
+    bodyLineH,
   )
 
-  // Bottom signature block at the bottom of the right column (left-aligned within the column)
-  const signatureY = PAGE_H - 110
+  const signatureY = Math.max(y + 36, PAGE_H - 100)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   setInk(doc)
-  doc.text(t('companyName'), MARGIN + COL_W + COL_GAP, signatureY)
+  doc.text(t('companyName'), MARGIN, signatureY)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setMuted(doc)
-  doc.text(t('commissionedFor'), MARGIN + COL_W + COL_GAP, signatureY + 12)
-  doc.text(t('commissionedOn', { name: clientName, month: monthLabel }), MARGIN + COL_W + COL_GAP, signatureY + 24)
+  doc.text(
+    pm('commissionedLine', { name: clientName, month: monthLabel }),
+    MARGIN,
+    signatureY + 14,
+  )
 
-  // ── Page 3: Introduction + Contents (two columns) ──
+  // ── Page 3: Introduction + Contents (two columns) + limitations box ──
   doc.addPage()
   drawHeader(doc, 3, t)
   y = drawSplitTitle(doc, MARGIN, 85, pm('introduction'), null, 26)
 
-  // Draw vertical separator line
-  doc.setDrawColor(236, 236, 236) // #ECECEC
-  doc.setLineWidth(0.75)
-  doc.line(PAGE_W / 2, 130, PAGE_W / 2, PAGE_H - 120)
-
-  // Columns start at y=140
   const colStartY = 140
-  
-  // Left column top (Introduction)
-  leftY = colStartY
+  const bodyLineH3 = 11.5
+  const paraGap3 = 10
+  const LIM_PAD = 14
+  const LIM_RADIUS = 8
+  const limTextW = CONTENT_W - LIM_PAD * 2
+  const limGapAfterCols = 56
+
+  // Left column (introduction only)
+  let leftY = colStartY
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setInk(doc)
   INTRODUCTION_PARAGRAPH_KEYS.forEach((key) => {
-    leftY = wrapText(doc, activeReportT(key), MARGIN, leftY, COL_W, 11.5) + 10
+    leftY = wrapText(doc, activeReportT(key), MARGIN, leftY, COL_W, bodyLineH3) + paraGap3
   })
 
-  // Horizontal divider in left column
-  const dividerY = 410
-  doc.setDrawColor(236, 236, 236)
-  doc.setLineWidth(0.75)
-  doc.line(MARGIN, dividerY, MARGIN + COL_W, dividerY)
-
-  // Left column bottom (Limitations)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  setInk(doc)
-  doc.text(pm('limitationsLabel'), MARGIN, dividerY + 20)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setInk(doc)
-  wrapText(doc, activeReportT(LIMITATIONS_PARAGRAPH_KEY), MARGIN, dividerY + 34, COL_W, 11.5)
-
-  // Right column (Contents)
-  rightY = colStartY
+  // Right column (contents)
+  let rightY = colStartY
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   setInk(doc)
@@ -3009,7 +3049,6 @@ export async function buildMyFacePdf({
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-
   contents.forEach((item) => {
     setInk(doc)
     doc.text(item.label, MARGIN + COL_W + COL_GAP, rightY)
@@ -3017,6 +3056,39 @@ export async function buildMyFacePdf({
     doc.text(String(item.page).padStart(2, '0'), PAGE_W - MARGIN, rightY, { align: 'right' })
     rightY += 18
   })
+
+  // Vertical rule only through the taller column of text (not into empty space)
+  const colsEndY = Math.max(leftY, rightY)
+  doc.setDrawColor(236, 236, 236) // #ECECEC
+  doc.setLineWidth(0.75)
+  doc.line(PAGE_W / 2, 130, PAGE_W / 2, colsEndY)
+
+  // Limitations callout — just below the taller column, with a clear gap
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  const limHeaderH = 9.5
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  const limLines = doc.splitTextToSize(
+    sanitizePdfText(activeReportT(LIMITATIONS_PARAGRAPH_KEY) || ''),
+    limTextW,
+  )
+  const limMeasureH = limHeaderH + 12 + limLines.length * bodyLineH3
+  const limBoxH = LIM_PAD * 2 + limMeasureH
+  const limBoxTop = colsEndY + limGapAfterCols
+
+  doc.setFillColor(PAGE1_BG.r, PAGE1_BG.g, PAGE1_BG.b)
+  doc.roundedRect(MARGIN, limBoxTop, CONTENT_W, limBoxH, LIM_RADIUS, LIM_RADIUS, 'F')
+  let limY = limBoxTop + LIM_PAD + limHeaderH
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  setInk(doc)
+  doc.text(pm('limitationsLabel'), MARGIN + LIM_PAD, limY)
+  limY += 12
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setInk(doc)
+  wrapText(doc, activeReportT(LIMITATIONS_PARAGRAPH_KEY), MARGIN + LIM_PAD, limY, limTextW, bodyLineH3)
 
   // ── Page 4: Understanding the Results ──
   doc.addPage()
@@ -3156,7 +3228,7 @@ export async function buildMyFacePdf({
     } else if (section.id === 'chin') {
       await drawChinFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.profileJpeg, section.profileIsReal)
     } else if (section.id === 'skin') {
-      drawSkinFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.afterJpeg)
+      drawSkinFeaturePage(doc, section, featurePageNum, section.beforeJpeg, section.afterJpeg, skinTreatment)
     } else if (section.id === 'neck') {
       drawNeckFeaturePage(doc, section, featurePageNum, section.beforeJpeg)
     } else if (section.id === 'ears') {

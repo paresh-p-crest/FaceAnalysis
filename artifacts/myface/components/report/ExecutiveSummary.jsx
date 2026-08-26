@@ -244,7 +244,10 @@ export function ExecutiveSummary({
         <div className="space-y-3 min-w-0">
           <NameProtocolPlate
             firstName={firstName}
-            protocolLine={t('executiveSummary.protocolIdLine', { id: protocolId })}
+            clientName={clientName}
+            customerLabel={t('executiveSummary.namePlateCustomer')}
+            protocolBrandLine={t('executiveSummary.namePlateProtocolBrand')}
+            assessedLine={t('executiveSummary.namePlateAssessed', { date: reportDate })}
             reportHref={reportHref}
             reportLinkLabel={t('executiveSummary.namePlateViewReport')}
           />
@@ -293,9 +296,12 @@ export function ExecutiveSummary({
                     </p>
                   )}
                   {findings.length > 0 && (
-                    <div className="mt-2.5 border-t border-surface-border pt-2.5 space-y-1.5">
+                    <div className="mt-2.5 border-t border-surface-border pt-2.5 divide-y divide-surface-border">
                       {findings.map((finding, lineIdx) => (
-                        <div key={lineIdx} className="flex items-start justify-between gap-3">
+                        <div
+                          key={lineIdx}
+                          className="flex items-start justify-between gap-3 py-2.5"
+                        >
                           <p className="text-[11px] font-semibold text-ink leading-snug min-w-0">
                             {finding.title}
                           </p>

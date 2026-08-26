@@ -31,6 +31,9 @@ from .config import (
 from .feature_context import build_feature_context, feature_context_as_prompt_text
 from .llm_client import chat_structured_completion
 from .narrative_schemas import (
+    FEATURE_HIGHLIGHT_BULLET_MAX,
+    FEATURE_HIGHLIGHT_BULLET_MIN,
+    FEATURE_HIGHLIGHT_BULLET_SOFT,
     FEATURE_SUMMARY_MAX,
     FEATURE_SUBSECTION_TITLES,
     TREATMENT_PHASE_DETAIL_MAX,
@@ -43,11 +46,13 @@ from .narrative_schemas import (
     TREATMENT_PHASE_TITLE_MAX,
     ClosingSynthesis,
     ProtocolOverview,
+    ProtocolFeatureHighlights,
     TreatmentPhases,
     closing_synthesis_json_schema,
     feature_narrative_json_schema,
     feature_subsection_length_prompt,
     minimal_severity_length_carveout_prompt,
+    protocol_feature_highlights_json_schema,
     protocol_overview_json_schema,
     treatment_phases_json_schema,
 )
@@ -63,6 +68,7 @@ from .text_ai_service import (
     NO_SCORES_IN_REPORT_PROSE,
     NO_TECH_JARGON_RULES,
     STRICT_NON_SURGICAL_RULES,
+    cv_labels_for_feature_highlights,
     cv_report_summary_for_narrative,
 )
 from .vision_context import (
@@ -91,6 +97,13 @@ _RETRY_USER_HINT = (
 _PROTOCOL_OVERVIEW_RETRY_HINT = (
     'Previous JSON failed validation. Return ONLY {"summary": "..."} with summary between '
     "40 and 500 characters, third-person feature-led tone, no numeric scores."
+)
+
+_FEATURE_HIGHLIGHTS_RETRY_HINT = (
+    'Previous JSON failed validation. Return ONLY {"bullets":["...","..."]} with exactly '
+    f"two bullets, each at least {FEATURE_HIGHLIGHT_BULLET_MIN} characters "
+    f"(soft target ~{FEATURE_HIGHLIGHT_BULLET_SOFT}, hard max {FEATURE_HIGHLIGHT_BULLET_MAX}), "
+    "natural flowing sentences, no semicolons, do not mention missing details, no scores."
 )
 
 _TREATMENT_PHASES_RETRY_HINT = (
@@ -821,10 +834,12 @@ def build_protocol_narrative_compat(
     overview_summary: str,
     closing: Optional[list[str]] = None,
     treatment_phases: Optional[dict] = None,
+    feature_highlights: Optional[list[str]] = None,
     source: Optional[str] = None,
     model: Optional[str] = None,
     summary_origin: Optional[str] = None,
     closing_origin: Optional[str] = None,
+    feature_highlights_origin: Optional[str] = None,
 ) -> dict:
     features_compat = {}
     for fid, fn in feature_narratives.items():
@@ -847,11 +862,182 @@ def build_protocol_narrative_compat(
         out["model"] = model
     if treatment_phases:
         out["treatmentPhases"] = treatment_phases
+    if feature_highlights:
+        out["featureHighlights"] = list(feature_highlights)[:2]
     if summary_origin:
         out["summaryOrigin"] = summary_origin
     if closing_origin:
         out["closingOrigin"] = closing_origin
+    if feature_highlights_origin:
+        out["featureHighlightsOrigin"] = feature_highlights_origin
     return out
+
+
+def template_feature_highlights(cv_report: Optional[dict]) -> list[str]:
+    """Deterministic Merkmalsbewertung bullets when LLM fails — labels only, never CV explanations."""
+    report = cv_report or {}
+    face = report.get("faceShape") or {}
+    shape = str(face.get("shape") or "oval").strip() or "oval"
+    cheeks = report.get("cheeks") or {}
+    jaw = report.get("jaw") or report.get("jawChin") or {}
+    hair = report.get("hair") or {}
+    skin = report.get("skin") or {}
+
+    cheek_cue = (
+        cheeks.get("cheekboneHeightLabel")
+        or cheeks.get("prominenceLabel")
+        or "defined cheekbones"
+    )
+    jaw_cue = jaw.get("jawlineDefinition") or jaw.get("scoreLabel") or "a clearly shaped jawline"
+    chin_cue = (report.get("chin") or {}).get("scoreLabel") or "a distinct chin"
+
+    shape_l = shape.lower()
+    article = "an" if shape_l[:1] in "aeiou" else "a"
+    bullet1 = (
+        f"You have {article} {shape_l} face with {str(cheek_cue).lower()}, "
+        f"{str(jaw_cue).lower()}, and {str(chin_cue).lower()}."
+    )
+    if len(bullet1) < 40:
+        bullet1 = (
+            f"You have {article} {shape_l} face with prominent cheekbones, "
+            "a clearly shaped jawline, and a distinct chin that read as balanced together."
+        )
+
+    hair_cue = hair.get("scoreLabel") or hair.get("classification") or "a full hairline"
+    skin_cue = (
+        skin.get("toneLabel")
+        or skin.get("scoreLabel")
+        or skin.get("uniformityLabel")
+        or "generally healthy skin with mild tone variation"
+    )
+    bullet2 = (
+        f"This is complemented by {str(hair_cue).lower()}, a moderately visible forehead, "
+        f"and overall {str(skin_cue).lower()}."
+    )
+    if len(bullet2) < 40:
+        bullet2 = (
+            "This is complemented by a full hairline, a moderately visible forehead, "
+            "and overall good skin with a slightly uneven skin tone."
+        )
+    return [bullet1[:280], bullet2[:280]]
+
+
+_HIGHLIGHT_METRIC_PATTERN = re.compile(
+    r"\b\d+-point\b|"
+    r"\b\d+(?:\.\d+)?\s*(?:%|mm|°|degrees?)\b|"
+    r"\b(?:ratio|proportion|index)\s+(?:of\s+)?\d+(?:\.\d+)?\b|"
+    r"\b\d+(?:\.\d+)?\s*(?:ratio|proportion)\b|"
+    r"\blength-to-[a-z-]+\s+ratio\s+\d+(?:\.\d+)?\b|"
+    r"\b\d+(?:\.\d+)\b",
+    re.IGNORECASE,
+)
+
+
+def _strip_metrics_from_highlight(text: str) -> str:
+    out = strip_score_language(text or "")
+    out = _HIGHLIGHT_METRIC_PATTERN.sub("", out)
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"\s+([,.;:])", r"\1", out)
+    out = re.sub(r"\(\s*\)", "", out)
+    return out.strip(" ,;")
+
+
+async def generate_feature_highlights_async(
+    *,
+    cv_report: dict,
+    metrics: Optional[dict] = None,
+    api_key: Optional[str] = None,
+) -> dict:
+    """Two Merkmalsbewertung bullets for protocol page 1 (face structure + hair/skin)."""
+    logger.info("feature_highlights: generation start")
+    # Labels only — never feed CV explanations or numeric ratios into this prompt
+    _ = metrics  # unused; keep signature stable for callers
+    cv_summary = cv_labels_for_feature_highlights(cv_report)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Write exactly TWO short bullets for the Merkmalsbewertung / Feature Evaluation card "
+                "on a facial aesthetic protocol cover page.\n"
+                "Soft guide (not mandatory): one bullet may cover overall face structure "
+                "(shape, cheeks, jaw, chin); the other may cover hair and skin — "
+                "only using labels that are present.\n"
+                "Write natural, flowing sentences like the rest of the protocol. "
+                "Do not announce missing or unspecified details; simply omit what is not in the labels. "
+                "Do not use semicolons (;); prefer periods or commas.\n"
+                f"Prefer about {FEATURE_HIGHLIGHT_BULLET_MIN}–{FEATURE_HIGHLIGHT_BULLET_SOFT} characters per bullet "
+                f"(hard max {FEATURE_HIGHLIGHT_BULLET_MAX}); use complete sentences — never cut mid-thought.\n"
+                "STRICT: no numeric scores, no ratios, no percentages, no mm/degrees, no N-point outlines, "
+                "no decimal measurements, no procedures, no brand names.\n"
+                + STRICT_NON_SURGICAL_RULES
+                + _NL_STYLE_RULES
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Qualitative labels only (do not invent numbers):\n{cv_summary}\n\n"
+                'Return JSON only: {"bullets":["…","…"]}.'
+            ),
+        },
+    ]
+
+    max_hard = max(1, FEATURE_NARRATIVE_MAX_ATTEMPTS)
+    msgs = list(messages)
+    for attempt in range(1, max_hard + 1):
+        temperature = 0.35 if attempt == 1 else 0.25
+        result = await _chat_protocol_with_rate_limit_backoff(
+            label="feature_highlights",
+            schema_name="protocol_feature_highlights",
+            json_schema=protocol_feature_highlights_json_schema(),
+            messages=msgs,
+            temperature=temperature,
+            api_key=api_key,
+            attempt=attempt,
+        )
+
+        if _is_rate_limit_result(result):
+            logger.warning(
+                "feature_highlights: rate limit after backoff; using template fallback",
+            )
+            break
+
+        raw = result.get("content")
+        if result.get("error") and not raw:
+            logger.warning(
+                "feature_highlights: LLM error (attempt %s/%s): %s",
+                attempt,
+                max_hard,
+                result.get("error") or "no content",
+            )
+            if attempt < max_hard:
+                msgs = msgs + [{"role": "user", "content": _FEATURE_HIGHLIGHTS_RETRY_HINT}]
+            continue
+
+        if not raw:
+            if attempt < max_hard:
+                msgs = msgs + [{"role": "user", "content": _FEATURE_HIGHLIGHTS_RETRY_HINT}]
+            continue
+
+        try:
+            data = ProtocolFeatureHighlights.model_validate(raw).model_dump()
+            bullets = [_strip_metrics_from_highlight(b) for b in data["bullets"]]
+            ProtocolFeatureHighlights.model_validate({"bullets": bullets})
+            logger.info("feature_highlights structured: LLM accepted (attempt %s)", attempt)
+            return {"bullets": bullets, "origin": "llm"}
+        except Exception as exc:
+            logger.warning(
+                "feature_highlights: validation failed (attempt %s/%s): %s",
+                attempt,
+                max_hard,
+                exc,
+            )
+            if attempt < max_hard:
+                msgs = msgs + [{"role": "user", "content": _FEATURE_HIGHLIGHTS_RETRY_HINT}]
+            continue
+
+    logger.warning("feature_highlights: using template fallback")
+    return {"bullets": template_feature_highlights(cv_report), "origin": "template"}
 
 
 def _priority_features_for_phases(
@@ -1145,7 +1331,7 @@ async def generate_all_protocol_text(
         for fid, narrative in results:
             existing_features[fid] = narrative
 
-    overview, treatment_phases = await asyncio.gather(
+    overview, treatment_phases, feature_highlights = await asyncio.gather(
         generate_protocol_overview_async(
             answers=answers, cv_report=cv_report, metrics=metrics, api_key=api_key
         ),
@@ -1156,6 +1342,9 @@ async def generate_all_protocol_text(
             eye_analysis=eye_analysis,
             feature_narratives=existing_features,
             api_key=api_key,
+        ),
+        generate_feature_highlights_async(
+            cv_report=cv_report, metrics=metrics, api_key=api_key
         ),
     )
 
@@ -1188,10 +1377,12 @@ async def generate_all_protocol_text(
         overview_summary=overview.get("summary", ""),
         closing=closing,
         treatment_phases=treatment_phases,
+        feature_highlights=feature_highlights.get("bullets"),
         source="orchestrator",
         model=None,
         summary_origin=overview.get("origin") or "template",
         closing_origin=closing_source,
+        feature_highlights_origin=feature_highlights.get("origin") or "template",
     )
 
     llm_features = [

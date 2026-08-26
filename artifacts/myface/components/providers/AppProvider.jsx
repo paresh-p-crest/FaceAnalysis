@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useSearchParams } from 'next/navigation'
 import { usePathname, useRouter } from '../../i18n/navigation'
 import { STAGES, INITIAL_ANSWERS } from '../../utils/constants'
@@ -833,7 +834,21 @@ export function AppProvider({ children }) {
       alert('This analysis is still being prepared. Check back shortly from your dashboard.')
       return
     }
-    if (!assessment?.id || !isBackendApiEnabled()) {
+    if (!assessment?.id) {
+      if (pathnameRef.current !== originPath) return
+      hydrateFromCloudAssessment(assessment)
+      setCloudAssessment(null)
+      openReportModalOnRoute()
+      return
+    }
+
+    // Paint "Opening…" before any fetch/hydrate so the button updates on tap.
+    flushSync(() => {
+      setOpeningReportId(assessment.id)
+      openingReportIdRef.current = assessment.id
+    })
+
+    if (!isBackendApiEnabled()) {
       if (pathnameRef.current !== originPath) return
       hydrateFromCloudAssessment(assessment)
       setCloudAssessment(null)
@@ -847,8 +862,6 @@ export function AppProvider({ children }) {
       openReportModalOnRoute()
       return
     }
-    setOpeningReportId(assessment.id)
-    openingReportIdRef.current = assessment.id
     try {
       const full = await fetchAssessment(assessment.id)
       if (pathnameRef.current !== originPath) return

@@ -133,6 +133,21 @@ function getMeasureDoc(fontSize = 8, style = 'normal') {
   return measureDoc
 }
 
+/** Merkmalsbewertung bullet — same 6.5pt / 5-line sentence clip as page-1 PDF. */
+export const FEATURE_HIGHLIGHT_MAX_LINES = 5
+export const FEATURE_HIGHLIGHT_LINE_H = 7.5
+/** Approximate right-column text width on protocol page 1 (~0.21 of content − pad). */
+export const FEATURE_HIGHLIGHT_TEXT_W = 95
+
+export function truncateFeatureHighlightBullet(text, {
+  maxLines = FEATURE_HIGHLIGHT_MAX_LINES,
+  maxW = FEATURE_HIGHLIGHT_TEXT_W,
+  lineH = FEATURE_HIGHLIGHT_LINE_H,
+} = {}) {
+  const doc = getMeasureDoc(6.5, 'normal')
+  return truncateAtSentences(doc, text, maxW, maxLines * lineH, lineH)
+}
+
 /** Column body — same COL_W / 11.5 as drawLabeledBody + layoutBottomAnchoredLeftColumn. */
 export function truncatePdfBody(text, maxBodyHeight) {
   const doc = getMeasureDoc(8, 'normal')

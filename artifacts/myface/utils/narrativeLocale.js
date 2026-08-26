@@ -40,6 +40,11 @@ function mergeDeProtocol(protocolNarrative, featureNarratives) {
     ...base,
     summary: de.summary ?? '',
     closing: Array.isArray(de.closing) ? de.closing : [],
+    // Never leak EN Merkmals bullets into DE UI — empty → locale CV fallback
+    featureHighlights:
+      Array.isArray(de.featureHighlights) && de.featureHighlights.length >= 2
+        ? de.featureHighlights
+        : [],
     treatmentPhases: hasDePhase01 ? dePhases : base.treatmentPhases,
   }
   const deFeatures = mergeDeFeatures(featureNarratives)

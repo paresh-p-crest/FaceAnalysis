@@ -1,4 +1,10 @@
 import { safeDisplay } from './safeFormat'
+import {
+  PROTOCOL_FACE_AGE_FALLBACK,
+  resolveProtocolFacialAges,
+} from './protocolFacialAges'
+
+export { PROTOCOL_FACE_AGE_FALLBACK, resolveProtocolFacialAges }
 
 export const REPORT_PROTOCOL_FEATURES = [
   { id: 'hair', title: 'Hair', page: 6 },
@@ -1138,9 +1144,21 @@ export function analysisTimeDaysParts(days, t) {
   ]
 }
 
-export function buildProtocolDashboardData({ cvReport, metrics, answers, eyeAnalysis, createdAt, updatedAt }) {
+export function buildProtocolDashboardData({
+  cvReport,
+  metrics,
+  answers,
+  eyeAnalysis,
+  createdAt,
+  updatedAt,
+  projectedAnalysis = null,
+}) {
   const overall = cvReport?.overall || {}
-  const faceAge = metrics?.visualAge ?? overall?.visualAge ?? null
+  const { faceAge, potentialAge } = resolveProtocolFacialAges({
+    metrics,
+    cvReport,
+    projectedAnalysis,
+  })
   const overallScore = resolveOverallHarmonyScore({ cvReport, metrics })
   // Protocol dashboard cites MediaPipe Face Mesh density (170 landmarks).
   const evaluatedPoints = cvReport ? DASHBOARD_EVALUATED_POINTS : null
@@ -1177,6 +1195,7 @@ export function buildProtocolDashboardData({ cvReport, metrics, answers, eyeAnal
     /** @deprecated Prefer analysisTimeDays */
     analysisTimeSec: computeAnalysisDurationDays(createdAt, updatedAt),
     faceAge,
+    potentialAge,
     radarScores,
     featureRows,
     miniCards: buildPriorityFeatureMiniCards(cvReport, eyeAnalysis),
@@ -1207,40 +1226,65 @@ export const FEATURE_PREVIEW_CALLOUTS = [
   { id: 'forehead', x: 0.5, y: 0.22 },
   { id: 'eyes', x: 0.62, y: 0.36 },
   { id: 'nose', x: 0.5, y: 0.48 },
-  { id: 'mouth', x: 0.5, y: 0.62 },
+]
+
+/** Page-1 analysis card zones (landmark-anchored). No skin / cheeks / mouth. */
+export const ANALYSIS_CARD_CALLOUTS = [
+  { id: 'hair', x: 0.5, y: 0.08 },
+  { id: 'forehead', x: 0.5, y: 0.18 },
+  { id: 'eyes', x: 0.68, y: 0.32 },
+  { id: 'ears', x: 0.88, y: 0.42 },
+  { id: 'nose', x: 0.5, y: 0.48 },
+  { id: 'jaw', x: 0.72, y: 0.72 },
+  { id: 'chin', x: 0.5, y: 0.82 },
+  { id: 'neck', x: 0.5, y: 0.92 },
 ]
 
 /** MediaPipe indices for feature-preview callouts (viewer-right / subject-left preferred). */
 const FEATURE_PREVIEW_LANDMARK_IDS = {
+  hair: 10,
   forehead: 10,
-  eyes: 263, // left eye outer (appears on viewer's right)
+  eyes: 263,
+  ears: 454,
   nose: 1,
-  mouth: 13, // upper lip mid
+  jaw: 361,
+  chin: 152,
+  neck: 152,
 }
 
 /**
  * Resolve callout anchors in normalized image space (0–1).
  * Prefers MediaPipe landmarks when present; else static FEATURE_PREVIEW_CALLOUTS.
  */
-export function resolveFeaturePreviewCallouts(landmarks) {
+export function resolveFeaturePreviewCallouts(landmarks, catalog = FEATURE_PREVIEW_CALLOUTS) {
+  const list = Array.isArray(catalog) && catalog.length ? catalog : FEATURE_PREVIEW_CALLOUTS
   if (!Array.isArray(landmarks) || landmarks.length < 10) {
-    return FEATURE_PREVIEW_CALLOUTS.map((c) => ({ ...c }))
+    return list.map((c) => ({ ...c }))
   }
   const byIndex = (idx) => {
     const pt = landmarks[idx]
     if (pt && Number.isFinite(pt.x) && Number.isFinite(pt.y)) return pt
-    // Sparse / id-keyed lists
     const found = landmarks.find((p) => p && (p.id === idx || p.index === idx))
     if (found && Number.isFinite(found.x) && Number.isFinite(found.y)) return found
     return null
   }
-  return FEATURE_PREVIEW_CALLOUTS.map((c) => {
+  return list.map((c) => {
     const pt = byIndex(FEATURE_PREVIEW_LANDMARK_IDS[c.id])
     if (!pt) return { ...c }
+    let y = Math.min(0.94, Math.max(0.04, pt.y))
+    if (c.id === 'hair') y = Math.max(0.04, y - 0.1)
+    if (c.id === 'neck') y = Math.min(0.96, y + 0.08)
+    if (c.id === 'ears') {
+      return {
+        id: c.id,
+        x: Math.min(0.95, Math.max(0.05, pt.x)),
+        y: Math.min(0.9, Math.max(0.25, pt.y)),
+      }
+    }
     return {
       id: c.id,
       x: Math.min(0.92, Math.max(0.08, pt.x)),
-      y: Math.min(0.92, Math.max(0.08, pt.y)),
+      y,
     }
   })
 }
@@ -1255,6 +1299,22 @@ export function mapCoverTopCenter(nx, ny, imgW, imgH, boxW, boxH) {
   const dispH = imgH * scale
   const ox = (boxW - dispW) / 2
   const oy = 0
+  return {
+    x: (nx * imgW * scale + ox) / boxW,
+    y: (ny * imgH * scale + oy) / boxH,
+  }
+}
+
+/**
+ * Same as mapCoverTopCenter but object-position:center (face stays mid-frame).
+ */
+export function mapCoverCenter(nx, ny, imgW, imgH, boxW, boxH) {
+  if (!imgW || !imgH || !boxW || !boxH) return { x: nx, y: ny }
+  const scale = Math.max(boxW / imgW, boxH / imgH)
+  const dispW = imgW * scale
+  const dispH = imgH * scale
+  const ox = (boxW - dispW) / 2
+  const oy = (boxH - dispH) / 2
   return {
     x: (nx * imgW * scale + ox) / boxW,
     y: (ny * imgH * scale + oy) / boxH,
@@ -1338,4 +1398,57 @@ export function resolveTreatmentPhases({ protocolNarrative, dash, t }) {
     }
   }
   return buildTreatmentPhaseFallback(dash, t)
+}
+
+/**
+ * Merkmalsbewertung bullets for page-1 right column.
+ * Prefer stored LLM `protocolNarrative.featureHighlights` (2 strings); else CV stitch.
+ * Never uses metric-heavy CV explanations; DE never falls back to English prose.
+ */
+export function resolveFeatureHighlights({ protocolNarrative, cvReport, locale = 'en' }) {
+  const stored = protocolNarrative?.featureHighlights
+  if (Array.isArray(stored) && stored.filter((b) => typeof b === 'string' && b.trim()).length >= 2) {
+    return stored.map((b) => String(b).trim()).slice(0, 2)
+  }
+  return buildFeatureHighlightsFallback(cvReport, locale)
+}
+
+/** Qualitative labels only — never paste CV explanation strings (they embed ratios/metrics). */
+function buildFeatureHighlightsFallback(cvReport, locale = 'en') {
+  const report = cvReport || {}
+  const face = report.faceShape || {}
+  const shapeRaw = String(face.shape || 'oval').trim() || 'oval'
+  const cheeks = report.cheeks || {}
+  const jaw = report.jaw || report.jawChin || {}
+  const chin = report.chin || {}
+  const hair = report.hair || {}
+  const skin = report.skin || {}
+
+  if (locale === 'de') {
+    const shapeDe = /oval/i.test(shapeRaw)
+      ? 'ovales'
+      : /heart|herz/i.test(shapeRaw)
+        ? 'herzförmiges'
+        : /square|quadrat/i.test(shapeRaw)
+          ? 'quadratisches'
+          : /round|rund/i.test(shapeRaw)
+            ? 'rundes'
+            : 'ausgewogenes'
+    const b1 =
+      `Du hast ein ${shapeDe} Gesicht mit ausgeprägten Wangenknochen, einer klar geformten Kieferlinie und einem markanten Kinn.`
+    const b2 =
+      'Dazu kommen ein voller Haaransatz, eine wenig sichtbare Stirn und insgesamt gute Haut mit leicht ungleichmäßigem Hautton.'
+    return [b1, b2]
+  }
+
+  const shapeL = shapeRaw.toLowerCase()
+  const article = /^[aeiou]/.test(shapeL) ? 'an' : 'a'
+  const cheekCue = cheeks.cheekboneHeightLabel || cheeks.prominenceLabel || 'defined cheekbones'
+  const jawCue = jaw.jawlineDefinition || jaw.scoreLabel || 'a clearly shaped jawline'
+  const chinCue = chin.scoreLabel || 'a distinct chin'
+  const b1 = `You have ${article} ${shapeL} face with ${String(cheekCue).toLowerCase()}, ${String(jawCue).toLowerCase()}, and ${String(chinCue).toLowerCase()}.`
+  const hairCue = hair.scoreLabel || hair.classification || 'a full hairline'
+  const skinCue = skin.toneLabel || skin.scoreLabel || 'good skin with mild tone variation'
+  const b2 = `This is complemented by ${String(hairCue).toLowerCase()}, a moderately visible forehead, and overall ${String(skinCue).toLowerCase()}.`
+  return [b1, b2]
 }
