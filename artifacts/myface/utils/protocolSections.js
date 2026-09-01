@@ -31,6 +31,20 @@ export const FEATURE_SUBSECTION_TITLES = {
   smile: ['Smile Shape', 'Teeth & Gingiva'],
 }
 
+function deTreatmentPhases(de) {
+  const phases = de?.treatmentPhases
+  if (
+    phases
+    && typeof phases === 'object'
+    && phases.phase01
+    && Array.isArray(phases.phase01.items)
+    && phases.phase01.items.length > 0
+  ) {
+    return phases
+  }
+  return null
+}
+
 export function cloneProtocolDraft(assessment, locale = 'en') {
   if (locale === 'de') {
     const pn = assessment?.protocolNarrative || { summary: '', closing: [], features: {}, de: {} }
@@ -44,11 +58,13 @@ export function cloneProtocolDraft(assessment, locale = 'en') {
         subsections: structuredClone(deFeat.subsections || []),
       }
     }
+    const dePhases = deTreatmentPhases(de)
     return {
       protocolNarrative: {
         ...structuredClone(pn),
         summary: de.summary ?? '',
         closing: structuredClone(de.closing || []),
+        ...(dePhases ? { treatmentPhases: structuredClone(dePhases) } : {}),
       },
       featureNarratives: features,
       editLocale: 'de',

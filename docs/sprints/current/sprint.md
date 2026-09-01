@@ -4,6 +4,10 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
+- [x] Closing HTML preview body slightly smaller (7.5px) (status: completed)
+- [x] Skin HTML Behandlungsprotokoll type = Hautpflegeprotokoll body (8px) (status: completed)
+- [x] DE HTML preview uses protocolNarrative.de.treatmentPhases (not EN leak) (status: completed)
+- [x] Protocol HTML preview — shrink type on overflowing A4 page only (headings first; EN skin phases left for test) (status: completed)
 - [x] Protocol page 1 facial age — front + AFTER visualAge with display clamp (status: completed)
 - [x] Skin-heuristic facial age on main — front `analysis.metrics.visualAge` + AFTER `projected_analysis.metrics.visualAge` via shared `visual_age.py` (status: completed)
 - [x] Protocol PDF/HTML skin page — 2/3+1/3 client layout + treatmentProtocol i18n fix (status: completed)

@@ -16,6 +16,7 @@ This document lists the hard, "always true" constraints that must be observed du
 1. **Frontend (Next.js 15 App Router):** Handles user interface rendering, user dashboard, routing, local browser settings, cookie-based sessions, client-side questionnaire flows, and basic billing states. No CV math logic or credentialed LLM calls run client-side — all text AI goes through `backend/text_ai_service.py`.
 2. **Backend (Python FastAPI):** Handles heavy compute tasks, image parsing, MediaPipe landmark evaluation, `cvReport` building, ReportLab PDF compilation, payment gateway webhooks, email triggers, and credentialed OpenAI vision/generation requests.
 3. **Database (PostgreSQL):** Primary transactional store for users, assessments (JSONB nested analysis), payment receipts, and chat logs.
+4. **Protocol HTML A4 preview overflow:** Type shrink applies only to an overflowing `.report-view-a4-page` (`data-page-type-fit`). Other sheets keep default heading/body sizes. Detect overflow via content height with clip lifted — `overflow: clip` makes `scrollHeight` equal the sheet. PDF export keeps its own fit (bullet drop / sentence clip).
 
 ## Security & Secrets
 1. **No Committed Keys:** Never commit API keys, webhook secrets, passwords, or `.env` files.

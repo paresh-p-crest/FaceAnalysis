@@ -1,7 +1,7 @@
 'use client'
 
 import { useLocale, useTranslations } from 'next-intl'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { normalizeToJpegDataUrl } from '../../utils/aestheticProjection'
 import {
@@ -46,6 +46,7 @@ import {
   truncatePdfSummaryBar,
   truncatePdfSummaryCard,
 } from '../../utils/pdfTextFit'
+import { observeA4PageTypeFit } from '../../utils/pageTypeFit'
 import { BrandLogo } from '../BrandLogo'
 import { FeatureAnalysisHero } from './FeaturePreviewPortrait'
 import { NameProtocolPlate } from './NameProtocolPlate'
@@ -245,8 +246,18 @@ function EditableText({
 /** Match jsPDF drawHeader: brand bar + MYFACE + PAGE / NN + divider. */
 function PdfPageShell({ page, sectionId, children, cover = false }) {
   const tPdf = useTranslations('Pdf')
+  const pageRef = useRef(null)
+
+  useLayoutEffect(() => {
+    if (cover) return undefined
+    const el = pageRef.current
+    if (!el) return undefined
+    return observeA4PageTypeFit(el)
+  }, [cover, page, sectionId])
+
   return (
     <section
+      ref={pageRef}
       className={`report-protocol-page report-view-a4-page ${cover ? 'report-view-a4-page--cover' : ''}`}
       {...(sectionId ? { 'data-protocol-section': sectionId } : {})}
     >

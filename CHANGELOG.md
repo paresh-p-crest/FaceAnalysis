@@ -6,8 +6,12 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 ### Added
+- **HTML A4 type shrink on overflow** — Overflowing preview sheets only (`data-page-type-fit`) get `--page-type-scale` / `--page-heading-scale` (headings a bit faster when scale < 1; floor 0.72). Non-overflow sheets keep the same 26px titles as before; `headingScaleFor(1)` is 1 so fit no longer writes 0.92 on every page. Detect overflow via content height with clip lifted. English skin phase copy unchanged. PDF export unchanged.
 - **Skin-heuristic facial age** — `metrics.visualAge` (+ `visualAgeSource: skin-heuristic`) from default base 28 + skin `roughnessRin` / under-eye darkness after LAB (`backend/visual_age.py`). Questionnaire `ageRange` only soft-clamps to midpoint ±8 (does not set the base). Written on front CV into `analysis` and on projected AFTER CV into `projected_analysis`. Neutral RIN 0.11. Replaces hardcoded 28.
 ### Changed
+- **Closing HTML body 7.5px** — Abschluss Empfehlungen two-column copy is 7.5px / 10.5px in the live preview only (titles unchanged; PDF unchanged).
+- **Skin HTML phase cards 8px** — Behandlungsprotokoll titles, durations, and bullets use the same 8px / 11.5px as Hautpflegeprotokoll body (`.report-pdf-skin-phases-inner` only; dashboard phases unchanged).
+- **DE HTML preview treatment phases** — `cloneProtocolDraft('de')` now copies `protocolNarrative.de.treatmentPhases` onto the live-preview draft (same phase01-items rule as locale pick). EN source and dashboard/PDF pickers unchanged.
 - **Customer dashboard web typography** — Larger “Deine Gesichtsanalyse”, Harmonieprofil, Überblick, and Gesichtsalter headings (~14–22px) on `webLayout`.
 - **Customer dashboard harmony** — Heading is “Harmonieprofil” / “Harmony Profile” only; radar enlarged on `webLayout` (220px).
 - **Customer dashboard web typography** — Larger priority title, Merkmalsbewertung title, Altersprofil/Potenzialprofil, and mini-card score labels (~10px); finding rows stay ~10px / ~9px (`webLayout` only).

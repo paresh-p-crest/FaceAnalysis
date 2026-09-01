@@ -1147,6 +1147,8 @@
 
   /* A4 sheet preview — match jsPDF PAGE_W/PAGE_H (595.28 × 841.89 pt) */
   .report-view-a4-page {
+    --page-type-scale: 1;
+    --page-heading-scale: 1;
     @apply relative bg-white dark:bg-surface-card border border-surface-border shadow-card mx-auto overflow-hidden;
     width: 595px;
     height: 842px;
@@ -1592,6 +1594,34 @@
     font-family: var(--report-pdf-font);
   }
 
+  /* Shrink type only on the overflowing sheet — other pages keep the sizes above. */
+  .report-view-a4-page[data-page-type-fit] .report-pdf-split-primary,
+  .report-view-a4-page[data-page-type-fit] .report-pdf-split-secondary {
+    font-size: calc(26px * var(--page-heading-scale, 1));
+  }
+
+  .report-view-a4-page[data-page-type-fit] .report-pdf-subtitle,
+  .report-view-a4-page[data-page-type-fit] .report-pdf-label {
+    font-size: calc(10px * var(--page-heading-scale, 1));
+  }
+
+  .report-view-a4-page[data-page-type-fit] .report-pdf-body-text,
+  .report-view-a4-page[data-page-type-fit] .report-pdf-summary-body {
+    font-size: calc(8px * var(--page-type-scale, 1));
+    line-height: calc(11.5px * var(--page-type-scale, 1));
+  }
+
+  .report-view-a4-page[data-page-type-fit] .report-pdf-summary-title {
+    font-size: calc(9px * var(--page-heading-scale, 1));
+  }
+
+  .report-view-a4-page[data-page-type-fit] .report-pdf-skin-phases-inner p,
+  .report-view-a4-page[data-page-type-fit] .report-pdf-skin-phases-inner li,
+  .report-view-a4-page[data-page-type-fit] .report-pdf-skin-phases-inner ul {
+    font-size: calc(8px * var(--page-type-scale, 1));
+    line-height: calc(11.5px * var(--page-type-scale, 1));
+  }
+
   /* Sequential top-down flow (mirrors jsPDF draw order); no bottom pinning that overlaps */
   .report-pdf-cols {
     @apply grid items-start;
@@ -1728,15 +1758,6 @@
     font-family: var(--report-pdf-font);
   }
 
-  .report-pdf-skin-phases-inner > p:first-child {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: none;
-    letter-spacing: normal;
-    color: #6b7280;
-    margin-bottom: 8px;
-  }
-
   .report-pdf-skin-phases-inner .rounded-xl {
     border-radius: 6px;
     padding: 8px;
@@ -1744,6 +1765,22 @@
 
   .report-pdf-skin-phases-inner .text-brand {
     color: var(--color-brand, #5e9f8b);
+  }
+
+  /* Same 8px / 11.5px as .report-pdf-body-text (Hautpflegeprotokoll) — skin page only */
+  .report-pdf-skin-phases-inner p,
+  .report-pdf-skin-phases-inner li,
+  .report-pdf-skin-phases-inner ul {
+    font-size: 8px;
+    line-height: 11.5px;
+  }
+
+  .report-pdf-skin-phases-inner > p:first-child {
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    color: #6b7280;
+    margin-bottom: 8px;
   }
 
   .report-pdf-col-stack {
@@ -1790,6 +1827,17 @@
     font-family: var(--report-pdf-font);
     font-size: 8px;
     line-height: 11.5px;
+  }
+
+  /* Closing page (Abschluss) HTML preview — slightly smaller body only */
+  .report-view-a4-page[data-protocol-section="closing"] .report-pdf-body-text {
+    font-size: 7.5px;
+    line-height: 10.5px;
+  }
+
+  .report-view-a4-page[data-page-type-fit][data-protocol-section="closing"] .report-pdf-body-text {
+    font-size: calc(7.5px * var(--page-type-scale, 1));
+    line-height: calc(10.5px * var(--page-type-scale, 1));
   }
 
   .report-pdf-body-stack {

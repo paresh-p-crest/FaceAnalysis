@@ -4,7 +4,7 @@
  * Fails loudly (throws) if the upsert clobbers siblings or drops fields.
  */
 import assert from 'node:assert/strict'
-import { setFeatureSummary, upsertFeatureSubsection } from './protocolSections.js'
+import { cloneProtocolDraft, setFeatureSummary, upsertFeatureSubsection } from './protocolSections.js'
 
 // 1) Editing one subsection must NOT create empty siblings (would blank CV defaults via mergeSubsections).
 const afterNose = upsertFeatureSubsection({}, 'nose', 'Nose', 'Edited nose body')
@@ -36,5 +36,24 @@ assert.equal(twoFeatures.nose.subsections.length, 2, 'other feature untouched')
 // 6) Null/undefined input is safe.
 assert.doesNotThrow(() => upsertFeatureSubsection(null, 'eyes', 'Eyes', 'x'))
 assert.doesNotThrow(() => setFeatureSummary(undefined, 'eyes', 'x'))
+
+const enPhases = { phase01: { title: 'Foundation topicals', items: [{ name: 'SPF', detail: 'daily' }] } }
+const dePhases = { phase01: { title: 'Basis und Lichtschutz', items: [{ name: 'LSF 50+', detail: 'täglich' }] } }
+const deDraft = cloneProtocolDraft({
+  protocolNarrative: {
+    summary: 'EN summary',
+    closing: ['EN close'],
+    treatmentPhases: enPhases,
+    de: { summary: 'DE summary', closing: ['DE close'], treatmentPhases: dePhases },
+  },
+  featureNarratives: {},
+}, 'de')
+assert.equal(deDraft.protocolNarrative.treatmentPhases.phase01.title, 'Basis und Lichtschutz')
+assert.equal(deDraft.protocolNarrative.summary, 'DE summary')
+const enDraft = cloneProtocolDraft({
+  protocolNarrative: { treatmentPhases: enPhases, de: { treatmentPhases: dePhases } },
+  featureNarratives: {},
+}, 'en')
+assert.equal(enDraft.protocolNarrative.treatmentPhases.phase01.title, 'Foundation topicals')
 
 console.log('protocolSections self-check passed')
