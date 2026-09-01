@@ -1,5 +1,7 @@
 'use client'
 
+import { phaseDetailForDisplay } from '../../utils/phaseDetailDisplay'
+
 const PHASE_KEYS = ['phase01', 'phase02', 'phase03']
 
 function normalizeItem(item) {
@@ -7,7 +9,7 @@ function normalizeItem(item) {
   if (typeof item === 'string') return { name: item, detail: '' }
   return {
     name: item.name || '—',
-    detail: item.detail || '',
+    detail: phaseDetailForDisplay(item.detail),
   }
 }
 

@@ -43,6 +43,7 @@ import {
   UNDERSTANDING_RESULTS_KEYS,
 } from './reportProtocolModel'
 import { localizeFeatureRow, localizePriorityMiniCard } from './cvReportLocale'
+import { phaseDetailForDisplay } from './phaseDetailDisplay'
 
 // MyFace theme tokens (docs/design/theme.md)
 const BRAND = { r: 94, g: 159, b: 139 }
@@ -344,20 +345,8 @@ function phaseCardHeight(titleLines, durationLines, itemLineGroups, opts = PHASE
 
 function buildPhaseItemLine(item) {
   if (!item) return '· —'
-  const detail = finalizePhaseDetailText(item.detail)
+  const detail = phaseDetailForDisplay(item.detail)
   return `· ${item.name}${detail ? `: ${detail}` : ''}`
-}
-
-/** Drop hard-clamped mid-word tails (e.g. detail max 280) so PDF never shows "unde" / "while ma". */
-function finalizePhaseDetailText(detail) {
-  const t = sanitizePdfText(detail || '').trim()
-  if (!t) return ''
-  if (/[.!?]$/.test(t)) return t
-  const sentence = t.match(/^[\s\S]*[.!?]/)
-  if (sentence && sentence[0].trim().length >= 24) return sentence[0].trim()
-  const sp = t.lastIndexOf(' ')
-  if (sp > 12) return t.slice(0, sp).trim()
-  return t
 }
 
 function wrapPhaseItemLines(doc, item, textW) {

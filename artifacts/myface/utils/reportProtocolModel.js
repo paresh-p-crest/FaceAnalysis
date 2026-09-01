@@ -3,6 +3,7 @@ import {
   PROTOCOL_FACE_AGE_FALLBACK,
   resolveProtocolFacialAges,
 } from './protocolFacialAges'
+import { phaseDetailForDisplay } from './phaseDetailDisplay'
 
 export { PROTOCOL_FACE_AGE_FALLBACK, resolveProtocolFacialAges }
 
@@ -1326,7 +1327,7 @@ function normalizeTreatmentItem(item) {
   if (typeof item === 'string') return { name: item, detail: '' }
   return {
     name: item.name || '—',
-    detail: item.detail || '',
+    detail: phaseDetailForDisplay(item.detail),
   }
 }
 

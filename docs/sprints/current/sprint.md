@@ -4,6 +4,7 @@
 **Dates:** July 2026  
 **Goal:** Implement/complete the 23-question onboarding questionnaire with branching logic, report-style photo guidelines upload checklist, and integrate OpenAI Vision-based facial analysis across 11 category metrics.
 
+- [x] Treatment protocol UI: hide incomplete clamped phase details (status: completed)
 - [x] Closing HTML preview body slightly smaller (7.5px) (status: completed)
 - [x] Skin HTML Behandlungsprotokoll type = Hautpflegeprotokoll body (8px) (status: completed)
 - [x] DE HTML preview uses protocolNarrative.de.treatmentPhases (not EN leak) (status: completed)
