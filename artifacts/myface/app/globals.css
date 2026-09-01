@@ -1618,8 +1618,8 @@
   .report-view-a4-page[data-page-type-fit] .report-pdf-skin-phases-inner p,
   .report-view-a4-page[data-page-type-fit] .report-pdf-skin-phases-inner li,
   .report-view-a4-page[data-page-type-fit] .report-pdf-skin-phases-inner ul {
-    font-size: calc(8px * var(--page-type-scale, 1));
-    line-height: calc(11.5px * var(--page-type-scale, 1));
+    font-size: calc(6.5px * var(--page-type-scale, 1) * 0.92);
+    line-height: calc(9px * var(--page-type-scale, 1) * 0.92);
   }
 
   /* Sequential top-down flow (mirrors jsPDF draw order); no bottom pinning that overlaps */
@@ -1767,12 +1767,12 @@
     color: var(--color-brand, #5e9f8b);
   }
 
-  /* Same 8px / 11.5px as .report-pdf-body-text (Hautpflegeprotokoll) — skin page only */
+  /* Haut Behandlungsprotokoll — smaller than body (8px); PDF phases are ~6–7.5pt */
   .report-pdf-skin-phases-inner p,
   .report-pdf-skin-phases-inner li,
   .report-pdf-skin-phases-inner ul {
-    font-size: 8px;
-    line-height: 11.5px;
+    font-size: 6.5px;
+    line-height: 9px;
   }
 
   .report-pdf-skin-phases-inner > p:first-child {

@@ -6,7 +6,7 @@
 
 - [x] Treatment protocol UI: hide incomplete clamped phase details (status: completed)
 - [x] Closing HTML preview body slightly smaller (7.5px) (status: completed)
-- [x] Skin HTML Behandlungsprotokoll type = Hautpflegeprotokoll body (8px) (status: completed)
+- [x] Skin HTML Behandlungsprotokoll 6.5px + extra shrink on overflow (status: completed)
 - [x] DE HTML preview uses protocolNarrative.de.treatmentPhases (not EN leak) (status: completed)
 - [x] Protocol HTML preview — shrink type on overflowing A4 page only (headings first; EN skin phases left for test) (status: completed)
 - [x] Protocol page 1 facial age — front + AFTER visualAge with display clamp (status: completed)

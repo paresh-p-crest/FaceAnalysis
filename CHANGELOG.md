@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file. The format 
 ### Changed
 - **Treatment phase incomplete details hidden** — HTML/PDF phase cards drop a 150-char clamp tail that is not a full sentence; keep prior complete sentences. Stored JSON unchanged. Feature page bodies not filtered.
 - **Closing HTML body 7.5px** — Abschluss Empfehlungen two-column copy is 7.5px / 10.5px in the live preview only (titles unchanged; PDF unchanged).
-- **Skin HTML phase cards 8px** — Behandlungsprotokoll titles, durations, and bullets use the same 8px / 11.5px as Hautpflegeprotokoll body (`.report-pdf-skin-phases-inner` only; dashboard phases unchanged).
+- **Skin HTML phase cards 6.5px** — Behandlungsprotokoll default 6.5px / 9px (smaller than Hautpflegeprotokoll 8px). On sheet overflow, phases shrink extra (`6.5px × type-scale × 0.92`). Dashboard phases unchanged.
 - **DE HTML preview treatment phases** — `cloneProtocolDraft('de')` now copies `protocolNarrative.de.treatmentPhases` onto the live-preview draft (same phase01-items rule as locale pick). EN source and dashboard/PDF pickers unchanged.
 - **Customer dashboard web typography** — Larger “Deine Gesichtsanalyse”, Harmonieprofil, Überblick, and Gesichtsalter headings (~14–22px) on `webLayout`.
 - **Customer dashboard harmony** — Heading is “Harmonieprofil” / “Harmony Profile” only; radar enlarged on `webLayout` (220px).
