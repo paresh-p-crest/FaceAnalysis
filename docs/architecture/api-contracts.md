@@ -17,8 +17,8 @@ Liveness / readiness for uptime monitors and load balancers. `HEAD` returns the 
 
 ### `POST /api/auth/register`
 Creates a new client account.
-> **Status: DISABLED (temporarily commented out).** Platform is Sign-In Only mode. The handler in `backend/routers/auth.py` is commented out, so this route is **not registered** and returns `404 Not Found`. The `register()` client helper in `artifacts/myface/utils/authClient.js` and the register tab/fields in `AuthForm.jsx` are also commented out. Re-enable by uncommenting the marked blocks.
-- **Auth:** None
+> **Status: DISABLED (cutover).** Public self-serve signup is off. Accounts are created only via `POST /api/import/myface-session` (landing paid import) or admin bootstrap (`ADMIN_EMAIL` / `ADMIN_PASSWORD`). The handler in `backend/routers/auth.py` is commented out → **404**. Frontend `register()` and AuthForm Sign-up tab are commented out. `/auth` is sign-in only; password setup for new paid users is `/auth/setup`.
+- **Auth:** None (when re-enabled)
 - **Request Body:**
   ```json
   {
@@ -71,7 +71,21 @@ Retrieves current user info from token context.
       "email": "user@example.com",
       "firstName": "Jane",
       "lastName": "Doe",
-      "role": "user"
+      "role": "user",
+      "entitlements": {
+        "packageIds": ["analyse"],
+        "addonIds": ["color", "express"],
+        "flags": {
+          "analysis": true,
+          "report": true,
+          "beauty_assistant": false,
+          "ai_visuals_hair": false,
+          "ai_visuals_outfit": true,
+          "ai_visuals_aging": false,
+          "skincare_plan": false,
+          "express_review": true
+        }
+      }
     }
   }
   ```
@@ -103,6 +117,28 @@ Complete password reset using a token from the email link.
 - **Request Body:** `{ "token": "…", "newPassword": "…" }` (new password ≥ 8 chars)
 - **Response Shape (200 OK):** `{ "ok": true }`
 - **400:** Validation error, or generic `"Invalid or expired reset link. Request a new one."` for all token failures (invalid, expired, already used)
+
+### `POST /api/auth/validate-setup-token`
+Check a landing setup link before rendering `/auth/setup` (does not consume the token).
+- **Auth:** Public
+- **Request Body:** `{ "token": "…" }`
+- **Response Shape (200 OK):** `{ "ok": true }`
+- **400:** Generic setup-token error (invalid, expired, already used, or user not awaiting setup)
+
+### `POST /api/auth/set-password`
+Complete password setup after a paid landing import (`/auth/setup?token=…`). Returns a normal app session.
+- **Auth:** Public (one-time setup token in JSON body)
+- **Request Body:** `{ "token": "…", "newPassword": "…" }` (new password ≥ 8 chars)
+- **Response Shape (200 OK):**
+  ```json
+  {
+    "ok": true,
+    "token": "<app-jwt>",
+    "user": { "id": "…", "email": "…", "role": "user" },
+    "redirectTo": "/dashboard"
+  }
+  ```
+- **400:** Generic setup-token error (invalid, expired, already used, or user not awaiting setup)
 
 ### `GET /api/auth/admin-check`
 Validates that the token holder has admin privilege.
@@ -472,6 +508,22 @@ Sends a message to the Beauty Assistant (ReAct agent with report tools; max 3 to
   ```
 - **Response Shape (200 OK):** Updated conversation with appended `messages` (`max_tokens` from `LLM_MAX_OUTPUT_TOKENS`, default **8000**).
 - **503:** LLM/provider failure — `{ "detail": { "code": "ASSISTANT_UNAVAILABLE", "message": "Beauty Assistant is not working right now. Please try again later." } }`. No fake template reply is stored.
+
+---
+
+## Landing Import (myface.de → app)
+
+### `POST /api/import/myface-session`
+Server-to-server import after a verified landing PaymentIntent checkout. Creates or reconciles the payer account and records one paid order per `pi_…`.
+- **Auth:** `Authorization: Bearer <MYFACE_IMPORT_SECRET>` (env on app + landing; never in browser)
+- **Headers:** `Idempotency-Key` = Stripe PaymentIntent id (`pi_…`); must equal `payment.paymentIntentId`
+- **Request Body:** Required `order` / `customer` / `payment`. Optional `metadata` (addons, delivery, discountCodeUsed, source, packageName, landingOrderId, secondPersonEmail) stored in `payments.raw` — not part of the idempotency fingerprint. `order.productId` must be one of `analyse`, `premium`, `duo` (400 otherwise). Unknown add-on tokens are stripped (logged). Premium auto-expands to standard add-ons (`color`, `beauty`, `hairstyle`, `express`). Refreshes `users.entitlements`. See `scripts/landing_import_sample.json`.
+- **Dedup:** Same `pi_…` + same money/identity → replay (may refresh setup URL if still pending). Same email + new `pi_…` → same user, new payment row; never overwrite a real password. Landing may re-call import without new DB columns.
+- **Response (201 / 200):** `{ "success": true, "user": { … }, "order": { … }, "passwordSetup": { "required": true, "redirectUrl": "…" } }` or `{ "passwordSetup": { "required": false }, "loginUrl": "…" }`
+- **400:** Validation (missing `cus_…`, `status` not `paid`, key ≠ `paymentIntentId`, etc.)
+- **401:** Invalid import secret
+- **409:** Same idempotency key with a different money/identity body
+- **503:** Database or import secret not configured
 
 ---
 

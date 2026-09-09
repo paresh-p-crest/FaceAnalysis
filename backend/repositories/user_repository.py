@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
 from ..database import session_scope
+from ..entitlements import empty_entitlements, entitlements_from_payment, merge_entitlements
 from ..models import Assessment, Conversation, Payment, User, UserRole
 from ._helpers import iso, parse_uuid
 
@@ -33,6 +34,8 @@ def _user_to_dict(user: User, *, keep_password: bool = False) -> dict:
         "firstName": user.first_name,
         "lastName": user.last_name,
         "role": user.role.value if hasattr(user.role, "value") else user.role,
+        "passwordSetupPending": bool(user.password_setup_pending),
+        "entitlements": user.entitlements or empty_entitlements(),
         "createdAt": iso(user.created_at),
         "updatedAt": iso(user.updated_at),
     }
@@ -163,7 +166,92 @@ async def update_user_profile(
         return serialize_user(_user_to_dict(user))
 
 
-async def update_user_password(user_id: str, password_hash: str) -> dict:
+async def create_imported_user(
+    *,
+    email: str,
+    password_hash: str,
+    first_name: str = "",
+    last_name: str = "",
+) -> dict:
+    """Create a landing-imported user awaiting password setup."""
+    now = _utcnow()
+    user = User(
+        email=email.lower().strip(),
+        first_name=first_name.strip(),
+        last_name=last_name.strip(),
+        password_hash=password_hash,
+        password_setup_pending=True,
+        role=UserRole.user,
+        created_at=now,
+        updated_at=now,
+    )
+    try:
+        async with session_scope() as session:
+            session.add(user)
+            await session.flush()
+            return serialize_user(_user_to_dict(user))
+    except IntegrityError as exc:
+        raise ValueError("Email already registered") from exc
+
+
+async def update_user_entitlements(user_id: str, entitlements: dict) -> dict:
+    uid = parse_uuid(user_id)
+    if uid is None:
+        raise ValueError("Invalid user id")
+    now = _utcnow()
+    async with session_scope() as session:
+        user = await session.get(User, uid)
+        if not user:
+            raise ValueError("User not found")
+        user.entitlements = entitlements or empty_entitlements()
+        user.updated_at = now
+        await session.flush()
+        return serialize_user(_user_to_dict(user))
+
+
+async def refresh_user_entitlements_from_payments(user_id: str) -> dict:
+    """Union entitlements across all paid landing imports for this user."""
+    uid = parse_uuid(user_id)
+    if uid is None:
+        raise ValueError("Invalid user id")
+    async with session_scope() as session:
+        result = await session.execute(
+            select(Payment).where(
+                Payment.user_id == uid,
+                Payment.provider == "myface_landing",
+                Payment.status.in_(("paid", "complete", "completed")),
+            )
+        )
+        payments = result.scalars().all()
+        merged = empty_entitlements()
+        for row in payments:
+            ent = entitlements_from_payment(plan_id=row.plan_id, raw=row.raw or {})
+            if ent:
+                merged = merge_entitlements(merged, ent)
+        user = await session.get(User, uid)
+        if not user:
+            raise ValueError("User not found")
+        user.entitlements = merged
+        user.updated_at = _utcnow()
+        await session.flush()
+        return serialize_user(_user_to_dict(user))
+
+
+async def set_password_setup_pending(user_id: str, pending: bool) -> None:
+    uid = parse_uuid(user_id)
+    if uid is None:
+        raise ValueError("Invalid user id")
+    now = _utcnow()
+    async with session_scope() as session:
+        user = await session.get(User, uid)
+        if not user:
+            raise ValueError("User not found")
+        user.password_setup_pending = pending
+        user.updated_at = now
+        await session.flush()
+
+
+async def update_user_password(user_id: str, password_hash: str, *, clear_setup_pending: bool = False) -> dict:
     uid = parse_uuid(user_id)
     if uid is None:
         raise ValueError("Invalid user id")
@@ -173,6 +261,8 @@ async def update_user_password(user_id: str, password_hash: str) -> dict:
         if not user:
             raise ValueError("User not found")
         user.password_hash = password_hash
+        if clear_setup_pending:
+            user.password_setup_pending = False
         user.updated_at = now
         await session.flush()
         return serialize_user(_user_to_dict(user))

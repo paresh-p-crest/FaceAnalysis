@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Eye, EyeOff, Loader2, X } from 'lucide-react'
-import { login, register, requestPasswordReset } from '../utils/authClient'
+// Public signup disabled — accounts come from landing paid import only.
+// import { login, register, requestPasswordReset } from '../utils/authClient'
+import { login, requestPasswordReset } from '../utils/authClient'
 import { BrandLogo } from './BrandLogo'
 import { LocaleSwitcher } from './LocaleSwitcher'
 
@@ -138,9 +140,10 @@ function ForgotPasswordModal({ open, initialEmail = '', onClose, t }) {
 
 export default function AuthForm({ onAuthenticated }) {
   const t = useTranslations('Auth')
-  const [mode, setMode] = useState('login')
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
+  // Sign-in only. Public register mode disabled (landing import creates accounts).
+  // const [mode, setMode] = useState('login')
+  // const [firstName, setFirstName] = useState('')
+  // const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -148,19 +151,20 @@ export default function AuthForm({ onAuthenticated }) {
   const [error, setError] = useState('')
   const [forgotOpen, setForgotOpen] = useState(false)
 
-  const isRegister = mode === 'register'
+  // const isRegister = mode === 'register'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setBusy(true)
     setError('')
     try {
-      const user = isRegister
-        ? await register({ firstName, lastName, email, password })
-        : await login(email, password)
+      // const user = isRegister
+      //   ? await register({ firstName, lastName, email, password })
+      //   : await login(email, password)
+      const user = await login(email, password)
       onAuthenticated(user)
     } catch (err) {
-      setError(err.message || (isRegister ? t('authFailed') : t('loginError')))
+      setError(err.message || t('loginError'))
     } finally {
       setBusy(false)
     }
@@ -179,10 +183,10 @@ export default function AuthForm({ onAuthenticated }) {
             {t('sidebarBadge')}
           </div>
           <h1 className="font-display text-5xl font-bold text-white tracking-tight leading-tight whitespace-pre-line">
-            {isRegister ? t('sidebarTitleSignUp') : t('sidebarTitleSignIn')}
+            {t('sidebarTitleSignIn')}
           </h1>
           <p className="text-sm text-slate-300 leading-relaxed max-w-xl pl-[1px] pr-[1px] mr-[40px]">
-            {isRegister ? t('sidebarDescriptionSignUp') : t('sidebarDescriptionSignIn')}
+            {t('sidebarDescriptionSignIn')}
           </p>
         </div>
       </div>
@@ -204,13 +208,14 @@ export default function AuthForm({ onAuthenticated }) {
         >
           <div>
             <h1 className="font-display text-[30px] sm:text-4xl font-bold text-ink leading-tight tracking-tight">
-              {isRegister ? t('signUp') : t('signIn')}
+              {t('signIn')}
             </h1>
             <p className="text-ink-muted text-sm leading-relaxed mt-3">
-              {isRegister ? t('signUpSubtitle') : t('signInSubtitle')}
+              {t('signInSubtitle')}
             </p>
           </div>
 
+          {/* Sign-in / Sign-up tab switcher disabled — landing import only for new accounts.
           <div className="flex rounded-xl bg-surface-warm/80 p-1 border border-surface-border">
             {[
               ['login', t('signIn')],
@@ -233,8 +238,10 @@ export default function AuthForm({ onAuthenticated }) {
               </button>
             ))}
           </div>
+          */}
 
           <div className="space-y-3">
+            {/* Register name fields disabled
             {isRegister && (
               <div className="grid sm:grid-cols-2 gap-3">
                 <label className="block">
@@ -263,6 +270,7 @@ export default function AuthForm({ onAuthenticated }) {
                 </label>
               </div>
             )}
+            */}
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
                 {t('email')}
@@ -284,21 +292,19 @@ export default function AuthForm({ onAuthenticated }) {
                 >
                   {t('password')}
                 </label>
-                {!isRegister && (
-                  <button
-                    type="button"
-                    onClick={() => setForgotOpen(true)}
-                    className="w-fit shrink-0 p-0 text-[10px] font-semibold uppercase tracking-wider text-brand hover:underline"
-                  >
-                    {t('forgotPassword')}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setForgotOpen(true)}
+                  className="w-fit shrink-0 p-0 text-[10px] font-semibold uppercase tracking-wider text-brand hover:underline"
+                >
+                  {t('forgotPassword')}
+                </button>
               </div>
               <div className="relative">
                 <input
                   id="auth-password"
                   type={showPassword ? 'text' : 'password'}
-                  autoComplete={isRegister ? 'new-password' : 'current-password'}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="input-field pr-11"
@@ -335,7 +341,7 @@ export default function AuthForm({ onAuthenticated }) {
               </>
             ) : (
               <>
-                <span className="flex-1 text-left">{isRegister ? t('createAccount') : t('signInCta')}</span>
+                <span className="flex-1 text-left">{t('signInCta')}</span>
                 <span className="text-white/40 mr-4">|</span>
                 <span>→</span>
               </>

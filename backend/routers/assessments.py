@@ -16,6 +16,7 @@ from ..database import is_db_configured
 from ..media_storage import assessment_key, get_media_storage, media_key_from_ref
 from ..photo_validation import validate_required_poses
 from ..ai_access import require_paid_ai_access
+from ..entitlements import require_visual_variant, user_has_flag
 from ..protocol_service import (
     enrich_assessment_nl_content,
     ensure_ai_narrative,
@@ -938,7 +939,8 @@ async def post_assessment_ai_visuals(
     if not is_db_configured():
         raise HTTPException(status_code=503, detail="Database not configured.")
 
-    await require_paid_ai_access(current_user)
+    if not current_user or not current_user.get("id"):
+        raise HTTPException(status_code=401, detail="Authentication required.")
 
     existing = await get_assessment_by_id(assessment_id)
     if not existing:
@@ -951,18 +953,29 @@ async def post_assessment_ai_visuals(
     if not cv_report:
         raise HTTPException(status_code=400, detail="Stored cvReport is required for AI visuals.")
 
-    # Previously required projected AFTER ready + loadable bytes.
-    # projected = existing.get("projectedAfter") or {}
-    # if projected.get("status") != "ready":
-    #     raise HTTPException(
-    #         status_code=400,
-    #         detail="Projected AFTER must be ready before generating AI visuals.",
-    #     )
-    # if not load_projected_full(assessment_id, projected):
-    #     raise HTTPException(
-    #         status_code=400,
-    #         detail="Projected AFTER image could not be loaded.",
-    #     )
+    if req.styleId:
+        existing_ai = existing.get("aiVisuals") or {}
+        existing_variants = existing_ai.get("variants") if isinstance(existing_ai, dict) else None
+        try:
+            variant_type, _ = find_style_by_id(
+                req.styleId,
+                cv_report,
+                existing_variants=existing_variants if isinstance(existing_variants, list) else None,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        require_visual_variant(current_user, variant_type)
+    else:
+        selected = [v for v in (req.variants or []) if v in VARIANT_TYPES]
+        if not selected:
+            selected = list(VARIANT_TYPES)
+        entitled = [v for v in selected if user_has_flag(current_user, f"ai_visuals_{v}")]
+        if not entitled:
+            raise HTTPException(
+                status_code=403,
+                detail="This feature is not included in your package.",
+            )
+        selected = entitled
 
     if not load_pose_bytes(assessment_id, "front"):
         raise HTTPException(
@@ -999,9 +1012,9 @@ async def post_assessment_ai_visuals(
                 style_id=req.styleId,
             )
         else:
-            selected = [v for v in (req.variants or []) if v in VARIANT_TYPES]
             if not selected:
                 selected = list(VARIANT_TYPES)
+                selected = [v for v in selected if user_has_flag(current_user, f"ai_visuals_{v}")]
             existing_ai = existing.get("aiVisuals") or {}
             regenerated = await generate_visual_variants(
                 answers=existing.get("answers") or {},

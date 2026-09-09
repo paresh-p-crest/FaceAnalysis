@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { Link } from '../i18n/navigation'
 import { Loader2, Sparkles } from 'lucide-react'
 import {
   generateAssessmentVisuals,
@@ -15,6 +16,12 @@ import { StandalonePageShell } from './StandalonePageShell'
 import { ReportDocumentLayout } from './report/ReportDocumentLayout'
 import { AI_VISUAL_NAV_GROUPS } from './report/reportNavConfig'
 import { useApp } from './providers/AppProvider'
+import { ROUTES } from '../utils/routes'
+import {
+  filterVisualNavGroups,
+  firstEntitledVisualSection,
+  userHasAnyAiVisuals,
+} from '../utils/entitlements'
 
 /** Standalone `/visuals` — independent of the report modal. */
 export default function AiVisualsPage({ onStartAssessment, user = null }) {
@@ -22,7 +29,8 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
   const tErrors = useTranslations('Errors')
   const tHome = useTranslations('Home')
   const { latestAssessmentEpoch } = useApp()
-  const [activeType, setActiveType] = useState('hair')
+  const visualNavGroups = useMemo(() => filterVisualNavGroups(AI_VISUAL_NAV_GROUPS, user), [user])
+  const [activeType, setActiveType] = useState(() => firstEntitledVisualSection(user, AI_VISUAL_NAV_GROUPS[0]?.items || []))
   const [assessment, setAssessment] = useState(null)
   const [aiVisuals, setAiVisuals] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -32,6 +40,7 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
   const [genError, setGenError] = useState('')
 
   const isAdmin = user?.role === 'admin'
+  const hasVisualsAccess = isAdmin || userHasAnyAiVisuals(user)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -52,6 +61,14 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
   useEffect(() => {
     load()
   }, [load, latestAssessmentEpoch])
+
+  useEffect(() => {
+    if (!visualNavGroups.length) return
+    const allowed = visualNavGroups[0]?.items?.map((item) => item.id) || []
+    if (!allowed.includes(activeType)) {
+      setActiveType(firstEntitledVisualSection(user, visualNavGroups[0]?.items || []))
+    }
+  }, [activeType, user, visualNavGroups])
 
   const assessmentId = assessment?.id || null
   const canGenerate = !!assessmentId && isBackendApiEnabled() && isAdmin
@@ -89,6 +106,27 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
       setRegeneratingStyleId(null)
     }
   }, [assessmentId, applyVisualsUpdate, busy, canGenerate, t])
+
+  if (!hasVisualsAccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center site-navbar-offset bg-surface px-4">
+        <div className="max-w-lg w-full rounded-3xl border border-surface-border bg-white p-8 sm:p-10 text-center shadow-card">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-brand/30 bg-brand/5">
+            <Sparkles className="h-6 w-6 text-brand" />
+          </div>
+          <h1 className="font-serif text-2xl sm:text-3xl text-ink tracking-tight mb-2">
+            {t('title')}
+          </h1>
+          <p className="text-sm text-ink-secondary leading-relaxed mb-6 max-w-md mx-auto">
+            {t('notIncludedInPackage')}
+          </p>
+          <Link href={ROUTES.dashboard} className="btn-primary inline-flex">
+            {t('backToDashboard')}
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -146,7 +184,7 @@ export default function AiVisualsPage({ onStartAssessment, user = null }) {
         <ReportDocumentLayout
           activeId={activeType}
           onSelect={setActiveType}
-          groups={AI_VISUAL_NAV_GROUPS}
+          groups={visualNavGroups}
           tNamespace="AiVisuals"
           titleKey="navTitle"
           defaultOpenGroupId="visuals"

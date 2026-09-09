@@ -234,6 +234,9 @@ AI narrative, protocol generation, AI visuals, and Beauty Assistant were gated b
 - One product tier for report tools once the user is in the app; approval remains the client visibility gate.
 - Assistant hourly rate limits still apply.
 
+### Amendment (2026-09-09)
+Beauty Assistant and AI visuals are add-on-gated again via `users.entitlements` (computed from landing `productId` + `metadata.addons`). Core analysis/report stays with any valid package. Admins bypass entitlement checks. See `backend/entitlements.py` and landing import refresh.
+
 ## ADR-012: One-Shot NL Enrichment in Assessment Pipeline
 Date: 2026-07-10  
 Status: accepted  

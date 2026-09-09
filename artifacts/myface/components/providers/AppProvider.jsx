@@ -593,7 +593,7 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     if (!authReady) return
-    if (user && (pathname === ROUTES.auth || pathname === ROUTES.authReset)) {
+    if (user && (pathname === ROUTES.auth || pathname === ROUTES.authReset || pathname === ROUTES.authSetup)) {
       goTo(dashboardPathForUser(user), { replace: true })
       return
     }

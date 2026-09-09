@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { Link } from '../i18n/navigation'
 import { Bot, Loader2, Sparkles } from 'lucide-react'
 import {
   fetchAssistantConversation,
@@ -13,13 +14,16 @@ import { translateApiError } from '../utils/translateApiError'
 import { ChatAssistant } from './ChatAssistant'
 import { StandalonePageShell } from './StandalonePageShell'
 import { useApp } from './providers/AppProvider'
+import { ROUTES } from '../utils/routes'
+import { userHasEntitlement } from '../utils/entitlements'
 
 /** Standalone `/chat` — full-page assistant, independent of the report modal. */
-export default function ChatAssistantPage({ onStartAssessment }) {
+export default function ChatAssistantPage({ onStartAssessment, user = null }) {
   const t = useTranslations('Assistant')
   const tErrors = useTranslations('Errors')
   const tHome = useTranslations('Home')
   const { latestAssessmentEpoch } = useApp()
+  const hasAssistantAccess = user?.role === 'admin' || userHasEntitlement(user, 'beauty_assistant')
   const [assessment, setAssessment] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -54,6 +58,27 @@ export default function ChatAssistantPage({ onStartAssessment }) {
     if (!assessmentId || !isBackendApiEnabled()) return { messages: [] }
     return sendAssistantMessage(assessmentId, message)
   }, [assessmentId])
+
+  if (!hasAssistantAccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center site-navbar-offset bg-surface px-4">
+        <div className="max-w-lg w-full rounded-3xl border border-surface-border bg-white p-8 sm:p-10 text-center shadow-card">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-brand/30 bg-brand/5">
+            <Bot className="h-6 w-6 text-brand" />
+          </div>
+          <h1 className="font-serif text-2xl sm:text-3xl text-ink tracking-tight mb-2">
+            {t('title')}
+          </h1>
+          <p className="text-sm text-ink-secondary leading-relaxed mb-6 max-w-md mx-auto">
+            {t('notIncludedInPackage')}
+          </p>
+          <Link href={ROUTES.dashboard} className="btn-primary inline-flex">
+            {t('backToDashboard')}
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

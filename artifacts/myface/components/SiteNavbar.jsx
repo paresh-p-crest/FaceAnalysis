@@ -25,6 +25,7 @@ import { ADMIN_TABS, adminTabFromPath, adminTabToPath } from '../utils/adminPane
 import { logoPathForUser, ROUTES } from '../utils/routes'
 import { LocaleSwitcher } from './LocaleSwitcher'
 import { BrandLogo } from './BrandLogo'
+import { userHasAnyAiVisuals, userHasEntitlement } from '../utils/entitlements'
 
 function NavLink({ icon: Icon, label, href, onClick, active, disabled = false, emphasize = false, badge, className = '' }) {
   const classNames = `site-navbar-link ${active ? 'site-navbar-link-active' : ''} ${emphasize ? 'site-navbar-link-emphasis' : ''} ${disabled ? 'site-navbar-link-disabled' : ''} ${className}`
@@ -285,8 +286,8 @@ export function SiteNavbar({
       }))
     }
 
-    // Customer: Report / AI Visuals / Chat — independent routes (/dashboard is home via logo, not nav)
-    return [
+    // Customer: Report / AI Visuals / Chat — gated by landing entitlements
+    const items = [
       {
         key: 'report',
         label: t('report'),
@@ -296,23 +297,28 @@ export function SiteNavbar({
         disabled: false,
         emphasize: false,
       },
-      {
+    ]
+    if (userHasAnyAiVisuals(user)) {
+      items.push({
         key: 'aiVisuals',
         label: t('aiVisuals'),
         icon: Sparkles,
         href: ROUTES.aiVisuals,
         active: pathname === ROUTES.aiVisuals,
         disabled: false,
-      },
-      {
+      })
+    }
+    if (userHasEntitlement(user, 'beauty_assistant')) {
+      items.push({
         key: 'chatAssistant',
         label: t('chatAssistant'),
         icon: MessageCircle,
         href: ROUTES.chat,
         active: pathname === ROUTES.chat,
         disabled: false,
-      },
-    ]
+      })
+    }
+    return items
   }, [
     user,
     isAdmin,

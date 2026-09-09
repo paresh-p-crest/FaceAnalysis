@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field
 from ..ai_access import (
     check_assistant_rate_limit,
     increment_assistant_rate_limit,
-    require_paid_ai_access,
 )
 from ..auth import get_current_user
+from ..entitlements import require_entitlement_flag
 from ..database import is_db_configured
 from ..repositories.assessment_repository import get_assessment_by_id
 from ..repositories.conversation_repository import (
@@ -63,7 +63,7 @@ async def get_assistant_conversation(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    await require_paid_ai_access(current_user)
+    await require_entitlement_flag(current_user, "beauty_assistant")
     await _load_assessment_or_403(assessment_id, current_user)
     conversation = await get_conversation(assessment_id=assessment_id, user_id=current_user["id"])
     return to_json_safe(conversation or {"assessmentId": assessment_id, "messages": []})
@@ -75,7 +75,7 @@ async def post_assistant_message(
     req: AssistantMessageRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    await require_paid_ai_access(current_user)
+    await require_entitlement_flag(current_user, "beauty_assistant")
     await check_assistant_rate_limit(current_user["id"])
 
     assessment = await _load_assessment_or_403(assessment_id, current_user)

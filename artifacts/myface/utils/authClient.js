@@ -39,9 +39,10 @@ async function authRequest(path, body) {
   return data.user
 }
 
-export function register({ firstName, lastName, email, password }) {
-  return authRequest('/api/auth/register', { firstName, lastName, email, password })
-}
+// Public signup disabled — accounts come from landing paid import only.
+// export function register({ firstName, lastName, email, password }) {
+//   return authRequest('/api/auth/register', { firstName, lastName, email, password })
+// }
 
 export function login(email, password) {
   return authRequest('/api/auth/login', { email, password })
@@ -73,6 +74,39 @@ export async function resetPassword({ token, newPassword }) {
   if (!res.ok) {
     const detail = data.detail
     throw new Error(typeof detail === 'string' ? detail : 'Password reset failed')
+  }
+  return data
+}
+
+export async function validateSetupToken(token) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/auth/validate-setup-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const detail = data.detail
+    throw new Error(typeof detail === 'string' ? detail : 'Invalid setup link')
+  }
+  return data
+}
+
+export async function setPasswordAfterImport({ token, newPassword }) {
+  const base = getApiBaseUrl()
+  const res = await fetch(`${base}/api/auth/set-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const detail = data.detail
+    throw new Error(typeof detail === 'string' ? detail : 'Password setup failed')
+  }
+  if (data.token && data.user) {
+    saveSession({ token: data.token, user: data.user })
   }
   return data
 }

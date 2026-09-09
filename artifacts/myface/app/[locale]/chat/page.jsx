@@ -54,5 +54,5 @@ export default function ChatRoutePage() {
     return <AppBootScreen withNavbarOffset />
   }
 
-  return <ChatAssistantPage onStartAssessment={startNewAnalysis} />
+  return <ChatAssistantPage onStartAssessment={startNewAnalysis} user={user} />
 }

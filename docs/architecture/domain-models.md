@@ -22,8 +22,29 @@ Photos, parsing crops, projected AFTER, and `protocol.json` live in media storag
 | `email` | `VARCHAR(320)` UNIQUE | lowercased |
 | `first_name` / `last_name` | `VARCHAR` | |
 | `password_hash` | `TEXT` | never returned by `serialize_user` |
+| `password_setup_pending` | `BOOLEAN` | `true` for landing-imported users until `/api/auth/set-password` |
 | `role` | enum `user_role` | `user` \| `admin` |
+| `entitlements` | `JSONB` | Union of landing package + add-on flags; see below |
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | |
+
+**`entitlements` shape (API `user.entitlements`):**
+```json
+{
+  "packageIds": ["premium"],
+  "addonIds": ["beauty", "color", "express", "hairstyle"],
+  "flags": {
+    "analysis": true,
+    "report": true,
+    "beauty_assistant": true,
+    "ai_visuals_hair": true,
+    "ai_visuals_outfit": true,
+    "ai_visuals_aging": false,
+    "skincare_plan": false,
+    "express_review": true
+  }
+}
+```
+Recomputed on each successful `POST /api/import/myface-session` by unioning all paid `myface_landing` payments for the user. Admins bypass flags in API/UI gates.
 
 Indexes: unique `email`, `role`.
 
@@ -77,8 +98,8 @@ Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolW
 
 ---
 
-## 3. Table: `payments` (Archived / Read-Only, ADR-048)
-*Note: Retained in database schema as an inert archive table. No new payment records are written.*
+## 3. Table: `payments`
+In-app Stripe/PayPal checkout is removed (ADR-048). New rows are written for **landing imports** only: `provider = myface_landing`, `provider_ref` = Stripe PaymentIntent id (`pi_…`). Unique `(provider, provider_ref)`.
 | Column | Type |
 |---|---|
 | `id` | `UUID` PK |
@@ -87,7 +108,7 @@ Same nested shape as before: `cvReport`, `landmarks`, `imagePreview`, `protocolW
 | `provider`, `provider_ref`, `checkout_url`, `plan_id`, `status` | text |
 | `amount_cents` | `INT` |
 | `currency` | `VARCHAR` |
-| `raw` | `JSONB` |
+| `raw` | `JSONB` | landing metadata (`sourceCustomerId`, `orderNumber`, Stripe ids, `packageId`, `addons`, `addonIds`, `effectiveAddonIds`, …) |
 | `created_at` / `updated_at` | `TIMESTAMPTZ` |
 
 ---
@@ -137,6 +158,20 @@ Token-based password reset (SHA-256 hash of raw token; never store plaintext).
 | `token_hash` | `TEXT` | indexed |
 | `expires_at` | `TIMESTAMPTZ` | default TTL 60 min |
 | `used_at` | `TIMESTAMPTZ` nullable | set on successful reset |
+| `created_at` | `TIMESTAMPTZ` | |
+
+---
+
+## 8b. Table: `password_setup_tokens`
+One-time tokens for landing-paid account password setup (`/auth/setup`). Separate from email reset tokens.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `user_id` | `UUID` FK → users CASCADE | |
+| `token_hash` | `TEXT` | indexed |
+| `expires_at` | `TIMESTAMPTZ` | default TTL 15 min |
+| `used_at` | `TIMESTAMPTZ` nullable | set on successful setup |
 | `created_at` | `TIMESTAMPTZ` | |
 
 ---

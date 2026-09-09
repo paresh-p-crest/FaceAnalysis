@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 from typing import Optional
 
+# import asyncio  # only used by disabled public /register welcome email
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
@@ -21,14 +21,19 @@ from ..password_reset_service import (
     hash_reset_token,
     reset_token_expires_at,
 )
+from ..password_setup_service import SETUP_TOKEN_ERROR, hash_setup_token
 from ..repositories.password_reset_repository import (
     create_password_reset_token,
     get_valid_reset_token,
     invalidate_unused_tokens_for_user,
     mark_reset_token_used,
 )
+from ..repositories.password_setup_repository import (
+    get_valid_setup_token,
+    mark_setup_token_used,
+)
 from ..repositories.user_repository import (
-    create_user,
+    # create_user,  # public /register disabled — landing import creates users
     delete_user_and_related_data,
     get_user_by_email,
     get_user_with_password_by_email,
@@ -80,6 +85,15 @@ class ResetPasswordRequest(BaseModel):
     newPassword: str
 
 
+class SetPasswordRequest(BaseModel):
+    token: str
+    newPassword: str
+
+
+class ValidateSetupTokenRequest(BaseModel):
+    token: str
+
+
 def _validate_auth_request(req: AuthRequest) -> tuple[str, str]:
     email = req.email.lower().strip()
     password = req.password
@@ -112,42 +126,46 @@ def _client_ip(request: Request) -> str:
     return "unknown"
 
 
-async def _send_signup_welcome(*, user: dict) -> None:
-    try:
-        await send_email(
-            to=user["email"],
-            template="signup_confirmation",
-            data={
-                "firstName": user.get("firstName") or "",
-                "loginUrl": f"{public_app_url()}/auth",
-            },
-            user_id=user.get("id"),
-        )
-    except Exception as exc:
-        logger.warning("Signup welcome email task failed: %s", exc)
-
-
-@router.post("/register", response_model=AuthResponse)
-async def register(req: RegisterRequest):
-    if not is_db_configured():
-        raise HTTPException(status_code=503, detail="Database not configured")
-    email, password = _validate_auth_request(req)
-    first_name = req.firstName.strip()
-    last_name = req.lastName.strip()
-    if len(first_name) < 1 or len(last_name) < 1:
-        raise HTTPException(status_code=400, detail="First and last name are required")
-    try:
-        user = await create_user(
-            email=email,
-            password_hash=hash_password(password),
-            first_name=first_name,
-            last_name=last_name,
-            role="user",
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    asyncio.create_task(_send_signup_welcome(user=user))
-    return {"token": create_access_token(user), "user": user}
+# Public self-serve signup is disabled. Accounts are created only via
+# landing paid import (POST /api/import/myface-session) or admin bootstrap.
+# Re-enable by uncommenting the blocks below (and AuthForm / authClient.register).
+#
+# async def _send_signup_welcome(*, user: dict) -> None:
+#     try:
+#         await send_email(
+#             to=user["email"],
+#             template="signup_confirmation",
+#             data={
+#                 "firstName": user.get("firstName") or "",
+#                 "loginUrl": f"{public_app_url()}/auth",
+#             },
+#             user_id=user.get("id"),
+#         )
+#     except Exception as exc:
+#         logger.warning("Signup welcome email task failed: %s", exc)
+#
+#
+# @router.post("/register", response_model=AuthResponse)
+# async def register(req: RegisterRequest):
+#     if not is_db_configured():
+#         raise HTTPException(status_code=503, detail="Database not configured")
+#     email, password = _validate_auth_request(req)
+#     first_name = req.firstName.strip()
+#     last_name = req.lastName.strip()
+#     if len(first_name) < 1 or len(last_name) < 1:
+#         raise HTTPException(status_code=400, detail="First and last name are required")
+#     try:
+#         user = await create_user(
+#             email=email,
+#             password_hash=hash_password(password),
+#             first_name=first_name,
+#             last_name=last_name,
+#             role="user",
+#         )
+#     except ValueError as exc:
+#         raise HTTPException(status_code=409, detail=str(exc))
+#     asyncio.create_task(_send_signup_welcome(user=user))
+#     return {"token": create_access_token(user), "user": user}
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -258,11 +276,66 @@ async def reset_password(req: ResetPasswordRequest):
         raise HTTPException(status_code=400, detail=RESET_TOKEN_ERROR)
 
     try:
-        await update_user_password(token_row["userId"], hash_password(new_password))
+        await update_user_password(
+            token_row["userId"],
+            hash_password(new_password),
+            clear_setup_pending=True,
+        )
         await mark_reset_token_used(token_row["id"])
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=RESET_TOKEN_ERROR) from exc
     return {"ok": True}
+
+
+async def _resolve_setup_token_row(raw_token: str) -> Optional[dict]:
+    token = (raw_token or "").strip()
+    if not token:
+        return None
+    token_row = await get_valid_setup_token(hash_setup_token(token))
+    if not token_row:
+        return None
+    user_doc = await get_user_with_password_by_id(token_row["userId"])
+    if not user_doc or not user_doc.get("passwordSetupPending"):
+        return None
+    return token_row
+
+
+@router.post("/validate-setup-token")
+async def validate_setup_token(req: ValidateSetupTokenRequest):
+    """Check a landing setup link before showing the password form."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
+    if not await _resolve_setup_token_row(req.token):
+        raise HTTPException(status_code=400, detail=SETUP_TOKEN_ERROR)
+    return {"ok": True}
+
+
+@router.post("/set-password")
+async def set_password(req: SetPasswordRequest):
+    """Set password after a paid landing import (one-time setup token)."""
+    if not is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
+    new_password = _validate_new_password(req.newPassword)
+    token_row = await _resolve_setup_token_row(req.token)
+    if not token_row:
+        raise HTTPException(status_code=400, detail=SETUP_TOKEN_ERROR)
+
+    try:
+        user = await update_user_password(
+            token_row["userId"],
+            hash_password(new_password),
+            clear_setup_pending=True,
+        )
+        await mark_setup_token_used(token_row["id"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=SETUP_TOKEN_ERROR) from exc
+
+    return {
+        "ok": True,
+        "token": create_access_token(user),
+        "user": user,
+        "redirectTo": "/dashboard",
+    }
 
 
 @router.get("/admin-check")

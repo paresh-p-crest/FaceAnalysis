@@ -1,8 +1,7 @@
 """Auth and rate limits for backend AI endpoints.
 
-AI narrative, protocol, visuals, and Beauty Assistant are available to any
-authenticated user who can access the assessment (same tier as dashboard).
-Report visibility for clients remains gated by admin approval elsewhere.
+AI narrative and protocol remain auth-only. Beauty Assistant and AI visuals
+require matching user entitlements (landing package + add-ons). Admins bypass.
 """
 
 from __future__ import annotations

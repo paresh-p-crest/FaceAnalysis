@@ -51,10 +51,12 @@ def _mount_routers(app: FastAPI) -> None:
     from .routers.assessments import router as assessments_router
     from .routers.assistant import router as assistant_router
     from .routers.auth import router as auth_router
+    from .routers.import_landing import router as import_landing_router
     from .routers.media import router as media_router
     from .routers.notifications import router as notifications_router
 
     app.include_router(auth_router)
+    app.include_router(import_landing_router)
     app.include_router(assessments_router)
     app.include_router(assistant_router)
     app.include_router(media_router)
