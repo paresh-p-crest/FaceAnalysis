@@ -11,8 +11,8 @@ import {
   isBackendApiEnabled,
 } from '../utils/apiClient'
 import {
+  analysisLimitForUser,
   isAnalysisLimitReached,
-  MAX_SUBMITTED_ASSESSMENTS_PER_PACKAGE,
 } from '../utils/assessmentEligibility'
 import { resolveAssessmentFrontPhoto } from '../utils/assessmentPhotos'
 import { isAssessmentSubmitted, userReportReady } from '../utils/reportWorkflow'
@@ -197,7 +197,7 @@ export function CustomerAssessmentGate({
           </h1>
           <p className="text-sm text-ink-secondary leading-relaxed mb-8 max-w-md mx-auto">
             {tLimit('description', {
-              limit: MAX_SUBMITTED_ASSESSMENTS_PER_PACKAGE,
+              limit: analysisLimitForUser(user),
               count: submittedCount,
             })}
           </p>

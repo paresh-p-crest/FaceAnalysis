@@ -76,6 +76,11 @@ class User(Base):
         default=UserRole.user,
     )
     entitlements: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    # Landing identity (myface.de) — not used for login; support / future linking.
+    source_system: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_customer_id: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+    # Duo support: second person email stored for future; login remains payer email only.
+    secondary_email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
@@ -154,6 +159,8 @@ class Payment(Base):
     currency: Mapped[str] = mapped_column(String(8), nullable=False, default="usd")
     plan_id: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    landing_order_id: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+    order_number: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     raw: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)

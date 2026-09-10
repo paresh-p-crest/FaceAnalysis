@@ -5,8 +5,12 @@ All notable changes to this project will be documented in this file. The format 
 ---
 
 ## [Unreleased]
+### Removed
+- **`Landing-App-Integration-TEMP.md`** — superseded by `Landing-Replit-Agent-Brief.md` + implemented import/entitlements; pointers updated.
 ### Added
-- **Package + add-on entitlements** — Landing `productId` + `metadata.addons` normalize into `users.entitlements` (JSONB). Premium auto-includes standard add-ons. Gates Beauty Assistant + AI visuals APIs/nav; admins bypass. Migration `20260909_0008`. See ADR-011 amendment.
+- **Local landing DB + integration test** — `scripts/create_landing_db.py` creates `myface_landing` on localhost Postgres; `project1-LandingPage/.env.example` documents separate landing env; `scripts/test_landing_local_integration.py` exercises Stripe test PI → landing handoff → app import.
+### Changed
+- **Landing local dev** — `syncPaidOrderToApp` / `AppHandoff` allow `http://localhost:3000` redirects in dev; Windows listen fix (`reusePort` off); `cross-env` dev scripts; missing `nanoid` dep added; Vite dev no longer exits on missing `attached_assets`.
 ### Fixed
 - **`/auth/setup` token gate** — Page validates the setup token with `POST /api/auth/validate-setup-token` before showing the password form; visits without a valid link see an error instead of an open form. Fixed race where stripping `?token=` from the URL re-ran the effect and falsely showed “invalid or expired” after a successful validate.
 ### Changed
@@ -16,7 +20,6 @@ All notable changes to this project will be documented in this file. The format 
 ### Added
 - **Replit landing handoff brief** — `Landing-Replit-Agent-Brief.md` for finishing myface.de → app import (PaymentIntent `pi_…`, confirmation poll, UI language must match existing landing locale/tone).
 - **Landing import receiver** — `POST /api/import/myface-session` (bearer `MYFACE_IMPORT_SECRET`, idempotency `pi_…`), `password_setup_tokens`, `users.password_setup_pending`, unique `payments (provider, provider_ref)`, `POST /api/auth/set-password`, `/auth/setup` page, sample payload `scripts/landing_import_sample.json`, tests `test_landing_import.py`.
-- **Landing → app integration TEMP note** — `Landing-App-Integration-TEMP.md` maps the live `myface.de` PaymentIntent checkout onto `/api/import/myface-session` using `pi_…` (no Checkout Session migration). Locked: payer-only duo, `packageId` → `plan_id`. Refunds remain an open question. §4 end-to-end flow; §14 app finish plan. Pointer from `Landing-Account-Import-API.md`.
 - **HTML A4 type shrink on overflow** — Overflowing preview sheets only (`data-page-type-fit`) get `--page-type-scale` / `--page-heading-scale` (headings a bit faster when scale < 1; floor 0.72). Non-overflow sheets keep the same 26px titles as before; `headingScaleFor(1)` is 1 so fit no longer writes 0.92 on every page. Detect overflow via content height with clip lifted. English skin phase copy unchanged. PDF export unchanged.
 - **Skin-heuristic facial age** — `metrics.visualAge` (+ `visualAgeSource: skin-heuristic`) from default base 28 + skin `roughnessRin` / under-eye darkness after LAB (`backend/visual_age.py`). Questionnaire `ageRange` only soft-clamps to midpoint ±8 (does not set the base). Written on front CV into `analysis` and on projected AFTER CV into `projected_analysis`. Neutral RIN 0.11. Replaces hardcoded 28.
 ### Changed

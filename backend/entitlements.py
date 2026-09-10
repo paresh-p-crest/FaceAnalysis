@@ -15,6 +15,14 @@ VALID_ADDON_IDS = frozenset(
 )
 PREMIUM_STANDARD_ADDONS = ("color", "beauty", "hairstyle", "express")
 
+# Analyse / Premium: 1 submitted analysis. Duo: 2 (household account, shared login).
+PACKAGE_ANALYSIS_SLOTS = {
+    "analyse": 1,
+    "premium": 1,
+    "duo": 2,
+}
+DEFAULT_ANALYSIS_SLOTS = 1
+
 ADDON_TO_FLAGS: dict[str, tuple[str, ...]] = {
     "beauty": ("beauty_assistant",),
     "color": ("ai_visuals_outfit",),
@@ -47,8 +55,41 @@ def empty_entitlements() -> dict[str, Any]:
     return {
         "packageIds": [],
         "addonIds": [],
+        "analysisSlots": DEFAULT_ANALYSIS_SLOTS,
         "flags": {flag: False for flag in ALL_FLAGS},
     }
+
+
+def full_entitlements(*, reason: str = "incomplete_package_info") -> dict[str, Any]:
+    """Temporary permissive unlock when package/add-on details are missing."""
+    return {
+        "packageIds": [],
+        "addonIds": sorted(VALID_ADDON_IDS),
+        "analysisSlots": PACKAGE_ANALYSIS_SLOTS["duo"],
+        "incompletePackageInfo": True,
+        "incompleteReason": reason,
+        "flags": {flag: True for flag in ALL_FLAGS},
+    }
+
+
+def analysis_slots_for_packages(package_ids: Iterable[str]) -> int:
+    slots = DEFAULT_ANALYSIS_SLOTS
+    for pid in package_ids:
+        slots = max(slots, PACKAGE_ANALYSIS_SLOTS.get(pid, DEFAULT_ANALYSIS_SLOTS))
+    return slots
+
+
+def max_analysis_slots_for_user(user: dict | None) -> int:
+    """Resolve submitted-assessment cap from user entitlements."""
+    if not user:
+        return DEFAULT_ANALYSIS_SLOTS
+    if user.get("role") == "admin":
+        return 10_000
+    ents = user.get("entitlements") or {}
+    raw_slots = ents.get("analysisSlots")
+    if isinstance(raw_slots, int) and raw_slots > 0:
+        return raw_slots
+    return analysis_slots_for_packages(ents.get("packageIds") or [])
 
 
 def normalize_addon_ids(raw: Any) -> list[str]:
@@ -82,7 +123,11 @@ def normalize_addon_ids(raw: Any) -> list[str]:
 
 
 def effective_addon_ids(product_id: str, normalized_addon_ids: Iterable[str]) -> list[str]:
-    """Apply package rules (Premium auto-includes standard checkout add-ons)."""
+    """Apply package rules (Premium auto-includes standard checkout add-ons).
+
+    Duo is treated like Analyse for add-ons: only explicitly sent add-ons apply
+    (no auto-expansion). Landing should send purchased add-ons when present.
+    """
     effective = set(normalized_addon_ids)
     if product_id == "premium":
         effective.update(PREMIUM_STANDARD_ADDONS)
@@ -99,6 +144,7 @@ def entitlements_from_effective(product_id: str, effective: Iterable[str]) -> di
     return {
         "packageIds": [product_id],
         "addonIds": sorted(set(effective)),
+        "analysisSlots": PACKAGE_ANALYSIS_SLOTS.get(product_id, DEFAULT_ANALYSIS_SLOTS),
         "flags": flags,
     }
 
@@ -112,32 +158,54 @@ def merge_entitlements(*ents: dict[str, Any]) -> dict[str, Any]:
     package_ids: set[str] = set()
     addon_ids: set[str] = set()
     flags = {flag: False for flag in ALL_FLAGS}
+    slots = DEFAULT_ANALYSIS_SLOTS
+    incomplete = False
+    incomplete_reason = None
     for ent in ents:
         if not ent:
             continue
         package_ids.update(ent.get("packageIds") or [])
         addon_ids.update(ent.get("addonIds") or [])
+        raw_slots = ent.get("analysisSlots")
+        if isinstance(raw_slots, int) and raw_slots > 0:
+            slots = max(slots, raw_slots)
+        if ent.get("incompletePackageInfo"):
+            incomplete = True
+            incomplete_reason = ent.get("incompleteReason") or incomplete_reason
         for flag, enabled in (ent.get("flags") or {}).items():
             if enabled:
                 flags[flag] = True
-    return {
+    slots = max(slots, analysis_slots_for_packages(package_ids))
+    out: dict[str, Any] = {
         "packageIds": sorted(package_ids),
         "addonIds": sorted(addon_ids),
+        "analysisSlots": slots,
         "flags": flags,
     }
+    if incomplete:
+        out["incompletePackageInfo"] = True
+        if incomplete_reason:
+            out["incompleteReason"] = incomplete_reason
+    return out
 
 
 def entitlements_from_payment(*, plan_id: str, raw: dict[str, Any] | None) -> dict[str, Any] | None:
     """Build entitlements for one paid landing payment row."""
-    product_id = (raw or {}).get("packageId") or plan_id
-    if product_id not in VALID_PACKAGE_IDS:
-        return None
-    effective = (raw or {}).get("effectiveAddonIds")
+    raw = raw or {}
+    if raw.get("incompletePackageInfo"):
+        return full_entitlements(reason=str(raw.get("incompleteReason") or "incomplete_package_info"))
+
+    product_id = raw.get("packageId") or plan_id
+    if not product_id or product_id not in VALID_PACKAGE_IDS:
+        # Paid import without a usable package → temporary full unlock.
+        return full_entitlements(reason="missing_or_unknown_package")
+
+    effective = raw.get("effectiveAddonIds")
     if isinstance(effective, list) and effective:
         return entitlements_from_effective(product_id, effective)
-    addon_ids = (raw or {}).get("addonIds")
+    addon_ids = raw.get("addonIds")
     if not isinstance(addon_ids, list):
-        meta = (raw or {}).get("metadata") or {}
+        meta = raw.get("metadata") or {}
         addon_ids = normalize_addon_ids(meta.get("addons"))
     return entitlements_from_package_and_addons(product_id, addon_ids or [])
 

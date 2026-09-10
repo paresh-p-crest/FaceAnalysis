@@ -6,9 +6,9 @@ import { CreditCard, Loader2, Upload } from 'lucide-react'
 import { Link, useRouter } from '../../i18n/navigation'
 import { fetchMyAssessmentDraft, fetchMyAssessmentsWithQuota, isBackendApiEnabled } from '../../utils/apiClient'
 import {
+  analysisLimitForUser,
   canStartNewAssessment,
   isAnalysisLimitReached,
-  MAX_SUBMITTED_ASSESSMENTS_PER_PACKAGE,
 } from '../../utils/assessmentEligibility'
 import { isAssessmentSubmitted } from '../../utils/reportWorkflow'
 import { adminTabToPath } from '../../utils/adminPanel'
@@ -148,7 +148,7 @@ export function AnalysisEligibilityGate({
           </h1>
           <p className="text-sm text-ink-secondary leading-relaxed mb-8 max-w-md mx-auto">
             {tLimit('description', {
-              limit: MAX_SUBMITTED_ASSESSMENTS_PER_PACKAGE,
+              limit: analysisLimitForUser(user),
               count: submittedCount,
             })}
           </p>
