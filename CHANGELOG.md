@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file. The format 
 ### Changed
 - **Landing local dev** — `syncPaidOrderToApp` / `AppHandoff` allow `http://localhost:3000` redirects in dev; Windows listen fix (`reusePort` off); `cross-env` dev scripts; missing `nanoid` dep added; Vite dev no longer exits on missing `attached_assets`.
 ### Fixed
+- **Beauty Assistant 500 on entitled users** — `GET`/`POST .../assistant` no longer `await` sync `require_entitlement_flag` (returned `None` → `TypeError`). Entitled users (e.g. Premium with `beauty_assistant`) reach the agent instead of ASGI 500.
 - **`/auth/setup` token gate** — Page validates the setup token with `POST /api/auth/validate-setup-token` before showing the password form; visits without a valid link see an error instead of an open form. Fixed race where stripping `?token=` from the URL re-ran the effect and falsely showed “invalid or expired” after a successful validate.
 ### Changed
 - **Landing import metadata + no landing schema** — Import accepts optional `metadata` / order packageName + landingOrderId into `payments.raw`; fingerprint ignores metadata so confirmation can re-call import safely without new landing DB columns. Replit brief updated.

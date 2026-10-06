@@ -63,7 +63,7 @@ async def get_assistant_conversation(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    await require_entitlement_flag(current_user, "beauty_assistant")
+    require_entitlement_flag(current_user, "beauty_assistant")
     await _load_assessment_or_403(assessment_id, current_user)
     conversation = await get_conversation(assessment_id=assessment_id, user_id=current_user["id"])
     return to_json_safe(conversation or {"assessmentId": assessment_id, "messages": []})
@@ -75,7 +75,7 @@ async def post_assistant_message(
     req: AssistantMessageRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    await require_entitlement_flag(current_user, "beauty_assistant")
+    require_entitlement_flag(current_user, "beauty_assistant")
     await check_assistant_rate_limit(current_user["id"])
 
     assessment = await _load_assessment_or_403(assessment_id, current_user)
